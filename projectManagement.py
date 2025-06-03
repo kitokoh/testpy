@@ -136,6 +136,110 @@ class DatabaseManager:
     def get_connection(self):
         return sqlite3.connect(self.db_name)
 
+class NotificationManager:
+    def __init__(self, parent_window, db_manager):
+        self.parent_window = parent_window
+        self.db_manager = db_manager
+        self.timer = QTimer(parent_window)
+
+    def setup_timer(self, interval_ms=300000):  # Default 5 minutes
+        self.timer.timeout.connect(self.check_notifications)
+        self.timer.start(interval_ms)
+        print(f"Notification timer started with interval: {interval_ms}ms") # For debugging
+
+    def check_notifications(self):
+        print(f"Checking notifications at {datetime.now()}") # For debugging
+        notifications_found = []
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Urgent Projects: priority = 'high' and status NOT IN ('completed', 'archived', 'deleted')
+                cursor.execute("""
+                    SELECT id, name FROM projects
+                    WHERE priority = 'high' AND status NOT IN ('completed', 'archived', 'deleted')
+                """)
+                urgent_projects = cursor.fetchall()
+                for p_id, name in urgent_projects:
+                    notifications_found.append({
+                        "title": "Urgent Project Reminder",
+                        "message": f"Project '{name}' (ID: {p_id}) is marked as high priority and requires attention.",
+                        "project_id": p_id
+                    })
+
+                # Tasks Nearing Deadline: priority = 'high' and status NOT IN ('completed', 'deleted') and deadline within next 3 days
+                three_days_later = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
+                today_str = datetime.now().strftime('%Y-%m-%d')
+                cursor.execute("""
+                    SELECT t.id, t.name, p.name AS project_name, t.deadline
+                    FROM tasks t
+                    JOIN projects p ON t.project_id = p.id
+                    WHERE t.priority = 'high' AND t.status NOT IN ('completed', 'deleted')
+                    AND t.deadline >= ? AND t.deadline <= ?
+                """, (today_str, three_days_later))
+                tasks_nearing_deadline_high_priority = cursor.fetchall()
+                for t_id, name, project_name, deadline in tasks_nearing_deadline_high_priority:
+                    notifications_found.append({
+                        "title": "High Priority Task Nearing Deadline",
+                        "message": f"Task '{name}' for project '{project_name}' (Deadline: {deadline}) is high priority and approaching its deadline.",
+                        "task_id": t_id
+                    })
+
+                # Overdue Projects: deadline passed and status NOT IN ('completed', 'archived', 'deleted')
+                cursor.execute("""
+                    SELECT id, name, deadline FROM projects
+                    WHERE deadline < ? AND status NOT IN ('completed', 'archived', 'deleted')
+                """, (today_str,))
+                overdue_projects = cursor.fetchall()
+                for p_id, name, deadline in overdue_projects:
+                    notifications_found.append({
+                        "title": "Overdue Project Alert",
+                        "message": f"Project '{name}' (ID: {p_id}) was due on {deadline} and is not completed or archived.",
+                        "project_id": p_id
+                    })
+
+                # Overdue Tasks: deadline passed and status NOT IN ('completed', 'deleted')
+                cursor.execute("""
+                    SELECT t.id, t.name, p.name AS project_name, t.deadline
+                    FROM tasks t
+                    JOIN projects p ON t.project_id = p.id
+                    WHERE t.deadline < ? AND t.status NOT IN ('completed', 'deleted')
+                """, (today_str,))
+                overdue_tasks = cursor.fetchall()
+                for t_id, name, project_name, deadline in overdue_tasks:
+                    notifications_found.append({
+                        "title": "Overdue Task Alert",
+                        "message": f"Task '{name}' for project '{project_name}' was due on {deadline} and is not completed.",
+                        "task_id": t_id
+                    })
+
+        except sqlite3.Error as e:
+            print(f"Error checking notifications: {e}")
+            # Optionally show a subtle error to the user or log it more formally
+            # self.show_notification("Notification System Error", f"Could not check for notifications: {e}")
+            return # Stop processing if DB error
+
+        if notifications_found:
+            print(f"Found {len(notifications_found)} notifications.") # For debugging
+            for notification in notifications_found:
+                self.show_notification(
+                    notification["title"],
+                    notification["message"],
+                    notification.get("project_id"),
+                    notification.get("task_id")
+                )
+        else:
+            print("No new notifications.") # For debugging
+
+
+    def show_notification(self, title, message, project_id=None, task_id=None):
+        # In a real application, you might want to make these notifications less intrusive
+        # or allow users to click them to navigate to the item.
+        # For now, a simple QMessageBox.
+        print(f"Showing notification: {title} - {message}") # For debugging
+        QMessageBox.information(self.parent_window, title, message)
+
+
 class MainDashboard(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -159,6 +263,10 @@ class MainDashboard(QMainWindow):
 
         self.init_ui()
         self.load_initial_data()
+
+        # Notification System Initialization
+        self.notification_manager = NotificationManager(self, self.db) # self.db is DatabaseManager instance
+        self.notification_manager.setup_timer() # Default interval is 5 minutes
 
     def module_closed(self, module_id):
         """Clean up after module closure"""
@@ -767,7 +875,7 @@ class MainDashboard(QMainWindow):
         self.project_search.textChanged.connect(self.filter_projects)
 
         self.status_filter_proj = QComboBox()
-        self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed"])
+        self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
         self.status_filter_proj.setStyleSheet("""
             QComboBox {
                 padding: 8px;
@@ -1791,9 +1899,13 @@ class MainDashboard(QMainWindow):
         priority_filter = self.priority_filter.currentText()
 
         for row in range(self.projects_table.rowCount()):
-            name = self.projects_table.item(row, 0).text().lower()
-            status = self.projects_table.item(row, 1).text()
-            priority = self.projects_table.item(row, 3).text()
+            name_item = self.projects_table.item(row, 0)
+            status_item = self.projects_table.item(row, 1)
+            priority_item = self.projects_table.item(row, 3)
+
+            name = name_item.text().lower() if name_item else ""
+            status = status_item.text() if status_item else ""
+            priority = priority_item.text() if priority_item else ""
 
             name_match = search_text in name
             status_match = status_filter == "All Statuses" or status == status_filter
@@ -1851,7 +1963,7 @@ class MainDashboard(QMainWindow):
 
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT name, progress FROM projects WHERE status != 'completed' AND status != 'deleted' ORDER BY progress DESC")
+            cursor.execute("SELECT name, progress FROM projects WHERE status NOT IN ('completed', 'deleted', 'archived') ORDER BY progress DESC")
             projects = cursor.fetchall()
 
             names = [p[0] for p in projects]
@@ -2385,7 +2497,8 @@ class MainDashboard(QMainWindow):
 
         name_edit = QLineEdit()
         desc_edit = QTextEdit()
-        desc_edit.setPlaceholderText("Project description...")
+        desc_edit.setPlaceholderText("Project description, including notes on key documents or links...")
+        desc_edit.setMinimumHeight(100)
 
         start_date = QDateEdit(QDate.currentDate())
         start_date.setCalendarPopup(True)
@@ -2399,7 +2512,7 @@ class MainDashboard(QMainWindow):
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        status_combo.addItems(["Planning", "In Progress", "Late", "Completed"])
+        status_combo.addItems(["Planning", "In Progress", "Late", "Completed", "Archived"])
 
         priority_combo = QComboBox()
         priority_combo.addItems(["High", "Medium", "Low"])
@@ -2473,7 +2586,8 @@ class MainDashboard(QMainWindow):
 
                 name_edit = QLineEdit(project[0])
                 desc_edit = QTextEdit(project[1] if project[1] else "")
-                desc_edit.setPlaceholderText("Project description...")
+                desc_edit.setPlaceholderText("Project description, including notes on key documents or links...")
+                desc_edit.setMinimumHeight(100)
 
                 start_date = QDateEdit(QDate.fromString(project[2], "yyyy-MM-dd"))
                 start_date.setCalendarPopup(True)
@@ -2487,12 +2601,13 @@ class MainDashboard(QMainWindow):
                 budget_spin.setValue(project[4])
 
                 status_combo = QComboBox()
-                status_combo.addItems(["Planning", "In Progress", "Late", "Completed"])
+                status_combo.addItems(["Planning", "In Progress", "Late", "Completed", "Archived"])
                 status_map = {
                     "planning": "Planning",
                     "in_progress": "In Progress",
                     "late": "Late",
-                    "completed": "Completed"
+                    "completed": "Completed",
+                    "archived": "Archived"
                 }
                 status_combo.setCurrentText(status_map.get(project[5], "Planning"))
 
