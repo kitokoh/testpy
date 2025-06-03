@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 
 from PyQt5.QtCore import (Qt, QSize, QPoint, QRect, QTimer, QPropertyAnimation, 
                           QEasingCurve, QByteArray, QBuffer, QIODevice, pyqtSignal, 
-                          QEvent, QRegExp, QSettings, QUrl, QPointF, QRectF, QLineF)
+                          QEvent, QRegExp, QSettings, QUrl, QPointF, QRectF, QLineF, pyqtProperty)
 
 from PyQt5.QtGui import (QFont, QPixmap, QPalette, QColor, QIcon, QLinearGradient, 
                          QPainter, QBrush, QPen, QFontDatabase, QMovie, QImage, QPainterPath,
@@ -44,6 +44,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.graphics.shapes import Line, Drawing
 from reportlab.graphics.barcode import code128, qr
 from reportlab.graphics import renderPDF
+import io # Added for io.BytesIO
+
+# Define APP_ROOT_DIR for font path resolution
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # PyInstaller creates a temp folder and stores path in _MEIPASS
+    APP_ROOT_DIR = sys._MEIPASS
+else:
+    APP_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Global configuration (can be overridden by user preferences or template settings)
 APP_CONFIG: Dict[str, Any] = {
@@ -323,6 +331,7 @@ class AnimatedButton(QPushButton):
         super().__init__(text, parent)
         self.style_type = style_type
         self.icon_path = icon_path
+        self._effect_strength_val = 0.0  # Store the actual property value
         self._animation = QPropertyAnimation(self, b"effect_strength", self)
         self._animation.setDuration(150)
         self._effect = QGraphicsDropShadowEffect(self)
@@ -396,23 +405,24 @@ class AnimatedButton(QPushButton):
                 QPushButton:pressed {{ background-color: #dae0e5; }}
             """)
 
-    def get_effect_strength(self):
-        return self._effect.blurRadius()
+    def _get_effect_strength(self):
+        return self._effect_strength_val
 
-    def set_effect_strength(self, strength):
-        self._effect.setBlurRadius(strength)
-        self._effect.setColor(QColor(0,0,0, int(strength*5)))
+    def _set_effect_strength(self, value: float):
+        self._effect_strength_val = value
+        self._effect.setBlurRadius(self._effect_strength_val) # Use the stored value
+        self._effect.setColor(QColor(0,0,0, int(self._effect_strength_val*5))) # Use the stored value
 
-    effect_strength = pyqtSignal(float) # Correct way to declare property
+    effect_strength = pyqtProperty(float, _get_effect_strength, _set_effect_strength)
 
     def enterEvent(self, event: QEvent):
-        self._animation.setStartValue(self.get_effect_strength())
+        self._animation.setStartValue(self.effect_strength) # Use property getter
         self._animation.setEndValue(10)
         self._animation.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event: QEvent):
-        self._animation.setStartValue(self.get_effect_strength())
+        self._animation.setStartValue(self.effect_strength) # Use property getter
         self._animation.setEndValue(0)
         self._animation.start()
         super().leaveEvent(event)
@@ -1746,6 +1756,44 @@ class CoverPageGenerator(QMainWindow):
         pdf_config = self._collect_config_for_pdf()
         buffer = QBuffer() # Use QBuffer for easier integration with QByteArray
         buffer.open(QIODevice.ReadWrite)
+
+        # --- Register Fonts ---
+        # Arial
+        try:
+            arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
+            if os.path.exists(arial_path):
+                pdfmetrics.registerFont(TTFont('Arial', arial_path))
+            else:
+                print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
+        except Exception as e:
+            print(f"Error registering Arial font: {e}")
+
+        # Arial Bold
+        try:
+            arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
+            if os.path.exists(arial_bold_path):
+                pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
+            else:
+                print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
+        except Exception as e:
+            print(f"Error registering Arial Bold font: {e}")
+
+        # Showcard Gothic
+        try:
+            showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
+            if not os.path.exists(showcard_path): # Try alternate name
+                showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
+                if os.path.exists(showcard_path_alt):
+                    showcard_path = showcard_path_alt
+
+            if os.path.exists(showcard_path):
+                pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
+                print(f"Successfully registered Showcard Gothic from {showcard_path}")
+            else:
+                print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
+        except Exception as e:
+            print(f"Error registering Showcard Gothic font: {e}")
+        # --- End Font Registration ---
         
         # Use the CLI PDF generator class, but instantiated, not as a class method
         # This assumes PDFCoverPageGenerator_CLI is the class name for the CLI version.
@@ -1908,8 +1956,8 @@ class CoverPageGenerator(QMainWindow):
         pass
 
     def closeEvent(self, event: QEvent):
-        # self.save_state() 
-        reply = QMessageBox.question(self, self.translator.tr("&Quitter"), 
+        # self.save_state()
+        reply = QMessageBox.question(self, self.translator.tr("&Quitter"),
                                      self.translator.tr("Êtes-vous sûr de vouloir quitter?"),
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if reply == QMessageBox.Yes:
@@ -1928,6 +1976,199 @@ class CoverPageGenerator(QMainWindow):
                           <p><a href='https://example.com'>Visitez notre site web</a>
                           """)
                           )
+
+# --- Standalone PDF Generation Logic ---
+def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
+    """
+    Generates a cover page PDF based on the provided configuration dictionary.
+
+    Args:
+        config (Dict[str, Any]): A dictionary containing parameters for PDF generation.
+            Expected keys include:
+            - 'title' (str): Main title of the document.
+            - 'subtitle' (str, optional): Subtitle of the document.
+            - 'author' (str, optional): Author's name.
+            - 'institution' (str, optional): Institution name.
+            - 'department' (str, optional): Department name.
+            - 'doc_type' (str, optional): Type of document (e.g., "Report").
+            - 'date' (str, optional): Date string.
+            - 'version' (str, optional): Version string.
+            - 'font_name' (str, optional): Default font name (e.g., 'Arial', 'Helvetica'). Defaults to 'Helvetica'.
+            - 'font_size_title' (int, optional): Font size for the title. Defaults to 24.
+            - 'font_size_subtitle' (int, optional): Font size for the subtitle. Defaults to 18.
+            - 'font_size_author' (int, optional): Font size for author/institution. Defaults to 12.
+            - 'font_size_footer' (int, optional): Font size for footer text. Defaults to 8 or 10.
+            - 'text_color' (str, optional): Main text color (e.g., '#000000'). Not fully implemented for all elements yet.
+            - 'logo_data' (bytes, optional): Byte data of the logo image.
+            - 'logo_width_mm' (int, optional): Width of the logo in mm. Defaults to 50.
+            - 'logo_height_mm' (int, optional): Max height of the logo in mm. Defaults to 50.
+            - 'logo_x_mm' (int, optional): X position of the logo in mm.
+            - 'logo_y_mm' (int, optional): Y position of the logo in mm.
+            - 'show_horizontal_line' (bool, optional): Whether to show a horizontal line. Defaults to True.
+            - 'line_y_position_mm' (int, optional): Y position of the horizontal line in mm.
+            - 'line_color_hex' (str, optional): Color of the line in hex (e.g., '#000000').
+            - 'line_thickness_pt' (float, optional): Thickness of the line in points.
+            - 'margin_top' (int, optional): Top margin in mm. Defaults to 25.
+            - 'margin_bottom' (int, optional): Bottom margin in mm. Defaults to 25.
+            - 'margin_left' (int, optional): Left margin in mm. Defaults to 20.
+            - 'margin_right' (int, optional): Right margin in mm. Defaults to 20.
+            - 'footer_text' (str, optional): Text for the footer.
+            - 'template_style' (str, optional): Style hint (e.g., 'Modern'). Currently not heavily used by this basic logic.
+
+
+    Returns:
+        bytes: The generated PDF as a byte string.
+
+    Raises:
+        Exception: If any error occurs during PDF generation.
+    """
+    buffer = io.BytesIO()
+
+    # --- Register Fonts (copied from original generate_pdf_to_buffer) ---
+    # This section should ideally be managed globally or passed if fonts are pre-registered.
+    # For now, keeping it here to ensure the logic is self-contained.
+    # Arial
+    try:
+        arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
+        if os.path.exists(arial_path):
+            pdfmetrics.registerFont(TTFont('Arial', arial_path))
+        else:
+            print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
+    except Exception as e:
+        print(f"Error registering Arial font: {e}")
+
+    # Arial Bold
+    try:
+        arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
+        if os.path.exists(arial_bold_path):
+            pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
+        else:
+            print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
+    except Exception as e:
+        print(f"Error registering Arial Bold font: {e}")
+
+    # Showcard Gothic
+    try:
+        showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
+        if not os.path.exists(showcard_path): # Try alternate name
+            showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
+            if os.path.exists(showcard_path_alt):
+                showcard_path = showcard_path_alt
+
+        if os.path.exists(showcard_path):
+            pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
+            print(f"Successfully registered Showcard Gothic from {showcard_path}")
+        else:
+            print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
+    except Exception as e:
+        print(f"Error registering Showcard Gothic font: {e}")
+    # --- End Font Registration ---
+
+    c = reportlab_canvas.Canvas(buffer, pagesize=A4)
+
+    # Use values from the config dictionary
+    # Example: Using config.get('key', default_value) pattern
+
+    # Title
+    title_font_name = config.get("font_name", "Helvetica") # Default to Helvetica if not specified
+    title_font_size = config.get("font_size_title", 24)
+    c.setFont(title_font_name, title_font_size)
+
+    title_y = A4[1] - config.get("margin_top", 25) * mm - 30 * mm # Example y position
+    if config.get("title"):
+        c.drawCentredString(A4[0] / 2, title_y, config.get("title"))
+
+    # Subtitle
+    subtitle_font_name = config.get("font_name", "Helvetica") # Could be different, e.g., config.get("font_name_subtitle")
+    subtitle_font_size = config.get("font_size_subtitle", 18)
+    if config.get("subtitle"):
+        c.setFont(subtitle_font_name, subtitle_font_size)
+        title_y -= 15 * mm # Adjust Y position
+        c.drawCentredString(A4[0] / 2, title_y, config.get("subtitle"))
+
+    # Author
+    author_font_name = config.get("font_name", "Helvetica") # config.get("font_name_author")
+    author_font_size = config.get("font_size_author", 12)
+    if config.get("author"):
+        c.setFont(author_font_name, author_font_size)
+        author_y = A4[1] / 2  # Example position, make configurable via config
+        c.drawCentredString(A4[0] / 2, author_y, config.get("author"))
+
+    # Institution (similar to author)
+    if config.get("institution"):
+        c.setFont(author_font_name, author_font_size) # Assuming same font as author for now
+        institution_y = author_y - 10 * mm # Adjust as needed
+        c.drawCentredString(A4[0] / 2, institution_y, config.get("institution"))
+
+    # Department (similar to institution)
+    if config.get("department"):
+        c.setFont(author_font_name, author_font_size)
+        department_y = institution_y - 7*mm
+        c.drawCentredString(A4[0]/2, department_y, config.get("department"))
+
+    # Document Type
+    if config.get("doc_type"):
+        c.setFont(author_font_name, author_font_size) # Assuming same font
+        doc_type_y = department_y - 15*mm # Adjust
+        c.drawCentredString(A4[0]/2, doc_type_y, config.get("doc_type"))
+
+    # Date & Version (typically at bottom or specific locations)
+    date_version_font_name = config.get("font_name", "Helvetica")
+    date_version_font_size = config.get("font_size_footer", 10) # Example, use a specific size
+    c.setFont(date_version_font_name, date_version_font_size)
+
+    date_text = config.get("date", "")
+    version_text = config.get("version", "")
+
+    if date_text:
+        c.drawString(config.get("margin_left", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Date: {date_text}")
+    if version_text:
+        c.drawRightString(A4[0] - config.get("margin_right", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Version: {version_text}")
+
+
+    # Logo
+    if config.get("logo_data"):
+        try:
+            logo_buffer = io.BytesIO(config.get("logo_data")) # ReportLab ImageReader needs a file-like object
+            logo_image = ImageReader(logo_buffer)
+
+            # Positioning and sizing from config, with defaults
+            logo_width_mm = config.get("logo_width_mm", 50)
+            logo_height_mm = config.get("logo_height_mm", 50) # Not used directly if preserveAspectRatio=True for drawImage
+
+            # Default to top center if not specified
+            default_logo_x_mm = (A4[0]/mm - logo_width_mm) / 2
+            default_logo_y_mm = A4[1]/mm - config.get("margin_top", 25) - logo_width_mm - 10 # above title typically
+
+            logo_x_mm = config.get("logo_x_mm", default_logo_x_mm)
+            logo_y_mm = config.get("logo_y_mm", default_logo_y_mm)
+
+            c.drawImage(logo_image, logo_x_mm * mm, logo_y_mm * mm,
+                        width=logo_width_mm * mm, height=logo_height_mm*mm, # height is max_height with preserveAspectRatio
+                        preserveAspectRatio=True, anchor='c', mask='auto')
+        except Exception as logo_e:
+            print(f"Error drawing logo in PDF (logic function): {logo_e}", file=sys.stderr)
+            # Optionally draw a placeholder or skip
+
+    # Horizontal Line
+    if config.get("show_horizontal_line", True):
+        line_y_mm = config.get("line_y_position_mm", A4[1]/mm / 2 + 20*mm) # Example position
+        line_color_hex = config.get("line_color_hex", "#000000")
+        line_thickness_pt = config.get("line_thickness_pt", 0.5)
+
+        c.setStrokeColor(HexColor(line_color_hex))
+        c.setLineWidth(line_thickness_pt)
+        c.line(config.get("margin_left", 20)*mm, line_y_mm*mm, A4[0] - config.get("margin_right", 20)*mm, line_y_mm*mm)
+
+    # Footer text (example)
+    if config.get("footer_text"):
+        c.setFont(date_version_font_name, config.get("font_size_footer", 8))
+        c.drawCentredString(A4[0]/2, config.get("margin_bottom", 25)*mm / 2, config.get("footer_text"))
+
+    c.save()
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
 
 
 # --- Main Execution ---
