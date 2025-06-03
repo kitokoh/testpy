@@ -27,6 +27,7 @@ from reportlab.pdfgen import canvas
 import io
 from PyQt5.QtWidgets import QDoubleSpinBox
 from excel_editor import ExcelEditor
+from html_editor import HtmlEditor # Added import for HtmlEditor
 from PyQt5.QtWidgets import QBoxLayout
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
 from docx import Document # Added for .docx support
@@ -330,7 +331,7 @@ class TemplateDialog(QDialog):
             self,
             "Sélectionner un modèle",
             CONFIG["templates_dir"],
-            "Fichiers Modèles (*.xlsx *.docx);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Tous les fichiers (*)"
+            "Fichiers Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)"
         )
         if not file_path: return
             
@@ -581,11 +582,27 @@ class CreateDocumentDialog(QDialog):
 
                 if target_path.lower().endswith(".docx"):
                     try:
-                        populate_docx_template(target_path, self.client_info)
+                        populate_docx_template(target_path, self.client_info) # self.client_info is the client_data dict
                         print(f"Populated DOCX: {target_path}")
                     except Exception as e_pop:
                         print(f"Error populating DOCX template {target_path}: {e_pop}")
                         QMessageBox.warning(self, "Erreur DOCX", f"Impossible de populer le modèle Word '{os.path.basename(target_path)}':\n{e_pop}")
+                elif target_path.lower().endswith(".html"): # New condition
+                    try:
+                        with open(target_path, 'r', encoding='utf-8') as f:
+                            template_content = f.read()
+
+                        # self.client_info is the dictionary of client data
+                        # Keys used here must match those in HtmlEditor.populate_html_content
+                        # and what's available in self.client_info.
+                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info)
+
+                        with open(target_path, 'w', encoding='utf-8') as f:
+                            f.write(populated_content)
+                        print(f"Populated HTML: {target_path}")
+                    except Exception as e_html_pop:
+                        print(f"Error populating HTML template {target_path}: {e_html_pop}")
+                        QMessageBox.warning(self, "Erreur HTML", f"Impossible de populer le modèle HTML '{os.path.basename(target_path)}':\n{e_html_pop}")
 
                 created_files.append(target_path)
             else:
@@ -1193,12 +1210,17 @@ class ClientWidget(QWidget):
                 continue
                 
             for file_name in os.listdir(lang_dir):
-                if file_name.endswith(('.xlsx', '.pdf', '.docx')): # Added .docx
+                if file_name.endswith(('.xlsx', '.pdf', '.docx', '.html')): # Add '.html'
                     file_path = os.path.join(lang_dir, file_name)
+                    name_item = QTableWidgetItem(file_name)
+                    name_item.setData(Qt.UserRole, file_path) # Store full path for opening/deleting
+
                     if file_name.lower().endswith('.xlsx'):
                         file_type = "Excel"
                     elif file_name.lower().endswith('.docx'):
                         file_type = "Word"
+                    elif file_name.lower().endswith('.html'): # Add this condition
+                        file_type = "HTML"
                     else: # Ends with .pdf
                         file_type = "PDF"
                     mod_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M')
@@ -1206,7 +1228,7 @@ class ClientWidget(QWidget):
                     self.doc_table.insertRow(row)
                     
                     # Nom
-                    self.doc_table.setItem(row, 0, QTableWidgetItem(file_name))
+                    self.doc_table.setItem(row, 0, name_item) # Use the item with stored path
                     
                     # Type
                     self.doc_table.setItem(row, 1, QTableWidgetItem(file_type))
@@ -1283,8 +1305,23 @@ class ClientWidget(QWidget):
                     }
                     editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
                     editor.exec_()
-                    self.populate_doc_table()
-                elif file_path.lower().endswith(('.docx', '.pdf')): # Handle docx and pdf with default opener
+                    self.populate_doc_table() # Refresh table after potential edits
+                elif file_path.lower().endswith('.html'): # New condition
+                    editor_client_data = {
+                        "Nom du client": self.client_info.get("client_name", ""),
+                        "Besoin": self.client_info.get("need", ""), # Ensure this key matches what HtmlEditor expects
+                        "price": self.client_info.get("price", 0),
+                        "project_identifier": self.client_info.get("project_identifier", ""),
+                        "company_name": self.client_info.get("company_name", ""), # Added
+                        "country": self.client_info.get("country", ""),           # Added
+                        "city": self.client_info.get("city", ""),                # Added
+                        # Add more fields to editor_client_data if your
+                        # HtmlEditor's ClientInfoWidget or placeholder logic expects them.
+                    }
+                    html_editor_dialog = HtmlEditor(file_path, client_data=editor_client_data, parent=self)
+                    html_editor_dialog.exec_()
+                    self.populate_doc_table() # Refresh table after potential edits
+                elif file_path.lower().endswith(('.docx', '.pdf')):
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
                 else: # Fallback for other types if any
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
