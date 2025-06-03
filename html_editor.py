@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox, QFileDialog, QStyle, QLabel, QLineEdit, QWidget
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl, QStandardPaths, Qt
+from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication
 
 # Assuming excel_editor.ClientInfoWidget exists and is importable
 # If not, this will need adjustment or a placeholder class
@@ -21,18 +21,19 @@ except ImportError:
             self.client_data = client_data
             # Minimal placeholder UI
             layout = QVBoxLayout(self)
-            layout.addWidget(QLabel(f"Client Info Placeholder for: {client_data.get('Nom du client', 'N/A')}"))
+            client_name_placeholder = client_data.get('Nom du client', self.tr('N/A'))
+            layout.addWidget(QLabel(self.tr("Client Info Placeholder for: {0}").format(client_name_placeholder)))
             self.name_edit = QLineEdit(client_data.get("Nom du client", "")) # Example field
             self.besoin_edit = QLineEdit(client_data.get("Besoin", ""))
             self.price_edit = QLineEdit(str(client_data.get("price", "")))
             self.project_id_edit = QLineEdit(client_data.get("project_identifier", ""))
-            layout.addWidget(QLabel("Nom:"))
+            layout.addWidget(QLabel(self.tr("Nom:")))
             layout.addWidget(self.name_edit)
-            layout.addWidget(QLabel("Besoin:"))
+            layout.addWidget(QLabel(self.tr("Besoin:")))
             layout.addWidget(self.besoin_edit)
-            layout.addWidget(QLabel("Prix:"))
+            layout.addWidget(QLabel(self.tr("Prix:")))
             layout.addWidget(self.price_edit)
-            layout.addWidget(QLabel("Project ID:"))
+            layout.addWidget(QLabel(self.tr("Project ID:")))
             layout.addWidget(self.project_id_edit)
 
 
@@ -57,7 +58,7 @@ class HtmlEditor(QDialog):
         self._load_content() # Now it's safe to call this
 
     def _setup_ui(self):
-        self.setWindowTitle(f"HTML Editor - {os.path.basename(self.file_path)}")
+        self.setWindowTitle(self.tr("HTML Editor - {0}").format(os.path.basename(self.file_path)))
         self.setGeometry(100, 100, 1000, 700)  # Initial size
 
         main_layout = QVBoxLayout(self)
@@ -66,7 +67,7 @@ class HtmlEditor(QDialog):
         editor_preview_layout = QHBoxLayout()
 
         self.html_edit = QTextEdit()
-        self.html_edit.setPlaceholderText("Enter HTML content here...")
+        self.html_edit.setPlaceholderText(self.tr("Enter HTML content here..."))
         editor_preview_layout.addWidget(self.html_edit, 1)
 
         self.preview_pane = QWebEngineView()
@@ -79,11 +80,11 @@ class HtmlEditor(QDialog):
 
         # Buttons
         button_layout = QHBoxLayout()
-        self.save_button = QPushButton("Save")
+        self.save_button = QPushButton(self.tr("Save"))
         self.save_button.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton)) # Use self.style()
-        self.refresh_button = QPushButton("Refresh Preview")
+        self.refresh_button = QPushButton(self.tr("Refresh Preview"))
         self.refresh_button.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload)) # Use self.style()
-        self.close_button = QPushButton("Close")
+        self.close_button = QPushButton(self.tr("Close"))
         self.close_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton)) # Use self.style()
 
         button_layout.addWidget(self.save_button)
@@ -105,7 +106,7 @@ class HtmlEditor(QDialog):
                     content = f.read()
                     self.html_edit.setPlainText(content)
             except IOError as e:
-                QMessageBox.warning(self, "Load Error", f"Could not load HTML file: {self.file_path}\n{e}")
+                QMessageBox.warning(self, self.tr("Load Error"), self.tr("Could not load HTML file: {0}\n{1}").format(self.file_path, e))
                 # Fallback to default skeleton if load fails
                 self._set_default_skeleton()
         else:
@@ -168,10 +169,10 @@ class HtmlEditor(QDialog):
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 f.write(final_html_content)
-            QMessageBox.information(self, "Success", "HTML content saved successfully.")
+            QMessageBox.information(self, self.tr("Success"), self.tr("HTML content saved successfully."))
             # self.accept() # Uncomment if dialog should close on successful save
         except IOError as e:
-            QMessageBox.critical(self, "Save Error", f"Could not save HTML file: {self.file_path}\n{e}")
+            QMessageBox.critical(self, self.tr("Save Error"), self.tr("Could not save HTML file: {0}\n{1}").format(self.file_path, e))
 
     @staticmethod
     def populate_html_content(html_template_content: str, client_data_dict: dict) -> str:
