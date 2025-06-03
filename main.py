@@ -1789,6 +1789,62 @@ class DocumentManager(QMainWindow):
             os.makedirs(base_folder_full_path, exist_ok=True)
             for lang_code in selected_langs_list: os.makedirs(os.path.join(base_folder_full_path, lang_code), exist_ok=True) 
                 
+            # Project Management DB Integration
+            PROJECT_MANAGEMENT_DB_PATH = "management_db.sqlite"
+            pm_conn = None
+            try:
+                pm_conn = sqlite3.connect(PROJECT_MANAGEMENT_DB_PATH)
+                pm_cursor = pm_conn.cursor()
+
+                project_name = client_name_val
+                project_description = f"Project for client: {client_name_val}. Initial need: {need_val}"
+                start_date = datetime.now().strftime("%Y-%m-%d")
+                deadline_date = (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d")
+                default_budget = 0.0
+                default_status = "planning"
+                default_priority = "medium"
+
+                pm_cursor.execute(
+                    "INSERT INTO projects (name, description, start_date, deadline, budget, status, priority) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (project_name, project_description, start_date, deadline_date, default_budget, default_status, default_priority)
+                )
+                new_project_id = pm_cursor.lastrowid
+
+                standard_tasks = [
+                    {"name": "Initial Client Consultation & Needs Assessment", "description": "Understand client requirements, objectives, target markets, and budget.", "priority": "High", "deadline_days": 3},
+                    {"name": "Market Research & Analysis", "description": "Research target international markets, including competition, regulations, and cultural nuances.", "priority": "Medium", "deadline_days": 7},
+                    {"name": "Develop International Marketing Strategy", "description": "Create a tailored marketing strategy including channels, messaging, and localization plans.", "priority": "High", "deadline_days": 14},
+                    {"name": "Prepare Sales Proposal/Offer", "description": "Draft a detailed sales proposal or proforma invoice.", "priority": "High", "deadline_days": 19},
+                    {"name": "Client Presentation & Negotiation", "description": "Present the proposal to the client and negotiate terms.", "priority": "High", "deadline_days": 26},
+                    {"name": "Contract Finalization & Signing", "description": "Prepare and finalize the sales contract.", "priority": "High", "deadline_days": 31},
+                    {"name": "Order Processing & Logistics Planning", "description": "Process the client's order, plan shipping, and coordinate logistics.", "priority": "Medium", "deadline_days": 35},
+                    {"name": "Prepare Shipping Documents", "description": "Prepare necessary export/import documents.", "priority": "Medium", "deadline_days": 45},
+                    {"name": "Shipment & Tracking", "description": "Manage the shipment process and provide tracking information.", "priority": "Medium", "deadline_days": 55},
+                    {"name": "Post-Sales Follow-up & Support", "description": "Follow up with the client after delivery.", "priority": "Medium", "deadline_days": 60}
+                ]
+
+                for task in standard_tasks:
+                    task_name = task["name"]
+                    task_description = task["description"]
+                    task_priority = task["priority"]
+                    task_deadline = (datetime.now() + timedelta(days=task["deadline_days"])).strftime("%Y-%m-%d")
+                    default_task_status = "todo"
+
+                    pm_cursor.execute(
+                        "INSERT INTO tasks (project_id, name, description, status, priority, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (new_project_id, task_name, task_description, default_task_status, task_priority, task_deadline, start_date)
+                    )
+
+                pm_conn.commit()
+                QMessageBox.information(self, "Project Created", f"A corresponding project for {client_name_val} has been automatically created in the Project Management system.")
+
+            except sqlite3.Error as e_pm:
+                print(f"Error interacting with Project Management DB: {e_pm}")
+                QMessageBox.warning(self, "Project Management DB Error", f"Client {client_name_val} was created, but failed to create corresponding project: {e_pm}")
+            finally:
+                if pm_conn:
+                    pm_conn.close()
+
             client_dict_data = { 
                 "client_id": new_client_id, "client_name": client_name_val, "company_name": company_name_val,
                 "need": need_val, "country": country_val, "city": city_val, "project_identifier": project_id_val,
