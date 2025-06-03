@@ -29,13 +29,59 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+# Define APP_ROOT_DIR for font path resolution
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # PyInstaller creates a temp folder and stores path in _MEIPASS
+    APP_ROOT_DIR = sys._MEIPASS
+else:
+    APP_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Enregistrer les polices pour Unicode
+# Arial
 try:
-    pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
-    pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
-except:
-    # Fallback si les polices ne sont pas disponibles
-    pass
+    arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
+    if os.path.exists(arial_path):
+        pdfmetrics.registerFont(TTFont('Arial', arial_path))
+    else:
+        print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
+except Exception as e:
+    print(f"Error registering Arial font: {e}")
+
+# Arial Bold
+try:
+    arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
+    if os.path.exists(arial_bold_path):
+        pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
+    else:
+        print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
+except Exception as e:
+    print(f"Error registering Arial Bold font: {e}")
+
+# Showcard Gothic
+try:
+    showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf') # Common name is Showcard Gothic.ttf or showg.ttf
+    # Attempt with ShowcardGothic.ttf first, then showg.ttf if not found
+    if not os.path.exists(showcard_path):
+        showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
+        if os.path.exists(showcard_path_alt):
+            showcard_path = showcard_path_alt # Use alternative path
+
+    if os.path.exists(showcard_path):
+        pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
+        print(f"Successfully registered Showcard Gothic from {showcard_path}")
+    else:
+        # Fallback or warning if Showcard Gothic is not found
+        print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
+        # Example fallback: register Arial as Showcard Gothic
+        # try:
+        #     arial_fallback_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
+        #     if os.path.exists(arial_fallback_path):
+        #        pdfmetrics.registerFont(TTFont('Showcard Gothic', arial_fallback_path))
+        #        print(f"Registered Arial as fallback for Showcard Gothic.")
+        # except Exception as fallback_e:
+        #    print(f"Could not register Arial as fallback for Showcard Gothic: {fallback_e}")
+except Exception as e:
+    print(f"Error registering Showcard Gothic font: {e}")
 
 
 class ExcelProcessor(QThread):
@@ -1213,157 +1259,6 @@ class ExcelEditor(QDialog):
                 return
                 
         super().reject()
-# class ExcelEditor(QDialog):
-    def __init__(self, file_path: str, client_data: Optional[Dict[str, Any]] = None, parent=None):
-        super().__init__(parent)
-        self.file_path = file_path
-        self.client_data = client_data or {}
-        self.workbook = None
-        self.active_sheet = None
-        self.sheet_data = {}
-        self.is_modified = False
-        self.merged_cells = []
-        self.current_sheet_index = 0
-        self.table_widget = None  # Initialisation de table_widget
-
-        # Configuration du logging
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-
-        self._setup_ui()  # Assurez-vous que cette méthode est appelée en premier
-        self._connect_signals()
-        self._load_data()
-
-    def _setup_ui(self):
-        """Configuration de l'interface utilisateur"""
-        self.setWindowTitle(f"Éditeur Excel - {os.path.basename(self.file_path)}")
-        self.setMinimumSize(1200, 800)
-        self.resize(1400, 900)
-
-        # Appliquer un style moderne
-        self.setStyle(QStyleFactory.create("Fusion"))
-
-        # Layout principal
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
-
-        # Barre de statut en haut
-        self._create_status_bar()
-        main_layout.addWidget(self.status_frame)
-
-        # Barre d'outils des feuilles
-        self.sheet_toolbar = QFrame()
-        self.sheet_toolbar.setStyleSheet("background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;")
-        self.sheet_toolbar.setFixedHeight(40)
-
-        sheet_layout = QHBoxLayout(self.sheet_toolbar)
-        sheet_layout.setContentsMargins(10, 0, 10, 0)
-
-        sheet_label = QLabel("Feuille:")
-        sheet_label.setStyleSheet("font-weight: bold;")
-        sheet_layout.addWidget(sheet_label)
-
-        self.sheet_combo = QComboBox()
-        self.sheet_combo.setMinimumWidth(200)
-        sheet_layout.addWidget(self.sheet_combo)
-
-        sheet_layout.addStretch()
-        main_layout.addWidget(self.sheet_toolbar)
-
-        # Splitter principal
-        splitter = QSplitter(Qt.Horizontal)
-
-        # Panel gauche - Informations client
-        self.client_info_widget = ClientInfoWidget(self.client_data)
-        self.client_info_widget.setMaximumWidth(350)
-        splitter.addWidget(self.client_info_widget)
-
-        # Panel droit - Table Excel
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(5)
-
-        # Barre d'outils de la table
-        self.table_toolbar = self._create_table_toolbar()
-        right_layout.addWidget(self.table_toolbar)
-
-        # Création de la table
-        self.table_widget = ExcelTableWidget()
-        right_layout.addWidget(self.table_widget)
-
-        splitter.addWidget(right_panel)
-        splitter.setSizes([300, 1000])
-
-        main_layout.addWidget(splitter)
-
-        # Barre de boutons principale
-        self._create_main_buttons()
-        main_layout.addLayout(self.button_layout)
-
-        # Barre de progression
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setFixedHeight(20)
-        main_layout.addWidget(self.progress_bar)
-    def _load_data(self):
-        """Charge les données à partir du fichier Excel."""
-        try:
-            self._update_status("Chargement des données...", "#3498db")
-            self._show_progress(True)
-
-            if not os.path.exists(self.file_path):
-                self.logger.warning(f"Fichier inexistant: {self.file_path}")
-                QMessageBox.warning(
-                    self,
-                    "Fichier Inexistant",
-                    f"Le fichier {self.file_path} n'existe pas.\nUn nouveau fichier sera créé."
-                )
-                self._create_empty_table()
-                self.workbook = Workbook()
-                self.active_sheet = self.workbook.active
-                self.sheet_combo.addItem(self.active_sheet.title)
-                self._update_status("Nouveau fichier créé", "#27ae60")
-                self._show_progress(False)
-                return
-
-            # Chargement du workbook
-            self.workbook = load_workbook(self.file_path)
-
-            if not self.workbook.sheetnames:
-                self.logger.warning("Workbook sans feuilles")
-                self._create_empty_table()
-                self.active_sheet = self.workbook.create_sheet("Sheet1")
-                self.sheet_combo.addItem(self.active_sheet.title)
-                self._update_status("Fichier vide - nouvelle feuille créée", "#f39c12")
-                self._show_progress(False)
-                return
-
-            # Remplir le combo des feuilles
-            self.sheet_combo.clear()
-            self.sheet_combo.addItems(self.workbook.sheetnames)
-
-            # Charger la feuille active
-            self.active_sheet = self.workbook.active
-            self.sheet_combo.setCurrentText(self.active_sheet.title)
-            self.load_sheet(self.active_sheet)
-
-        except Exception as e:
-            self.logger.error(f"Erreur lors du chargement: {e}")
-            QMessageBox.critical(
-                self,
-                "Erreur de Chargement",
-                f"Impossible de charger le fichier Excel:\n{str(e)}\n\nUn tableau vide sera créé."
-            )
-            self._create_empty_table()
-            self.workbook = Workbook()
-            self.active_sheet = self.workbook.active
-            self.sheet_combo.addItem(self.active_sheet.title)
-            self._update_status("Erreur - nouveau fichier créé", "#e74c3c")
-
-        finally:
-            self._show_progress(False)
 
 
 def main():
