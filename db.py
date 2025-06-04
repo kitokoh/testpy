@@ -89,16 +89,18 @@ def initialize_database():
         client_id TEXT PRIMARY KEY,
         client_name TEXT NOT NULL,
         company_name TEXT,
-        primary_need_description TEXT,
+        primary_need_description TEXT, -- Maps to 'need' from main.py
+        project_identifier TEXT NOT NULL, -- Added from main.py
         country_id INTEGER,
         city_id INTEGER,
-        default_base_folder_path TEXT,
+        default_base_folder_path TEXT UNIQUE, -- Added UNIQUE from main.py's base_folder_path
         status_id INTEGER,
         selected_languages TEXT, -- Comma-separated list of language codes
+        price REAL DEFAULT 0, -- Added from main.py
         notes TEXT,
         category TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to creation_date from main.py
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to last_modified from main.py
         created_by_user_id TEXT,
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
@@ -2750,6 +2752,127 @@ def get_city_by_id(city_id: int) -> dict | None:
     except sqlite3.Error as e:
         print(f"DB error in get_city_by_id: {e}")
         return None
+    finally:
+        if conn: conn.close()
+
+def get_all_templates(template_type_filter: str = None, language_code_filter: str = None) -> list[dict]:
+    """
+    Retrieves all templates, optionally filtered by template_type and/or language_code.
+    If template_type_filter is None, retrieves all templates regardless of type.
+    If language_code_filter is None, retrieves for all languages.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM Templates"
+        params = []
+        where_clauses = []
+
+        if template_type_filter:
+            where_clauses.append("template_type = ?")
+            params.append(template_type_filter)
+        if language_code_filter:
+            where_clauses.append("language_code = ?")
+            params.append(language_code_filter)
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY template_name, language_code"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_templates: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_all_file_based_templates() -> list[dict]:
+    """Retrieves all templates that have a base_file_name, suitable for document creation."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Selects templates that are likely file-based documents
+        sql = "SELECT template_id, template_name, language_code, base_file_name, description, category FROM Templates WHERE base_file_name IS NOT NULL AND base_file_name != '' ORDER BY template_name, language_code"
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_file_based_templates: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_all_tasks(active_only: bool = False, project_id_filter: str = None) -> list[dict]:
+    """
+    Retrieves all tasks, optionally filtering for active tasks only and/or by project_id.
+    Active tasks are those not linked to a status marked as completion or archival.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT t.* FROM Tasks t"
+        params = []
+        where_clauses = []
+
+        if active_only:
+            sql += """
+                LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id
+            """
+            where_clauses.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
+
+        if project_id_filter:
+            where_clauses.append("t.project_id = ?")
+            params.append(project_id_filter)
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY t.created_at DESC" # Or some other meaningful order
+
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_tasks: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_tasks_by_assignee_id(assignee_team_member_id: int, active_only: bool = False) -> list[dict]:
+    """
+    Retrieves tasks assigned to a specific team member, optionally filtering for active tasks.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT t.* FROM Tasks t"
+        params = []
+        where_clauses = ["t.assignee_team_member_id = ?"]
+        params.append(assignee_team_member_id)
+
+        if active_only:
+            sql += """
+                LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id
+            """
+            where_clauses.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
+
+        if where_clauses: # Will always be true because of assignee_team_member_id
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY t.due_date ASC, t.priority DESC"
+
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_tasks_by_assignee_id: {e}")
+        return []
     finally:
         if conn: conn.close()
 

@@ -22,16 +22,13 @@ from PyQt5.QtWidgets import QDialogButtonBox
 from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize
-# Removed: from imports import DB_PATH_management
-import db as main_db_manager
+import db as db_manager # Standardized to db_manager
 from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
 
-# Removed: class DatabaseManager and its methods (init_db, get_connection)
-# All direct SQLite calls related to this class are implicitly removed.
-
 class NotificationManager:
-    def __init__(self, parent_window): # Removed db_manager argument
+    def __init__(self, parent_window): # Removed db_manager from constructor
         self.parent_window = parent_window
+        # self.db_manager = db_manager # Removed, will use direct import of db_manager
         self.timer = QTimer(parent_window)
 
     def setup_timer(self, interval_ms=300000):  # Default 5 minutes
@@ -48,7 +45,7 @@ class NotificationManager:
         all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
 
         try:
-            all_projects = main_db_manager.get_all_projects()
+            all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
             if all_projects is None: all_projects = []
 
             today_str = datetime.now().strftime('%Y-%m-%d')
@@ -78,7 +75,7 @@ class NotificationManager:
                     })
 
                 # Tasks for this project
-                tasks_for_project = main_db_manager.get_tasks_by_project_id(p.get('project_id'))
+                tasks_for_project = db_manager.get_tasks_by_project_id(p.get('project_id')) # Changed main_db_manager
                 if tasks_for_project is None: tasks_for_project = []
 
                 for t in tasks_for_project:
@@ -135,240 +132,19 @@ class NotificationManager:
 class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def __init__(self, parent=None, current_user=None): # Added current_user parameter
         super().__init__(parent)
-        # self.parent = parent # parent is already handled by QWidget
-        # self.db = DatabaseManager() # Removed
         self.current_user = current_user # Use passed-in user
 
-        # self.setWindowTitle("Management Dashboard Pro") # Removed - main.py will handle title
-        # self.setWindowIcon(QIcon(self.resource_path('icons/app_icon.png'))) # Removed
-        # self.setGeometry(100, 100, 1400, 900) # Removed - main.py will handle geometry
-
-        # Global style (can be kept if it's specific to this widget's content)
-        # However, if main.py has global styles, this might be redundant or cause conflicts.
-        # For now, let's keep it to maintain internal appearance.
         self.setStyleSheet("""
             QWidget {
-                background-color: #f5f7fa; /* Light gray background for the main widget */
-                color: #333333; /* Default text color */
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 13px; /* Default font size */
+                background-color: #f5f7fa; /* Changed from QMainWindow */
             }
             QLabel {
                 color: #333333;
-                padding: 2px;
-                font-size: 13px; /* Consistent with QWidget */
-            }
-            QLabel#logo_text_label { /* Specific for logo in topbar - handled by topbar's stylesheet */
-                /* Styles moved to topbar stylesheet */
-            }
-            QLabel#user_name_label { /* Specific for user name in topbar - handled by topbar's stylesheet */
-                 /* Styles moved to topbar stylesheet */
-            }
-            QLabel#user_role_label { /* Specific for user role in topbar - handled by topbar's stylesheet */
-                 /* Styles moved to topbar stylesheet */
-            }
-             QLabel[font-weight="bold"] { /* Allow specific labels to be bold */
-                font-weight: bold;
-            }
-            QPushButton {
-                padding: 8px 15px; /* Standardized padding */
-                font-size: 13px;
-                border-radius: 4px;
-                background-color: #e0e0e0; /* Default light gray */
-                color: #333333;
-                border: 1px solid #bdbdbd;
-                min-height: 22px; /* Consistent min height for inputs/buttons */
-            }
-            QPushButton:hover {
-                background-color: #d5d5d5;
-            }
-            QPushButton:pressed {
-                background-color: #cccccc;
-            }
-            QPushButton#primary_action_button { /* Green for primary actions */
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                font-weight: bold;
-            }
-            QPushButton#primary_action_button:hover {
-                background-color: #219653;
-            }
-            QPushButton#primary_action_button:pressed {
-                background-color: #1e8449;
-            }
-            QPushButton#standard_action_button { /* Blue for standard/general actions */
-                 background-color: #3498db;
-                 color: white;
-                 border: none;
-                 font-weight: 500; /* Medium weight */
-            }
-            QPushButton#standard_action_button:hover {
-                 background-color: #2980b9;
-            }
-            QPushButton#standard_action_button:pressed {
-                 background-color: #2372a3;
-            }
-            QPushButton#secondary_action_button { /* Red for destructive/warning actions */
-                background-color: #e74c3c;
-                color: white;
-                border: none;
-                font-weight: 500; /* Medium weight */
-            }
-            QPushButton#secondary_action_button:hover {
-                background-color: #c0392b; /* Darker red on hover */
-            }
-            QPushButton#secondary_action_button:pressed {
-                background-color: #a93226;
-            }
-            /* Icon-only buttons (used in tables, etc.) */
-            QPushButton#icon_button {
-                background-color: transparent;
-                border: none;
-                padding: 4px; /* Smaller padding for icon buttons */
-                min-width: 28px; /* Adjust for icon size + padding */
-                min-height: 28px;
-            }
-            QPushButton#icon_button:hover {
-                background-color: #e0e0e0; /* Light highlight on hover */
-            }
-            QPushButton#icon_button:pressed {
-                background-color: #cccccc;
-            }
-            QLineEdit, QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox, QTextEdit {
-                padding: 8px;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: #ffffff; /* White background for inputs */
-                font-size: 13px;
-                min-height: 22px; /* Consistent min height */
-            }
-            QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus {
-                border: 1px solid #3498db; /* Blue border on focus */
-            }
-            QTableWidget {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                gridline-color: #e0e0e0; /* Lighter grid lines */
-                font-size: 13px;
-                selection-background-color: #a8cce9; /* Light blue for selection */
-                selection-color: #2c3e50; /* Dark text for selected items for contrast */
-            }
-            QHeaderView::section {
-                background-color: #e9eef4; /* Light blue-gray for headers */
-                color: #2c3e50; /* Dark text for header */
-                padding: 10px 8px; /* Ample padding */
-                font-weight: bold;
-                font-size: 13px;
-                border: none; /* Remove default border */
-                border-bottom: 1px solid #d0d9e2; /* Subtle bottom border for separation */
-            }
-            QTableCornerButton::section { /* Style for the top-left corner button of the table */
-                background-color: #e9eef4;
-                border-bottom: 1px solid #d0d9e2;
-                border-right: 1px solid #d0d9e2; /* Match header cell border */
-            }
-            QGroupBox {
-                font-size: 16px; /* Slightly larger for group titles */
-                font-weight: bold;
-                color: #2c3e50; /* Dark blue/charcoal for title text */
-                border: 1px solid #d0d9e2; /* Light border */
-                border-radius: 6px;
-                margin-top: 12px; /* Space above the group box */
-                padding-top: 25px; /* Space for the title to sit above the content */
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                padding: 5px 10px; /* Padding around the title text */
-                background-color: #f5f7fa; /* Match widget background so it looks cut-out */
-                color: #3498db; /* Accent blue for the title text */
-                font-size: 15px; /* Slightly smaller than groupbox font-size for visual hierarchy */
-                left: 10px; /* Position from left */
-            }
-            QTabWidget::pane {
-                border: 1px solid #d0d9e2;
-                border-top: none; /* Pane border only on sides/bottom */
-                border-radius: 0 0 5px 5px; /* Rounded bottom corners */
-                padding: 15px; /* Padding inside the tab pane */
-                background-color: #ffffff; /* White background for tab content area */
-            }
-            QTabBar::tab {
-                padding: 10px 20px;
-                background: #e9eef4; /* Light blue-gray, same as table headers */
-                border: 1px solid #d0d9e2;
-                border-bottom: none; /* No bottom border for inactive tabs */
-                border-top-left-radius: 5px;
-                border-top-right-radius: 5px;
-                margin-right: 2px;
-                color: #555555; /* Medium gray for text */
-                font-size: 13px;
-                font-weight: 500; /* Medium weight */
-            }
-            QTabBar::tab:selected {
-                background: #ffffff; /* White background for selected tab */
-                color: #2c3e50; /* Dark text for selected tab */
-                font-weight: bold;
-                border-bottom: 1px solid #ffffff; /* Makes it look connected to the pane */
-            }
-            QTabBar::tab:hover {
-                background: #f0f5fa; /* Slightly lighter on hover */
-                color: #2c3e50;
-            }
-            QProgressBar {
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                text-align: center;
-                height: 20px; /* Slightly reduced height for compactness */
-                color: #333333;
-                background-color: #e0e0e0; /* Background of the progress bar track */
-            }
-            QProgressBar::chunk {
-                background-color: #3498db; /* Blue for the progress chunk */
-                border-radius: 4px;
-                margin: 1px; /* Small margin for the chunk */
-            }
-            QScrollBar:horizontal {
-                border: none;
-                background: #e0e0e0;
-                height: 10px;
-                margin: 0px 20px 0 20px;
-            }
-            QScrollBar::handle:horizontal {
-                background: #bdc3c7;
-                min-width: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                border: none;
-                background: none;
-            }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: none;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background: #e0e0e0;
-                width: 10px;
-                margin: 20px 0 20px 0;
-            }
-            QScrollBar::handle:vertical {
-                background: #bdc3c7;
-                min-height: 20px;
-                border-radius: 5px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                border: none;
-                background: none;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: none;
             }
         """)
 
-        self._main_layout = QVBoxLayout(self)
-        self._main_layout.setContentsMargins(10, 10, 10, 10)
+        self._main_layout = QVBoxLayout(self) # Set layout directly on QWidget
+        self._main_layout.setContentsMargins(0, 0, 0, 0)
         self._main_layout.setSpacing(0)
 
         self.init_ui() # Initialize UI components
@@ -380,10 +156,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         else: # No user passed, potentially show internal login or a message
             self.user_name.setText("Guest (No User Context)")
             self.user_role.setText("Limited Functionality")
-            # self.load_initial_data() # Data loading might fail or show empty if no user context
 
-        # Notification System Initialization
-        self.notification_manager = NotificationManager(self) # Pass self (MainDashboard) as parent
+        self.notification_manager = NotificationManager(self) # Pass self (dashboard) as parent
         self.notification_manager.setup_timer()
 
     def module_closed(self, module_id):
@@ -438,98 +212,80 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
     def setup_topbar(self):
         self.topbar = QFrame()
-        self.topbar.setFixedHeight(60)
-        self.topbar.setObjectName("topbar_frame")
+        self.topbar.setFixedHeight(70)  # Slightly taller for more elegance
         self.topbar.setStyleSheet("""
-            QFrame#topbar_frame {
-                background-color: #2c3e50; /* Dark blue/charcoal */
-                border-bottom: 2px solid #3498db; /* Accent blue border */
+            QFrame {
+                background-color: #2c3e50;
+                color: white;
+                border-bottom: 1px solid #3498db;
             }
-            /* General style for QPushButtons directly within the topbar QFrame */
-            QFrame#topbar_frame > QPushButton {
+            QPushButton {
                 background-color: transparent;
-                color: #ecf0f1; /* Light gray text */
+                color: white;
                 padding: 10px 15px;
                 border: none;
                 font-size: 14px;
-                font-weight: 500;
-                min-width: 100px;
-                border-radius: 0px; /* Flat look */
+                border-radius: 4px;
+                min-width: 80px;
             }
-            QFrame#topbar_frame > QPushButton:hover {
-                background-color: #34495e; /* Slightly lighter dark */
-                color: #ffffff;
+            QPushButton:hover {
+                background-color: #34495e;
             }
-            QFrame#topbar_frame > QPushButton:pressed {
-                background-color: #233140; /* Darker shade when pressed */
+            QPushButton#selected {
+                background-color: #3498db;
+                font-weight: bold;
+                border-left: 3px solid white;
             }
-            QFrame#topbar_frame > QPushButton#selected { /* Specific style for the selected topbar button */
-                background-color: #3498db; /* Accent blue */
+            QPushButton#menu_button {
+                padding-right: 25px;
+                position: relative;
+            }
+            QPushButton#menu_button::after {
+                content: "▼";
+                position: absolute;
+                right: 8px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 10px;
+            }
+            QLabel {
                 color: white;
-                font-weight: bold;
-                /* Optional: border-bottom: 3px solid #ffffff; White underline for selected */
             }
-            /* Style for QLabels directly within the topbar QFrame */
-            QFrame#topbar_frame > QLabel#logo_text_label {
-                color: #ffffff;
-                font-size: 20px;
-                font-weight: bold;
-                font-family: 'Segoe UI Light', Arial, sans-serif;
-            }
-            /* User info labels are inside a child QWidget, so direct child selector > won't work.
-               Instead, we rely on object names if specific styling is needed beyond general QLabel styles from MainDashboard.
-               If general QLabel styles are sufficient, these specific ones might not be needed here.
-               For now, assuming they might need specific topbar context styling.
-            */
-            QLabel#user_name_label { /* For user name in topbar's user section */
-                color: #ecf0f1;
-                font-weight: bold;
-                font-size: 13px;
-            }
-            QLabel#user_role_label { /* For user role in topbar's user section */
-                color: #bdc3c7;
-                font-size: 11px;
-                font-style: italic;
-            }
-            /* Styling for QMenu associated with topbar buttons */
             QMenu {
-                background-color: #34495e; /* Darker menu background */
-                color: #ecf0f1; /* Light text */
-                border: 1px solid #2c3e50; /* Border matching darker topbar elements */
+                background-color: #34495e;
+                color: white;
+                border: 1px solid #3498db;
                 padding: 5px;
-                font-size: 13px;
             }
             QMenu::item {
-                padding: 8px 20px; /* Padding for menu items */
+                padding: 8px 25px 8px 15px;
             }
             QMenu::item:selected {
-                background-color: #3498db; /* Accent blue for selected menu item */
-                color: white;
+                background-color: #3498db;
             }
             QMenu::icon {
-                padding-left: 5px; /* Space for icons in menu items */
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #2c3e50; /* Dark separator */
-                margin-left: 10px;
-                margin-right: 5px;
+                padding-left: 10px;
             }
         """)
 
         topbar_layout = QHBoxLayout(self.topbar)
-        topbar_layout.setContentsMargins(15, 5, 15, 5)
-        topbar_layout.setSpacing(10)
+        topbar_layout.setContentsMargins(15, 10, 15, 10)
+        topbar_layout.setSpacing(20)
 
         # Logo and title - Left side
         logo_container = QHBoxLayout()
-        logo_container.setSpacing(8)
+        logo_container.setSpacing(10)
 
         logo_icon = QLabel()
-        logo_icon.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(32, 32))
+        logo_icon.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(45, 45))
 
         logo_text = QLabel("Management Pro")
-        logo_text.setObjectName("logo_text_label")
+        logo_text.setStyleSheet("""
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        """)
 
         logo_container.addWidget(logo_icon)
         logo_container.addWidget(logo_text)
@@ -543,7 +299,6 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Dashboard button (single)
         dashboard_btn = QPushButton("Dashboard")
-        dashboard_btn.setObjectName("topbar_button")
         dashboard_btn.setIcon(QIcon(self.resource_path('icons/dashboard.png')))
         dashboard_btn.clicked.connect(lambda: self.change_page(0))
         self.nav_buttons.append(dashboard_btn)
@@ -589,9 +344,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         management_btn = QPushButton("Management")
-        management_btn.setObjectName("topbar_button")
         management_btn.setIcon(QIcon(self.resource_path('icons/management.png')))
         management_btn.setMenu(management_menu)
+        management_btn.setObjectName("menu_button")
         self.nav_buttons.append(management_btn)
         topbar_layout.addWidget(management_btn)
 
@@ -614,68 +369,66 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         projects_btn = QPushButton("Activities")
-        projects_btn.setObjectName("topbar_button")
         projects_btn.setIcon(QIcon(self.resource_path('icons/activities.png')))
         projects_btn.setMenu(projects_menu)
+        projects_btn.setObjectName("menu_button")
         self.nav_buttons.append(projects_btn)
         topbar_layout.addWidget(projects_btn)
 
         # Add-on button (single)
         add_on_btn = QPushButton("Add-on")
-        add_on_btn.setObjectName("topbar_button")
         add_on_btn.setIcon(QIcon(self.resource_path('icons/add_on.png')))
         add_on_btn.clicked.connect(lambda: self.add_on_page())
         self.nav_buttons.append(add_on_btn)
         topbar_layout.addWidget(add_on_btn)
 
-        topbar_layout.addStretch(2)
+        topbar_layout.addStretch(1)
 
         # User section - Right side
         user_container = QHBoxLayout()
-        user_container.setSpacing(8)
+        user_container.setSpacing(10)
 
         # User avatar
         user_avatar = QLabel()
-        user_avatar.setPixmap(QIcon(self.resource_path('icons/user.png')).pixmap(32, 32))
-        user_avatar.setStyleSheet("border-radius: 16px; border: 1px solid #3498db;")
+        user_avatar.setPixmap(QIcon(self.resource_path('icons/user.png')).pixmap(35, 35))
+        user_avatar.setStyleSheet("border-radius: 17px; border: 2px solid #3498db;")
 
         # User info
         user_info = QVBoxLayout()
         user_info.setSpacing(0)
 
         self.user_name = QLabel("Guest")
-        self.user_name.setObjectName("user_name_label")
+        self.user_name.setStyleSheet("""
+            font-weight: bold;
+            font-size: 14px;
+        """)
 
         self.user_role = QLabel("Not logged in")
-        self.user_role.setObjectName("user_role_label")
-
+        self.user_role.setStyleSheet("""
+            font-size: 11px;
+            color: #bdc3c7;
+            font-style: italic;
+        """)
 
         user_info.addWidget(self.user_name)
         user_info.addWidget(self.user_role)
 
         user_container.addWidget(user_avatar)
         user_container.addLayout(user_info)
-        user_container.addSpacing(8)
 
         # Logout button
         logout_btn = QPushButton()
         logout_btn.setIcon(QIcon(self.resource_path('icons/logout.png')))
         logout_btn.setIconSize(QSize(20, 20))
         logout_btn.setToolTip("Logout")
-        logout_btn.setFixedSize(36, 36)
+        logout_btn.setFixedSize(35, 35)
         logout_btn.setStyleSheet("""
             QPushButton {
-                background-color: #c0392b;
-                color: white;
-                border: none;
-                border-radius: 18px;
-                padding: 0px;
+                background-color: rgba(231, 76, 60, 0.2);
+                border-radius: 17px;
             }
             QPushButton:hover {
-                background-color: #e74c3c;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
+                background-color: rgba(231, 76, 60, 0.8);
             }
         """)
         logout_btn.clicked.connect(self.logout)
@@ -687,11 +440,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         topbar_layout.addWidget(user_widget)
 
         # Mark dashboard as selected by default
-        if self.nav_buttons:
-            self.nav_buttons[0].setObjectName("selected")
-            self.nav_buttons[0].style().unpolish(self.nav_buttons[0])
-            self.nav_buttons[0].style().polish(self.nav_buttons[0])
-
+        self.nav_buttons[0].setObjectName("selected")
 
     # Function to manage notifications
     def gestion_notification(self):
@@ -750,102 +499,115 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         # Header
-        header_widget = QWidget() # Use a QWidget as a container for the header layout
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0) # No margins for the inner layout
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;") # Slightly smaller, consistent color
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
-        # self.date_picker.setStyleSheet removed - will inherit global style
-
+        self.date_picker.setStyleSheet("""
+            QDateEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.date_picker.dateChanged.connect(self.update_dashboard)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("standard_action_button") # Use standard blue button style
         refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png')))
-        # refresh_btn.setStyleSheet removed - will inherit global style
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         refresh_btn.clicked.connect(self.update_dashboard)
 
         header_layout.addWidget(title)
         header_layout.addStretch()
-        header_layout.addWidget(QLabel("Date:")) # Add label for date picker
         header_layout.addWidget(self.date_picker)
         header_layout.addWidget(refresh_btn)
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # Ensure header doesn't take too much vertical space
 
         # KPIs
-        self.kpi_widget = QWidget() # This QWidget will contain the QHBoxLayout for KPIs
+        self.kpi_widget = QWidget()
         self.kpi_layout = QHBoxLayout(self.kpi_widget)
-        self.kpi_layout.setContentsMargins(0, 0, 0, 0) # No margins for the inner layout
-        self.kpi_layout.setSpacing(20) # Increased spacing between KPI boxes
-        self.kpi_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-
+        self.kpi_layout.setSpacing(15)
 
         # Charts
-        graph_widget_container = QWidget() # Container for the charts
-        graph_layout = QHBoxLayout(graph_widget_container)
-        graph_layout.setContentsMargins(0, 0, 0, 0)
-        graph_layout.setSpacing(20) # Spacing between charts
+        graph_widget = QWidget()
+        graph_layout = QHBoxLayout(graph_widget)
+        graph_layout.setSpacing(15)
 
         # Performance chart
         self.performance_graph = pg.PlotWidget()
-        self.performance_graph.setBackground('#ffffff') # Use hex for consistency
-        self.performance_graph.setTitle("Team Performance", color="#2c3e50", size='14pt') # Consistent color, slightly larger
-        self.performance_graph.showGrid(x=True, y=True, alpha=0.3) # Lighter grid
-        self.performance_graph.setMinimumHeight(320) # Slightly more height
-        self.performance_graph.getAxis('left').setTextPen('#333333')
-        self.performance_graph.getAxis('bottom').setTextPen('#333333')
-
+        self.performance_graph.setBackground('w')
+        self.performance_graph.setTitle("Team Performance", color='#333333', size='12pt')
+        self.performance_graph.showGrid(x=True, y=True)
+        self.performance_graph.setMinimumHeight(300)
 
         # Project progress chart
         self.project_progress_graph = pg.PlotWidget()
-        self.project_progress_graph.setBackground('#ffffff')
-        self.project_progress_graph.setTitle("Project Progress", color="#2c3e50", size='14pt')
-        self.project_progress_graph.showGrid(x=True, y=True, alpha=0.3)
-        self.project_progress_graph.setMinimumHeight(320)
-        self.project_progress_graph.getAxis('left').setTextPen('#333333')
-        self.project_progress_graph.getAxis('bottom').setTextPen('#333333')
+        self.project_progress_graph.setBackground('w')
+        self.project_progress_graph.setTitle("Project Progress", color='#333333', size='12pt')
+        self.project_progress_graph.showGrid(x=True, y=True)
+        self.project_progress_graph.setMinimumHeight(300)
 
-
-        graph_layout.addWidget(self.performance_graph, 1) # Use stretch factor
-        graph_layout.addWidget(self.project_progress_graph, 1) # Use stretch factor
-        graph_widget_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding) # Allow charts to expand
-
+        graph_layout.addWidget(self.performance_graph, 1)
+        graph_layout.addWidget(self.project_progress_graph, 1)
 
         # Recent activities
         activities_widget = QGroupBox("Recent Activities")
-        # activities_widget.setStyleSheet removed - will inherit global QGroupBox style
+        activities_widget.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                margin-top: 20px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px;
+            }
+        """)
 
         activities_layout = QVBoxLayout(activities_widget)
-        activities_layout.setContentsMargins(10, 10, 10, 10) # Padding inside the groupbox
-        activities_layout.setSpacing(10)
-
 
         self.activities_table = QTableWidget()
         self.activities_table.setColumnCount(4)
         self.activities_table.setHorizontalHeaderLabels(["Date", "Member", "Action", "Details"])
-        # self.activities_table.setStyleSheet removed - will inherit global QTableWidget style
+        self.activities_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: none;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.activities_table.verticalHeader().setVisible(False)
         self.activities_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.activities_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.activities_table.setSortingEnabled(True)
-        self.activities_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # Stretch last section
-        self.activities_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents) # Date
-        self.activities_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents) # Member
-        self.activities_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Action
-        self.activities_table.setAlternatingRowColors(True) # Improved readability
-
 
         activities_layout.addWidget(self.activities_table)
-        activities_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred) # Allow activities table to take space
 
-
-        layout.addWidget(header_widget) # Add the container widget
+        layout.addWidget(header)
         layout.addWidget(self.kpi_widget)
-        layout.addWidget(graph_widget_container) # Add the container widget
+        layout.addWidget(graph_widget)
         layout.addWidget(activities_widget)
 
         self.main_content.addWidget(page)
@@ -857,86 +619,101 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         # Header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0,0,0,0)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
 
         title = QLabel("Team Management")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setObjectName("primary_action_button") # Use green primary button style
         self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png')))
-        # self.add_member_btn.setStyleSheet removed - inherits global style
+        self.add_member_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #27ae60;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #219653;
+            }
+        """)
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
 
         header_layout.addWidget(title)
         header_layout.addStretch()
         header_layout.addWidget(self.add_member_btn)
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
 
         # Filters
-        filters_widget = QWidget() # Container for filter elements
-        filters_layout = QHBoxLayout(filters_widget)
-        filters_layout.setContentsMargins(0, 0, 0, 0) # No internal margins for the layout itself
-        filters_layout.setSpacing(10) # Spacing between filter widgets
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
 
         self.team_search = QLineEdit()
-        self.team_search.setPlaceholderText("Search member by name or email...")
-        # self.team_search.setStyleSheet removed - inherits global style
+        self.team_search.setPlaceholderText("Search a member...")
+        self.team_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.team_search.textChanged.connect(self.filter_team_members)
 
         self.role_filter = QComboBox()
-        self.role_filter.addItems(["All Roles", "Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance", "Other"]) # Added Other
-        # self.role_filter.setStyleSheet removed - inherits global style
+        self.role_filter.addItems(["All Roles", "Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance"])
+        self.role_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.role_filter.currentIndexChanged.connect(self.filter_team_members)
 
-        self.team_status_filter = QComboBox() # Renamed to avoid conflict with project status filter
-        self.team_status_filter.addItems(["All Statuses", "Active", "Inactive"]) # Simplified statuses based on is_active field
-        # self.team_status_filter.setStyleSheet removed - inherits global style
-        self.team_status_filter.currentIndexChanged.connect(self.filter_team_members)
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["All Statuses", "Active", "Inactive", "On Leave"])
+        self.status_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        self.status_filter.currentIndexChanged.connect(self.filter_team_members)
 
-        filters_layout.addWidget(QLabel("Search:"))
-        filters_layout.addWidget(self.team_search, 1) # Add stretch factor
-        filters_layout.addWidget(QLabel("Role:"))
-        filters_layout.addWidget(self.role_filter, 1) # Add stretch factor
-        filters_layout.addWidget(QLabel("Status:"))
-        filters_layout.addWidget(self.team_status_filter, 1) # Add stretch factor
-        filters_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
+        filters_layout.addWidget(self.team_search)
+        filters_layout.addWidget(self.role_filter)
+        filters_layout.addWidget(self.status_filter)
 
         # Team table
         self.team_table = QTableWidget()
+        # Adjusted column count and labels for new fields
         self.team_table.setColumnCount(10)
         self.team_table.setHorizontalHeaderLabels([
             "Name", "Email", "Role/Title", "Department", "Hire Date",
-            "Performance", "Skills", "Status", "Tasks", "Actions" # Changed "Active" to "Status"
+            "Performance", "Skills", "Active", "Tasks", "Actions"
         ])
-        # self.team_table.setStyleSheet removed - inherits global style
+        self.team_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.team_table.verticalHeader().setVisible(False)
         self.team_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.team_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.team_table.setSortingEnabled(True)
-        self.team_table.setAlternatingRowColors(True)
+        self.team_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
-        # Column Resizing and Alignment
-        self.team_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive) # Name
-        self.team_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Interactive) # Email
-        self.team_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Role
-        self.team_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents) # Department
-        self.team_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Hire Date
-        self.team_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Performance
-        self.team_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch) # Skills (can be long)
-        self.team_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents) # Status
-        self.team_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeToContents) # Tasks
-        self.team_table.horizontalHeader().setSectionResizeMode(9, QHeaderView.ResizeToContents) # Actions
-        self.team_table.setWordWrap(True) # Allow word wrap for long text like skills
-        self.team_table.setTextElideMode(Qt.ElideRight) # Elide text if too long even with wrap
-
-
-        layout.addWidget(header_widget)
-        layout.addWidget(filters_widget)
+        layout.addWidget(header)
+        layout.addWidget(filters)
         layout.addWidget(self.team_table)
 
         self.main_content.addWidget(page)
@@ -948,94 +725,97 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         # Header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0,0,0,0)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
 
         title = QLabel("Project Management")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         self.add_project_btn = QPushButton("New Project")
-        self.add_project_btn.setObjectName("primary_action_button") # Use green primary button style
         self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png')))
-        # self.add_project_btn.setStyleSheet removed - inherits global style
+        self.add_project_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #27ae60;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #219653;
+            }
+        """)
         self.add_project_btn.clicked.connect(self.show_add_project_dialog)
 
         header_layout.addWidget(title)
         header_layout.addStretch()
         header_layout.addWidget(self.add_project_btn)
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         # Filters
-        filters_widget = QWidget()
-        filters_layout = QHBoxLayout(filters_widget)
-        filters_layout.setContentsMargins(0,0,0,0)
-        filters_layout.setSpacing(10)
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
 
         self.project_search = QLineEdit()
-        self.project_search.setPlaceholderText("Search by project name or manager...")
-        # self.project_search.setStyleSheet removed - inherits global style
+        self.project_search.setPlaceholderText("Search a project...")
+        self.project_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.project_search.textChanged.connect(self.filter_projects)
 
         self.status_filter_proj = QComboBox()
-        # Populate with statuses from DB or keep static if they are fixed
-        # Example: self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
-        # For dynamic population (better):
-        self.status_filter_proj.addItem("All Statuses", None) # UserData is None for all
-        project_statuses_from_db = main_db_manager.get_all_status_settings(status_type='Project')
-        if project_statuses_from_db:
-            for ps_db in project_statuses_from_db:
-                self.status_filter_proj.addItem(ps_db['status_name'], ps_db['status_id'])
-        else: # Fallback if no statuses in DB
-            self.status_filter_proj.addItems(["Planning", "In Progress", "Late", "Completed", "Archived"])
-        # self.status_filter_proj.setStyleSheet removed - inherits global style
+        self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
+        self.status_filter_proj.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.status_filter_proj.currentIndexChanged.connect(self.filter_projects)
 
-
         self.priority_filter = QComboBox()
-        self.priority_filter.addItems(["All Priorities", "High", "Medium", "Low"]) # Display text
-        # UserData can map to integer values if needed for filtering: High (2), Medium (1), Low (0)
-        self.priority_filter.setItemData(1, 2) # High
-        self.priority_filter.setItemData(2, 1) # Medium
-        self.priority_filter.setItemData(3, 0) # Low
-        # self.priority_filter.setStyleSheet removed - inherits global style
+        self.priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
+        self.priority_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.priority_filter.currentIndexChanged.connect(self.filter_projects)
 
-        filters_layout.addWidget(QLabel("Search:"))
-        filters_layout.addWidget(self.project_search, 1)
-        filters_layout.addWidget(QLabel("Status:"))
-        filters_layout.addWidget(self.status_filter_proj, 1)
-        filters_layout.addWidget(QLabel("Priority:"))
-        filters_layout.addWidget(self.priority_filter, 1)
-        filters_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        filters_layout.addWidget(self.project_search)
+        filters_layout.addWidget(self.status_filter_proj)
+        filters_layout.addWidget(self.priority_filter)
 
         # Projects table
         self.projects_table = QTableWidget()
         self.projects_table.setColumnCount(8)
-        self.projects_table.setHorizontalHeaderLabels(["Name", "Status", "Progress", "Priority", "Deadline", "Budget (€)", "Manager", "Actions"])
-        # self.projects_table.setStyleSheet removed - inherits global style
+        self.projects_table.setHorizontalHeaderLabels(["Name", "Status", "Progress", "Priority", "Deadline", "Budget", "Manager", "Actions"])
+        self.projects_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.projects_table.verticalHeader().setVisible(False)
         self.projects_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.projects_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.projects_table.setSortingEnabled(True)
-        self.projects_table.setAlternatingRowColors(True)
-        self.projects_table.setWordWrap(True)
-        self.projects_table.setTextElideMode(Qt.ElideRight)
+        self.projects_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
-
-        # Column Resizing and Alignment
-        self.projects_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # Name
-        self.projects_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents) # Status
-        self.projects_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive) # Progress (can be wide with text)
-        self.projects_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents) # Priority
-        self.projects_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Deadline
-        self.projects_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Interactive) # Budget
-        self.projects_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Interactive) # Manager
-        self.projects_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents) # Actions
-
-
-        layout.addWidget(header_widget)
-        layout.addWidget(filters_widget)
+        layout.addWidget(header)
+        layout.addWidget(filters)
         layout.addWidget(self.projects_table)
 
         self.main_content.addWidget(page)
@@ -1047,101 +827,109 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         # Header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0,0,0,0)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
 
         title = QLabel("Task Management")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         self.add_task_btn = QPushButton("New Task")
-        self.add_task_btn.setObjectName("primary_action_button") # Use green primary button style
         self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png')))
-        # self.add_task_btn.setStyleSheet removed - inherits global style
+        self.add_task_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #27ae60;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #219653;
+            }
+        """)
         self.add_task_btn.clicked.connect(self.show_add_task_dialog)
 
         header_layout.addWidget(title)
         header_layout.addStretch()
         header_layout.addWidget(self.add_task_btn)
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         # Filters
-        filters_widget = QWidget()
-        filters_layout = QHBoxLayout(filters_widget)
-        filters_layout.setContentsMargins(0,0,0,0)
-        filters_layout.setSpacing(10)
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
 
         self.task_search = QLineEdit()
-        self.task_search.setPlaceholderText("Search by task name or assignee...")
-        # self.task_search.setStyleSheet removed - inherits global style
+        self.task_search.setPlaceholderText("Search a task...")
+        self.task_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.task_search.textChanged.connect(self.filter_tasks)
 
         self.task_status_filter = QComboBox()
-        self.task_status_filter.addItem("All Statuses", None) # UserData is None for all
-        task_statuses_from_db = main_db_manager.get_all_status_settings(status_type='Task')
-        if task_statuses_from_db:
-            for ts_db in task_statuses_from_db:
-                self.task_status_filter.addItem(ts_db['status_name'], ts_db['status_id'])
-        else: # Fallback if no statuses in DB
-            self.task_status_filter.addItems(["To Do", "In Progress", "In Review", "Completed"]) # Static fallback
-        # self.task_status_filter.setStyleSheet removed - inherits global style
+        self.task_status_filter.addItems(["All Statuses", "To Do", "In Progress", "In Review", "Completed"])
+        self.task_status_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.task_status_filter.currentIndexChanged.connect(self.filter_tasks)
-
 
         self.task_priority_filter = QComboBox()
         self.task_priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
-        self.task_priority_filter.setItemData(1, 2) # High
-        self.task_priority_filter.setItemData(2, 1) # Medium
-        self.task_priority_filter.setItemData(3, 0) # Low
-        # self.task_priority_filter.setStyleSheet removed - inherits global style
+        self.task_priority_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.task_priority_filter.currentIndexChanged.connect(self.filter_tasks)
 
         self.task_project_filter = QComboBox()
-        self.task_project_filter.addItem("All Projects", None) # UserData for "All Projects" is None
-        all_projects_for_task_filter = main_db_manager.get_all_projects()
-        if all_projects_for_task_filter:
-            for proj_tf in all_projects_for_task_filter:
-                 # Optionally filter out completed/archived projects here if desired
-                self.task_project_filter.addItem(proj_tf['project_name'], proj_tf['project_id'])
-        # self.task_project_filter.setStyleSheet removed - inherits global style
+        self.task_project_filter.addItem("All Projects")
+        self.task_project_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
         self.task_project_filter.currentIndexChanged.connect(self.filter_tasks)
 
-        filters_layout.addWidget(QLabel("Search:"))
-        filters_layout.addWidget(self.task_search, 1)
-        filters_layout.addWidget(QLabel("Project:"))
-        filters_layout.addWidget(self.task_project_filter, 1)
-        filters_layout.addWidget(QLabel("Status:"))
-        filters_layout.addWidget(self.task_status_filter, 1)
-        filters_layout.addWidget(QLabel("Priority:"))
-        filters_layout.addWidget(self.task_priority_filter, 1)
-        filters_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
+        filters_layout.addWidget(self.task_search)
+        filters_layout.addWidget(self.task_status_filter)
+        filters_layout.addWidget(self.task_priority_filter)
+        filters_layout.addWidget(self.task_project_filter)
 
         # Tasks table
         self.tasks_table = QTableWidget()
         self.tasks_table.setColumnCount(7)
         self.tasks_table.setHorizontalHeaderLabels(["Name", "Project", "Status", "Priority", "Assigned To", "Deadline", "Actions"])
-        # self.tasks_table.setStyleSheet removed - inherits global style
+        self.tasks_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.tasks_table.verticalHeader().setVisible(False)
         self.tasks_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tasks_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.tasks_table.setSortingEnabled(True)
-        self.tasks_table.setAlternatingRowColors(True)
-        self.tasks_table.setWordWrap(True)
-        self.tasks_table.setTextElideMode(Qt.ElideRight)
+        self.tasks_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
-        # Column Resizing and Alignment
-        self.tasks_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # Name
-        self.tasks_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Interactive) # Project
-        self.tasks_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Status
-        self.tasks_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents) # Priority
-        self.tasks_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive) # Assigned To
-        self.tasks_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Deadline
-        self.tasks_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents) # Actions
-
-
-        layout.addWidget(header_widget)
-        layout.addWidget(filters_widget)
+        layout.addWidget(header)
+        layout.addWidget(filters)
         layout.addWidget(self.tasks_table)
 
         self.main_content.addWidget(page)
@@ -1153,81 +941,121 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Reports and Analytics")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;") # Consistent title style
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         # Report options
-        report_options_widget = QWidget() # Container for options
-        options_layout = QHBoxLayout(report_options_widget)
-        options_layout.setContentsMargins(0,0,0,0) # No internal margins for this layout
-        options_layout.setSpacing(10) # Spacing between controls
+        report_options = QWidget()
+        options_layout = QHBoxLayout(report_options)
 
         self.report_type = QComboBox()
         self.report_type.addItems(["Team Performance", "Project Progress", "Workload", "Key Indicators", "Budget Analysis"])
-        # self.report_type.setStyleSheet removed - inherits global style
+        self.report_type.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
 
         self.report_period = QComboBox()
         self.report_period.addItems(["Last 7 Days", "Last 30 Days", "Current Quarter", "Current Year", "Custom..."])
-        # self.report_period.setStyleSheet removed - inherits global style
+        self.report_period.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
 
         generate_btn = QPushButton("Generate Report")
-        generate_btn.setObjectName("standard_action_button") # Blue button
         generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png')))
-        # generate_btn.setStyleSheet removed - inherits global style
+        generate_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         generate_btn.clicked.connect(self.generate_report)
 
-        export_btn = QPushButton("Export Data") # Changed to "Export Data" as PDF is not fully implemented
-        export_btn.setObjectName("primary_action_button") # Green button, or use default
-        export_btn.setIcon(QIcon(self.resource_path('icons/export_excel.png'))) # Changed icon to reflect excel
-        # export_btn.setStyleSheet removed - inherits global style
-        export_btn.clicked.connect(self.export_report) # This exports to Excel now
+        export_btn = QPushButton("Export PDF")
+        export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png')))
+        export_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+        export_btn.clicked.connect(self.export_report)
 
         options_layout.addWidget(QLabel("Type:"))
-        options_layout.addWidget(self.report_type, 1) # Add stretch factor
+        options_layout.addWidget(self.report_type)
         options_layout.addWidget(QLabel("Period:"))
-        options_layout.addWidget(self.report_period, 1) # Add stretch factor
-        options_layout.addStretch(1) # Add stretch to push buttons to the right or balance
+        options_layout.addWidget(self.report_period)
         options_layout.addWidget(generate_btn)
         options_layout.addWidget(export_btn)
-        report_options_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
 
         # Report area
         self.report_view = QTabWidget()
-        # self.report_view.setStyleSheet removed - inherits global QTabWidget style
+        self.report_view.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QTabBar::tab {
+                padding: 8px 15px;
+                background: #f1f1f1;
+                border: 1px solid #ddd;
+                border-bottom: none;
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+            }
+            QTabBar::tab:selected {
+                background: #3498db;
+                color: white;
+            }
+        """)
 
         # Chart tab
         self.graph_tab = QWidget()
         self.graph_layout = QVBoxLayout(self.graph_tab)
-        self.graph_layout.setContentsMargins(0,0,0,0) # Remove margins if canvas handles padding
-        self.graph_tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
 
         # Data tab
         self.data_tab = QWidget()
         self.data_layout = QVBoxLayout(self.data_tab)
-        self.data_layout.setContentsMargins(0,0,0,0) # Remove margins, table will have its own
 
         self.report_data_table = QTableWidget()
-        # self.report_data_table.setStyleSheet removed - inherits global QTableWidget style
+        self.report_data_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: none;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.report_data_table.verticalHeader().setVisible(False)
         self.report_data_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.report_data_table.setAlternatingRowColors(True)
-        self.report_data_table.setSelectionBehavior(QTableWidget.SelectRows) # Allow row selection
-        self.report_data_table.setWordWrap(True)
-        self.report_data_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
 
         self.data_layout.addWidget(self.report_data_table)
-        self.data_tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
 
         self.report_view.addTab(self.graph_tab, "Visualization")
         self.report_view.addTab(self.data_tab, "Data")
-        self.report_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding) # Allow tab view to expand
-
 
         layout.addWidget(title)
-        layout.addWidget(report_options_widget)
+        layout.addWidget(report_options)
         layout.addWidget(self.report_view)
 
         self.main_content.addWidget(page)
@@ -1239,37 +1067,46 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;") # Consistent title style
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
 
         # Tabs
         tabs = QTabWidget()
-        # tabs.setStyleSheet removed - inherits global QTabWidget style
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QTabBar::tab {
+                padding: 8px 15px;
+                background: #f1f1f1;
+                border: 1px solid #ddd;
+                border-bottom: none;
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+            }
+            QTabBar::tab:selected {
+                background: #3498db;
+                color: white;
+            }
+        """)
 
         # Account tab
         account_tab = QWidget()
         account_layout = QFormLayout(account_tab)
-        account_layout.setSpacing(10) # Slightly reduced spacing for forms
-        account_layout.setLabelAlignment(Qt.AlignRight) # Align labels to the right
+        account_layout.setSpacing(15)
 
-        # Use QGroupBox for sections within the Account tab for better visual separation
-        personal_info_group = QGroupBox("Personal Information")
-        personal_info_layout = QFormLayout(personal_info_group)
-        personal_info_layout.setSpacing(10)
-        personal_info_layout.setLabelAlignment(Qt.AlignRight)
+        account_layout.addRow(QLabel("<b>Personal Information</b>"))
 
         self.name_edit = QLineEdit()
         self.email_edit = QLineEdit()
         self.phone_edit = QLineEdit()
-        personal_info_layout.addRow("Full Name:", self.name_edit)
-        personal_info_layout.addRow("Email:", self.email_edit)
-        personal_info_layout.addRow("Phone:", self.phone_edit)
-        account_layout.addRow(personal_info_group)
 
+        account_layout.addRow("Full Name:", self.name_edit)
+        account_layout.addRow("Email:", self.email_edit)
+        account_layout.addRow("Phone:", self.phone_edit)
 
-        security_group = QGroupBox("Security")
-        security_layout = QFormLayout(security_group)
-        security_layout.setSpacing(10)
-        security_layout.setLabelAlignment(Qt.AlignRight)
+        account_layout.addItem(QSpacerItem(20, 20))
+        account_layout.addRow(QLabel("<b>Security</b>"))
 
         self.current_pwd_edit = QLineEdit()
         self.current_pwd_edit.setEchoMode(QLineEdit.Password)
@@ -1277,97 +1114,104 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.new_pwd_edit.setEchoMode(QLineEdit.Password)
         self.confirm_pwd_edit = QLineEdit()
         self.confirm_pwd_edit.setEchoMode(QLineEdit.Password)
-        security_layout.addRow("Current Password:", self.current_pwd_edit)
-        security_layout.addRow("New Password:", self.new_pwd_edit)
-        security_layout.addRow("Confirm New Password:", self.confirm_pwd_edit)
-        account_layout.addRow(security_group)
 
-        save_btn_account = QPushButton("Save Account Changes") # Renamed for clarity
-        save_btn_account.setObjectName("standard_action_button") # Blue button
-        # save_btn_account.setStyleSheet removed
-        save_btn_account.clicked.connect(self.save_account_settings)
-        account_layout.addRow(save_btn_account) # AddRow can take a widget spanning columns
+        account_layout.addRow("Current Password:", self.current_pwd_edit)
+        account_layout.addRow("New Password:", self.new_pwd_edit)
+        account_layout.addRow("Confirm:", self.confirm_pwd_edit)
+
+        save_btn = QPushButton("Save Changes")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        save_btn.clicked.connect(self.save_account_settings)
+        account_layout.addRow(save_btn)
 
         # Preferences tab
         pref_tab = QWidget()
         pref_layout = QFormLayout(pref_tab)
-        pref_layout.setSpacing(10)
-        pref_layout.setLabelAlignment(Qt.AlignRight)
+        pref_layout.setSpacing(15)
 
-        display_group = QGroupBox("Display")
-        display_layout = QFormLayout(display_group)
-        display_layout.setSpacing(10)
-        display_layout.setLabelAlignment(Qt.AlignRight)
+        pref_layout.addRow(QLabel("<b>Display</b>"))
+
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["Light", "Dark", "Blue", "Automatic"])
+
         self.density_combo = QComboBox()
         self.density_combo.addItems(["Compact", "Normal", "Large"])
+
         self.language_combo = QComboBox()
-        self.language_combo.addItems(["French", "English", "Spanish"]) # Consider making these dynamic if app supports more
-        display_layout.addRow("Theme:", self.theme_combo)
-        display_layout.addRow("Density:", self.density_combo)
-        display_layout.addRow("Language:", self.language_combo)
-        pref_layout.addRow(display_group)
+        self.language_combo.addItems(["French", "English", "Spanish"])
 
-        notifications_group = QGroupBox("Notifications")
-        notifications_layout = QFormLayout(notifications_group) # Using QFormLayout for consistency
-        notifications_layout.setSpacing(10)
-        notifications_layout.setLabelAlignment(Qt.AlignLeft) # Checkboxes usually have labels on the right
-        self.email_notif = QCheckBox("Receive Email Notifications")
-        self.app_notif = QCheckBox("Show In-App Notifications")
-        self.sms_notif = QCheckBox("Receive SMS Notifications (if configured)")
-        notifications_layout.addRow(self.email_notif)
-        notifications_layout.addRow(self.app_notif)
-        notifications_layout.addRow(self.sms_notif)
-        pref_layout.addRow(notifications_group)
+        pref_layout.addRow("Theme:", self.theme_combo)
+        pref_layout.addRow("Density:", self.density_combo)
+        pref_layout.addRow("Language:", self.language_combo)
 
+        pref_layout.addItem(QSpacerItem(20, 20))
+        pref_layout.addRow(QLabel("<b>Notifications</b>"))
+
+        self.email_notif = QCheckBox("Email")
+        self.app_notif = QCheckBox("Application")
+        self.sms_notif = QCheckBox("SMS")
+
+        pref_layout.addRow(self.email_notif)
+        pref_layout.addRow(self.app_notif)
+        pref_layout.addRow(self.sms_notif)
 
         save_pref_btn = QPushButton("Save Preferences")
-        save_pref_btn.setObjectName("standard_action_button") # Blue button
-        # save_pref_btn.setStyleSheet removed
+        save_pref_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         save_pref_btn.clicked.connect(self.save_preferences)
         pref_layout.addRow(save_pref_btn)
 
-        # Access Management tab (previously team_tab)
-        access_mgmt_tab = QWidget() # Renamed variable for clarity
-        access_mgmt_layout = QVBoxLayout(access_mgmt_tab) # Using QVBoxLayout for this tab
-        access_mgmt_layout.setContentsMargins(10,10,10,10)
-        access_mgmt_layout.setSpacing(10)
-
-
-        access_header_label = QLabel("Manage User Roles and Access Permissions")
-        access_header_label.setStyleSheet("font-size: 15px; font-weight: bold; color: #333333; margin-bottom: 5px;")
-        access_mgmt_layout.addWidget(access_header_label)
-
+        # Team tab
+        team_tab = QWidget()
+        team_layout = QVBoxLayout(team_tab)
 
         self.access_table = QTableWidget()
         self.access_table.setColumnCount(4)
-        self.access_table.setHorizontalHeaderLabels(["Name", "Role", "Access Level", "Actions"]) # Changed "Access" to "Access Level"
-        # self.access_table.setStyleSheet removed - inherits global style
+        self.access_table.setHorizontalHeaderLabels(["Name", "Role", "Access", "Actions"])
+        self.access_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
         self.access_table.verticalHeader().setVisible(False)
         self.access_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.access_table.setAlternatingRowColors(True)
-        self.access_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.access_table.setSortingEnabled(True)
+        self.access_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
-        self.access_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # Name
-        self.access_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents) # Role
-        self.access_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Access Level
-        self.access_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents) # Actions
-
-
-        access_mgmt_layout.addWidget(self.access_table)
-        access_mgmt_tab.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
+        team_layout.addWidget(self.access_table)
 
         tabs.addTab(account_tab, "Account")
         tabs.addTab(pref_tab, "Preferences")
-        tabs.addTab(access_mgmt_tab, "Access Management") # Changed tab variable name
+        tabs.addTab(team_tab, "Access Management")
 
         layout.addWidget(title)
         layout.addWidget(tabs)
-        tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
 
         self.main_content.addWidget(page)
 
@@ -1430,38 +1274,41 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def handle_login(self, username, password, dialog):
         # hashed_pwd = hashlib.sha256(password.encode()).hexdigest() # Old method
 
-        # Use main_db_manager for verification
-        user_data = main_db_manager.verify_user_password(username, password)
+        # Use db_manager for verification (changed from main_db_manager)
+        user_data_from_db = db_manager.verify_user_password(username, password)
 
-        if user_data:
-            # User data from main_db_manager is a dictionary
-            self.current_user = {
-                'id': user_data['user_id'], # Assuming 'user_id' is the key in db.py
-                'username': user_data['username'],
-                'full_name': user_data['full_name'],
-                'email': user_data['email'],
-                'role': user_data['role']
-            }
-            # Ensure all necessary keys are present in user_data from db.py
-            # For example, if 'phone' is needed: self.current_user['phone'] = user_data.get('phone')
+        if user_data_from_db: # This is a dict from db.py's row_factory
+            # Directly use the dictionary returned by verify_user_password as self.current_user
+            # Ensure all keys needed by the UI (e.g., 'full_name', 'role') are present in the dict from db.py
+            self.current_user = dict(user_data_from_db) # Convert sqlite3.Row to dict if not already
 
             # Update UI
-            self.user_name.setText(self.current_user['full_name'])
-            self.user_role.setText(self.current_user['role'].capitalize())
+            self.user_name.setText(self.current_user.get('full_name', "N/A"))
+            self.user_role.setText(self.current_user.get('role', "N/A").capitalize())
 
-            # Log activity
-            self.log_activity(f"Login by {self.current_user['full_name']}")
+            # Log activity - ensure self.current_user['id'] maps to user_id for log_activity
+            # db.py's Users table has user_id as PK. verify_user_password returns this.
+            # log_activity expects 'id' key in self.current_user for user_id.
+            # So, ensure self.current_user['id'] is set correctly, or adjust log_activity.
+            # For now, assuming log_activity will be adapted or current_user dict has 'id' as user_id.
+            # To be safe, let's prepare a dict for log_activity if needed, or ensure 'id' exists.
+            # The log_activity expects self.current_user['id']. Let's make sure it's there.
+            # If user_data_from_db has 'user_id', we can map it to 'id' in self.current_user for log_activity,
+            # or better, adjust log_activity to use 'user_id'.
+            # For now, let's assume self.current_user (which is user_data_from_db) will be used by log_activity directly.
+
+            self.log_activity(f"Login by {self.current_user.get('full_name', username)}")
 
             # Load data
             self.load_initial_data()
 
             dialog.accept()
         else:
-            QMessageBox.warning(self, "Error", "Incorrect username or password")
+            QMessageBox.warning(self, "Error", "Incorrect username or password, or user is inactive.")
 
     def logout(self):
         if self.current_user:
-            self.log_activity(f"Logout by {self.current_user['full_name']}")
+            self.log_activity(f"Logout by {self.current_user.get('full_name', 'Unknown user')}")
 
         self.current_user = None
         self.user_name.setText("Guest")
@@ -1469,23 +1316,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.show_login_dialog()
 
     def log_activity(self, action, details=None):
-        # This function will be refactored later to use main_db_manager.add_activity_log
-        # For now, ensure it doesn't crash due to self.db removal.
-        # It needs self.current_user['id'] which should be user_id from main_db
-        if self.current_user and 'id' in self.current_user:
-            main_db_manager.add_activity_log({
-                'user_id': self.current_user['id'], # This should be the user_id (TEXT UUID) from Users table
-                'action_type': action, # Match ActivityLog schema in db.py
-                'details': details
-                # Other fields like 'related_entity_type', 'related_entity_id' can be added if available
-            })
-        else:
-            # Log system activity if no user context, or handle as error
-            main_db_manager.add_activity_log({
-                'user_id': None,
-                'action_type': action,
-                'details': f"System activity (user not logged in): {details if details else ''}"
-            })
+        user_id_for_log = None
+        if self.current_user and self.current_user.get('user_id'):
+            user_id_for_log = self.current_user.get('user_id')
+
+        db_manager.add_activity_log({ # Changed main_db_manager to db_manager
+            'user_id': user_id_for_log,
+            'action_type': action,
+            'details': details
+            # Other fields like 'related_entity_type', 'related_entity_id' can be added if available
+        })
 
 
     def load_initial_data(self):
@@ -1509,18 +1349,38 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 widget.deleteLater()
 
         kpis_to_display = []
-        # Attempt to load KPIs for the first project found (temporary approach)
-        all_projects = main_db_manager.get_all_projects()
+        # Attempt to load KPIs for the first project found
+        # In a more advanced dashboard, this would come from a selected project context
+        all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
         if all_projects and len(all_projects) > 0:
-            first_project_id = all_projects[0].get('project_id')
-            if first_project_id:
-                kpis_to_display = main_db_manager.get_kpis_for_project(first_project_id)
-                if kpis_to_display:
-                     print(f"Displaying KPIs for project ID: {first_project_id}")
+            # For simplicity, let's try to find the first project that is not archived or completed
+            first_active_project_id = None
+            for proj in all_projects:
+                status_id = proj.get('status_id')
+                if status_id:
+                    status_setting = db_manager.get_status_setting_by_id(status_id)
+                    if status_setting and not status_setting.get('is_completion_status') and not status_setting.get('is_archival_status'):
+                        first_active_project_id = proj.get('project_id')
+                        break
+                else: # If no status, assume it's active for KPI display
+                    first_active_project_id = proj.get('project_id')
+                    break
 
-        if not kpis_to_display: # If still no KPIs
-            print("No KPIs found for any project, or no projects exist.")
-            no_kpi_label = QLabel("No KPIs to display. Add projects and KPIs.")
+            if first_active_project_id:
+                kpis_to_display = db_manager.get_kpis_for_project(first_active_project_id) # Changed main_db_manager
+                if kpis_to_display:
+                     print(f"Displaying KPIs for project ID: {first_active_project_id}")
+                else:
+                    print(f"No KPIs found for project ID: {first_active_project_id}")
+            else:
+                print("No active projects found to display KPIs for.")
+        else:
+            print("No projects found in the database.")
+
+
+        if not kpis_to_display:
+            # Do not create example KPIs. Just display a message.
+            no_kpi_label = QLabel("No KPIs to display for the current project context.")
             no_kpi_label.setAlignment(Qt.AlignCenter)
             self.kpi_layout.addWidget(no_kpi_label)
             return
@@ -1529,7 +1389,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             name = kpi_dict.get('name', 'N/A')
             value = kpi_dict.get('value', 0)
             target = kpi_dict.get('target', 0)
-            trend = kpi_dict.get('trend', 'stable') # default trend
+            trend = kpi_dict.get('trend', 'stable')
             unit = kpi_dict.get('unit', '')
 
             frame = QFrame()
@@ -1594,6 +1454,374 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
     def load_team_members(self):
+        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
+        # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
+        # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
+
+        members_data = db_manager.get_all_team_members() # Changed main_db_manager
+        if members_data is None: members_data = []
+
+        self.team_table.setRowCount(len(members_data))
+
+        for row_idx, member in enumerate(members_data): # member is a dict
+            self.team_table.setItem(row_idx, 0, QTableWidgetItem(member.get('full_name', 'N/A')))
+            self.team_table.setItem(row_idx, 1, QTableWidgetItem(member.get('email', 'N/A')))
+            self.team_table.setItem(row_idx, 2, QTableWidgetItem(member.get('role_or_title', 'N/A')))
+            self.team_table.setItem(row_idx, 3, QTableWidgetItem(member.get('department', 'N/A')))
+            self.team_table.setItem(row_idx, 4, QTableWidgetItem(member.get('hire_date', 'N/A')))
+
+            performance_val = member.get('performance', 0)
+            perf_item = QTableWidgetItem(f"{performance_val}%")
+            if performance_val >= 90: perf_item.setForeground(QColor('#27ae60'))
+            elif performance_val >= 80: perf_item.setForeground(QColor('#f39c12'))
+            else: perf_item.setForeground(QColor('#e74c3c'))
+            self.team_table.setItem(row_idx, 5, perf_item)
+
+            self.team_table.setItem(row_idx, 6, QTableWidgetItem(member.get('skills', 'N/A')))
+
+            is_active_val = member.get('is_active', False) # In db.py, is_active is BOOLEAN (0 or 1)
+            active_item = QTableWidgetItem()
+            if bool(is_active_val): # Ensure it's treated as boolean
+                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setText("Active")
+            else:
+                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setText("Inactive")
+            self.team_table.setItem(row_idx, 7, active_item)
+
+            task_count = 0
+            member_id_for_tasks = member.get('team_member_id')
+            if member_id_for_tasks is not None:
+                # Use the new helper function, fetching only active tasks
+                tasks_for_member = db_manager.get_tasks_by_assignee_id(member_id_for_tasks, active_only=True)
+                if tasks_for_member:
+                    task_count = len(tasks_for_member)
+            self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            current_member_id = member['team_member_id']
+
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
+
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
+
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.team_table.setCellWidget(row_idx, 9, action_widget)
+
+        self.team_table.resizeColumnsToContents()
+
+    def load_projects(self):
+        # db.py fields: project_id (TEXT PK), client_id, project_name, description, start_date, deadline_date,
+        # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
+        # priority (INTEGER), created_at, updated_at
+
+        projects_data = db_manager.get_all_projects() # Changed main_db_manager
+        if projects_data is None:
+            projects_data = []
+
+        self.projects_table.setRowCount(len(projects_data))
+
+        for row_idx, project_dict in enumerate(projects_data): # project_dict is a dict
+            project_id_str = project_dict.get('project_id')
+            self.projects_table.setItem(row_idx, 0, QTableWidgetItem(project_dict.get('project_name', 'N/A')))
+
+            # Status
+            status_id = project_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default color
+            if status_id is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id) # Changed main_db_manager
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db:
+                        status_color_hex = color_from_db
+                    else: # Fallback colors based on name if hex not in DB
+                        if "completed" in status_name_display.lower(): status_color_hex = '#2ecc71' # Green
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db' # Blue
+                        elif "planning" in status_name_display.lower(): status_color_hex = '#f1c40f' # Yellow
+                        elif "late" in status_name_display.lower() or "overdue" in status_name_display.lower(): status_color_hex = '#e74c3c' # Red
+                        elif "archived" in status_name_display.lower(): status_color_hex = '#95a5a6' # Grey
+
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.projects_table.setItem(row_idx, 1, status_item)
+
+            # Progress bar
+            progress = project_dict.get('progress_percentage', 0)
+            progress_widget = QWidget()
+            progress_layout = QHBoxLayout(progress_widget)
+            progress_layout.setContentsMargins(5, 5, 5, 5)
+            progress_bar = QProgressBar()
+            progress_bar.setValue(progress if progress is not None else 0)
+            progress_bar.setAlignment(Qt.AlignCenter)
+            progress_bar.setFormat(f"{progress if progress is not None else 0}%")
+            progress_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #bdc3c7; border-radius: 5px; text-align: center; height: 20px; }
+                QProgressBar::chunk { background-color: #3498db; border-radius: 4px; }
+            """)
+            progress_layout.addWidget(progress_bar)
+            self.projects_table.setCellWidget(row_idx, 2, progress_widget)
+
+            # Priority
+            priority_val = project_dict.get('priority', 0)
+            priority_item = QTableWidgetItem()
+            if priority_val == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # 0 or other = Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.projects_table.setItem(row_idx, 3, priority_item)
+
+            self.projects_table.setItem(row_idx, 4, QTableWidgetItem(project_dict.get('deadline_date', 'N/A')))
+            budget_val = project_dict.get('budget', 0.0)
+            self.projects_table.setItem(row_idx, 5, QTableWidgetItem(f"€{budget_val:,.2f}" if budget_val is not None else "€0.00"))
+
+            manager_user_id = project_dict.get('manager_team_member_id') # This is a user_id (TEXT from Users table)
+            manager_display_name = "Unassigned"
+            if manager_user_id:
+                # First, try to find a TeamMember linked to this user_id
+                team_members_list = db_manager.get_all_team_members(filters={'user_id': manager_user_id})
+                if team_members_list and len(team_members_list) > 0:
+                    manager_display_name = team_members_list[0].get('full_name', manager_user_id)
+                else:
+                    # If no direct TeamMember link, fall back to User's full_name
+                    user_as_manager = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
+                    if user_as_manager:
+                        manager_display_name = user_as_manager.get('full_name', manager_user_id) # Use user_id as last resort
+            self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            details_btn = QPushButton()
+            details_btn.setIcon(QIcon(self.resource_path('icons/details.png')))
+            details_btn.setToolTip("Details")
+            details_btn.setFixedSize(30,30)
+            details_btn.setStyleSheet("background-color: transparent;")
+            details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
+
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
+
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
+
+            action_layout.addWidget(details_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.projects_table.setCellWidget(row_idx, 7, action_widget)
+
+        self.projects_table.resizeColumnsToContents()
+
+    def load_tasks(self):
+        # Fetch all tasks (or active ones as per new helper)
+        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
+        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
+
+        # Using the new helper to get only active tasks by default
+        all_tasks_data = db_manager.get_all_tasks(active_only=True)
+        if all_tasks_data is None: all_tasks_data = []
+
+        self.tasks_table.setRowCount(len(all_tasks_data))
+
+        for row_idx, task_dict in enumerate(all_tasks_data):
+            task_id_val = task_dict.get('task_id') # This is INT
+            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
+
+            # Project Name
+            project_name_display = "N/A"
+            project_id_for_task = task_dict.get('project_id')
+            if project_id_for_task:
+                project_info = db_manager.get_project_by_id(project_id_for_task)
+                if project_info:
+                    project_name_display = project_info.get('project_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
+
+            # Status
+            status_id_for_task = task_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default
+            if status_id_for_task is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+                    else: # Fallback colors
+                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
+                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
+                        # Add more specific fallbacks if needed
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.tasks_table.setItem(row_idx, 2, status_item)
+
+            # Priority
+            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
+            priority_item = QTableWidgetItem()
+            if priority_val_for_task == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val_for_task == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.tasks_table.setItem(row_idx, 3, priority_item)
+
+            # Assignee Name
+            assignee_name_display = "Unassigned"
+            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
+            if assignee_tm_id is not None:
+                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
+                if assignee_member_info:
+                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
+
+            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
+
+            # Action buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(5)
+
+            complete_btn = QPushButton()
+            complete_btn.setIcon(QIcon(self.resource_path('icons/complete.png')))
+            complete_btn.setToolTip("Mark as Completed")
+            complete_btn.setFixedSize(30, 30)
+            complete_btn.setStyleSheet("background-color: transparent;")
+            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
+
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30, 30)
+            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
+
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30, 30)
+            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
+
+            action_layout.addWidget(complete_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+
+            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
+
+        self.tasks_table.resizeColumnsToContents()
+
+    def load_activities(self):
+                frame.setStyleSheet("""
+                    QFrame {
+                        background-color: white;
+                        border-radius: 5px;
+                        padding: 15px;
+                        border: 1px solid #e0e0e0;
+                    }
+                    QLabel {
+                        font-size: 14px;
+                        color: #555555;
+                    }
+                    QLabel#kpi_title {
+                        font-size: 16px;
+                        font-weight: bold;
+                        color: #2c3e50;
+                    }
+                    QLabel#kpi_value {
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #3498db;
+                    }
+                """)
+                frame.setFixedWidth(220)
+
+                frame_layout = QVBoxLayout(frame)
+                frame_layout.setSpacing(5)
+
+                title = QLabel(name.capitalize())
+                title.setObjectName("kpi_title")
+
+                value_label = QLabel(f"{value}{unit}")
+                value_label.setObjectName("kpi_value")
+
+                target_label = QLabel(f"Target: {target}{unit}")
+
+                trend_icon = QLabel()
+                if trend == "up":
+                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
+                elif trend == "down":
+                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
+                else:
+                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
+
+                trend_layout = QHBoxLayout()
+                trend_layout.addWidget(QLabel("Trend:"))
+                trend_layout.addWidget(trend_icon)
+                trend_layout.addStretch()
+
+                frame_layout.addWidget(title)
+                frame_layout.addWidget(value_label)
+                frame_layout.addWidget(target_label)
+                frame_layout.addLayout(trend_layout)
+
+                self.kpi_layout.addWidget(frame)
+
+            # If no KPIs, create examples
+            if not kpis:
+                example_kpis = [
+                    ("Productivity", 78, 85, "up", "%"),
+                    ("Quality", 92, 90, "stable", "%"),
+                    ("Efficiency", 81, 80, "up", "%"),
+                    ("Satisfaction", 88, 85, "down", "%")
+                ]
+
+                for name, value, target, trend, unit in example_kpis:
+                    cursor.execute('''
+                        INSERT INTO kpis (name, value, target, trend, unit)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (name, value, target, trend, unit))
+
+                conn.commit()
+                # Reload KPIs
+                self.load_kpis()
+
+        # This is the corrected load_team_members from the previous step.
         # Uses main_db_manager.get_all_team_members()
         # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
         # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
@@ -1629,12 +1857,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 active_item.setText("Inactive")
             self.team_table.setItem(row_idx, 7, active_item)
 
-            # Number of tasks - Placeholder for now, requires task refactoring
             task_count = 0
-            # Example of future integration:
-            # if member.get('team_member_id'):
-            #   tasks_for_member = main_db_manager.get_tasks_by_assignee(member['team_member_id']) # Needs this func in db.py
-            #   task_count = len(tasks_for_member) if tasks_for_member else 0
             self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
 
             action_widget = QWidget()
@@ -1676,13 +1899,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table.setRowCount(len(projects_data))
 
         for row_idx, project_dict in enumerate(projects_data):
-            project_id_str = project_dict.get('project_id') # This is TEXT UUID
+            project_id_str = project_dict.get('project_id')
             self.projects_table.setItem(row_idx, 0, QTableWidgetItem(project_dict.get('project_name', 'N/A')))
 
-            # Status
             status_id = project_dict.get('status_id')
             status_name_display = "Unknown"
-            status_color_hex = "#7f8c8d" # Default color (e.g., grey)
+            status_color_hex = "#7f8c8d"
             if status_id is not None:
                 status_setting = main_db_manager.get_status_setting_by_id(status_id)
                 if status_setting:
@@ -1701,7 +1923,6 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_item.setForeground(QColor(status_color_hex))
             self.projects_table.setItem(row_idx, 1, status_item)
 
-            # Progress bar
             progress = project_dict.get('progress_percentage', 0)
             progress_widget = QWidget()
             progress_layout = QHBoxLayout(progress_widget)
@@ -1717,16 +1938,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             progress_layout.addWidget(progress_bar)
             self.projects_table.setCellWidget(row_idx, 2, progress_widget)
 
-            # Priority
             priority_val = project_dict.get('priority', 0)
             priority_item = QTableWidgetItem()
-            if priority_val == 2: # High
+            if priority_val == 2:
                 priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
                 priority_item.setText("High")
-            elif priority_val == 1: # Medium
+            elif priority_val == 1:
                 priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
                 priority_item.setText("Medium")
-            else: # 0 or other = Low
+            else:
                 priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
                 priority_item.setText("Low")
             self.projects_table.setItem(row_idx, 3, priority_item)
@@ -1781,126 +2001,137 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table.resizeColumnsToContents()
 
     def load_tasks(self):
-        self.tasks_table.setRowCount(0) # Clear existing rows
-        current_row = 0
+        # Fetch all tasks (or active ones as per new helper)
+        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
+        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
 
-        all_projects = main_db_manager.get_all_projects()
-        if all_projects is None: all_projects = []
+        # Using the new helper to get only active tasks by default
+        all_tasks_data = db_manager.get_all_tasks(active_only=True)
+        if all_tasks_data is None: all_tasks_data = []
 
-        for project_dict in all_projects:
-            project_id = project_dict.get('project_id')
-            project_name = project_dict.get('project_name', 'N/A')
+        self.tasks_table.setRowCount(len(all_tasks_data))
 
-            tasks_for_project = main_db_manager.get_tasks_by_project_id(project_id)
-            if tasks_for_project is None: tasks_for_project = []
+        for row_idx, task_dict in enumerate(all_tasks_data):
+            task_id_val = task_dict.get('task_id') # This is INT
+            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
 
-            if not tasks_for_project: continue # Skip if no tasks for this project
+            # Project Name
+            project_name_display = "N/A"
+            project_id_for_task = task_dict.get('project_id')
+            if project_id_for_task:
+                project_info = db_manager.get_project_by_id(project_id_for_task)
+                if project_info:
+                    project_name_display = project_info.get('project_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
 
-            self.tasks_table.setRowCount(self.tasks_table.rowCount() + len(tasks_for_project))
-
-            for task_dict in tasks_for_project:
-                task_id = task_dict.get('task_id')
-                self.tasks_table.setItem(current_row, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
-                self.tasks_table.setItem(current_row, 1, QTableWidgetItem(project_name)) # Use fetched project_name
-
-                # Status
-                status_id = task_dict.get('status_id')
-                status_name_display = "Unknown"
-                status_color_hex = "#7f8c8d" # Default grey
-                status_setting_for_task = None # To check for completion status later
-                if status_id is not None:
-                    status_setting_for_task = main_db_manager.get_status_setting_by_id(status_id)
-                    if status_setting_for_task:
-                        status_name_display = status_setting_for_task.get('status_name', 'Unknown')
-                        color_from_db = status_setting_for_task.get('color_hex')
-                        if color_from_db: status_color_hex = color_from_db
-                        elif "completed" in status_name_display.lower() or "done" in status_name_display.lower() : status_color_hex = '#2ecc71'
+            # Status
+            status_id_for_task = task_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default
+            if status_id_for_task is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+                    else: # Fallback colors
+                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
                         elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
-                        elif "todo" in status_name_display.lower() or "to do" in status_name_display.lower(): status_color_hex = '#f39c12'
-                        elif "review" in status_name_display.lower(): status_color_hex = '#9b59b6'
-                status_item = QTableWidgetItem(status_name_display)
-                status_item.setForeground(QColor(status_color_hex))
-                self.tasks_table.setItem(current_row, 2, status_item)
+                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
+                        # Add more specific fallbacks if needed
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.tasks_table.setItem(row_idx, 2, status_item)
 
-                # Priority
-                priority_val = task_dict.get('priority', 0)
-                priority_item = QTableWidgetItem()
-                if priority_val == 2:
-                    priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
-                    priority_item.setText("High")
-                elif priority_val == 1:
-                    priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
-                    priority_item.setText("Medium")
-                else:
-                    priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
-                    priority_item.setText("Low")
-                self.tasks_table.setItem(current_row, 3, priority_item)
+            # Priority
+            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
+            priority_item = QTableWidgetItem()
+            if priority_val_for_task == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val_for_task == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.tasks_table.setItem(row_idx, 3, priority_item)
 
-                # Assignee Name
-                assignee_name_display = "Unassigned"
-                assignee_tm_id = task_dict.get('assignee_team_member_id')
-                if assignee_tm_id is not None:
-                    team_member_info = main_db_manager.get_team_member_by_id(assignee_tm_id)
-                    if team_member_info:
-                        assignee_name_display = team_member_info.get('full_name', 'N/A')
-                self.tasks_table.setItem(current_row, 4, QTableWidgetItem(assignee_name_display))
+            # Assignee Name
+            assignee_name_display = "Unassigned"
+            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
+            if assignee_tm_id is not None:
+                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
+                if assignee_member_info:
+                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
 
-                self.tasks_table.setItem(current_row, 5, QTableWidgetItem(task_dict.get('due_date', 'N/A')))
+            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
 
-                # Action buttons
-                action_widget = QWidget()
-                action_layout = QHBoxLayout(action_widget)
-                action_layout.setContentsMargins(0,0,0,0)
-                action_layout.setSpacing(5)
+            # Action buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(5)
 
-                complete_btn = QPushButton()
-                complete_btn.setIcon(QIcon(self.resource_path('icons/complete.png')))
-                complete_btn.setToolTip("Mark as Completed")
-                complete_btn.setFixedSize(30,30)
-                complete_btn.setStyleSheet("background-color: transparent;")
-                complete_btn.clicked.connect(lambda _, t_id=task_id: self.complete_task(t_id))
-                if status_setting_for_task and status_setting_for_task.get('is_completion_status'):
-                    complete_btn.setEnabled(False)
+            complete_btn = QPushButton()
+            complete_btn.setIcon(QIcon(self.resource_path('icons/complete.png')))
+            complete_btn.setToolTip("Mark as Completed")
+            complete_btn.setFixedSize(30, 30)
+            complete_btn.setStyleSheet("background-color: transparent;")
+            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
 
-                edit_btn = QPushButton()
-                edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
-                edit_btn.setToolTip("Edit")
-                edit_btn.setFixedSize(30,30)
-                edit_btn.setStyleSheet("background-color: transparent;")
-                edit_btn.clicked.connect(lambda _, t_id=task_id: self.edit_task(t_id))
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30, 30)
+            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
 
-                delete_btn = QPushButton()
-                delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
-                delete_btn.setToolTip("Delete")
-                delete_btn.setFixedSize(30,30)
-                delete_btn.setStyleSheet("background-color: transparent;")
-                delete_btn.clicked.connect(lambda _, t_id=task_id: self.delete_task(t_id))
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30, 30)
+            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
 
-                action_layout.addWidget(complete_btn)
-                action_layout.addWidget(edit_btn)
-                action_layout.addWidget(delete_btn)
-                self.tasks_table.setCellWidget(current_row, 6, action_widget)
-                current_row += 1
+            action_layout.addWidget(complete_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+
+            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
 
         self.tasks_table.resizeColumnsToContents()
 
+
     def load_activities(self):
-        activities_data = main_db_manager.get_activity_logs(limit=50)
+        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
+        # For now, preventing crash
+        # with self.db.get_connection() as conn:
+        #     cursor = conn.cursor()
+        #     cursor.execute('''
+        #         SELECT a.timestamp, u.full_name, a.action, a.details
+        #         FROM activities a
+        #         LEFT JOIN users u ON a.user_id = u.id
+        #         ORDER BY a.timestamp DESC
+        #         LIMIT 50
+        #     ''')
+        #     activities = cursor.fetchall()
+        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
         if activities_data is None: activities_data = []
 
-        self.activities_table.setRowCount(0) # Clear table before loading
         self.activities_table.setRowCount(len(activities_data))
 
-        for row_idx, log_entry in enumerate(activities_data):
+        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
             # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
             # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
 
-            # For display, we need user's full_name if user_id is present
-            user_name_display = "System"
-            if log_entry.get('user_id'):
-                user_info = main_db_manager.get_user_by_id(log_entry['user_id'])
+            user_name_display = "System" # Default if user_id is None or user not found
+            user_id_for_log = log_entry.get('user_id')
+            if user_id_for_log:
+                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
                 if user_info:
-                    user_name_display = user_info.get('full_name', log_entry['user_id'])
+                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
 
             self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
             self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
@@ -1910,31 +2141,30 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.activities_table.resizeColumnsToContents()
 
     def load_access_table(self):
-        users_data = main_db_manager.get_all_users() # Assuming db.py has get_all_users()
+        users_data = db_manager.get_all_users() # Already changed to db_manager, this is just a confirmation
         if users_data is None: users_data = []
 
         self.access_table.setRowCount(len(users_data))
 
-        for row_idx, user_dict in enumerate(users_data):
-            user_id_str = user_dict.get('user_id') # This is TEXT UUID
+        for row_idx, user_dict in enumerate(users_data): # user_dict is a dict
+            user_id_str = user_dict.get('user_id')
             full_name = user_dict.get('full_name', 'N/A')
-            role = user_dict.get('role', 'member') # Default to 'member' or a base role
+            role = user_dict.get('role', 'member')
 
             self.access_table.setItem(row_idx, 0, QTableWidgetItem(full_name))
 
-            # Map role from db.py (e.g., 'admin', 'manager', 'member') to display name
             role_display_name = role.capitalize()
-            access_text = "User" # Default access text
-            access_color = QColor('#2ecc71') # Default color (green for User)
+            access_text = "User"
+            access_color = QColor('#2ecc71')
 
             if role == "admin":
                 role_display_name = "Administrator"
                 access_text = "Administrator"
-                access_color = QColor('#e74c3c') # Red
+                access_color = QColor('#e74c3c')
             elif role == "manager":
                 role_display_name = "Manager"
                 access_text = "Manager"
-                access_color = QColor('#3498db') # Blue
+                access_color = QColor('#3498db')
 
             self.access_table.setItem(row_idx, 1, QTableWidgetItem(role_display_name))
 
@@ -1952,7 +2182,6 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             edit_btn.setToolTip("Edit User Access")
             edit_btn.setFixedSize(30,30)
             edit_btn.setStyleSheet("background-color: transparent;")
-            # Ensure user_id_str is passed to edit_user_access
             edit_btn.clicked.connect(lambda _, u_id=user_id_str: self.edit_user_access(u_id))
 
             action_layout.addWidget(edit_btn)
@@ -1961,20 +2190,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.access_table.resizeColumnsToContents()
 
     def load_user_preferences(self):
-        # Load user preferences from database using main_db_manager
-        if not self.current_user or 'id' not in self.current_user:
+        # Load user preferences from database using db_manager (changed from main_db_manager)
+        if not self.current_user or not self.current_user.get('user_id'): # check for user_id specifically
             return
 
-        user_data = main_db_manager.get_user_by_id(self.current_user['id'])
+        user_data = db_manager.get_user_by_id(self.current_user['user_id']) # use user_id
 
         if user_data: # user_data is a dict
             self.name_edit.setText(user_data.get('full_name', ''))
             self.email_edit.setText(user_data.get('email', ''))
-            self.phone_edit.setText(user_data.get('phone', ''))
+            # 'phone' is not a standard field in Users table in db.py, it's in TeamMembers.
+            # If phone is needed here, logic to fetch from TeamMembers based on user_id would be required.
+            # For now, remove direct phone access from user_data for Users table.
+            # self.phone_edit.setText(user_data.get('phone', ''))
 
     def update_project_filter(self):
-        # Refactored to use main_db_manager
-        projects = main_db_manager.get_all_projects()
+        # Confirmed: Uses db_manager.get_all_projects()
+        projects = db_manager.get_all_projects()
 
         current_selection_text = self.task_project_filter.currentText()
         current_selection_data = self.task_project_filter.currentData()
@@ -2063,7 +2295,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def update_charts(self):
         # Team performance
         self.performance_graph.clear()
-        active_members = main_db_manager.get_all_team_members({'is_active': True})
+        active_members = db_manager.get_all_team_members({'is_active': True})
         if active_members is None: active_members = []
 
         # Sort by performance for chart
@@ -2085,14 +2317,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Project progress
         self.project_progress_graph.clear()
-        all_projects = main_db_manager.get_all_projects()
+        all_projects = db_manager.get_all_projects()
         if all_projects is None: all_projects = []
 
         projects_for_chart = []
         for p_dict in all_projects:
             status_id = p_dict.get('status_id')
             if status_id:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id)
                 if status_setting and \
                    not status_setting.get('is_completion_status', False) and \
                    not status_setting.get('is_archival_status', False):
@@ -2146,8 +2378,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        # Fetch data using main_db_manager
-        active_members_data = main_db_manager.get_all_team_members({'is_active': True})
+        # Fetch data using db_manager
+        active_members_data = db_manager.get_all_team_members({'is_active': True})
         if active_members_data is None: active_members_data = []
 
         # Sort by performance for consistent chart display (optional, but good for reports)
@@ -2188,7 +2420,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        projects_data = main_db_manager.get_all_projects()
+        projects_data = db_manager.get_all_projects()
         if projects_data is None: projects_data = []
 
         # Filter out projects that might be considered "deleted" or "archived" based on status type
@@ -2197,7 +2429,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         for p_dict in projects_data:
             status_id = p_dict.get('status_id')
             if status_id:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id)
                 if status_setting and not status_setting.get('is_archival_status'): # Only include non-archival
                     valid_projects_for_report.append(p_dict)
             else: # Include projects with no status_id for now, or decide to filter them
@@ -2217,7 +2449,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name = "Unknown"
             color = '#3498db' # Default blue
             if status_id:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id)
                 if status_setting:
                     status_name = status_setting.get('status_name', 'Unknown')
                     hex_color = status_setting.get('color_hex')
@@ -2266,22 +2498,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        active_team_members = main_db_manager.get_all_team_members({'is_active': True})
+        active_team_members = db_manager.get_all_team_members({'is_active': True})
         if not active_team_members: active_team_members = []
 
         member_task_counts = {} # Store as team_member_id: count
 
         # Aggregate tasks: Iterate through projects, then tasks
-        all_projects = main_db_manager.get_all_projects()
+        all_projects = db_manager.get_all_projects()
         if all_projects:
             for project in all_projects:
-                tasks_in_project = main_db_manager.get_tasks_by_project_id(project['project_id'])
+                tasks_in_project = db_manager.get_tasks_by_project_id(project['project_id'])
                 if tasks_in_project:
                     for task in tasks_in_project:
                         assignee_id = task.get('assignee_team_member_id')
                         status_id = task.get('status_id')
                         if assignee_id is not None and status_id is not None:
-                            status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                            status_setting = db_manager.get_status_setting_by_id(status_id)
                             if status_setting and \
                                not status_setting.get('is_completion_status') and \
                                not status_setting.get('is_archival_status'):
@@ -2342,11 +2574,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         kpis_data = []
         # Fetch KPIs for the first project, similar to load_kpis logic
-        all_projects = main_db_manager.get_all_projects()
+        all_projects = db_manager.get_all_projects()
         if all_projects and len(all_projects) > 0:
             first_project_id = all_projects[0].get('project_id')
             if first_project_id:
-                kpis_data = main_db_manager.get_kpis_for_project(first_project_id)
+                kpis_data = db_manager.get_kpis_for_project(first_project_id)
         if not kpis_data: kpis_data = []
 
 
@@ -2417,7 +2649,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        projects_data = main_db_manager.get_all_projects()
+        projects_data = db_manager.get_all_projects()
         if projects_data is None: projects_data = []
 
         # Filter out projects that are archived for budget report
@@ -2429,7 +2661,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name = "Unknown"
             is_archival = False
             if status_id:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id)
                 if status_setting:
                     status_name = status_setting.get('status_name', 'Unknown')
                     if status_setting.get('is_archival_status'):
@@ -2574,23 +2806,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             }
 
             if member_data['full_name'] and member_data['email']:
-                new_member_id = main_db_manager.add_team_member(member_data)
+                new_member_id = db_manager.add_team_member(member_data) # Changed main_db_manager
                 if new_member_id:
                     self.load_team_members()
                     self.log_activity(f"Added team member: {member_data['full_name']}")
-                    self.statusBar().showMessage(f"Team member {member_data['full_name']} added successfully (ID: {new_member_id})", 3000)
+                    # self.statusBar().showMessage(f"Team member {member_data['full_name']} added successfully (ID: {new_member_id})", 3000) # statusBar not available on QWidget
+                    print(f"Team member {member_data['full_name']} added successfully (ID: {new_member_id})")
                 else:
                     QMessageBox.warning(self, "Error", f"Failed to add team member. Check logs. Email might be in use.")
             else:
                 QMessageBox.warning(self, "Error", "Full name and email are required.")
 
     def edit_member(self, member_id_int): # member_id is int from db.py (team_member_id)
-        member_data_from_db = main_db_manager.get_team_member_by_id(member_id_int)
+        member_data_from_db = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
 
         if member_data_from_db: # This is a dict
             dialog = QDialog(self)
             dialog.setWindowTitle("Edit Team Member")
-            dialog.setFixedSize(400, 500) # Adjusted size if necessary
+            dialog.setFixedSize(400, 500)
 
             layout = QFormLayout(dialog)
 
@@ -2615,7 +2848,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             hire_date_edit.setDisplayFormat("yyyy-MM-dd")
 
             active_checkbox = QCheckBox("Active Member")
-            active_checkbox.setChecked(member_data_from_db.get('is_active', True))
+            active_checkbox.setChecked(bool(member_data_from_db.get('is_active', True))) # Ensure boolean
 
             skills_edit = QLineEdit(member_data_from_db.get('skills', ''))
             skills_edit.setPlaceholderText("Skills separated by commas")
@@ -2652,22 +2885,21 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 }
 
                 if updated_member_data['full_name'] and updated_member_data['email']:
-                    success = main_db_manager.update_team_member(member_id_int, updated_member_data)
+                    success = db_manager.update_team_member(member_id_int, updated_member_data) # Changed main_db_manager
                     if success:
                         self.load_team_members()
                         self.log_activity(f"Updated team member: {updated_member_data['full_name']}")
-                        self.statusBar().showMessage(f"Team member {updated_member_data['full_name']} updated successfully", 3000)
+                        # self.statusBar().showMessage(f"Team member {updated_member_data['full_name']} updated successfully", 3000)
+                        print(f"Team member {updated_member_data['full_name']} updated successfully")
                     else:
                         QMessageBox.warning(self, "Error", f"Failed to update team member. Check logs. Email might be in use by another member.")
                 else:
                     QMessageBox.warning(self, "Error", "Full name and email are required.")
-            # No specific action if dialog is rejected (e.g. dialog.exec_() != QDialog.Accepted), so no 'else' here.
-        else: # This is for: if member_data_from_db:
+        else:
             QMessageBox.warning(self, "Error", f"Could not find team member with ID {member_id_int} to edit.")
 
     def delete_member(self, member_id_int): # member_id is int
-        # Fetch member name for confirmation dialog, using the new db manager
-        member_to_delete = main_db_manager.get_team_member_by_id(member_id_int)
+        member_to_delete = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
 
         if not member_to_delete:
             QMessageBox.warning(self, "Error", f"Team member with ID {member_id_int} not found.")
@@ -2683,18 +2915,19 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            success = main_db_manager.delete_team_member(member_id_int)
+            success = db_manager.delete_team_member(member_id_int) # Changed main_db_manager
             if success:
                 self.load_team_members()
                 self.log_activity(f"Deleted team member: {member_name} (ID: {member_id_int})")
-                self.statusBar().showMessage(f"Team member {member_name} deleted", 3000)
+                # self.statusBar().showMessage(f"Team member {member_name} deleted", 3000)
+                print(f"Team member {member_name} deleted")
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete team member {member_name}.")
 
     def show_add_project_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Project")
-        dialog.setFixedSize(500, 550) # Increased height for client_id (if added) or more spacing
+        dialog.setFixedSize(500, 550)
 
         layout = QFormLayout(dialog)
 
@@ -2712,34 +2945,31 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         deadline_edit.setDisplayFormat("yyyy-MM-dd")
 
         budget_spin = QDoubleSpinBox()
-        budget_spin.setRange(0, 10000000) # Increased range
+        budget_spin.setRange(0, 10000000)
         budget_spin.setPrefix("€ ")
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        project_statuses = main_db_manager.get_all_status_settings(status_type='Project')
+        project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
         if project_statuses:
             for ps in project_statuses:
                 status_combo.addItem(ps['status_name'], ps['status_id'])
         else:
-            status_combo.addItem("Default Project Status", None) # Fallback
+            status_combo.addItem("Default Project Status", None)
 
         priority_combo = QComboBox()
-        priority_combo.addItems(["Low", "Medium", "High"]) # Display order
-        priority_combo.setCurrentIndex(1) # Default to Medium
+        priority_combo.addItems(["Low", "Medium", "High"])
+        priority_combo.setCurrentIndex(1)
 
         manager_combo = QComboBox()
-        manager_combo.addItem("Unassigned", None) # Option for no manager
-        active_team_members = main_db_manager.get_all_team_members({'is_active': True})
+        manager_combo.addItem("Unassigned", None)
+        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
         if active_team_members:
             for tm in active_team_members:
-                # Store team_member_id, as we need it to fetch user_id later
                 manager_combo.addItem(tm['full_name'], tm['team_member_id'])
 
-        # Client ID handling - This is a new required field from db.py
-        # For now, try to get first client, or show error. Ideally, a client selection dialog/combo.
         client_combo = QComboBox()
-        all_clients = main_db_manager.get_all_clients()
+        all_clients = db_manager.get_all_clients() # Changed main_db_manager
         if all_clients:
             for client_item in all_clients:
                 client_combo.addItem(client_item['client_name'], client_item['client_id'])
@@ -2753,7 +2983,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         button_box.rejected.connect(dialog.reject)
 
         layout.addRow("Project Name:", name_edit)
-        layout.addRow("Client:", client_combo) # Added Client selection
+        layout.addRow("Client:", client_combo)
         layout.addRow("Description:", desc_edit)
         layout.addRow("Start Date:", start_date_edit)
         layout.addRow("Deadline:", deadline_edit)
@@ -2770,10 +3000,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             if not project_name:
                 QMessageBox.warning(self, "Error", "Project name is required.")
                 return
-            if not client_id_selected and client_combo.isEnabled(): # if combo is enabled, a client must be selected
+            if not client_id_selected and client_combo.isEnabled():
                 QMessageBox.warning(self, "Error", "A client must be selected for the project.")
                 return
-            if not client_id_selected and not client_combo.isEnabled(): # if disabled, means no clients
+            if not client_id_selected and not client_combo.isEnabled():
                  QMessageBox.warning(self, "Error", "Cannot add project: No clients available in the database. Please add a client first.")
                  return
 
@@ -2781,13 +3011,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             selected_manager_tm_id = manager_combo.currentData()
             manager_user_id_for_db = None
             if selected_manager_tm_id is not None:
-                team_member_manager = main_db_manager.get_team_member_by_id(selected_manager_tm_id)
+                team_member_manager = db_manager.get_team_member_by_id(selected_manager_tm_id) # Changed main_db_manager
                 if team_member_manager:
                     manager_user_id_for_db = team_member_manager.get('user_id')
-                    # If user_id is None for this team_member, manager_user_id_for_db will be None (correct)
 
             priority_text = priority_combo.currentText()
-            priority_for_db = 0 # Low
+            priority_for_db = 0
             if priority_text == "Medium": priority_for_db = 1
             elif priority_text == "High": priority_for_db = 2
 
@@ -2799,24 +3028,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 'deadline_date': deadline_edit.date().toString("yyyy-MM-dd"),
                 'budget': budget_spin.value(),
                 'status_id': status_combo.currentData(),
-                'progress_percentage': 0, # Default for new projects
-                'manager_team_member_id': manager_user_id_for_db, # This is user_id or None
+                'progress_percentage': 0,
+                'manager_team_member_id': manager_user_id_for_db,
                 'priority': priority_for_db
-                # created_by_user_id could be set here if self.current_user is reliably populated
             }
 
-            new_project_id = main_db_manager.add_project(project_data_to_save)
+            new_project_id = db_manager.add_project(project_data_to_save) # Changed main_db_manager
 
             if new_project_id:
                 self.load_projects()
-                self.update_project_filter() # This also needs refactoring later
+                self.update_project_filter()
                 self.log_activity(f"Added project: {project_name}")
-                self.statusBar().showMessage(f"Project {project_name} added successfully (ID: {new_project_id})", 3000)
+                # self.statusBar().showMessage(f"Project {project_name} added successfully (ID: {new_project_id})", 3000)
+                print(f"Project {project_name} added successfully (ID: {new_project_id})")
             else:
                 QMessageBox.warning(self, "Error", "Failed to add project. Check logs.")
 
-    def edit_project(self, project_id_str): # project_id is TEXT from db.py
-        project_data_dict = main_db_manager.get_project_by_id(project_id_str)
+    def edit_project(self, project_id_str):
+        project_data_dict = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
 
         if project_data_dict:
             dialog = QDialog(self)
@@ -2844,22 +3073,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             budget_spin.setValue(project_data_dict.get('budget', 0.0))
 
             status_combo = QComboBox()
-            project_statuses = main_db_manager.get_all_status_settings(status_type='Project')
+            project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
             current_status_id = project_data_dict.get('status_id')
             if project_statuses:
                 for idx, ps in enumerate(project_statuses):
                     status_combo.addItem(ps['status_name'], ps['status_id'])
                     if ps['status_id'] == current_status_id:
                         status_combo.setCurrentIndex(idx)
-            else: # Fallback if no statuses defined
+            else:
                 status_combo.addItem("No Statuses Defined", None)
-                status_setting = main_db_manager.get_status_setting_by_id(current_status_id) # try to get current one by id
+                status_setting = db_manager.get_status_setting_by_id(current_status_id) # Changed main_db_manager
                 if status_setting : status_combo.addItem(status_setting['status_name'], current_status_id)
 
 
             priority_combo = QComboBox()
             priority_combo.addItems(["Low", "Medium", "High"])
-            db_priority = project_data_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
+            db_priority = project_data_dict.get('priority', 0)
             if db_priority == 1: priority_combo.setCurrentText("Medium")
             elif db_priority == 2: priority_combo.setCurrentText("High")
             else: priority_combo.setCurrentText("Low")
@@ -2867,8 +3096,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             manager_combo = QComboBox()
             manager_combo.addItem("Unassigned", None)
-            active_team_members = main_db_manager.get_all_team_members({'is_active': True})
-            project_manager_user_id = project_data_dict.get('manager_team_member_id') # This is a user_id
+            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+            project_manager_user_id = project_data_dict.get('manager_team_member_id')
             current_manager_tm_id_to_select = None
 
             if project_manager_user_id and active_team_members:
@@ -2881,17 +3110,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 for idx, tm in enumerate(active_team_members):
                     manager_combo.addItem(tm['full_name'], tm['team_member_id'])
                     if tm['team_member_id'] == current_manager_tm_id_to_select:
-                        manager_combo.setCurrentIndex(idx + 1) # +1 because of "Unassigned"
+                        manager_combo.setCurrentIndex(idx + 1)
 
             client_combo = QComboBox()
-            all_clients = main_db_manager.get_all_clients()
+            all_clients = db_manager.get_all_clients() # Changed main_db_manager
             current_client_id = project_data_dict.get('client_id')
             if all_clients:
                 for idx, client_item in enumerate(all_clients):
                     client_combo.addItem(client_item['client_name'], client_item['client_id'])
                     if client_item['client_id'] == current_client_id:
                         client_combo.setCurrentIndex(idx)
-            else: # Should not happen if project has a client_id
+            else:
                 client_combo.addItem("Error: Client not found or No Clients", None)
                 client_combo.setEnabled(False)
 
@@ -2925,12 +3154,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 selected_manager_tm_id_updated = manager_combo.currentData()
                 manager_user_id_for_db_updated = None
                 if selected_manager_tm_id_updated is not None:
-                    tm_manager_updated = main_db_manager.get_team_member_by_id(selected_manager_tm_id_updated)
+                    tm_manager_updated = db_manager.get_team_member_by_id(selected_manager_tm_id_updated) # Changed main_db_manager
                     if tm_manager_updated:
                         manager_user_id_for_db_updated = tm_manager_updated.get('user_id')
 
                 priority_text_updated = priority_combo.currentText()
-                priority_for_db_updated = 0 # Low
+                priority_for_db_updated = 0
                 if priority_text_updated == "Medium": priority_for_db_updated = 1
                 elif priority_text_updated == "High": priority_for_db_updated = 2
 
@@ -2942,35 +3171,34 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     'deadline_date': deadline_edit.date().toString("yyyy-MM-dd"),
                     'budget': budget_spin.value(),
                     'status_id': status_combo.currentData(),
-                    # progress_percentage is not edited in this dialog, keep existing or set default if needed
                     'progress_percentage': project_data_dict.get('progress_percentage', 0),
                     'manager_team_member_id': manager_user_id_for_db_updated,
                     'priority': priority_for_db_updated
                 }
 
-                success = main_db_manager.update_project(project_id_str, updated_project_data_to_save)
+                success = db_manager.update_project(project_id_str, updated_project_data_to_save) # Changed main_db_manager
 
                 if success:
                     self.load_projects()
                     self.update_project_filter()
                     self.log_activity(f"Updated project: {project_name_updated}")
-                    self.statusBar().showMessage(f"Project {project_name_updated} updated successfully", 3000)
+                    # self.statusBar().showMessage(f"Project {project_name_updated} updated successfully", 3000)
+                    print(f"Project {project_name_updated} updated successfully")
                 else:
                     QMessageBox.warning(self, "Error", "Failed to update project. Check logs.")
         else:
             QMessageBox.warning(self, "Error", f"Could not find project with ID {project_id_str} to edit.")
 
-    def show_project_details(self, project_id_str): # project_id is TEXT
-        project_dict = main_db_manager.get_project_by_id(project_id_str)
+    def show_project_details(self, project_id_str):
+        project_dict = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
 
         if project_dict:
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Project Details: {project_dict.get('project_name', 'N/A')}")
-            dialog.setFixedSize(600, 500) # Keep or adjust size as needed
+            dialog.setFixedSize(600, 500)
 
             layout = QVBoxLayout(dialog)
 
-            # Basic information
             info_group = QGroupBox("Project Information")
             info_layout = QFormLayout(info_group)
 
@@ -2988,12 +3216,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name_display = "Unknown"
             status_color_hex = "#7f8c8d"
             if status_id is not None:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id) # Changed main_db_manager
                 if status_setting:
                     status_name_display = status_setting.get('status_name', 'Unknown')
                     color_from_db = status_setting.get('color_hex')
                     if color_from_db: status_color_hex = color_from_db
-                    else: # Fallback colors
+                    else:
                         if "completed" in status_name_display.lower(): status_color_hex = '#2ecc71'
                         elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
                         elif "planning" in status_name_display.lower(): status_color_hex = '#f1c40f'
@@ -3006,17 +3234,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             if priority_val == 2: priority_display_label.setText("High")
             elif priority_val == 1: priority_display_label.setText("Medium")
             else: priority_display_label.setText("Low")
-            # Priority color can be added here too if desired
 
             progress_label = QLabel(f"{project_dict.get('progress_percentage', 0)}%")
 
             manager_user_id = project_dict.get('manager_team_member_id')
             manager_display_name = "Unassigned"
             if manager_user_id:
-                tm_list = main_db_manager.get_all_team_members({'user_id': manager_user_id})
+                tm_list = db_manager.get_all_team_members({'user_id': manager_user_id}) # Changed main_db_manager
                 if tm_list: manager_display_name = tm_list[0].get('full_name', manager_user_id)
                 else:
-                    user = main_db_manager.get_user_by_id(manager_user_id)
+                    user = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
                     if user: manager_display_name = user.get('full_name', manager_user_id)
             manager_label = QLabel(manager_display_name)
 
@@ -3030,14 +3257,40 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             info_layout.addRow("Progress:", progress_label)
             info_layout.addRow("Manager:", manager_label)
 
-            # Project tasks - Placeholder until Task management is refactored
-            tasks_group = QGroupBox("Associated Tasks (To be refactored)")
+            tasks_group = QGroupBox("Associated Tasks") # Title updated
             tasks_layout = QVBoxLayout(tasks_group)
-            no_tasks_label = QLabel("Task display will be available after Task Management refactoring.")
-            no_tasks_label.setAlignment(Qt.AlignCenter)
-            tasks_layout.addWidget(no_tasks_label)
-            # tasks_table = QTableWidget() ... (Old task loading logic commented out) ...
-            # tasks_layout.addWidget(tasks_table)
+            tasks_table = QTableWidget()
+            tasks_table.setColumnCount(4) # Name, Assignee, Status, Deadline
+            tasks_table.setHorizontalHeaderLabels(["Task Name", "Assigned To", "Status", "Deadline"])
+
+            project_tasks = db_manager.get_tasks_by_project_id(project_id_str) # Fetch tasks
+            if project_tasks:
+                tasks_table.setRowCount(len(project_tasks))
+                for r_idx, task_item in enumerate(project_tasks):
+                    tasks_table.setItem(r_idx, 0, QTableWidgetItem(task_item.get('task_name')))
+
+                    assignee_tm_id_detail = task_item.get('assignee_team_member_id')
+                    assignee_name_detail = "Unassigned"
+                    if assignee_tm_id_detail:
+                        assignee_tm = db_manager.get_team_member_by_id(assignee_tm_id_detail)
+                        if assignee_tm: assignee_name_detail = assignee_tm.get('full_name')
+                    tasks_table.setItem(r_idx, 1, QTableWidgetItem(assignee_name_detail))
+
+                    status_id_detail = task_item.get('status_id')
+                    status_name_detail = "N/A"
+                    if status_id_detail:
+                        status_obj_detail = db_manager.get_status_setting_by_id(status_id_detail)
+                        if status_obj_detail: status_name_detail = status_obj_detail.get('status_name')
+                    tasks_table.setItem(r_idx, 2, QTableWidgetItem(status_name_detail))
+                    tasks_table.setItem(r_idx, 3, QTableWidgetItem(task_item.get('due_date')))
+            else:
+                tasks_table.setRowCount(1)
+                tasks_table.setItem(0,0, QTableWidgetItem("No tasks found for this project."))
+                tasks_table.setSpan(0,0,1,4)
+
+
+            tasks_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tasks_layout.addWidget(tasks_table)
 
 
             button_box = QDialogButtonBox(QDialogButtonBox.Close)
@@ -3053,7 +3306,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
     def delete_project(self, project_id_str): # project_id is TEXT
-        project_to_delete = main_db_manager.get_project_by_id(project_id_str)
+        project_to_delete = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
 
         if not project_to_delete:
             QMessageBox.warning(self, "Error", f"Project with ID {project_id_str} not found.")
@@ -3069,20 +3322,20 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            # db.py's delete_project should handle cascading deletes for Tasks and KPIs via FOREIGN KEY ON DELETE CASCADE
-            success = main_db_manager.delete_project(project_id_str)
+            success = db_manager.delete_project(project_id_str) # Changed main_db_manager
             if success:
                 self.load_projects()
-                self.update_project_filter() # This also needs refactoring later
+                self.update_project_filter()
                 self.log_activity(f"Deleted project: {project_name} (ID: {project_id_str})")
-                self.statusBar().showMessage(f"Project {project_name} deleted", 3000)
+                # self.statusBar().showMessage(f"Project {project_name} deleted", 3000)
+                print(f"Project {project_name} deleted")
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete project {project_name}. Check logs.")
 
     def show_add_task_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Task")
-        dialog.setFixedSize(450, 450) # Slightly larger for better layout
+        dialog.setFixedSize(450, 450)
 
         layout = QFormLayout(dialog)
 
@@ -3090,19 +3343,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         name_edit.setPlaceholderText("Enter task name...")
 
         project_combo = QComboBox()
-        all_projects = main_db_manager.get_all_projects() # Assuming this returns list of dicts
+        all_projects = db_manager.get_all_projects() # Changed main_db_manager
         if all_projects:
             for p in all_projects:
-                # Assuming 'status_id' needs to be checked against 'completed' or 'archived' status types
-                # This check might need main_db_manager.get_status_setting_by_id(p['status_id'])
-                # For now, let's assume all projects fetched are valid for new tasks or filter simply.
-                # A more robust check would involve fetching status details.
-                # Simplified: project_combo.addItem(p['project_name'], p['project_id'])
-                status_of_project = main_db_manager.get_status_setting_by_id(p['status_id'])
-                is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
-                is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
+                status_of_project_id = p.get('status_id')
+                is_completion = False
+                is_archival = False
+                if status_of_project_id:
+                    status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                    is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
+                    is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
 
-                if not is_completion and not is_archival : # only add if not completed or archived
+                if not is_completion and not is_archival :
                      project_combo.addItem(p['project_name'], p['project_id'])
         if project_combo.count() == 0:
             project_combo.addItem("No Active Projects Available", None)
@@ -3114,23 +3366,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         desc_edit.setMinimumHeight(80)
 
         status_combo = QComboBox()
-        task_statuses = main_db_manager.get_all_status_settings(status_type='Task')
+        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
         if task_statuses:
             for ts in task_statuses:
-                if not ts.get('is_completion_status'): # Don't add "Completed" as initial status
+                if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
                     status_combo.addItem(ts['status_name'], ts['status_id'])
         if status_combo.count() == 0:
-             status_combo.addItem("No Task Statuses Defined", None) # Fallback
+             status_combo.addItem("No Task Statuses Defined", None)
              status_combo.setEnabled(False)
 
 
         priority_combo = QComboBox()
-        priority_combo.addItems(["Low", "Medium", "High"]) # Display order
-        priority_combo.setCurrentIndex(1) # Default to Medium
+        priority_combo.addItems(["Low", "Medium", "High"])
+        priority_combo.setCurrentIndex(1)
 
         assignee_combo = QComboBox()
-        assignee_combo.addItem("Unassigned", None) # team_member_id will be None
-        active_team_members = main_db_manager.get_all_team_members({'is_active': True})
+        assignee_combo.addItem("Unassigned", None)
+        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
         if active_team_members:
             for tm in active_team_members:
                 assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
@@ -3174,7 +3426,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
             priority_text = priority_combo.currentText()
-            priority_for_db = 0 # Low
+            priority_for_db = 0
             if priority_text == "Medium": priority_for_db = 1
             elif priority_text == "High": priority_for_db = 2
 
@@ -3184,33 +3436,30 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 'description': desc_edit.toPlainText(),
                 'status_id': status_combo.currentData(),
                 'priority': priority_for_db,
-                'assignee_team_member_id': assignee_combo.currentData(), # This is team_member_id or None
+                'assignee_team_member_id': assignee_combo.currentData(),
                 'due_date': deadline_edit.date().toString("yyyy-MM-dd"),
-                # 'reporter_team_member_id': self.current_user.get('id') if self.current_user else None
-                #   ^ This assumes self.current_user.id is a team_member_id. db.py expects user_id for reporter.
-                #   For now, let's get reporter_team_member_id if current_user has a team_member link
             }
-            # Add reporter_team_member_id (needs team_member_id of current user)
-            # This logic might be complex if current_user is just user info, not directly team_member info.
-            # For now, omitting reporter_id or setting to None.
-            # if self.current_user and self.current_user.get('id'): # This is user_id
-            #    # How to get team_member_id from user_id of current user?
-            #    # current_tm_list = main_db_manager.get_all_team_members({'user_id': self.current_user['id']})
-            #    # if current_tm_list: task_data_to_save['reporter_team_member_id'] = current_tm_list[0]['team_member_id']
-            #    pass
+
+            # Set reporter_team_member_id if current_user is a team member
+            if self.current_user and self.current_user.get('user_id'):
+                # Find team_member_id for the current user_id
+                current_user_as_tm_list = db_manager.get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                if current_user_as_tm_list:
+                    task_data_to_save['reporter_team_member_id'] = current_user_as_tm_list[0].get('team_member_id')
 
 
-            new_task_id = main_db_manager.add_task(task_data_to_save)
+            new_task_id = db_manager.add_task(task_data_to_save) # Changed main_db_manager
 
             if new_task_id:
                 self.load_tasks()
                 self.log_activity(f"Added task: {task_name} (Project ID: {selected_project_id})")
-                self.statusBar().showMessage(f"Task '{task_name}' added successfully (ID: {new_task_id})", 3000)
+                # self.statusBar().showMessage(f"Task '{task_name}' added successfully (ID: {new_task_id})", 3000)
+                print(f"Task '{task_name}' added successfully (ID: {new_task_id})")
             else:
                 QMessageBox.warning(self, "Database Error", "Failed to add task. Check logs.")
 
-    def edit_task(self, task_id_int): # task_id is INT from db.py
-        task_data_dict = main_db_manager.get_task_by_id(task_id_int)
+    def edit_task(self, task_id_int):
+        task_data_dict = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
 
         if task_data_dict:
             dialog = QDialog(self)
@@ -3222,21 +3471,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             name_edit = QLineEdit(task_data_dict.get('task_name', ''))
 
             project_combo = QComboBox()
-            all_projects = main_db_manager.get_all_projects()
+            all_projects = db_manager.get_all_projects() # Changed main_db_manager
             current_project_id_for_task = task_data_dict.get('project_id')
             if all_projects:
                 for idx, p in enumerate(all_projects):
-                    # Similar logic as add_task_dialog for filtering projects if necessary
-                    status_of_project = main_db_manager.get_status_setting_by_id(p['status_id'])
-                    is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
-                    is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
-                    # Add to combo only if not completed/archived OR if it's the current project for the task
+                    status_of_project_id = p.get('status_id')
+                    is_completion = False
+                    is_archival = False
+                    if status_of_project_id:
+                        status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                        is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
+                        is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
                     if (not is_completion and not is_archival) or p['project_id'] == current_project_id_for_task:
                         project_combo.addItem(p['project_name'], p['project_id'])
                         if p['project_id'] == current_project_id_for_task:
-                            project_combo.setCurrentIndex(project_combo.count() -1) # Set current item
-            if project_combo.count() == 0: # Fallback if current project is archived/completed
-                 project_info = main_db_manager.get_project_by_id(current_project_id_for_task)
+                            project_combo.setCurrentIndex(project_combo.count() -1)
+            if project_combo.count() == 0:
+                 project_info = db_manager.get_project_by_id(current_project_id_for_task) # Changed main_db_manager
                  if project_info : project_combo.addItem(project_info['project_name'], project_info['project_id'])
                  project_combo.setEnabled(False)
 
@@ -3246,7 +3497,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             desc_edit.setMinimumHeight(80)
 
             status_combo = QComboBox()
-            task_statuses = main_db_manager.get_all_status_settings(status_type='Task')
+            task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
             current_status_id_for_task = task_data_dict.get('status_id')
             if task_statuses:
                 for idx, ts in enumerate(task_statuses):
@@ -3265,13 +3516,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             assignee_combo = QComboBox()
             assignee_combo.addItem("Unassigned", None)
-            active_team_members = main_db_manager.get_all_team_members({'is_active': True})
+            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
             current_assignee_tm_id = task_data_dict.get('assignee_team_member_id')
             if active_team_members:
                 for idx, tm in enumerate(active_team_members):
                     assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
                     if tm['team_member_id'] == current_assignee_tm_id:
-                        assignee_combo.setCurrentIndex(idx + 1) # +1 for "Unassigned"
+                        assignee_combo.setCurrentIndex(idx + 1)
 
             due_date_str = task_data_dict.get('due_date', QDate.currentDate().toString("yyyy-MM-dd"))
             deadline_edit = QDateEdit(QDate.fromString(due_date_str, "yyyy-MM-dd"))
@@ -3319,38 +3570,37 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     'assignee_team_member_id': assignee_combo.currentData(),
                     'due_date': deadline_edit.date().toString("yyyy-MM-dd"),
                 }
-                # Check if status is a completion status to update 'completed_at'
                 selected_status_id = status_combo.currentData()
                 if selected_status_id:
-                    status_details = main_db_manager.get_status_setting_by_id(selected_status_id)
+                    status_details = db_manager.get_status_setting_by_id(selected_status_id) # Changed main_db_manager
                     if status_details and status_details.get('is_completion_status'):
                         task_data_to_update['completed_at'] = datetime.utcnow().isoformat() + "Z"
-                    else: # Not a completion status, ensure completed_at is None (or its existing value if partial updates allowed)
+                    else:
                         task_data_to_update['completed_at'] = None
 
 
-                success = main_db_manager.update_task(task_id_int, task_data_to_update)
+                success = db_manager.update_task(task_id_int, task_data_to_update) # Changed main_db_manager
 
                 if success:
                     self.load_tasks()
                     self.log_activity(f"Updated task: {updated_task_name} (ID: {task_id_int})")
-                    self.statusBar().showMessage(f"Task '{updated_task_name}' updated successfully", 3000)
+                    # self.statusBar().showMessage(f"Task '{updated_task_name}' updated successfully", 3000)
+                    print(f"Task '{updated_task_name}' updated successfully")
                 else:
                     QMessageBox.warning(self, "Database Error", f"Failed to update task ID {task_id_int}. Check logs.")
         else:
             QMessageBox.warning(self, "Error", f"Could not find task with ID {task_id_int} to edit.")
 
     def complete_task(self, task_id_int): # task_id is INT
-        task_to_complete = main_db_manager.get_task_by_id(task_id_int)
+        task_to_complete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
         if not task_to_complete:
             QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
             return
 
         task_name = task_to_complete.get('task_name', 'Unknown Task')
 
-        # Find a 'completion' status for tasks
         completed_status_id = None
-        task_statuses = main_db_manager.get_all_status_settings(status_type='Task')
+        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
         if task_statuses:
             for ts in task_statuses:
                 if ts.get('is_completion_status'):
@@ -3358,14 +3608,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     break
 
         if completed_status_id is None:
-            # Fallback: try to find by a common name like "Completed" or "Done" if no explicit flag found
-            # This part might need adjustment based on actual status names in db.
             for common_completion_name in ["Completed", "Done"]:
-                status_obj = main_db_manager.get_status_setting_by_name(common_completion_name, 'Task')
+                status_obj = db_manager.get_status_setting_by_name(common_completion_name, 'Task') # Changed main_db_manager
                 if status_obj:
                     completed_status_id = status_obj['status_id']
                     break
-            if completed_status_id is None: # Still not found
+            if completed_status_id is None:
                 QMessageBox.warning(self, "Configuration Error", "No 'completion' status defined for tasks in StatusSettings.")
                 return
 
@@ -3373,18 +3621,19 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             'status_id': completed_status_id,
             'completed_at': datetime.utcnow().isoformat() + "Z"
         }
-        success = main_db_manager.update_task(task_id_int, update_data)
+        success = db_manager.update_task(task_id_int, update_data) # Changed main_db_manager
 
         if success:
             self.load_tasks()
             self.log_activity(f"Task marked as completed: {task_name} (ID: {task_id_int})")
-            self.statusBar().showMessage(f"Task '{task_name}' marked as completed", 3000)
+            # self.statusBar().showMessage(f"Task '{task_name}' marked as completed", 3000)
+            print(f"Task '{task_name}' marked as completed")
         else:
             QMessageBox.warning(self, "Database Error", f"Failed to complete task '{task_name}'. Check logs.")
 
 
     def delete_task(self, task_id_int): # task_id is INT
-        task_to_delete = main_db_manager.get_task_by_id(task_id_int)
+        task_to_delete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
         if not task_to_delete:
             QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
             return
@@ -3399,23 +3648,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            success = main_db_manager.delete_task(task_id_int)
+            success = db_manager.delete_task(task_id_int) # Changed main_db_manager
             if success:
                 self.load_tasks()
                 self.log_activity(f"Deleted task: {task_name} (ID: {task_id_int})")
-                self.statusBar().showMessage(f"Task '{task_name}' deleted", 3000)
+                # self.statusBar().showMessage(f"Task '{task_name}' deleted", 3000)
+                print(f"Task '{task_name}' deleted")
             else:
                 QMessageBox.warning(self, "Database Error", f"Failed to delete task '{task_name}'. Check logs.")
 
     def edit_user_access(self, user_id_str): # user_id is now a string (UUID) from db.py
-        user_data = main_db_manager.get_user_by_id(user_id_str)
+        user_data = db_manager.get_user_by_id(user_id_str) # Changed main_db_manager
 
         if user_data: # user_data is a dict
             dialog = QDialog(self)
             dialog.setWindowTitle(f"Edit Access for {user_data.get('full_name', 'N/A')}")
-                dialog.setFixedSize(300, 200)
+            dialog.setFixedSize(300, 200) # Indentation fixed
 
-                layout = QFormLayout(dialog)
+            layout = QFormLayout(dialog)
 
                 username_label = QLabel(user_data.get('username', 'N/A'))
                 name_label = QLabel(user_data.get('full_name', 'N/A'))
@@ -3460,7 +3710,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                             new_role_for_db = db_r
                             break
 
-                    update_success = main_db_manager.update_user(user_id_str, {'role': new_role_for_db})
+                    update_success = db_manager.update_user(user_id_str, {'role': new_role_for_db}) # Changed main_db_manager
 
                     if update_success:
                         self.load_access_table() # This will also need refactoring
@@ -3505,16 +3755,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
                 return
 
-            verified_user = main_db_manager.verify_user_password(current_username, current_pwd)
+            verified_user = db_manager.verify_user_password(current_username, current_pwd)
             if not verified_user or verified_user['user_id'] != user_id_to_update:
                 QMessageBox.warning(self, "Error", "Current password is incorrect.")
                 return
             # If password is correct, add new password to update_data.
-            # main_db_manager.update_user will handle hashing.
+            # db_manager.update_user will handle hashing.
             update_data['password'] = new_pwd
 
-        # Update user information via main_db_manager
-        success = main_db_manager.update_user(user_id_to_update, update_data)
+        # Update user information via db_manager
+        success = db_manager.update_user(user_id_to_update, update_data)
 
         if success:
             # Update current user information in the session
@@ -3649,7 +3899,7 @@ if __name__ == "__main__":
         'role': 'admin'
     }
     # Initialize db (important for standalone test if db.py relies on it being called)
-    main_db_manager.initialize_database()
+    db_manager.initialize_database()
 
     # Create a dummy QMainWindow to host the QWidget for testing
     test_host_window = QMainWindow()
@@ -3663,5 +3913,3 @@ if __name__ == "__main__":
     test_host_window.show()
 
     sys.exit(app.exec_())
-
-[end of projectManagement.py]
