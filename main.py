@@ -5,6 +5,7 @@ import json
 import sqlite3
 import pandas as pd
 import shutil
+import db # Added import
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -38,7 +39,7 @@ from projectManagement import MainDashboard as ProjectManagementDashboard # Adde
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
 CONFIG_FILE_NAME = "config.json"
-DATABASE_NAME = "" 
+DATABASE_NAME = db.DATABASE_NAME # Changed to use db.DATABASE_NAME
 TEMPLATES_SUBDIR = "templates"
 CLIENTS_SUBDIR = "clients"
 SPEC_TECH_TEMPLATE_NAME = "specification_technique_template.xlsx"
@@ -65,140 +66,8 @@ def get_config_dir():
 def get_config_file_path():
     return os.path.join(get_config_dir(), CONFIG_FILE_NAME)
 
-def init_database():
-    global DATABASE_NAME 
-    db_path = os.path.join(get_config_dir(), "client_manassgessr.db") 
-    DATABASE_NAME = db_path 
-    
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Clients (
-            client_id TEXT PRIMARY KEY,
-            client_name TEXT NOT NULL,
-            company_name TEXT,
-            need TEXT,
-            country TEXT,
-            city TEXT,
-            project_identifier TEXT NOT NULL,
-            base_folder_path TEXT NOT NULL UNIQUE,
-            status TEXT DEFAULT 'En cours',
-            selected_languages TEXT,
-            price REAL DEFAULT 0,
-            notes TEXT,
-            creation_date TEXT,
-            last_modified TEXT,
-            category TEXT DEFAULT 'Standard',
-            primary_contact TEXT
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Countries (
-            country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            country_name TEXT NOT NULL UNIQUE
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Cities (
-            city_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            country_id INTEGER NOT NULL REFERENCES Countries(country_id),
-            city_name TEXT NOT NULL,
-            UNIQUE(country_id, city_name)
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Contacts (
-            contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id TEXT NOT NULL REFERENCES Clients(client_id),
-            name TEXT NOT NULL,
-            email TEXT,
-            phone TEXT,
-            position TEXT,
-            is_primary INTEGER DEFAULT 0
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            file_name TEXT NOT NULL,
-            language TEXT NOT NULL,
-            is_default INTEGER DEFAULT 0,
-            category TEXT,
-            config_json TEXT
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS StatusSettings (
-            status_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            status_name TEXT NOT NULL UNIQUE,
-            default_days INTEGER NOT NULL,
-            color TEXT
-        );"""
-        )
-
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS ClientProducts (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id TEXT NOT NULL REFERENCES Clients(client_id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            description TEXT,
-            quantity REAL DEFAULT 0,
-            unit_price REAL DEFAULT 0,
-            total_price REAL DEFAULT 0
-        );"""
-        )
-        
-        cursor.execute("SELECT COUNT(*) FROM Countries")
-        if cursor.fetchone()[0] == 0:
-            initial_countries = [
-                "France", "Sénégal", "Turquie", "Maroc", "Algérie", 
-                "Allemagne", "Belgique", "Canada", "Suisse", 
-                "Royaume-Uni", "États-Unis"
-            ]
-            for country in initial_countries:
-                try:
-                    cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country,))
-                except sqlite3.IntegrityError:
-                    pass
-        
-        cursor.execute("SELECT COUNT(*) FROM StatusSettings")
-        if cursor.fetchone()[0] == 0:
-            statuses = [
-                ("En cours", 30, "#3498db"),
-                ("Archivé", 365, "#95a5a6"),
-                ("Urgent", 7, "#e74c3c"),
-                ("Complété", 0, "#2ecc71"),
-                ("En attente", 15, "#f39c12")
-            ]
-            for status_item in statuses: 
-                cursor.execute(
-                    "INSERT INTO StatusSettings (status_name, default_days, color) VALUES (?, ?, ?)",
-                    status_item
-                )
-        
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Database initialization error: {e}")
-        QMessageBox.critical(
-            None, 
-            QCoreApplication.translate("main", "Erreur Base de Données"),
-            QCoreApplication.translate("main", "Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.").format(e)
-        )
-    finally:
-        if conn:
-            conn.close()
-    return db_path 
-
-DATABASE_NAME = init_database() 
+# Removed local init_database() function and its call: DATABASE_NAME = init_database()
+# DATABASE_NAME is now set globally using db.DATABASE_NAME
 
 def load_config():
     config_path = get_config_file_path()
@@ -2327,6 +2196,9 @@ class SettingsDialog(QDialog):
 def main():
     if hasattr(Qt, 'AA_EnableHighDpiScaling'): QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     if hasattr(Qt, 'AA_UseHighDpiPixmaps'): QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
+    # Initialize the database using db.py's function
+    db.initialize_database()
 
     # Determine language for translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
