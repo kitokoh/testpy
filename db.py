@@ -42,6 +42,9 @@ def initialize_database():
         profile_picture_url TEXT,
         is_active BOOLEAN DEFAULT TRUE,
         notes TEXT,
+        hire_date TEXT,
+        performance INTEGER DEFAULT 0,
+        skills TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL -- If user is deleted, set user_id to NULL
@@ -70,12 +73,13 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS StatusSettings (
         status_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        status_name TEXT NOT NULL UNIQUE,
+        status_name TEXT NOT NULL,
         status_type TEXT NOT NULL, -- e.g., 'Client', 'Project', 'Task'
         color_hex TEXT,
         default_duration_days INTEGER,
         is_archival_status BOOLEAN DEFAULT FALSE,
-        is_completion_status BOOLEAN DEFAULT FALSE
+        is_completion_status BOOLEAN DEFAULT FALSE,
+        UNIQUE (status_name, status_type)
     )
     """)
 
@@ -362,6 +366,22 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS ApplicationSettings (
         setting_key TEXT PRIMARY KEY,
         setting_value TEXT
+    )
+    """)
+
+    # Create KPIs table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS KPIs (
+        kpi_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        value REAL NOT NULL,
+        target REAL NOT NULL,
+        trend TEXT NOT NULL, -- 'up', 'down', 'stable'
+        unit TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE
     )
     """)
 
@@ -1206,8 +1226,9 @@ def add_team_member(member_data: dict) -> int | None:
             INSERT INTO TeamMembers (
                 user_id, full_name, email, role_or_title, department, 
                 phone_number, profile_picture_url, is_active, notes, 
+                hire_date, performance, skills,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             member_data.get('user_id'), # Can be None
@@ -1219,6 +1240,9 @@ def add_team_member(member_data: dict) -> int | None:
             member_data.get('profile_picture_url'),
             member_data.get('is_active', True),
             member_data.get('notes'),
+            member_data.get('hire_date'),
+            member_data.get('performance', 0),
+            member_data.get('skills'),
             now, # created_at
             now  # updated_at
         )
@@ -1305,7 +1329,8 @@ def update_team_member(team_member_id: int, member_data: dict) -> bool:
         
         valid_columns = [
             'user_id', 'full_name', 'email', 'role_or_title', 'department', 
-            'phone_number', 'profile_picture_url', 'is_active', 'notes', 'updated_at'
+            'phone_number', 'profile_picture_url', 'is_active', 'notes',
+            'hire_date', 'performance', 'skills', 'updated_at'
         ]
         for key, value in member_data.items():
             if key in valid_columns:
@@ -2464,6 +2489,123 @@ def get_contacts_in_list(list_id: int) -> list[dict]:
     finally:
         if conn: conn.close()
 
+# CRUD functions for KPIs
+def add_kpi(kpi_data: dict) -> int | None:
+    """Adds a new KPI. Returns kpi_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO KPIs (
+                project_id, name, value, target, trend, unit, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            kpi_data.get('project_id'),
+            kpi_data.get('name'),
+            kpi_data.get('value'),
+            kpi_data.get('target'),
+            kpi_data.get('trend'),
+            kpi_data.get('unit'),
+            now,  # created_at
+            now   # updated_at
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        print(f"Database error in add_kpi: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_kpi_by_id(kpi_id: int) -> dict | None:
+    """Retrieves a KPI by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM KPIs WHERE kpi_id = ?", (kpi_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_kpi_by_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_kpis_for_project(project_id: str) -> list[dict]:
+    """Retrieves all KPIs for a given project_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM KPIs WHERE project_id = ?", (project_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_kpis_for_project: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_kpi(kpi_id: int, kpi_data: dict) -> bool:
+    """Updates an existing KPI. Sets updated_at. Returns True on success."""
+    conn = None
+    if not kpi_data:
+        return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        kpi_data['updated_at'] = now
+
+        set_clauses = []
+        params = []
+
+        valid_columns = ['project_id', 'name', 'value', 'target', 'trend', 'unit', 'updated_at']
+        for key, value in kpi_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                params.append(value)
+
+        if not set_clauses:
+            return False
+
+        sql = f"UPDATE KPIs SET {', '.join(set_clauses)} WHERE kpi_id = ?"
+        params.append(kpi_id)
+
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_kpi: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def delete_kpi(kpi_id: int) -> bool:
+    """Deletes a KPI. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM KPIs WHERE kpi_id = ?", (kpi_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_kpi: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # --- ApplicationSettings Functions ---
 def get_setting(key: str) -> str | None:
     conn = None
@@ -2845,3 +2987,145 @@ if __name__ == '__main__':
     # if test_client_id_for_docs and get_client_by_id(test_client_id_for_docs): delete_client(test_client_id_for_docs)
     # if test_template_id and get_template_by_id(test_template_id): delete_template(test_template_id)
     # if test_user_id and get_user_by_id(test_user_id): delete_user(test_user_id)
+
+    print("\n--- TeamMembers Extended Fields and KPIs CRUD Examples ---")
+    initialize_database() # Ensure tables are created with new schema
+
+    # Test TeamMembers
+    print("\nTesting TeamMembers...")
+    tm_email = "new.teammember@example.com"
+    # Clean up if exists from previous failed run
+    existing_tm_list = get_all_team_members()
+    for tm in existing_tm_list:
+        if tm['email'] == tm_email:
+            delete_team_member(tm['team_member_id'])
+            print(f"Deleted existing test team member with email {tm_email}")
+
+    team_member_id = add_team_member({
+        'full_name': 'New Member',
+        'email': tm_email,
+        'role_or_title': 'Developer',
+        'department': 'Engineering',
+        'hire_date': '2024-01-15',
+        'performance': 8,
+        'skills': 'Python, SQL, FastAPI'
+    })
+    if team_member_id:
+        print(f"Added team member 'New Member' with ID: {team_member_id}")
+        member = get_team_member_by_id(team_member_id)
+        print(f"Retrieved member: {member}")
+
+        updated = update_team_member(team_member_id, {
+            'performance': 9,
+            'skills': 'Python, SQL, FastAPI, Docker'
+        })
+        print(f"Team member update successful: {updated}")
+        member = get_team_member_by_id(team_member_id)
+        print(f"Updated member: {member}")
+    else:
+        print("Failed to add team member.")
+
+    # Test KPIs - Requires a project
+    print("\nTesting KPIs...")
+    # Need a client and user for project
+    kpi_test_user_id = add_user({'username': 'kpi_user', 'password': 'password', 'full_name': 'KPI User', 'email': 'kpi@example.com', 'role': 'manager'})
+    if not kpi_test_user_id:
+        # Attempt to get existing user if add failed due to uniqueness
+        kpi_user_existing = get_user_by_username('kpi_user')
+        if kpi_user_existing:
+            kpi_test_user_id = kpi_user_existing['user_id']
+            print(f"Using existing user 'kpi_user' (ID: {kpi_test_user_id})")
+        else:
+            print("Failed to create or find user 'kpi_user' for KPI tests. Aborting KPI tests.")
+            kpi_test_user_id = None
+
+    kpi_test_client_id = None
+    if kpi_test_user_id:
+        kpi_test_client_id = add_client({'client_name': 'KPI Test Client', 'created_by_user_id': kpi_test_user_id})
+        if not kpi_test_client_id:
+            existing_kpi_client = get_all_clients({'client_name': 'KPI Test Client'})
+            if existing_kpi_client:
+                kpi_test_client_id = existing_kpi_client[0]['client_id']
+                print(f"Using existing client 'KPI Test Client' (ID: {kpi_test_client_id})")
+            else:
+                print("Failed to create or find client 'KPI Test Client'. Aborting KPI tests.")
+                kpi_test_client_id = None
+
+    test_project_for_kpi_id = None
+    if kpi_test_client_id and kpi_test_user_id:
+        # Clean up existing project if any
+        existing_projects = get_projects_by_client_id(kpi_test_client_id)
+        for p in existing_projects:
+            if p['project_name'] == 'KPI Test Project':
+                # Need to delete KPIs associated with this project first
+                kpis_to_delete = get_kpis_for_project(p['project_id'])
+                for kpi_del in kpis_to_delete:
+                    delete_kpi(kpi_del['kpi_id'])
+                delete_project(p['project_id'])
+                print(f"Deleted existing 'KPI Test Project' and its KPIs.")
+
+        test_project_for_kpi_id = add_project({
+            'client_id': kpi_test_client_id,
+            'project_name': 'KPI Test Project',
+            'manager_team_member_id': kpi_test_user_id, # Assuming user_id can be used here as per schema
+            'status_id': 10 # Assuming status_id 10 exists ('Project Planning')
+        })
+        if test_project_for_kpi_id:
+            print(f"Added 'KPI Test Project' with ID: {test_project_for_kpi_id} for KPI tests.")
+        else:
+            print("Failed to add project for KPI tests.")
+
+    if test_project_for_kpi_id:
+        kpi_id = add_kpi({
+            'project_id': test_project_for_kpi_id,
+            'name': 'Customer Satisfaction',
+            'value': 85.5,
+            'target': 90.0,
+            'trend': 'up',
+            'unit': '%'
+        })
+        if kpi_id:
+            print(f"Added KPI 'Customer Satisfaction' with ID: {kpi_id}")
+
+            ret_kpi = get_kpi_by_id(kpi_id)
+            print(f"Retrieved KPI by ID: {ret_kpi}")
+
+            kpis_for_proj = get_kpis_for_project(test_project_for_kpi_id)
+            print(f"KPIs for project {test_project_for_kpi_id}: {kpis_for_proj}")
+
+            updated_kpi = update_kpi(kpi_id, {'value': 87.0, 'trend': 'stable'})
+            print(f"KPI update successful: {updated_kpi}")
+            ret_kpi_updated = get_kpi_by_id(kpi_id)
+            print(f"Updated KPI: {ret_kpi_updated}")
+
+            deleted_kpi = delete_kpi(kpi_id)
+            print(f"KPI delete successful: {deleted_kpi}")
+        else:
+            print("Failed to add KPI.")
+    else:
+        print("Skipping KPI tests as project setup failed.")
+
+    # Clean up test data
+    print("\nCleaning up test data...")
+    if team_member_id and get_team_member_by_id(team_member_id):
+        delete_team_member(team_member_id)
+        print(f"Deleted team member ID: {team_member_id}")
+
+    if test_project_for_kpi_id and get_project_by_id(test_project_for_kpi_id):
+        # Ensure KPIs are deleted if any test failed mid-way
+        kpis_left = get_kpis_for_project(test_project_for_kpi_id)
+        for kpi_left_obj in kpis_left:
+            delete_kpi(kpi_left_obj['kpi_id'])
+            print(f"Cleaned up leftover KPI ID: {kpi_left_obj['kpi_id']}")
+        delete_project(test_project_for_kpi_id)
+        print(f"Deleted project ID: {test_project_for_kpi_id}")
+
+    if kpi_test_client_id and get_client_by_id(kpi_test_client_id):
+        delete_client(kpi_test_client_id)
+        print(f"Deleted client ID: {kpi_test_client_id}")
+
+    if kpi_test_user_id and get_user_by_id(kpi_test_user_id):
+        delete_user(kpi_test_user_id)
+        print(f"Deleted user ID: {kpi_test_user_id}")
+
+    print("\n--- Schema changes and basic tests completed. ---")

@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import QBoxLayout
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
 from docx import Document # Added for .docx support
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
+from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
 
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
@@ -1693,8 +1694,19 @@ class DocumentManager(QMainWindow):
         
         self.config = CONFIG 
         self.clients_data_map = {} 
+        # self.project_management_widget_instance = None # Placeholder for PM widget
+        # No longer just a placeholder, will be instantiated after setup_ui_main
         
-        self.setup_ui_main() 
+        self.setup_ui_main() # This now sets up the QStackedWidget and documents_page_widget
+
+        # Instantiate ProjectManagementDashboard here so it's ready
+        # Passing None for current_user. main.py will need its own auth to pass a real user.
+        self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
+        self.main_area_stack.addWidget(self.project_management_widget_instance)
+
+        # Set initial view to documents
+        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
+
         self.create_actions_main() 
         self.create_menus_main() 
         self.load_clients_from_db()
@@ -1709,7 +1721,14 @@ class DocumentManager(QMainWindow):
         main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(10,10,10,10); main_layout.setSpacing(10)
         
         self.stats_widget = StatisticsWidget(); main_layout.addWidget(self.stats_widget)
-        content_layout = QHBoxLayout(); main_layout.addLayout(content_layout)
+
+        # Create QStackedWidget for main content area
+        self.main_area_stack = QStackedWidget()
+        main_layout.addWidget(self.main_area_stack)
+
+        # Original content page (documents view)
+        self.documents_page_widget = QWidget()
+        content_layout = QHBoxLayout(self.documents_page_widget) # This QHBoxLayout is now for the documents page
         
         left_panel = QWidget(); left_layout = QVBoxLayout(left_panel); left_layout.setContentsMargins(5,5,5,5)
         filter_search_layout = QHBoxLayout() 
@@ -1778,6 +1797,10 @@ class DocumentManager(QMainWindow):
         self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True) 
         self.client_tabs_widget.tabCloseRequested.connect(self.close_client_tab) 
         content_layout.addWidget(self.client_tabs_widget, 2)
+
+        self.main_area_stack.addWidget(self.documents_page_widget) # Add original content as first page
+        # PM widget instantiated in __init__ and added to stack there
+
         self.load_countries_into_combo() 
         
     def create_actions_main(self): 
@@ -1786,14 +1809,41 @@ class DocumentManager(QMainWindow):
         self.status_action = QAction(self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog)
         self.exit_action = QAction(self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
         
+        # Action for Project Management
+        self.project_management_action = QAction(QIcon.fromTheme("preferences-system"), self.tr("Gestion de Projet"), self) # Added icon
+        self.project_management_action.triggered.connect(self.show_project_management_view)
+
+        # Action to go back to Documents view (optional, but good for navigation)
+        self.documents_view_action = QAction(QIcon.fromTheme("folder-documents"), self.tr("Gestion Documents"), self)
+        self.documents_view_action.triggered.connect(self.show_documents_view)
+
     def create_menus_main(self): 
         menu_bar = self.menuBar()
+
         file_menu = menu_bar.addMenu(self.tr("Fichier"))
         file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action)
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
+
+        # Modules Menu
+        modules_menu = menu_bar.addMenu(self.trModules"))
+        modules_menu.addAction(self.documents_view_action) # Action to switch to Documents
+        modules_menu.addAction(self.project_management_action) # Action to switch to Project Management
+
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
+
+    def show_project_management_view(self):
+        # Instantiate on first click if not already done, or could be done in __init__
+        # if self.project_management_widget_instance is None: # Instance is now created in __init__
+            # Passing None for current_user as main.py doesn't have its own login currently
+            # self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
+            # self.main_area_stack.addWidget(self.project_management_widget_instance)
+
+        self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+
+    def show_documents_view(self): # Method to switch back to the document view
+        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
