@@ -28,6 +28,10 @@ import io
 from PyQt5.QtWidgets import QDoubleSpinBox
 from excel_editor import ExcelEditor
 from PyQt5.QtWidgets import QBoxLayout
+from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
+from docx import Document # Added for .docx support
+from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
+from html_editor import HtmlEditor # Added for HTML template editing
 
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
@@ -125,7 +129,8 @@ def init_database():
             file_name TEXT NOT NULL,
             language TEXT NOT NULL,
             is_default INTEGER DEFAULT 0,
-            category TEXT
+            category TEXT,
+            config_json TEXT
         );"""
         )
         
@@ -322,7 +327,12 @@ class TemplateDialog(QDialog):
             if conn: conn.close()
             
     def add_template(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Sélectionner un modèle", CONFIG["templates_dir"], "Fichiers Excel (*.xlsx);;Tous les fichiers (*)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Sélectionner un modèle",
+            CONFIG["templates_dir"],
+            "Fichiers Modèles (*.xlsx *.docx *.html *.htm);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html *.htm);;Tous les fichiers (*)"
+        )
         if not file_path: return
             
         name, ok = QInputDialog.getText(self, "Nom du Modèle", "Entrez un nom pour ce modèle:")
@@ -364,10 +374,25 @@ class TemplateDialog(QDialog):
             cursor.execute("SELECT file_name, language FROM Templates WHERE template_id = ?", (template_id,))
             result = cursor.fetchone()
             if result:
-                file_path = os.path.join(CONFIG["templates_dir"], result[1], result[0]) 
-                QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+                template_db_filename = result[0]
+                template_db_language = result[1]
+                file_path = os.path.join(CONFIG["templates_dir"], template_db_language, template_db_filename)
+
+                if file_path.lower().endswith(('.html', '.htm')):
+                    editor = HtmlEditor(file_path, self)
+                    editor.exec_()
+                    # Optionally, could add logic here if the editor signals a save,
+                    # e.g., to update a preview or list if templates were shown with more detail.
+                elif file_path.lower().endswith(('.xlsx', '.docx')): # Keep direct open for Excel/Word for now
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+                else: # Fallback for other unknown template types
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            else:
+                QMessageBox.warning(self, "Erreur", "Modèle non trouvé dans la base de données.")
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Erreur DB", f"Erreur d'accès au modèle:\n{str(e)}")
+        except Exception as e_general:
+            QMessageBox.critical(self, "Erreur Inattendue", f"Une erreur est survenue lors de l'ouverture du modèle:\n{str(e_general)}")
         finally:
             if conn: conn.close()
             
@@ -531,10 +556,11 @@ class CreateDocumentDialog(QDialog):
         try:
             conn = sqlite3.connect(DATABASE_NAME)
             cursor = conn.cursor()
-            cursor.execute("SELECT name, language FROM Templates ORDER BY name")
-            for name, lang in cursor.fetchall():
-                item = QListWidgetItem(f"{name} ({lang})")
-                item.setData(Qt.UserRole, (name, lang))
+            # Fetch file_name along with name and language
+            cursor.execute("SELECT name, language, file_name FROM Templates ORDER BY name, language")
+            for name, lang, file_name_db in cursor.fetchall():
+                item = QListWidgetItem(f"{name} ({lang}) - {file_name_db}") # Display full filename for clarity
+                item.setData(Qt.UserRole, (name, lang, file_name_db)) # Store all three
                 self.templates_list.addItem(item)
         except sqlite3.Error as e:
             QMessageBox.warning(self, "Erreur DB", f"Erreur de chargement des modèles:\n{str(e)}")
@@ -554,26 +580,42 @@ class CreateDocumentDialog(QDialog):
         created_files = []
         
         for item in selected_items:
-            template_name, template_lang = item.data(Qt.UserRole)
+            # Retrieve name, lang, and actual_template_filename stored in UserRole
+            db_template_name, db_template_lang, actual_template_filename = item.data(Qt.UserRole)
             
-            # Trouver le fichier template
-            template_file = None
-            template_path = os.path.join(self.config["templates_dir"], template_lang, f"{template_name}.xlsx")
-            if os.path.exists(template_path):
-                template_file = template_path
-            else:
-                # Chercher dans tous les fichiers de la langue
-                lang_dir = os.path.join(self.config["templates_dir"], template_lang)
-                for f in os.listdir(lang_dir):
-                    if f.endswith(".xlsx"):
-                        template_file = os.path.join(lang_dir, f)
-                        break
-            
-            if template_file:
-                target_path = os.path.join(target_dir, f"{template_name}.xlsx")
-                shutil.copy(template_file, target_path)
+            if not actual_template_filename:
+                print(f"Warning: No actual_template_filename for template '{db_template_name}' ({db_template_lang}). Skipping.")
+                QMessageBox.warning(self, "Erreur Modèle", f"Nom de fichier manquant pour le modèle '{db_template_name}'. Impossible de créer.")
+                continue
+
+            template_file_found_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+
+            if os.path.exists(template_file_found_abs):
+                # Use the actual filename for the target path as well
+                target_path = os.path.join(target_dir, actual_template_filename)
+                shutil.copy(template_file_found_abs, target_path)
+
+                if target_path.lower().endswith(".docx"):
+                    try:
+                        populate_docx_template(target_path, self.client_info)
+                        print(f"Populated DOCX: {target_path}")
+                    except Exception as e_pop:
+                        print(f"Error populating DOCX template {target_path}: {e_pop}")
+                        QMessageBox.warning(self, "Erreur DOCX", f"Impossible de populer le modèle Word '{os.path.basename(target_path)}':\n{e_pop}")
+                elif target_path.lower().endswith(('.html', '.htm')):
+                    try:
+                        populate_html_template(target_path, self.client_info)
+                        print(f"Populated HTML: {target_path}")
+                    except Exception as e_pop_html:
+                        print(f"Error populating HTML template {target_path}: {e_pop_html}")
+                        QMessageBox.warning(self, "Erreur HTML", f"Impossible de populer le modèle HTML '{os.path.basename(target_path)}':\n{e_pop_html}")
+
                 created_files.append(target_path)
-        
+            else:
+                print(f"Warning: Template file '{actual_template_filename}' for '{db_template_name}' ({db_template_lang}) not found at {template_file_found_abs}.")
+                QMessageBox.warning(self, "Erreur Modèle", f"Fichier modèle '{actual_template_filename}' introuvable pour '{db_template_name}'.")
+
+
         if created_files:
             QMessageBox.information(self, "Documents créés", f"{len(created_files)} documents ont été créés avec succès.")
             self.accept()
@@ -799,43 +841,75 @@ class CompilePdfDialog(QDialog):
             QMessageBox.critical(self, "Erreur", f"Erreur lors de la compilation du PDF:\n{str(e)}")
     
     def create_cover_page(self):
+        config_dict = {
+            'title': f"Compilation de Documents - Projet: {self.client_info.get('project_identifier', 'N/A')}",
+            'subtitle': f"Client: {self.client_info.get('client_name', 'N/A')}",
+            'author': self.client_info.get('company_name', PAGEDEGRDE_APP_CONFIG.get('default_institution', 'Votre Entreprise')), # Or a global app author
+            'institution': "", # Potentially company name or leave blank
+            'department': "", # Not directly available, leave blank or use a default
+            'doc_type': "Compilation de Documents",
+            'date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'version': "1.0", # Default version for compiled doc
+
+            # Styling - use defaults from pagedegrde or sensible values
+            'font_name': PAGEDEGRDE_APP_CONFIG.get('default_font', 'Helvetica'),
+            'font_size_title': 20, # Adjusted for compilation title
+            'font_size_subtitle': 16,
+            'font_size_author': 10,
+            'text_color': PAGEDEGRDE_APP_CONFIG.get('default_text_color', '#000000'), # Assuming hex
+
+            'template_style': 'Moderne', # A default style from pagedegrde
+            'show_horizontal_line': True,
+            'line_y_position_mm': 140, # Example position for the line
+
+            # Logo - try to load from main.py's directory as before
+            'logo_data': None,
+            'logo_width_mm': 40, # Adjusted logo size
+            'logo_height_mm': 40,
+            'logo_x_mm': 25, # Example: Place logo top-left
+            'logo_y_mm': 297 - 25 - 40, # A4 height - margin - logo_height (approx top-left)
+
+            # Margins (defaults from pagedegrde if not specified here)
+            'margin_top': 25,
+            'margin_bottom': 25,
+            'margin_left': 20,
+            'margin_right': 20,
+
+            'footer_text': f"Document compilé le {datetime.now().strftime('%d/%m/%Y')}"
+        }
+
+        # Attempt to load logo.png from main.py's APP_ROOT_DIR
+        # Note: APP_ROOT_DIR is defined globally in main.py
+        logo_path = os.path.join(APP_ROOT_DIR, "logo.png")
+        if os.path.exists(logo_path):
+            try:
+                with open(logo_path, "rb") as f_logo:
+                    config_dict['logo_data'] = f_logo.read()
+            except Exception as e_logo:
+                print(f"Erreur chargement logo.png: {e_logo}")
+
         try:
-            # Créer une page de garde simple
-            packet = io.BytesIO()
-            can = canvas.Canvas(packet, pagesize=(595.27, 841.89))  # A4
-            
-            # Logo (si disponible)
-            logo_path = os.path.join(os.path.dirname(__file__), "logo.png")
-            if os.path.exists(logo_path):
-                can.drawImage(logo_path, 50, 700, width=100, height=50, preserveAspectRatio=True)
-            
-            # Titre
-            can.setFont("Helvetica-Bold", 24)
-            can.drawCentredString(297, 650, "Compilation de Documents")
-            
-            # Informations client
-            can.setFont("Helvetica", 14)
-            can.drawString(100, 600, f"Client: {self.client_info['client_name']}")
-            can.drawString(100, 570, f"Projet: {self.client_info['project_identifier']}")
-            can.drawString(100, 540, f"Date: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-            
-            # Signature
-            can.setFont("Helvetica-Oblique", 12)
-            can.drawString(400, 100, "Signature:")
-            can.line(400, 90, 500, 90)
-            
-            can.save()
-            
-            # Sauvegarder dans un fichier temporaire
-            temp_path = os.path.join(self.client_info["base_folder_path"], "cover_temp.pdf")
-            with open(temp_path, "wb") as f:
-                f.write(packet.getbuffer())
-                
-            return temp_path
+            # Call the imported logic function
+            pdf_bytes = generate_cover_page_logic(config_dict)
+
+            # Save the generated PDF bytes to a temporary file
+            # Use client's base folder if available, otherwise system temp
+            base_temp_dir = self.client_info.get("base_folder_path", QDir.tempPath())
+            # Ensure the directory exists, especially if it's a sub-directory that might not have been created yet
+            # For simplicity, using client's base folder directly as it should exist.
+
+            temp_cover_filename = f"cover_page_generated_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+            temp_cover_path = os.path.join(base_temp_dir, temp_cover_filename)
+
+            with open(temp_cover_path, "wb") as f:
+                f.write(pdf_bytes)
+            return temp_cover_path
+
         except Exception as e:
-            print(f"Erreur création page de garde: {str(e)}")
-            return None
-    
+            print(f"Erreur lors de la génération de la page de garde via pagedegrde: {e}")
+            QMessageBox.warning(self, "Erreur Page de Garde", f"Impossible de générer la page de garde personnalisée: {e}")
+            return None # Fallback: no cover page or a simpler one could be generated here
+
     def offer_download_or_email(self, pdf_path):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Compilation réussie")
@@ -1142,9 +1216,18 @@ class ClientWidget(QWidget):
                 continue
                 
             for file_name in os.listdir(lang_dir):
-                if file_name.endswith(('.xlsx', '.pdf')):
+                if file_name.endswith(('.xlsx', '.pdf', '.docx', '.html', '.htm')): # Added .html, .htm
                     file_path = os.path.join(lang_dir, file_name)
-                    file_type = "Excel" if file_name.endswith('.xlsx') else "PDF"
+                    if file_name.lower().endswith('.xlsx'):
+                        file_type = "Excel"
+                    elif file_name.lower().endswith('.docx'):
+                        file_type = "Word"
+                    elif file_name.lower().endswith(('.html', '.htm')):
+                        file_type = "HTML"
+                    elif file_name.lower().endswith('.pdf'):
+                        file_type = "PDF"
+                    else:
+                        file_type = "Fichier" # Generic fallback
                     mod_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M')
                     
                     self.doc_table.insertRow(row)
@@ -1228,7 +1311,9 @@ class ClientWidget(QWidget):
                     editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
                     editor.exec_()
                     self.populate_doc_table()
-                else:
+                elif file_path.lower().endswith(('.docx', '.pdf', '.html', '.htm')): # Added .html, .htm
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+                else: # Fallback for other types if any
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
             except Exception as e:
                 QMessageBox.warning(self, "Erreur Ouverture Fichier", f"Impossible d'ouvrir le fichier:\n{str(e)}")
@@ -1477,6 +1562,110 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, "Erreur DB", f"Erreur de chargement des produits:\n{str(e)}")
         finally:
             if conn: conn.close()
+
+# --- HTML Population Logic ---
+def populate_html_template(html_path, client_data):
+    try:
+        with open(html_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        placeholders = {
+            "{{CLIENT_NAME}}": client_data.get('client_name', ''),
+            "{{PROJECT_ID}}": client_data.get('project_identifier', ''),
+            "{{COMPANY_NAME}}": client_data.get('company_name', ''),
+            "{{NEED}}": client_data.get('need', ''),
+            "{{COUNTRY}}": client_data.get('country', ''),
+            "{{CITY}}": client_data.get('city', ''),
+            "{{PRICE}}": str(client_data.get('price', 0)),
+            "{{DATE}}": datetime.now().strftime('%Y-%m-%d'),
+            "{{CLIENT_ID}}": client_data.get('client_id', ''),
+            "{{STATUS}}": client_data.get('status', ''),
+            "{{NOTES}}": client_data.get('notes', ''),
+            "{{CREATION_DATE}}": client_data.get('creation_date', '')
+            # Add more placeholders as needed
+        }
+
+        for placeholder, value in placeholders.items():
+            content = content.replace(placeholder, str(value)) # Ensure value is string
+
+        with open(html_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print(f"HTML template {html_path} populated successfully.")
+    except Exception as e:
+        print(f"Error populating HTML template {html_path}: {e}")
+        raise # Re-raise the exception to be caught by CreateDocumentDialog
+
+
+# --- DOCX Population Logic ---
+def populate_docx_template(docx_path, client_data):
+    """
+    Populates a .docx template with client data using placeholders.
+    Placeholders should be in the format {{PLACEHOLDER_NAME}}.
+    """
+    try:
+        document = Document(docx_path)
+
+        placeholders = {
+            "{{CLIENT_NAME}}": client_data.get('client_name', ''),
+            "{{PROJECT_ID}}": client_data.get('project_identifier', ''),
+            "{{COMPANY_NAME}}": client_data.get('company_name', ''),
+            "{{NEED}}": client_data.get('need', ''),
+            "{{COUNTRY}}": client_data.get('country', ''),
+            "{{CITY}}": client_data.get('city', ''),
+            "{{PRICE}}": str(client_data.get('price', 0)),
+            "{{DATE}}": datetime.now().strftime('%Y-%m-%d'),
+            # Add more placeholders as needed for other client_info fields:
+            "{{STATUS}}": client_data.get('status', ''),
+            "{{SELECTED_LANGUAGES}}": ", ".join(client_data.get('selected_languages', [])),
+            "{{NOTES}}": client_data.get('notes', ''),
+            "{{CREATION_DATE}}": client_data.get('creation_date', ''),
+            "{{CATEGORY}}": client_data.get('category', ''),
+            "{{PRIMARY_CONTACT_NAME}}": "", # Needs logic to fetch primary contact
+        }
+
+        # Placeholder for primary contact details - requires DB lookup or richer client_data
+        # This is a simplified example; a real version might fetch primary contact name, email, phone
+        # For now, we'll leave it to be manually filled or expanded later.
+
+        # Replace in paragraphs
+        for para in document.paragraphs:
+            for key, value in placeholders.items():
+                if key in para.text:
+                    # Basic text replacement.
+                    # This is a simplified version. For complex documents with formatting within placeholders,
+                    # a run-by-run replacement is needed.
+                    new_text = para.text.replace(key, value)
+                    if para.text != new_text:
+                         para.text = new_text # Assign back if changed
+
+        # Replace in tables
+        for table in document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        for key, value in placeholders.items():
+                            if key in para.text:
+                                new_text = para.text.replace(key, value)
+                                if para.text != new_text:
+                                    para.text = new_text
+
+        # Consider headers/footers if necessary (more complex)
+        # for section in document.sections:
+        #     for header_footer_type in [section.header, section.footer, section.first_page_header, section.first_page_footer]:
+        #         if header_footer_type:
+        #             for para in header_footer_type.paragraphs:
+        #                 # ... replacement logic ...
+        #             for table in header_footer_type.tables:
+        #                 # ... replacement logic ...
+
+        document.save(docx_path)
+        print(f"DOCX template populated: {docx_path}")
+
+    except Exception as e:
+        print(f"Error populating DOCX template {docx_path}: {e}")
+        # Re-raise or handle more gracefully depending on desired behavior
+        raise
+
 
 class StatisticsWidget(QWidget):
     def __init__(self, parent=None):
