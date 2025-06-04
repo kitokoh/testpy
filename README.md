@@ -129,4 +129,3 @@ The application uses custom fonts for PDF generation, particularly for cover pag
 ```
 
 This structure provides a general overview. The exact names for database files or default template files might vary slightly based on the implementation.
-

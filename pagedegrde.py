@@ -70,9 +70,19 @@ class Translator:
     def __init__(self):
         self.translations = {}
         self.current_language = "Français" # Default language
+        # Define available languages and their display names
+        self.LANGUAGES = {
+            "fr": "Français",
+            "en": "English",
+            "es": "Español",
+            "ar": "Arabic",
+            "tr": "Turkish",
+            "pt": "Portuguese"
+        }
         self.init_translations()
 
     def init_translations(self):
+        # Initialize for French (Primary)
         self.translations["Français"] = {
             # Dialog specific
             "Préférences": "Préférences",
@@ -184,6 +194,7 @@ class Translator:
              "Moderne": "Moderne", "Classique": "Classique", "Minimaliste": "Minimaliste", "Personnalisé": "Personnalisé", # ComboBox items
              "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n",
         }
+        # Initialize for English
         self.translations["English"] = {
             # Dialog specific
             "Préférences": "Preferences",
@@ -295,25 +306,77 @@ class Translator:
             "Moderne": "Modern", "Classique": "Classic", "Minimaliste": "Minimalist", "Personnalisé": "Custom", # ComboBox items
             "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Modern Cover Page Generator</b> v0.1 Alpha\n<p>An application to easily create custom cover pages.\n<p>Developed with PyQt5 and ReportLab.\n<p>© 2023 Your Name/Organization. All rights reserved.\n<p><a href='https://example.com'>Visit our website</a>\n",
         }
+        # Initialize for Spanish
+        self.translations["Español"] = {
+            # Dialog specific
+            "Préférences": "Preferencias",
+            "Auteur par défaut:": "Autor por Defecto:",
+            "Institution par défaut:": "Institución por Defecto:",
+            "Langue:": "Idioma:",
+            "Police par défaut:": "Fuente por Defecto:",
+            "Taille de police par défaut:": "Tamaño de Fuente por Defecto:",
+            "Chemin base de données:": "Ruta de Base de Datos:",
+            "OK": "Aceptar",
+            "Annuler": "Cancelar",
+            "Appliquer": "Aplicar",
+            "Les préférences ont été appliquées.": "Las preferencias han sido aplicadas.",
+            # ... (Add more Spanish translations as needed, mirroring English and French)
+            "Générateur de Page de Garde Moderne": "Generador de Portadas Moderno", # Example
+            "Générateur de Page de Garde Moderne": "Generador de Portadas Moderno", # Example
+            "&Fichier": "&Archivo", # Example
+        }
+        # Initialize for Arabic, Turkish, Portuguese with a few placeholder translations
+        self.translations["Arabic"] = {
+            "Préférences": "[AR] Préférences", "Langue:": "[AR] Langue:",
+            "OK": "[AR] OK", "Annuler": "[AR] Annuler", "Appliquer": "[AR] Appliquer",
+            "Générateur de Page de Garde Moderne": "[AR] Générateur de Page de Garde Moderne",
+            "&Fichier": "[AR] &Fichier",
+        }
+        self.translations["Turkish"] = {
+            "Préférences": "[TR] Tercihler", "Langue:": "[TR] Dil:",
+            "OK": "[TR] Tamam", "Annuler": "[TR] İptal", "Appliquer": "[TR] Uygula",
+            "Générateur de Page de Garde Moderne": "[TR] Modern Kapak Sayfası Oluşturucu",
+            "&Fichier": "[TR] &Dosya",
+        }
+        self.translations["Portuguese"] = {
+            "Préférences": "[PT] Preferências", "Langue:": "[PT] Idioma:",
+            "OK": "[PT] OK", "Annuler": "[PT] Cancelar", "Appliquer": "[PT] Aplicar",
+            "Générateur de Page de Garde Moderne": "[PT] Gerador de Páginas de Capa Moderno",
+            "&Fichier": "[PT] &Arquivo",
+        }
 
-    def set_language(self, language: str):
-        if language in self.translations:
-            self.current_language = language
-            print(f"Translator: Language set to {language}")
+
+    def set_language(self, language_display_name: str):
+        # Use the display name as the key for self.translations dictionary
+        if language_display_name in self.translations:
+            self.current_language = language_display_name # Storing the display name
+            print(f"Translator: Language set to {language_display_name}")
         else:
-            print(f"Translator: Warning - Language '{language}' not found in translations. Keeping '{self.current_language}'.")
+            # Fallback logic or warning
+            # Attempt to find by code if display name fails (e.g. if system locale was 'en' but display is 'English')
+            found_by_code = False
+            for code, display_name_iter in self.LANGUAGES.items():
+                if code == language_display_name and display_name_iter in self.translations: # language_display_name might be a code here
+                    self.current_language = display_name_iter
+                    print(f"Translator: Language set to {display_name_iter} (via code '{code}')")
+                    found_by_code = True
+                    break
+            if not found_by_code:
+                print(f"Translator: Warning - Language display name '{language_display_name}' not found in translations. Keeping '{self.current_language}'.")
+
 
     def tr(self, key_text: str, *args) -> str:
-        # Try current language
+        # Try current language (using display name as key)
         translation = self.translations.get(self.current_language, {}).get(key_text)
         
         # Fallback to French (primary key source) if not found in current language
-        if translation is None and self.current_language != "Français":
-            translation = self.translations.get("Français", {}).get(key_text)
+        # Assuming "Français" is the display name for French
+        if translation is None and self.current_language != self.LANGUAGES.get("fr", "Français"):
+            translation = self.translations.get(self.LANGUAGES.get("fr", "Français"), {}).get(key_text)
             
         # Fallback to key_text itself if no translation found
         if translation is None:
-            # print(f"Translator: Key '{key_text}' not found. Using key as fallback.")
+            # print(f"Translator: Key '{key_text}' not found for language '{self.current_language}'. Using key as fallback.")
             translation = f"[!] {key_text}" # Or just key_text
 
         if args:
@@ -888,7 +951,9 @@ class PreferencesDialog(QDialog):
         
         general_layout.addWidget(QLabel(self.translator.tr("Langue:")), 0, 0)
         self.language_combo = ModernComboBox()
-        self.language_combo.addItems(["Français", "English"]) # Add more as needed
+        # Populate with display names from the Translator's LANGUAGES dict
+        for lang_code in self.translator.LANGUAGES:
+            self.language_combo.addItem(self.translator.LANGUAGES[lang_code])
         general_layout.addWidget(self.language_combo, 0, 1)
 
         general_layout.addWidget(QLabel(self.translator.tr("Auteur par défaut:")), 1, 0)
@@ -937,8 +1002,14 @@ class PreferencesDialog(QDialog):
         self.load_preferences()
 
     def load_preferences(self):
-        self.current_settings['language'] = self.db.load_preference('language', APP_CONFIG['default_language'])
-        self.language_combo.setCurrentText(self.current_settings['language'])
+        # Load language preference (it's stored as display name, e.g., "Français", "English")
+        default_lang_display_name = self.translator.LANGUAGES.get(
+            APP_CONFIG.get('default_language', 'fr'), # Default to 'fr' code if APP_CONFIG is not set
+            "Français" # Fallback display name
+        )
+        current_lang_display_name = self.db.load_preference('language', default_lang_display_name)
+        self.language_combo.setCurrentText(current_lang_display_name)
+        self.current_settings['language'] = current_lang_display_name
         
         self.current_settings['default_author'] = self.db.load_preference('default_author', '')
         self.author_edit.setText(self.current_settings['default_author'])
@@ -1374,11 +1445,15 @@ class CoverPageGenerator(QMainWindow):
             self.institution_edit.setText(default_institution)
 
         # Load language (application of language will be more complex, involving i18n)
-        preferred_language = self.db.load_preference('language', APP_CONFIG['default_language'])
-        print(f"Preferred language loaded: {preferred_language}")
-        # Load language (application of language will be more complex, involving i18n)
-        preferred_language = self.db.load_preference('language', APP_CONFIG['default_language'])
-        self.translator.set_language(preferred_language)
+        # The preference is stored as the display name (e.g., "Français", "English")
+        default_lang_display_name = self.translator.LANGUAGES.get(
+            APP_CONFIG.get('default_language', 'fr'), # Default to 'fr' code if not set
+            "Français" # Fallback display name if code not in LANGUAGES
+        )
+        preferred_language_display_name = self.db.load_preference('language', default_lang_display_name)
+
+        print(f"Preferred language loaded from DB: {preferred_language_display_name}")
+        self.translator.set_language(preferred_language_display_name) # Pass display name
         self.current_language = self.translator.current_language # Update based on what was actually set
 
         # Load default font and size (apply to relevant widgets if needed, or use as default for new elements)
@@ -1470,10 +1545,11 @@ class CoverPageGenerator(QMainWindow):
         """Called by PreferencesDialog to apply changes to the main app if needed."""
         print("Applying application-wide preferences...")
         # Reload language preference
-        new_lang = self.db.load_preference('language', APP_CONFIG['default_language'])
+        # new_lang is the display name, e.g., "English"
+        new_lang_display_name = self.db.load_preference('language', self.translator.LANGUAGES.get(APP_CONFIG['default_language'], "Français"))
         
-        self.translator.set_language(new_lang) 
-        self.current_language = self.translator.current_language 
+        self.translator.set_language(new_lang_display_name)
+        self.current_language = self.translator.current_language # This should be the display name
         
         self.retranslate_ui() # Always call to ensure UI is in correct state
         
@@ -1497,7 +1573,7 @@ class CoverPageGenerator(QMainWindow):
     # --- Template Management ---
     def get_current_form_data(self) -> Dict[str, Any]:
         data = {
-            "name": self.current_template_name_edit.text() or "Nouveau Modèle", # Use placeholder if empty
+            "name": self.current_template_name_edit.text() or self.translator.tr("Nouveau Modèle"), # Use placeholder if empty
             "title": self.title_edit.text(),
             "subtitle": self.subtitle_edit.text(),
             "author": self.author_edit.text(),
@@ -1523,7 +1599,7 @@ class CoverPageGenerator(QMainWindow):
         return data
 
     def populate_form_from_data(self, data: Dict[str, Any]):
-        self.current_template_name_edit.setText(data.get("name", self.translator.tr("Modèle Copié")))
+        self.current_template_name_edit.setText(data.get("name", self.translator.tr("Nouveau Modèle"))) # Changed from "Modèle Copié"
         self.title_edit.setText(data.get("title", ""))
         self.subtitle_edit.setText(data.get("subtitle", ""))
         self.author_edit.setText(data.get("author", ""))
@@ -1900,7 +1976,7 @@ class CoverPageGenerator(QMainWindow):
             QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Aucune donnée PDF à enregistrer."))
             return
 
-        default_filename = (self.title_edit.text() or self.translator.tr("PageDeGarde")) + ".pdf"
+        default_filename = (self.title_edit.text() or self.translator.tr("PageDeGarde", "Default PDF Name Context")) + ".pdf"
         file_path, _ = QFileDialog.getSaveFileName(self, self.translator.tr("Enregistrer le PDF"), default_filename,
                                                    "PDF Files (*.pdf)")
         if file_path:
@@ -2182,6 +2258,26 @@ def main():
     
     # Apply a style (optional, but Fusion looks good on many platforms)
     # app.setStyle("Fusion")
+
+    # --- Setup Language from Preferences before UI is created ---
+    # This is a preliminary setup. The main window will also apply prefs.
+    temp_db = DatabaseManager() # Temporary DB manager to load language pref
+
+    # Determine default language display name from APP_CONFIG or hardcoded fallback
+    # This ensures that if 'fr' is not in LANGUAGES, "Français" is used as fallback.
+    # And if APP_CONFIG['default_language'] is 'en', it correctly fetches "English".
+    initial_default_lang_code = APP_CONFIG.get('default_language', 'fr')
+    initial_default_lang_display_name = Translator().LANGUAGES.get(initial_default_lang_code, "Français")
+
+    # Load preferred language (display name) from DB, or use the determined default
+    preferred_lang_display_name = temp_db.load_preference('language', initial_default_lang_display_name)
+
+    # For now, we don't have a global translator instance yet.
+    # The main_window will create its own translator and set its language.
+    # This is just to potentially inform Qt's own translations if possible early.
+    # QLocale.setDefault(QLocale(preferred_lang_code)) # This would need lang code e.g. 'en_US'
+
+    del temp_db # Clean up temporary DB manager
 
     # For high DPI scaling (optional but recommended)
     if hasattr(Qt, 'AA_EnableHighDpiScaling'):
