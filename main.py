@@ -1825,7 +1825,7 @@ class DocumentManager(QMainWindow):
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
         # Modules Menu
-        modules_menu = menu_bar.addMenu(self.trModules"))
+        modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action) # Action to switch to Documents
         modules_menu.addAction(self.project_management_action) # Action to switch to Project Management
 
@@ -2409,3 +2409,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
