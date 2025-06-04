@@ -1,268 +1,253 @@
 import os
 import sys
+from datetime import datetime
+
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QTextEdit, QToolBar, QAction, QMessageBox,
-    QFileDialog, QFontComboBox, QComboBox, QColorDialog, QDialogButtonBox,
-    QSizePolicy, QActionGroup
+    QApplication, QDialog, QTextEdit, QVBoxLayout, QHBoxLayout,
+    QPushButton, QMessageBox, QFileDialog, QStyle, QLabel, QLineEdit, QWidget
 )
-from PyQt5.QtGui import QIcon, QTextCharFormat, QColor, QFont, QKeySequence, QTextImageFormat, QDesktopServices
-from PyQt5.QtCore import Qt, QFileInfo, QUrl, pyqtSignal
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication
+
+# Assuming excel_editor.ClientInfoWidget exists and is importable
+# If not, this will need adjustment or a placeholder class
+try:
+    from excel_editor import ClientInfoWidget
+except ImportError:
+    # Placeholder if ClientInfoWidget is not yet available or in a different location
+    class ClientInfoWidget(QWidget): # Or QGroupBox, depending on its design
+        def __init__(self, client_data, parent=None):
+            super().__init__(parent)
+            self.client_data = client_data
+            # Minimal placeholder UI
+            layout = QVBoxLayout(self)
+            client_name_placeholder = client_data.get('Nom du client', self.tr('N/A'))
+            layout.addWidget(QLabel(self.tr("Client Info Placeholder for: {0}").format(client_name_placeholder)))
+            self.name_edit = QLineEdit(client_data.get("Nom du client", "")) # Example field
+            self.besoin_edit = QLineEdit(client_data.get("Besoin", ""))
+            self.price_edit = QLineEdit(str(client_data.get("price", "")))
+            self.project_id_edit = QLineEdit(client_data.get("project_identifier", ""))
+            layout.addWidget(QLabel(self.tr("Nom:")))
+            layout.addWidget(self.name_edit)
+            layout.addWidget(QLabel(self.tr("Besoin:")))
+            layout.addWidget(self.besoin_edit)
+            layout.addWidget(QLabel(self.tr("Prix:")))
+            layout.addWidget(self.price_edit)
+            layout.addWidget(QLabel(self.tr("Project ID:")))
+            layout.addWidget(self.project_id_edit)
+
+
+        def get_client_data(self):
+            # Example: update data from input fields if any
+            self.client_data["Nom du client"] = self.name_edit.text()
+            self.client_data["Besoin"] = self.besoin_edit.text()
+            self.client_data["price"] = self.price_edit.text() # Should be float/int in reality
+            self.client_data["project_identifier"] = self.project_id_edit.text()
+            return self.client_data
 
 class HtmlEditor(QDialog):
-    # Signal to indicate the file was saved, potentially with new path
-    file_saved = pyqtSignal(str)
-
-    def __init__(self, file_path=None, parent=None):
+    def __init__(self, file_path: str, client_data: dict, parent=None):
         super().__init__(parent)
         self.file_path = file_path
-        # self.new_file_path_on_save = None # Not strictly needed if self.file_path is updated directly
+        self.client_data = client_data
 
-        self.setWindowIcon(QIcon.fromTheme("text-html", QIcon(":/icons/html.png"))) # Fallback icon
-        if self.file_path and os.path.exists(self.file_path):
-            self.setWindowTitle(f"HTML Editor - {os.path.basename(self.file_path)}")
-        else:
-            self.setWindowTitle("HTML Editor - New Document")
+        # Ensure ClientInfoWidget is created before methods that might use it (like _replace_placeholders_html via _load_content)
+        # self.client_info_widget = ClientInfoWidget(self.client_data) # Moved to _setup_ui as per standard practice
 
-        self.setMinimumSize(800, 600)
+        self._setup_ui() # This will create self.client_info_widget
+        self._load_content() # Now it's safe to call this
 
-        self.setup_ui() # Call this before trying to load HTML
+    def _setup_ui(self):
+        self.setWindowTitle(self.tr("HTML Editor - {0}").format(os.path.basename(self.file_path)))
+        self.setGeometry(100, 100, 1000, 700)  # Initial size
 
-        if self.file_path and os.path.exists(self.file_path):
-            self.load_html()
-        else:
-            self.text_edit.setHtml("<!DOCTYPE html><html><head><title>New Document</title></head><body><p>Start editing here...</p></body></html>")
-            if self.file_path: # Path provided but file doesn't exist
-                 QMessageBox.information(self, "New File", f"Creating new file at: {self.file_path}")
-            self.text_edit.document().setModified(False) # New doc is not modified
-
-
-    def setup_ui(self):
         main_layout = QVBoxLayout(self)
 
-        self.setup_toolbar() # Initialize self.toolbar
-        main_layout.addWidget(self.toolbar)
+        # Editor and Preview Panes
+        editor_preview_layout = QHBoxLayout()
 
-        self.text_edit = QTextEdit()
-        self.text_edit.setAcceptRichText(True)
-        self.text_edit.currentCharFormatChanged.connect(self.update_toolbar_states)
-        self.text_edit.cursorPositionChanged.connect(self.update_toolbar_states)
-        main_layout.addWidget(self.text_edit)
+        self.html_edit = QTextEdit()
+        self.html_edit.setPlaceholderText(self.tr("Enter HTML content here..."))
+        editor_preview_layout.addWidget(self.html_edit, 1)
 
-        button_box = QDialogButtonBox()
-        self.save_button = button_box.addButton("Save", QDialogButtonBox.AcceptRole)
-        self.cancel_button = button_box.addButton("Cancel", QDialogButtonBox.RejectRole)
+        self.preview_pane = QWebEngineView()
+        editor_preview_layout.addWidget(self.preview_pane, 1)
 
-        self.save_button.clicked.connect(self.accept_changes) # Connect to custom slot
-        self.cancel_button.clicked.connect(self.reject)
+        main_layout.addLayout(editor_preview_layout, 5)
 
-        main_layout.addWidget(button_box)
-        self.setLayout(main_layout)
+        self.client_info_widget = ClientInfoWidget(self.client_data, self) # parent is self
+        main_layout.addWidget(self.client_info_widget, 1)
 
-    def setup_toolbar(self):
-        self.toolbar = QToolBar("Main Toolbar")
-        self.toolbar.setIconSize(Qt.QSize(16,16))
+        # Buttons
+        button_layout = QHBoxLayout()
+        self.save_button = QPushButton(self.tr("Save"))
+        self.save_button.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton)) # Use self.style()
+        self.refresh_button = QPushButton(self.tr("Refresh Preview"))
+        self.refresh_button.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload)) # Use self.style()
+        self.close_button = QPushButton(self.tr("Close"))
+        self.close_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton)) # Use self.style()
 
-        # Font Family
-        self.font_combo = QFontComboBox(self.toolbar)
-        self.font_combo.currentFontChanged.connect(self.handle_font_family)
-        self.toolbar.addWidget(self.font_combo)
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.refresh_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.close_button)
 
-        # Font Size
-        self.size_combo = QComboBox(self.toolbar)
-        self.size_combo.setEditable(True)
-        font_sizes = ['8', '9', '10', '11', '12', '14', '16', '18', '20', '22', '24', '28', '32', '36', '48', '72']
-        self.size_combo.addItems(font_sizes)
-        self.size_combo.setCurrentText("12")
-        self.size_combo.activated[str].connect(self.handle_font_size)
-        self.toolbar.addWidget(self.size_combo)
+        main_layout.addLayout(button_layout)
 
-        self.toolbar.addSeparator()
+        # Connect signals
+        self.save_button.clicked.connect(self.save_content)
+        self.refresh_button.clicked.connect(self.refresh_preview)
+        self.close_button.clicked.connect(self.reject) # QDialog's reject for close
 
-        self.bold_action = QAction(QIcon.fromTheme("format-text-bold"), "Bold", self)
-        self.bold_action.setCheckable(True)
-        self.bold_action.setShortcut(QKeySequence.Bold)
-        self.bold_action.triggered.connect(self.handle_bold)
-        self.toolbar.addAction(self.bold_action)
-
-        self.italic_action = QAction(QIcon.fromTheme("format-text-italic"), "Italic", self)
-        self.italic_action.setCheckable(True)
-        self.italic_action.setShortcut(QKeySequence.Italic)
-        self.italic_action.triggered.connect(self.handle_italic)
-        self.toolbar.addAction(self.italic_action)
-
-        self.underline_action = QAction(QIcon.fromTheme("format-text-underline"), "Underline", self)
-        self.underline_action.setCheckable(True)
-        self.underline_action.setShortcut(QKeySequence.Underline)
-        self.underline_action.triggered.connect(self.handle_underline)
-        self.toolbar.addAction(self.underline_action)
-
-        self.toolbar.addSeparator()
-
-        self.color_action = QAction(QIcon.fromTheme("format-text-color"), "Text Color", self)
-        self.color_action.triggered.connect(self.handle_text_color)
-        self.toolbar.addAction(self.color_action)
-
-        self.toolbar.addSeparator()
-
-        self.alignment_group_actions = QActionGroup(self)
-        self.alignment_group_actions.setExclusive(True)
-
-        self.align_left_action = QAction(QIcon.fromTheme("format-justify-left"), "Align Left", self)
-        self.align_left_action.setCheckable(True)
-        self.align_left_action.triggered.connect(lambda: self.text_edit.setAlignment(Qt.AlignLeft))
-        self.alignment_group_actions.addAction(self.align_left_action)
-        self.toolbar.addAction(self.align_left_action)
-
-        self.align_center_action = QAction(QIcon.fromTheme("format-justify-center"), "Align Center", self)
-        self.align_center_action.setCheckable(True)
-        self.align_center_action.triggered.connect(lambda: self.text_edit.setAlignment(Qt.AlignHCenter))
-        self.alignment_group_actions.addAction(self.align_center_action)
-        self.toolbar.addAction(self.align_center_action)
-
-        self.align_right_action = QAction(QIcon.fromTheme("format-justify-right"), "Align Right", self)
-        self.align_right_action.setCheckable(True)
-        self.align_right_action.triggered.connect(lambda: self.text_edit.setAlignment(Qt.AlignRight))
-        self.alignment_group_actions.addAction(self.align_right_action)
-        self.toolbar.addAction(self.align_right_action)
-
-        self.align_justify_action = QAction(QIcon.fromTheme("format-justify-fill"), "Align Justify", self)
-        self.align_justify_action.setCheckable(True)
-        self.align_justify_action.triggered.connect(lambda: self.text_edit.setAlignment(Qt.AlignJustify))
-        self.alignment_group_actions.addAction(self.align_justify_action)
-        self.toolbar.addAction(self.align_justify_action)
-
-    def handle_font_family(self, font):
-        self.text_edit.setCurrentFont(font)
-
-    def handle_font_size(self, point_size_str):
-        try:
-            point_size = float(point_size_str)
-            if point_size > 0:
-                self.text_edit.setFontPointSize(point_size)
-        except ValueError:
-            pass
-
-    def handle_bold(self, checked):
-        self.text_edit.setFontWeight(QFont.Bold if checked else QFont.Normal)
-
-    def handle_italic(self, checked):
-        self.text_edit.setFontItalic(checked)
-
-    def handle_underline(self, checked):
-        self.text_edit.setFontUnderline(checked)
-
-    def handle_text_color(self):
-        color = QColorDialog.getColor(self.text_edit.textColor(), self)
-        if color.isValid():
-            self.text_edit.setTextColor(color)
-
-    def update_toolbar_states(self):
-        fmt = self.text_edit.currentCharFormat()
-        self.font_combo.setCurrentFont(fmt.font())
-
-        point_size_str = str(int(fmt.fontPointSize())) # Use int for cleaner display
-        idx = self.size_combo.findText(point_size_str)
-        if idx != -1:
-            self.size_combo.setCurrentIndex(idx)
-        else:
-            self.size_combo.setCurrentText(point_size_str)
-
-        self.bold_action.setChecked(fmt.fontWeight() == QFont.Bold)
-        self.italic_action.setChecked(fmt.fontItalic())
-        self.underline_action.setChecked(fmt.fontUnderline())
-
-        alignment = self.text_edit.alignment()
-        if alignment == Qt.AlignLeft: self.align_left_action.setChecked(True)
-        elif alignment == Qt.AlignHCenter: self.align_center_action.setChecked(True)
-        elif alignment == Qt.AlignRight: self.align_right_action.setChecked(True)
-        elif alignment == Qt.AlignJustify: self.align_justify_action.setChecked(True)
-
-
-    def load_html(self):
-        if self.file_path and os.path.exists(self.file_path):
+    def _load_content(self):
+        if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, 'r', encoding='utf-8') as f:
-                    html_content = f.read()
-                self.text_edit.setHtml(html_content)
-                self.text_edit.document().setModified(False)
-            except Exception as e:
-                QMessageBox.critical(self, "Error Loading File", f"Could not load HTML file: {str(e)}")
-        elif self.file_path:
-             QMessageBox.information(self, "File Not Found", f"The file {self.file_path} was not found. A new document will be created.")
-             self.text_edit.setHtml("<!DOCTYPE html><html><head><title>New Document</title></head><body><p></p></body></html>")
-             self.text_edit.document().setModified(False)
-
-    def save_html(self):
-        current_file_path_to_save = self.file_path
-
-        if not current_file_path_to_save:
-            new_path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save HTML File",
-                os.getcwd(),
-                "HTML Files (*.html *.htm);;All Files (*)"
-            )
-            if not new_path:
-                return False
-            current_file_path_to_save = new_path
-            # self.file_path = new_path # Update file_path only after successful save
-
-        html_content = self.text_edit.toHtml()
-        try:
-            with open(current_file_path_to_save, 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            self.file_path = current_file_path_to_save # Update instance's file_path
-            self.setWindowTitle(f"HTML Editor - {os.path.basename(self.file_path)}")
-            self.text_edit.document().setModified(False)
-            self.file_saved.emit(self.file_path)
-            return True
-        except Exception as e:
-            QMessageBox.critical(self, "Error Saving File", f"Could not save HTML file to {current_file_path_to_save}: {str(e)}")
-            return False
-
-    def accept_changes(self):
-        if self.save_html():
-            self.accept()
-
-    def maybe_save(self):
-        if not self.text_edit.document().isModified():
-            return True
-
-        reply = QMessageBox.question(self, "Unsaved Changes",
-                                     "You have unsaved changes. Do you want to save them?",
-                                     QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                                     QMessageBox.Save)
-
-        if reply == QMessageBox.Save:
-            return self.save_html()
-        elif reply == QMessageBox.Cancel:
-            return False
-        return True # Discard
-
-    def closeEvent(self, event):
-        if self.maybe_save():
-            event.accept()
+                    content = f.read()
+                    self.html_edit.setPlainText(content)
+            except IOError as e:
+                QMessageBox.warning(self, self.tr("Load Error"), self.tr("Could not load HTML file: {0}\n{1}").format(self.file_path, e))
+                # Fallback to default skeleton if load fails
+                self._set_default_skeleton()
         else:
-            event.ignore()
+            self._set_default_skeleton()
+        self.refresh_preview()
+
+    def _set_default_skeleton(self):
+        skeleton_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>New Document</h1>
+    <p>Client: {NOM_CLIENT}</p>
+    <p>Project ID: {PROJECT_ID}</p>
+</body>
+</html>"""
+        self.html_edit.setPlainText(skeleton_html)
+
+    def _replace_placeholders_html(self, html_content: str) -> str:
+        current_client_data = self.client_info_widget.get_client_data()
+
+        replacements = {
+            "{NOM_CLIENT}": current_client_data.get("Nom du client", ""),
+            "{BESOIN_CLIENT}": current_client_data.get("Besoin", ""), # Corrected key from "need" to "Besoin"
+            "{DATE_CREATION}": datetime.now().strftime("%d/%m/%Y"),
+            "{PRIX_FINAL}": str(current_client_data.get("price", "")),
+            "{PROJECT_ID}": current_client_data.get("project_identifier", ""),
+            # Add other placeholders from client_data as needed
+            "{COMPANY_NAME}": current_client_data.get("company_name", ""),
+            "{COUNTRY}": current_client_data.get("country", ""),
+            "{CITY}": current_client_data.get("city", ""),
+        }
+
+        for placeholder, value in replacements.items():
+            html_content = html_content.replace(placeholder, str(value)) # Ensure value is string
+
+        return html_content
+
+    def refresh_preview(self):
+        raw_html = self.html_edit.toPlainText()
+        processed_html = self._replace_placeholders_html(raw_html)
+        # Provide a base URL for relative paths (e.g., images, CSS) if they are in the same dir as the HTML file
+        base_url = QUrl.fromLocalFile(os.path.dirname(os.path.abspath(self.file_path)) + os.path.sep)
+        self.preview_pane.setHtml(processed_html, baseUrl=base_url)
+
+
+    def save_content(self):
+        template_html = self.html_edit.toPlainText() # This is the version with placeholders
+        # If you want to save the version processed for the current client:
+        # final_html_content = self._replace_placeholders_html(template_html)
+        # However, typically templates are saved with placeholders.
+        # For this implementation, let's assume we save the client-specific version.
+        final_html_content = self._replace_placeholders_html(template_html)
+
+
+        try:
+            with open(self.file_path, 'w', encoding='utf-8') as f:
+                f.write(final_html_content)
+            QMessageBox.information(self, self.tr("Success"), self.tr("HTML content saved successfully."))
+            # self.accept() # Uncomment if dialog should close on successful save
+        except IOError as e:
+            QMessageBox.critical(self, self.tr("Save Error"), self.tr("Could not save HTML file: {0}\n{1}").format(self.file_path, e))
+
+    @staticmethod
+    def populate_html_content(html_template_content: str, client_data_dict: dict) -> str:
+       # This method will be similar to _replace_placeholders_html but callable statically.
+       # It won't have access to self.client_info_widget directly.
+       # It needs client_data_dict passed in.
+
+       # Minimal client data for direct use (adapt if ClientInfoWidget provides more complex structure)
+       replacements = {
+           "{NOM_CLIENT}": client_data_dict.get("client_name", ""), # Note: key change from "Nom du client"
+           "{BESOIN_CLIENT}": client_data_dict.get("need", ""),    # Note: key change
+           "{DATE_CREATION}": datetime.now().strftime("%d/%m/%Y"),
+           "{PRIX_FINAL}": str(client_data_dict.get("price", "")),
+           "{PROJECT_ID}": client_data_dict.get("project_identifier", "")
+           # Add any other direct client_data fields needed
+       }
+
+       processed_html = html_template_content
+       for placeholder, value in replacements.items():
+           processed_html = processed_html.replace(placeholder, str(value))
+       return processed_html
 
 if __name__ == '__main__':
-    if QApplication.instance() is None:
-        app = QApplication(sys.argv)
-    else:
-        app = QApplication.instance()
+    # Required for QWebEngineView
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
-    # Test with a dummy file for development
-    # Ensure 'example.html' exists or the editor will start with a new document message.
-    # with open("example.html", "w", encoding="utf-8") as f:
-    #    f.write("<h1>Hello World</h1><p>This is a test <b>bold</b> and <i>italic</i>.</p>")
-    # editor = HtmlEditor("example.html")
+    app = QApplication(sys.argv)
 
-    editor = HtmlEditor() # Test new file scenario
+    # Dummy data for testing
+    dummy_client_data = {
+        "Nom du client": "Test Client HTML",
+        "project_identifier": "HTML_PROJ_001",
+        "company_name": "HTML Corp",
+        "Besoin": "HTML Editing Test Suite", # Matched to placeholder {BESOIN_CLIENT}
+        "country": "Cyberspace",
+        "city": "Webville",
+        "price": 123.45,
+        # Ensure all keys used in _replace_placeholders_html are present here for testing
+    }
+    # Create a dummy file path in a writable temporary location
+    temp_dir = QStandardPaths.writableLocation(QStandardPaths.GenericTempLocation) # More generic temp
+    if not temp_dir: # Fallback if generic temp is not found
+        temp_dir = "."
 
-    if editor.exec_() == QDialog.Accepted:
-        print(f"Editor accepted, file path: {editor.file_path}")
-    else:
-        print("Editor cancelled.")
+    # Ensure temp_dir exists
+    os.makedirs(temp_dir, exist_ok=True)
 
-    # sys.exit(app.exec_()) # Avoid if imported
+    dummy_file_name = f"test_document_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
+    dummy_file_path = os.path.join(temp_dir, dummy_file_name)
+
+    print(f"Test HTML file will be at: {dummy_file_path}") # For debugging test setup
+
+    # Optional: Create a dummy HTML file for testing loading, with correct placeholders
+    # if not os.path.exists(dummy_file_path): # Check before writing
+    with open(dummy_file_path, 'w', encoding='utf-8') as f_dummy:
+        f_dummy.write("""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Document</title>
+</head>
+<body>
+    <h1>Hello {NOM_CLIENT}</h1>
+    <p>Your project ID is: {PROJECT_ID}.</p>
+    <p>Your need is: {BESOIN_CLIENT}.</p>
+    <p>Price: {PRIX_FINAL} EUR</p>
+    <p>Date: {DATE_CREATION}</p>
+    <img src="non_existent_image.png" alt="Test Image">
+</body>
+</html>""")
+
+    editor = HtmlEditor(file_path=dummy_file_path, client_data=dummy_client_data)
+    editor.show()
+
+    sys.exit(app.exec_())

@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QTextEdit, QComboBox, QSpinBox, QCheckBox, QStyleFactory, QAction
 )
 from PyQt5.QtGui import QFont, QColor, QIcon, QPalette, QBrush, QKeySequence
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QCoreApplication
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 
 # Reportlab imports
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
@@ -164,7 +164,7 @@ class ClientInfoWidget(QGroupBox):
     """Widget dédié aux informations client"""
     
     def __init__(self, client_data: Dict[str, Any] = None):
-        super().__init__(self.tr("Informations Client"))
+        super().__init__("Informations Client")
         self.client_data = client_data or {}
         self._setup_ui()
         self._load_data()
@@ -174,22 +174,22 @@ class ClientInfoWidget(QGroupBox):
         layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         
         self.nom_client = QLineEdit()
-        self.nom_client.setPlaceholderText(self.tr("Nom du client"))
-        layout.addRow(self.tr("Nom du client:"), self.nom_client)
+        self.nom_client.setPlaceholderText("Nom du client")
+        layout.addRow("Nom du client:", self.nom_client)
         
         self.besoin_client = QTextEdit()
         self.besoin_client.setMaximumHeight(80)
-        self.besoin_client.setPlaceholderText(self.tr("Description du besoin"))
-        layout.addRow(self.tr("Besoin:"), self.besoin_client)
+        self.besoin_client.setPlaceholderText("Description du besoin")
+        layout.addRow("Besoin:", self.besoin_client)
         
         self.project_id = QLineEdit()
-        self.project_id.setPlaceholderText(self.tr("Identifiant du projet"))
-        layout.addRow(self.tr("ID Projet:"), self.project_id)
+        self.project_id.setPlaceholderText("Identifiant du projet")
+        layout.addRow("ID Projet:", self.project_id)
         
         self.price = QSpinBox()
         self.price.setRange(0, 99999999)
-        self.price.setSuffix(" €") # Currency symbol might need locale-specific handling
-        layout.addRow(self.tr("Prix:"), self.price)
+        self.price.setSuffix(" €")
+        layout.addRow("Prix:", self.price)
         
         self.setLayout(layout)
         
@@ -252,7 +252,7 @@ class ExcelTableWidget(QTableWidget):
     def add_column(self):
         current_cols = self.columnCount()
         self.insertColumn(current_cols)
-        self.setHorizontalHeaderItem(current_cols, QTableWidgetItem(self.tr("Colonne {0}").format(current_cols + 1)))
+        self.setHorizontalHeaderItem(current_cols, QTableWidgetItem(f"Colonne {current_cols + 1}"))
         
     def delete_selected_rows(self):
         selected_rows = set()
@@ -405,7 +405,7 @@ class PDFExporter:
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
-                fontName='Arial-Bold', # Font names are not typically translated
+                fontName='Arial-Bold',
                 fontSize=14,
                 spaceAfter=12,
                 alignment=TA_CENTER,
@@ -413,17 +413,17 @@ class PDFExporter:
             )
             
             # Titre
-            title_text = f"<u>{QCoreApplication.translate('PDFExporter', 'Formulaire d''Offre')}</u>"
+            title_text = f"<u>Formulaire d'Offre</u>"
             elements.append(Paragraph(title_text, title_style))
             elements.append(Spacer(1, 0.5*cm))
             
             # Informations client dans un tableau
             client_info = [
-                [QCoreApplication.translate('PDFExporter', 'Client:'), self.client_data.get('Nom du client', QCoreApplication.translate('PDFExporter', 'N/A'))],
-                [QCoreApplication.translate('PDFExporter', 'Projet:'), self.client_data.get('Besoin', QCoreApplication.translate('PDFExporter', 'N/A'))],
-                [QCoreApplication.translate('PDFExporter', 'ID Projet:'), self.client_data.get('project_identifier', QCoreApplication.translate('PDFExporter', 'N/A'))],
-                [QCoreApplication.translate('PDFExporter', 'Prix Total:'), f"{self.client_data.get('price', 0):,} €"], # Currency format
-                [QCoreApplication.translate('PDFExporter', 'Date d\'émission:'), datetime.now().strftime('%d/%m/%Y %H:%M')] # Date format
+                ['Client:', self.client_data.get('Nom du client', 'N/A')],
+                ['Projet:', self.client_data.get('Besoin', 'N/A')],
+                ['ID Projet:', self.client_data.get('project_identifier', 'N/A')],
+                ['Prix Total:', f"{self.client_data.get('price', 0):,} €"],
+                ['Date d\'émission:', datetime.now().strftime('%d/%m/%Y %H:%M')]
             ]
             
             client_table = Table(client_info, colWidths=[3*cm, 10*cm])
@@ -459,13 +459,13 @@ class PDFExporter:
             contact_style = ParagraphStyle(
                 'ContactStyle',
                 parent=styles['BodyText'],
-                fontName='Arial', # Font names are not typically translated
+                fontName='Arial',
                 fontSize=10,
                 leading=14,
                 spaceAfter=6
             )
             
-            contact_text = QCoreApplication.translate('PDFExporter',
+            contact_text = (
                 "<b>Personnel responsable:</b> Ramazan Demirci    "
                 "<b>Tél:</b> +90 533 548 27 29    "
                 "<b>Email:</b> bilgi@hidrogucpres.com"
@@ -474,15 +474,15 @@ class PDFExporter:
             
             # Conditions d'achat
             elements.append(Spacer(1, 0.5*cm))
-            elements.append(Paragraph(QCoreApplication.translate('PDFExporter', "<b>Conditions d'achat:</b>"), contact_style))
+            elements.append(Paragraph("<b>Conditions d'achat:</b>", contact_style))
             
             conditions = [
-                QCoreApplication.translate('PDFExporter', "1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise."),
-                QCoreApplication.translate('PDFExporter', "2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat."),
-                QCoreApplication.translate('PDFExporter', "3. Lieu de livraison du matériel : Hidroguç Konya Türkiye"),
-                QCoreApplication.translate('PDFExporter', "4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel."),
-                QCoreApplication.translate('PDFExporter', "5. L’offre est valable pendant 30 jours calendaires."),
-                QCoreApplication.translate('PDFExporter', "6. Ce produit est exonéré de TVA.")
+                "1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.",
+                "2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.",
+                "3. Lieu de livraison du matériel : Hidroguç Konya Türkiye",
+                "4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.",
+                "5. L’offre est valable pendant 30 jours calendaires.",
+                "6. Ce produit est exonéré de TVA."
             ]
             
             for condition in conditions:
@@ -490,10 +490,10 @@ class PDFExporter:
             
             # Construction du PDF
             doc.build(elements)
-            return True, QCoreApplication.translate('PDFExporter', "Export PDF réussi")
+            return True, "Export PDF réussi"
             
         except Exception as e:
-            return False, QCoreApplication.translate('PDFExporter', "Erreur lors de l'export PDF: {0}").format(str(e))
+            return False, f"Erreur lors de l'export PDF: {str(e)}"
     
     def _extract_table_data(self) -> Tuple[List[List[str]], List[float]]:
         rows = self.table_widget.rowCount()
@@ -592,7 +592,7 @@ class ExcelEditor(QDialog):
         
     def _setup_ui(self):
         """Configuration de l'interface utilisateur"""
-        self.setWindowTitle(self.tr("Éditeur Excel - {0}").format(os.path.basename(self.file_path)))
+        self.setWindowTitle(f"Éditeur Excel - {os.path.basename(self.file_path)}")
         self.setMinimumSize(1200, 800)
         self.resize(1400, 900)
         
@@ -616,7 +616,7 @@ class ExcelEditor(QDialog):
         sheet_layout = QHBoxLayout(self.sheet_toolbar)
         sheet_layout.setContentsMargins(10, 0, 10, 0)
         
-        sheet_label = QLabel(self.tr("Feuille:"))
+        sheet_label = QLabel("Feuille:")
         sheet_label.setStyleSheet("font-weight: bold;")
         sheet_layout.addWidget(sheet_label)
         
@@ -694,13 +694,13 @@ class ExcelEditor(QDialog):
         toolbar_layout.setSpacing(10)
         
         # Boutons d'édition de table
-        add_row_btn = QPushButton(self.tr("Ajouter ligne"))
+        add_row_btn = QPushButton("Ajouter ligne")
         add_row_btn.setIcon(QIcon.fromTheme("list-add"))
         add_row_btn.setStyleSheet("padding: 5px;")
         add_row_btn.clicked.connect(self.table_widget.add_row)
         toolbar_layout.addWidget(add_row_btn)
         
-        add_col_btn = QPushButton(self.tr("Ajouter colonne"))
+        add_col_btn = QPushButton("Ajouter colonne")
         add_col_btn.setIcon(QIcon.fromTheme("list-add"))
         add_col_btn.setStyleSheet("padding: 5px;")
         add_col_btn.clicked.connect(self.table_widget.add_column)
@@ -708,13 +708,13 @@ class ExcelEditor(QDialog):
         
         toolbar_layout.addWidget(QFrame())  # Separator
         
-        del_row_btn = QPushButton(self.tr("Supprimer lignes"))
+        del_row_btn = QPushButton("Supprimer lignes")
         del_row_btn.setIcon(QIcon.fromTheme("edit-delete"))
         del_row_btn.setStyleSheet("padding: 5px;")
         del_row_btn.clicked.connect(self.table_widget.delete_selected_rows)
         toolbar_layout.addWidget(del_row_btn)
         
-        del_col_btn = QPushButton(self.tr("Supprimer colonnes"))
+        del_col_btn = QPushButton("Supprimer colonnes")
         del_col_btn.setIcon(QIcon.fromTheme("edit-delete"))
         del_col_btn.setStyleSheet("padding: 5px;")
         del_col_btn.clicked.connect(self.table_widget.delete_selected_columns)
@@ -729,7 +729,7 @@ class ExcelEditor(QDialog):
         self.button_layout.setSpacing(15)
         
         # Bouton Sauvegarder
-        self.save_button = QPushButton(self.tr("💾 Sauvegarder"))
+        self.save_button = QPushButton("💾 Sauvegarder")
         self.save_button.setStyleSheet("""
             QPushButton {
                 background-color: #2ecc71;
@@ -750,7 +750,7 @@ class ExcelEditor(QDialog):
         self.button_layout.addWidget(self.save_button)
         
         # Bouton Export PDF
-        self.export_pdf_button = QPushButton(self.tr("📄 Exporter PDF"))
+        self.export_pdf_button = QPushButton("📄 Exporter PDF")
         self.export_pdf_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -773,7 +773,7 @@ class ExcelEditor(QDialog):
         self.button_layout.addStretch()
         
         # Bouton Annuler
-        self.cancel_button = QPushButton(self.tr("❌ Fermer"))
+        self.cancel_button = QPushButton("❌ Fermer")
         self.cancel_button.setStyleSheet("""
             QPushButton {
                 background-color: #e74c3c;
@@ -802,10 +802,10 @@ class ExcelEditor(QDialog):
         
     def _on_item_changed(self):
         self.is_modified = True
-        self.status_label.setText(self.tr("Modifié"))
+        self.status_label.setText("Modifié")
         self.status_label.setStyleSheet("color: #f39c12; font-weight: bold;")
         
-    def _update_status(self, message: str, color: str = "blue"): # message is dynamic
+    def _update_status(self, message: str, color: str = "blue"):
         self.status_label.setText(message)
         self.status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
         
@@ -843,14 +843,14 @@ class ExcelEditor(QDialog):
                 self.logger.warning(f"Fichier inexistant: {self.file_path}")
                 QMessageBox.warning(
                     self, 
-                    self.tr("Fichier Inexistant"),
-                    self.tr("Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.").format(self.file_path)
+                    "Fichier Inexistant", 
+                    f"Le fichier {self.file_path} n'existe pas.\nUn nouveau fichier sera créé."
                 )
                 self._create_empty_table()
                 self.workbook = Workbook()
                 self.active_sheet = self.workbook.active
-                self.sheet_combo.addItems([self.active_sheet.title]) # Sheet title is data-like
-                self._update_status(self.tr("Nouveau fichier créé"), "#27ae60")
+                self.sheet_combo.addItems([self.active_sheet.title])
+                self._update_status("Nouveau fichier créé", "#27ae60")
                 self._show_progress(False)
                 return
 
@@ -860,9 +860,9 @@ class ExcelEditor(QDialog):
             if not self.workbook.sheetnames:
                 self.logger.warning("Workbook sans feuilles")
                 self._create_empty_table()
-                self.active_sheet = self.workbook.create_sheet(self.tr("Feuille1")) # Default sheet name
+                self.active_sheet = self.workbook.create_sheet("Sheet1")
                 self.sheet_combo.addItems([self.active_sheet.title])
-                self._update_status(self.tr("Fichier vide - nouvelle feuille créée"), "#f39c12")
+                self._update_status("Fichier vide - nouvelle feuille créée", "#f39c12")
                 self._show_progress(False)
                 return
                 
@@ -878,14 +878,14 @@ class ExcelEditor(QDialog):
             self.logger.error(f"Erreur lors du chargement: {e}")
             QMessageBox.critical(
                 self, 
-                    self.tr("Erreur de Chargement"),
-                    self.tr("Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.").format(str(e))
+                "Erreur de Chargement", 
+                f"Impossible de charger le fichier Excel:\n{str(e)}\n\nUn tableau vide sera créé."
             )
             self._create_empty_table()
             self.workbook = Workbook()
             self.active_sheet = self.workbook.active
-                self.sheet_combo.addItems([self.active_sheet.title]) # Sheet title is data-like
-                self._update_status(self.tr("Erreur - nouveau fichier créé"), "#e74c3c")
+            self.sheet_combo.addItems([self.active_sheet.title])
+            self._update_status("Erreur - nouveau fichier créé", "#e74c3c")
             
         finally:
             self._show_progress(False)
@@ -893,7 +893,7 @@ class ExcelEditor(QDialog):
     def load_sheet(self, sheet: Worksheet):
         """Charge une feuille spécifique dans l'interface"""
         try:
-            self._update_status(self.tr("Chargement de la feuille: {0}").format(sheet.title), "#3498db")
+            self._update_status(f"Chargement de la feuille: {sheet.title}", "#3498db")
             self.table_widget.clear()
             
             # Charger les cellules fusionnées
@@ -963,11 +963,11 @@ class ExcelEditor(QDialog):
                 
         except Exception as e:
             self.logger.error(f"Erreur lors du chargement de la feuille: {e}")
-            self._update_status(self.tr("Erreur de chargement de la feuille"), "#e74c3c")
+            self._update_status(f"Erreur de chargement de la feuille", "#e74c3c")
             QMessageBox.critical(
                 self, 
-                self.tr("Erreur de Chargement"),
-                self.tr("Impossible de charger la feuille '{0}':\n{1}").format(sheet.title, str(e))
+                "Erreur de Chargement", 
+                f"Impossible de charger la feuille '{sheet.title}':\n{str(e)}"
             )
     
     def change_sheet(self, index):
@@ -983,8 +983,8 @@ class ExcelEditor(QDialog):
         if self.is_modified:
             reply = QMessageBox.question(
                 self,
-                self.tr("Modifications Non Sauvegardées"),
-                self.tr("Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?").format(self.active_sheet.title),
+                "Modifications Non Sauvegardées",
+                f"Vous avez des modifications non sauvegardées dans '{self.active_sheet.title}'.\nVoulez-vous sauvegarder avant de changer de feuille ?",
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Save
             )
@@ -1046,8 +1046,8 @@ class ExcelEditor(QDialog):
             self.logger.error(f"Erreur lors de la sauvegarde de la feuille: {e}")
             QMessageBox.critical(
                 self, 
-                self.tr("Erreur de Sauvegarde"),
-                self.tr("Impossible de sauvegarder la feuille:\n{0}").format(str(e))
+                "Erreur de Sauvegarde", 
+                f"Impossible de sauvegarder la feuille:\n{str(e)}"
             )
     
     def save_data(self):
@@ -1055,8 +1055,8 @@ class ExcelEditor(QDialog):
         if not self.is_modified:
             reply = QMessageBox.question(
                 self,
-                self.tr("Sauvegarder"),
-                self.tr("Aucune modification détectée. Voulez-vous sauvegarder quand même ?"),
+                "Sauvegarder",
+                "Aucune modification détectée. Voulez-vous sauvegarder quand même ?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
@@ -1064,7 +1064,7 @@ class ExcelEditor(QDialog):
                 return
                 
         try:
-            self._update_status(self.tr("Sauvegarde en cours..."), "#3498db")
+            self._update_status("Sauvegarde en cours...", "#3498db")
             self._show_progress(True)
             
             # Sauvegarder la feuille courante
@@ -1073,26 +1073,26 @@ class ExcelEditor(QDialog):
             # Sauvegarde du fichier
             self.workbook.save(self.file_path)
             
-            self._update_status(self.tr("Sauvegarde réussie"), "#27ae60")
+            self._update_status("Sauvegarde réussie", "#27ae60")
             self.logger.info(f"Fichier sauvegardé: {self.file_path}")
             
             QMessageBox.information(
                 self, 
-                self.tr("Sauvegarde Réussie"),
-                self.tr("Le fichier a été sauvegardé avec succès:\n{0}").format(self.file_path)
+                "Sauvegarde Réussie", 
+                f"Le fichier a été sauvegardé avec succès:\n{self.file_path}"
             )
             
             # Timer pour revenir au statut "Prêt"
-            QTimer.singleShot(3000, lambda: self._update_status(self.tr("Prêt"), "#27ae60"))
+            QTimer.singleShot(3000, lambda: self._update_status("Prêt", "#27ae60"))
             
         except Exception as e:
             self.logger.error(f"Erreur lors de la sauvegarde: {e}")
             QMessageBox.critical(
                 self, 
-                self.tr("Erreur de Sauvegarde"),
-                self.tr("Impossible de sauvegarder le fichier:\n{0}").format(str(e))
+                "Erreur de Sauvegarde", 
+                f"Impossible de sauvegarder le fichier:\n{str(e)}"
             )
-            self._update_status(self.tr("Erreur de sauvegarde"), "#e74c3c")
+            self._update_status("Erreur de sauvegarde", "#e74c3c")
             
         finally:
             self._show_progress(False)
@@ -1151,9 +1151,9 @@ class ExcelEditor(QDialog):
             
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
-                self.tr("Exporter en PDF"),
+                "Exporter en PDF",
                 default_name,
-                self.tr("Fichiers PDF (*.pdf);;Tous les fichiers (*)"),
+                "Fichiers PDF (*.pdf);;Tous les fichiers (*)",
                 options=options
             )
             
@@ -1164,12 +1164,12 @@ class ExcelEditor(QDialog):
             if self.table_widget.rowCount() == 0 or self.table_widget.columnCount() == 0:
                 QMessageBox.warning(
                     self,
-                    self.tr("Export PDF"),
-                    self.tr("Le tableau est vide. Impossible d'exporter en PDF.")
+                    "Export PDF",
+                    "Le tableau est vide. Impossible d'exporter en PDF."
                 )
                 return
                 
-            self._update_status(self.tr("Export PDF en cours..."), "#3498db")
+            self._update_status("Export PDF en cours...", "#3498db")
             self._show_progress(True)
             
             # Utilisation de la classe PDFExporter
@@ -1179,13 +1179,13 @@ class ExcelEditor(QDialog):
             success, message = exporter.export_to_pdf(save_path)
             
             if success:
-                self._update_status(self.tr("Export PDF réussi"), "#27ae60")
+                self._update_status("Export PDF réussi", "#27ae60")
                 self.logger.info(f"PDF exporté: {save_path}")
                 
                 reply = QMessageBox.question(
                     self,
-                    self.tr("Export PDF Réussi"),
-                    self.tr("Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?").format(save_path),
+                    "Export PDF Réussi",
+                    f"Le fichier PDF a été créé avec succès:\n{save_path}\n\nVoulez-vous l'ouvrir ?",
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.Yes
                 )
@@ -1199,26 +1199,26 @@ class ExcelEditor(QDialog):
                         else:
                             os.system(f'xdg-open "{save_path}"')
                     except Exception as e:
-                        self.logger.error(self.tr("Erreur d'ouverture du PDF: {0}").format(e))
+                        self.logger.error(f"Erreur d'ouverture du PDF: {e}")
                             
                 # Timer pour revenir au statut "Prêt"
-                QTimer.singleShot(3000, lambda: self._update_status(self.tr("Prêt"), "#27ae60"))
+                QTimer.singleShot(3000, lambda: self._update_status("Prêt", "#27ae60"))
                 
             else:
-                self._update_status(self.tr("Erreur d'export PDF"), "#e74c3c")
+                self._update_status("Erreur d'export PDF", "#e74c3c")
                 QMessageBox.critical(
                     self,
-                    self.tr("Erreur d'Export PDF"),
-                    self.tr("Impossible d'exporter le fichier en PDF:\n{0}").format(message)
+                    "Erreur d'Export PDF",
+                    f"Impossible d'exporter le fichier en PDF:\n{message}"
                 )
                 
         except Exception as e:
             self.logger.error(f"Erreur lors de l'export PDF: {e}")
-            self._update_status(self.tr("Erreur d'export PDF"), "#e74c3c")
+            self._update_status("Erreur d'export PDF", "#e74c3c")
             QMessageBox.critical(
                 self,
-                self.tr("Erreur d'Export PDF"),
-                self.tr("Une erreur inattendue s'est produite:\n{0}").format(str(e))
+                "Erreur d'Export PDF",
+                f"Une erreur inattendue s'est produite:\n{str(e)}"
             )
             
         finally:
@@ -1228,8 +1228,8 @@ class ExcelEditor(QDialog):
         if self.is_modified:
             reply = QMessageBox.question(
                 self,
-                self.tr("Modifications Non Sauvegardées"),
-                self.tr("Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?"),
+                "Modifications Non Sauvegardées",
+                "Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?",
                 QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 QMessageBox.Save
             )
@@ -1249,8 +1249,8 @@ class ExcelEditor(QDialog):
         if self.is_modified:
             reply = QMessageBox.question(
                 self,
-                self.tr("Modifications Non Sauvegardées"),
-                self.tr("Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?"),
+                "Modifications Non Sauvegardées",
+                "Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
