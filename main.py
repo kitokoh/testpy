@@ -2,7 +2,9 @@
 import sys
 import os
 import json
-import sqlite3
+# import sqlite3 # Replaced by db_manager
+import db as db_manager
+from db import DATABASE_NAME as CENTRAL_DATABASE_NAME
 import pandas as pd
 import shutil
 import smtplib
@@ -38,7 +40,7 @@ from projectManagement import MainDashboard as ProjectManagementDashboard # Adde
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
 CONFIG_FILE_NAME = "config.json"
-DATABASE_NAME = "" 
+DATABASE_NAME = CENTRAL_DATABASE_NAME # Use the central DB name
 TEMPLATES_SUBDIR = "templates"
 CLIENTS_SUBDIR = "clients"
 SPEC_TECH_TEMPLATE_NAME = "specification_technique_template.xlsx"
@@ -65,140 +67,16 @@ def get_config_dir():
 def get_config_file_path():
     return os.path.join(get_config_dir(), CONFIG_FILE_NAME)
 
-def init_database():
-    global DATABASE_NAME 
-    db_path = os.path.join(get_config_dir(), "client_manassgessr.db") 
-    DATABASE_NAME = db_path 
-    
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Clients (
-            client_id TEXT PRIMARY KEY,
-            client_name TEXT NOT NULL,
-            company_name TEXT,
-            need TEXT,
-            country TEXT,
-            city TEXT,
-            project_identifier TEXT NOT NULL,
-            base_folder_path TEXT NOT NULL UNIQUE,
-            status TEXT DEFAULT 'En cours',
-            selected_languages TEXT,
-            price REAL DEFAULT 0,
-            notes TEXT,
-            creation_date TEXT,
-            last_modified TEXT,
-            category TEXT DEFAULT 'Standard',
-            primary_contact TEXT
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Countries (
-            country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            country_name TEXT NOT NULL UNIQUE
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Cities (
-            city_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            country_id INTEGER NOT NULL REFERENCES Countries(country_id),
-            city_name TEXT NOT NULL,
-            UNIQUE(country_id, city_name)
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Contacts (
-            contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id TEXT NOT NULL REFERENCES Clients(client_id),
-            name TEXT NOT NULL,
-            email TEXT,
-            phone TEXT,
-            position TEXT,
-            is_primary INTEGER DEFAULT 0
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            file_name TEXT NOT NULL,
-            language TEXT NOT NULL,
-            is_default INTEGER DEFAULT 0,
-            category TEXT,
-            config_json TEXT
-        );"""
-        )
-        
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS StatusSettings (
-            status_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            status_name TEXT NOT NULL UNIQUE,
-            default_days INTEGER NOT NULL,
-            color TEXT
-        );"""
-        )
+# init_database() function (and its call) is removed.
+# DATABASE_NAME is now set from CENTRAL_DATABASE_NAME (imported from db.py) at the top.
 
-        cursor.execute(
-        """CREATE TABLE IF NOT EXISTS ClientProducts (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id TEXT NOT NULL REFERENCES Clients(client_id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            description TEXT,
-            quantity REAL DEFAULT 0,
-            unit_price REAL DEFAULT 0,
-            total_price REAL DEFAULT 0
-        );"""
-        )
-        
-        cursor.execute("SELECT COUNT(*) FROM Countries")
-        if cursor.fetchone()[0] == 0:
-            initial_countries = [
-                "France", "Sénégal", "Turquie", "Maroc", "Algérie", 
-                "Allemagne", "Belgique", "Canada", "Suisse", 
-                "Royaume-Uni", "États-Unis"
-            ]
-            for country in initial_countries:
-                try:
-                    cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country,))
-                except sqlite3.IntegrityError:
-                    pass
-        
-        cursor.execute("SELECT COUNT(*) FROM StatusSettings")
-        if cursor.fetchone()[0] == 0:
-            statuses = [
-                ("En cours", 30, "#3498db"),
-                ("Archivé", 365, "#95a5a6"),
-                ("Urgent", 7, "#e74c3c"),
-                ("Complété", 0, "#2ecc71"),
-                ("En attente", 15, "#f39c12")
-            ]
-            for status_item in statuses: 
-                cursor.execute(
-                    "INSERT INTO StatusSettings (status_name, default_days, color) VALUES (?, ?, ?)",
-                    status_item
-                )
-        
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Database initialization error: {e}")
-        QMessageBox.critical(
-            None, 
-            QCoreApplication.translate("main", "Erreur Base de Données"),
-            QCoreApplication.translate("main", "Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.").format(e)
-        )
-    finally:
-        if conn:
-            conn.close()
-    return db_path 
-
-DATABASE_NAME = init_database() 
+# Initialize the central database using db_manager
+# This should be called once, early in the application startup.
+if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app'): # Ensure it runs once for the app
+    db_manager.initialize_database()
+    if __name__ != "__main__": # Avoid setting attribute during test runs if module is imported
+        # Use a unique attribute name to avoid conflict if db_manager is imported elsewhere too
+        db_manager._initialized_main_app = True
 
 def load_config():
     config_path = get_config_file_path()
@@ -566,19 +444,33 @@ class CreateDocumentDialog(QDialog):
         
     def load_templates(self):
         self.templates_list.clear()
-        conn = None
+        # conn = None # Old sqlite3
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, language, file_name FROM Templates ORDER BY name, language")
-            for name, lang, file_name_db in cursor.fetchall():
-                item = QListWidgetItem(f"{name} ({lang}) - {file_name_db}")
-                item.setData(Qt.UserRole, (name, lang, file_name_db))
+            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
+            # cursor = conn.cursor() # Old sqlite3
+            # cursor.execute("SELECT name, language, file_name FROM Templates ORDER BY name, language") # Old SQL
+            # for name, lang, file_name_db in cursor.fetchall(): # Old iteration
+
+            # New logic using db_manager
+            # Fetches templates that have a base_file_name, suitable for document generation.
+            all_file_templates = db_manager.get_all_file_based_templates()
+            if all_file_templates is None: all_file_templates = []
+
+            for template_dict in all_file_templates:
+                name = template_dict.get('template_name', 'N/A')
+                lang = template_dict.get('language_code', 'N/A')
+                base_file_name = template_dict.get('base_file_name', 'N/A')
+
+                item_text = f"{name} ({lang}) - {base_file_name}"
+                item = QListWidgetItem(item_text)
+                # Store the necessary info for when the document is created
+                item.setData(Qt.UserRole, (name, lang, base_file_name))
                 self.templates_list.addItem(item)
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{str(e)}"))
-        finally:
-            if conn: conn.close()
+
+        except Exception as e: # Catch generic db_manager errors or other issues
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
+        # finally:
+            # if conn: conn.close() # Old sqlite3
             
     def create_documents(self):
         selected_items = self.templates_list.selectedItems()
@@ -909,19 +801,31 @@ class CompilePdfDialog(QDialog):
     
     def send_email(self, pdf_path):
         primary_email = None
-        conn = None
+        # conn = None # Old sqlite3
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT email FROM Contacts WHERE client_id = ? AND is_primary = 1", 
-                          (self.client_info["client_id"],))
-            result = cursor.fetchone()
-            if result:
-                primary_email = result[0]
-        except sqlite3.Error as e:
+            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
+            # cursor = conn.cursor() # Old sqlite3
+            # cursor.execute("SELECT email FROM Contacts WHERE client_id = ? AND is_primary = 1",
+            #               (self.client_info["client_id"],)) # Old: client_id was on Contacts table
+            # result = cursor.fetchone() # Old sqlite3
+            # if result: # Old sqlite3
+            #     primary_email = result[0] # Old sqlite3
+
+            # New logic using db_manager
+            # self.client_info["client_id"] should be the client_uuid
+            client_uuid = self.client_info.get("client_id")
+            if client_uuid:
+                contacts_for_client = db_manager.get_contacts_for_client(client_uuid)
+                if contacts_for_client:
+                    for contact in contacts_for_client:
+                        if contact.get('is_primary_for_client'): # This field comes from ClientContacts join
+                            primary_email = contact.get('email')
+                            break # Found primary, no need to check further
+
+        except Exception as e: # Catch generic db_manager or other errors
             print(self.tr("Erreur DB recherche email: {0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+        # finally:
+            # if conn: conn.close() # Old sqlite3
         
         email, ok = QInputDialog.getText(
             self, 
@@ -1323,225 +1227,347 @@ class ClientWidget(QWidget):
     
     def load_contacts(self):
         self.contacts_list.clear()
-        conn = None
+        client_uuid = self.client_info.get("client_id")
+        if not client_uuid: return
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT contact_id, name, email, phone, position, is_primary FROM Contacts WHERE client_id = ?", 
-                (self.client_info["client_id"],)
-            )
-            for row in cursor.fetchall():
-                contact_text = f"{row[1]}" 
-                if row[3]: contact_text += f" ({row[3]})" # Phone is data
-                if row[5]: contact_text += f" [{self.tr('Principal')}]"
+            # db_manager.get_contacts_for_client returns list of dicts with contact details
+            # and ClientContacts fields like is_primary_for_client, client_contact_id
+            contacts = db_manager.get_contacts_for_client(client_uuid)
+            if contacts is None: contacts = []
+
+            for contact in contacts:
+                contact_text = f"{contact.get('name', 'N/A')}"
+                if contact.get('phone'): contact_text += f" ({contact.get('phone')})"
+                if contact.get('is_primary_for_client'): contact_text += f" [{self.tr('Principal')}]"
+
                 item = QListWidgetItem(contact_text)
-                item.setData(Qt.UserRole, row[0]) 
+                # Store both contact_id (from Contacts table) and client_contact_id (from ClientContacts link table)
+                item.setData(Qt.UserRole, {'contact_id': contact.get('contact_id'),
+                                           'client_contact_id': contact.get('client_contact_id'),
+                                           'is_primary': contact.get('is_primary_for_client')})
                 self.contacts_list.addItem(item)
-        except sqlite3.Error as e:
+        except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
             
     def add_contact(self):
-        dialog = ContactDialog(self.client_info["client_id"], parent=self) 
+        client_uuid = self.client_info.get("client_id")
+        if not client_uuid: return
+
+        dialog = ContactDialog(client_uuid, parent=self) # Pass client_id for context if needed by dialog
         if dialog.exec_() == QDialog.Accepted:
-            contact_data = dialog.get_data()
-            conn = None
+            contact_form_data = dialog.get_data() # name, email, phone, position, is_primary
+
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                if contact_data["is_primary"]:
-                    cursor.execute("UPDATE Contacts SET is_primary = 0 WHERE client_id = ?", (self.client_info["client_id"],))
-                cursor.execute(
-                    "INSERT INTO Contacts (client_id, name, email, phone, position, is_primary) VALUES (?, ?, ?, ?, ?, ?)", 
-                    (self.client_info["client_id"], contact_data["name"], contact_data["email"], contact_data["phone"], contact_data["position"], contact_data["is_primary"])
-                )
-                conn.commit()
-                self.load_contacts()
-            except sqlite3.Error as e:
+                # Step 1: Add or get existing contact from global Contacts table
+                # Check if contact with this email already exists
+                existing_contact = db_manager.get_contact_by_email(contact_form_data['email'])
+                contact_id_to_link = None
+
+                if existing_contact:
+                    contact_id_to_link = existing_contact['contact_id']
+                    # Optionally, update existing contact's details if they differ (name, phone, position)
+                    update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
+                    if update_data : db_manager.update_contact(contact_id_to_link, update_data)
+                else:
+                    new_contact_id = db_manager.add_contact({
+                        'name': contact_form_data['name'], 'email': contact_form_data['email'],
+                        'phone': contact_form_data['phone'], 'position': contact_form_data['position']
+                    })
+                    if new_contact_id:
+                        contact_id_to_link = new_contact_id
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le nouveau contact global."))
+                        return
+
+                # Step 2: Link contact to client in ClientContacts
+                if contact_id_to_link:
+                    if contact_form_data['is_primary']:
+                        # Unset other primary contacts for this client
+                        client_contacts = db_manager.get_contacts_for_client(client_uuid)
+                        if client_contacts:
+                            for cc in client_contacts:
+                                if cc['is_primary_for_client']:
+                                    db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
+
+                    link_id = db_manager.link_contact_to_client(
+                        client_uuid, contact_id_to_link,
+                        is_primary=contact_form_data['is_primary']
+                    )
+                    if link_id:
+                        self.load_contacts()
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de lier le contact au client. Le lien existe peut-être déjà."))
+            except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
                 
     def edit_contact(self):
         item = self.contacts_list.currentItem()
         if not item: return
-        contact_id = item.data(Qt.UserRole)
-        conn = None
+
+        item_data = item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id')
+        client_contact_id = item_data.get('client_contact_id') # ID of the link
+        # is_currently_primary = item_data.get('is_primary')
+
+        client_uuid = self.client_info.get("client_id")
+        if not contact_id or not client_uuid: return
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, email, phone, position, is_primary FROM Contacts WHERE contact_id = ?", (contact_id,)) 
-            contact_row = cursor.fetchone() 
-            if contact_row:
-                dialog = ContactDialog(self.client_info["client_id"], {
-                    "name": contact_row[0], "email": contact_row[1], "phone": contact_row[2], 
-                    "position": contact_row[3], "is_primary": contact_row[4] 
-                }, parent=self) 
+            contact_details = db_manager.get_contact_by_id(contact_id)
+            if contact_details:
+                # Need to also fetch is_primary status for this specific client-contact link
+                current_link_info = None
+                client_contacts_for_client = db_manager.get_contacts_for_client(client_uuid)
+                if client_contacts_for_client:
+                    for cc_link in client_contacts_for_client:
+                        if cc_link['contact_id'] == contact_id:
+                            current_link_info = cc_link
+                            break
+
+                is_primary_for_this_client = current_link_info['is_primary_for_client'] if current_link_info else False
+
+                dialog_data = {
+                    "name": contact_details.get('name'), "email": contact_details.get('email'),
+                    "phone": contact_details.get('phone'), "position": contact_details.get('position'),
+                    "is_primary": is_primary_for_this_client
+                }
+
+                dialog = ContactDialog(client_uuid, dialog_data, parent=self)
                 if dialog.exec_() == QDialog.Accepted:
-                    new_data = dialog.get_data()
-                    if new_data["is_primary"]:
-                        cursor.execute("UPDATE Contacts SET is_primary = 0 WHERE client_id = ?", (self.client_info["client_id"],))
-                    cursor.execute(
-                        "UPDATE Contacts SET name = ?, email = ?, phone = ?, position = ?, is_primary = ? WHERE contact_id = ?", 
-                        (new_data["name"], new_data["email"], new_data["phone"], new_data["position"], new_data["is_primary"], contact_id)
-                    )
-                    conn.commit()
+                    new_form_data = dialog.get_data()
+
+                    # Update global contact details
+                    db_manager.update_contact(contact_id, {
+                        'name': new_form_data['name'], 'email': new_form_data['email'],
+                        'phone': new_form_data['phone'], 'position': new_form_data['position']
+                    })
+
+                    # Update is_primary status for this client link
+                    if new_form_data['is_primary'] and not is_primary_for_this_client:
+                        # Unset other primary contacts for this client
+                        if client_contacts_for_client: # re-fetch or use from above
+                            for cc in client_contacts_for_client:
+                                if cc['contact_id'] != contact_id and cc['is_primary_for_client']:
+                                    db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
+                        db_manager.update_client_contact_link(client_contact_id, {'is_primary_for_client': True})
+                    elif not new_form_data['is_primary'] and is_primary_for_this_client:
+                        db_manager.update_client_contact_link(client_contact_id, {'is_primary_for_client': False})
+
                     self.load_contacts()
-        except sqlite3.Error as e:
+        except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du contact:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
             
-    def remove_contact(self):
+    def remove_contact(self): # This should unlink contact from client. Optionally delete global contact if not linked elsewhere.
         item = self.contacts_list.currentItem()
         if not item: return
-        contact_id = item.data(Qt.UserRole)
-        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"), self.tr("Êtes-vous sûr de vouloir supprimer ce contact?"), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        item_data = item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id')
+        client_contact_id = item_data.get('client_contact_id')
+        client_uuid = self.client_info.get("client_id")
+
+        if not client_contact_id or not client_uuid or not contact_id: return
+
+        contact_name = db_manager.get_contact_by_id(contact_id)['name'] if db_manager.get_contact_by_id(contact_id) else "Inconnu"
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression Lien"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer le lien vers ce contact ({0}) pour ce client ?\nLe contact global ne sera pas supprimé.").format(contact_name),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
-            conn = None
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM Contacts WHERE contact_id = ?", (contact_id,))
-                conn.commit()
-                self.load_contacts()
-            except sqlite3.Error as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du contact:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
+                unlinked = db_manager.unlink_contact_from_client(client_uuid, contact_id) # Uses client_id and contact_id
+                if unlinked:
+                    self.load_contacts()
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact-client."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
                 
     def add_product(self):
-        dialog = ProductDialog(self.client_info["client_id"], parent=self)
+        client_uuid = self.client_info.get("client_id")
+        if not client_uuid: return
+
+        # ProductDialog collects name, desc, qty, unit_price.
+        # These will be used to first find/create a global product, then link it.
+        dialog = ProductDialog(client_uuid, parent=self)
         if dialog.exec_() == QDialog.Accepted:
-            product_data = dialog.get_data()
-            conn = None
+            form_data = dialog.get_data() # Contains name, description, quantity, unit_price
+
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO ClientProducts (client_id, name, description, quantity, unit_price, total_price) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (product_data["client_id"], product_data["name"], product_data["description"],
-                    product_data["quantity"], product_data["unit_price"], product_data["total_price"]))
-                conn.commit()
-                self.load_products()
-            except sqlite3.Error as e:
+                # Step 1: Find or Create Global Product
+                # For simplicity, we'll assume product_name is unique for finding.
+                # A more robust solution might involve a product selection dialog from global products.
+                global_product = db_manager.get_product_by_name(form_data['name']) # Needs get_product_by_name
+                global_product_id = None
+
+                if global_product:
+                    global_product_id = global_product['product_id']
+                    # Optionally update global product's description or base_unit_price if form_data differs significantly
+                    # For now, we use the existing global product's base price if no override.
+                else:
+                    new_global_product_id = db_manager.add_product({
+                        'product_name': form_data['name'],
+                        'description': form_data['description'],
+                        'base_unit_price': form_data['unit_price'] # Use dialog unit_price as base if new
+                        # 'category', 'unit_of_measure' could be added to ProductDialog if needed
+                    })
+                    if new_global_product_id:
+                        global_product_id = new_global_product_id
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global."))
+                        return
+
+                # Step 2: Link Product to Client (via ClientProjectProducts, project_id=None for client-general)
+                if global_product_id:
+                    link_data = {
+                        'client_id': client_uuid,
+                        'project_id': None, # Assuming client-level product for now
+                        'product_id': global_product_id,
+                        'quantity': form_data['quantity'],
+                        # unit_price_override will be form_data['unit_price'] if it's different from global base, else None
+                        'unit_price_override': form_data['unit_price']
+                                              if not global_product or form_data['unit_price'] != global_product.get('base_unit_price')
+                                              else None
+                    }
+                    # add_product_to_client_or_project calculates total_price
+                    cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                    if cpp_id:
+                        self.load_products()
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de lier le produit au client."))
+            except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du produit:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow()
         if selected_row < 0: return
         
-        product_id_item = self.products_table.item(selected_row, 0)
-        if not product_id_item: return # Should not happen if row is valid
-        product_id = product_id_item.data(Qt.UserRole)
+        # Assuming the hidden ID column (0) stores client_project_product_id
+        cpp_id_item = self.products_table.item(selected_row, 0)
+        if not cpp_id_item: return
+        client_project_product_id = cpp_id_item.data(Qt.UserRole) # This ID is for ClientProjectProducts table
 
-        conn = None
+        client_uuid = self.client_info.get("client_id")
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, description, quantity, unit_price FROM ClientProducts WHERE product_id = ?", (product_id,))
-            product_row = cursor.fetchone()
-            if product_row:
-                dialog = ProductDialog(
-                    self.client_info["client_id"],
-                    {
-                        "name": product_row[0], "description": product_row[1],
-                        "quantity": product_row[2], "unit_price": product_row[3]
-                    },
-                    parent=self
-                )
+            # Fetch the current linked product details (quantity, price_override)
+            # get_products_for_client_or_project returns a list, we need the specific one by cpp_id
+            # This requires a new function: db_manager.get_client_project_product_by_id(cpp_id)
+            linked_product_details = db_manager.get_client_project_product_by_id(client_project_product_id)
+
+            if linked_product_details:
+                # ProductDialog expects 'name', 'description', 'quantity', 'unit_price'
+                # 'name' and 'description' come from the global Product table (joined in linked_product_details)
+                # 'quantity' comes from ClientProjectProducts
+                # 'unit_price' for dialog should be the effective price (override or base)
+                effective_unit_price = linked_product_details.get('unit_price_override', linked_product_details.get('base_unit_price'))
+
+                dialog_data = {
+                    "name": linked_product_details.get('product_name', ''), # From joined Products table
+                    "description": linked_product_details.get('product_description', ''), # From joined Products table
+                    "quantity": linked_product_details.get('quantity', 0),
+                    "unit_price": effective_unit_price
+                }
+
+                dialog = ProductDialog(client_uuid, dialog_data, parent=self)
                 if dialog.exec_() == QDialog.Accepted:
-                    new_data = dialog.get_data()
-                    cursor.execute(
-                        "UPDATE ClientProducts SET name = ?, description = ?, quantity = ?, unit_price = ?, total_price = ? "
-                        "WHERE product_id = ?",
-                        (new_data["name"], new_data["description"], new_data["quantity"],
-                        new_data["unit_price"], new_data["total_price"], product_id)
-                    )
-                    conn.commit()
-                    self.load_products()
-        except sqlite3.Error as e:
+                    form_data = dialog.get_data()
+
+                    update_link_data = {
+                        'quantity': form_data['quantity'],
+                        'unit_price_override': form_data['unit_price']
+                                              if form_data['unit_price'] != linked_product_details.get('base_unit_price')
+                                              else None
+                        # total_price_calculated will be handled by db_manager.update_client_project_product
+                    }
+                    # Note: If product name/description from dialog differs, it implies editing the global product.
+                    # This might need db_manager.update_product(linked_product_details['product_id'], {...})
+                    # For now, focusing on quantity/price_override for the link.
+                    if form_data['name'] != linked_product_details.get('product_name') or \
+                       form_data['description'] != linked_product_details.get('product_description'):
+                        db_manager.update_product(linked_product_details['product_id'], {
+                            'product_name': form_data['name'],
+                            'description': form_data['description']
+                            # Base price update could also be considered here if dialog unit_price is meant to update it
+                        })
+
+
+                    if db_manager.update_client_project_product(client_project_product_id, update_link_data):
+                        self.load_products()
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du produit lié."))
+            else:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié introuvables."))
+        except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du produit:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
 
     def remove_product(self):
         selected_row = self.products_table.currentRow()
         if selected_row < 0: return
         
-        product_id_item = self.products_table.item(selected_row, 0)
-        if not product_id_item: return
-        product_id = product_id_item.data(Qt.UserRole)
+        cpp_id_item = self.products_table.item(selected_row, 0)
+        if not cpp_id_item: return
+        client_project_product_id = cpp_id_item.data(Qt.UserRole) # This is client_project_product_id
+
         product_name_item = self.products_table.item(selected_row, 1)
         product_name = product_name_item.text() if product_name_item else self.tr("Inconnu")
         
         reply = QMessageBox.question(
             self, 
             self.tr("Confirmer Suppression"),
-            self.tr("Êtes-vous sûr de vouloir supprimer le produit '{0}'?").format(product_name),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            self.tr("Êtes-vous sûr de vouloir supprimer le produit '{0}' de ce client/projet?").format(product_name),
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         
         if reply == QMessageBox.Yes:
-            conn = None
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM ClientProducts WHERE product_id = ?", (product_id,))
-                conn.commit()
-                self.load_products()
-            except sqlite3.Error as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
+                if db_manager.remove_product_from_client_or_project(client_project_product_id):
+                    self.load_products()
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit lié."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit lié:\n{0}").format(str(e)))
 
     def load_products(self):
         self.products_table.setRowCount(0)
-        conn = None
+        client_uuid = self.client_info.get("client_id")
+        if not client_uuid: return
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT product_id, name, description, quantity, unit_price, total_price "
-                "FROM ClientProducts WHERE client_id = ?",
-                (self.client_info["client_id"],)
-            )
+            # Get products linked to this client (project_id=None for client-general products)
+            # This returns a list of dicts, with joined info from Products table
+            linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
+            if linked_products is None: linked_products = []
             
-            for row_idx, row_data in enumerate(cursor.fetchall()):
+            for row_idx, prod_link_data in enumerate(linked_products):
                 self.products_table.insertRow(row_idx)
                 
-                id_item = QTableWidgetItem(str(row_data[0])) # ID is data
-                id_item.setData(Qt.UserRole, row_data[0])
+                # Store client_project_product_id for edit/delete
+                id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
+                id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
                 self.products_table.setItem(row_idx, 0, id_item)
                 
-                self.products_table.setItem(row_idx, 1, QTableWidgetItem(row_data[1])) # Name is data
-                self.products_table.setItem(row_idx, 2, QTableWidgetItem(row_data[2])) # Desc is data
+                self.products_table.setItem(row_idx, 1, QTableWidgetItem(prod_link_data.get('product_name', 'N/A')))
+                self.products_table.setItem(row_idx, 2, QTableWidgetItem(prod_link_data.get('product_description', '')))
                 
-                qty_item = QTableWidgetItem(str(row_data[3])) # Qty is data
+                qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
                 qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.products_table.setItem(row_idx, 3, qty_item)
                 
-                # Currency format might need locale-specific handling beyond simple prefix
-                unit_price = QTableWidgetItem(f"€ {row_data[4]:.2f}") # Price is data
-                unit_price.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.products_table.setItem(row_idx, 4, unit_price)
+                effective_unit_price = prod_link_data.get('unit_price_override', prod_link_data.get('base_unit_price', 0.0))
+                unit_price_item = QTableWidgetItem(f"€ {effective_unit_price:.2f}")
+                unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.products_table.setItem(row_idx, 4, unit_price_item)
                 
-                total_price = QTableWidgetItem(f"€ {row_data[5]:.2f}") # Price is data
-                total_price.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.products_table.setItem(row_idx, 5, total_price)
+                total_price_item = QTableWidgetItem(f"€ {prod_link_data.get('total_price_calculated', 0.0):.2f}")
+                total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.products_table.setItem(row_idx, 5, total_price_item)
                 
             self.products_table.resizeColumnsToContents()
             
-        except sqlite3.Error as e:
+        except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
 
 # --- DOCX Population Logic ---
 def populate_docx_template(docx_path, client_data):
@@ -1637,41 +1663,62 @@ class StatisticsWidget(QWidget):
             group_layout.addWidget(label); layout.addWidget(group)
         
     def update_stats(self):
-        conn = None
+        # conn = None # Old sqlite3 connection
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
+            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3 connection
+            # cursor = conn.cursor() # Old sqlite3 connection
             
-            cursor.execute("SELECT COUNT(*) FROM Clients"); total_clients = cursor.fetchone()[0] 
+            all_clients = db_manager.get_all_clients()
+            if all_clients is None: all_clients = []
+
+            total_clients = len(all_clients)
             self.total_label.setText(str(total_clients))
             
-            cursor.execute("SELECT SUM(price) FROM Clients"); total_val = cursor.fetchone()[0] or 0 
+            total_val = sum(c.get('price', 0) for c in all_clients if c.get('price') is not None)
             self.value_label.setText(f"{total_val:,.2f} €")
             
-            cursor.execute("SELECT COUNT(*) FROM Clients WHERE status = 'En cours'"); ongoing_count = cursor.fetchone()[0] 
+            status_en_cours_obj = db_manager.get_status_setting_by_name('En cours', 'Client')
+            status_en_cours_id = status_en_cours_obj['status_id'] if status_en_cours_obj else None
+
+            status_urgent_obj = db_manager.get_status_setting_by_name('Urgent', 'Client')
+            status_urgent_id = status_urgent_obj['status_id'] if status_urgent_obj else None
+
+            ongoing_count = 0
+            if status_en_cours_id is not None:
+                ongoing_count = sum(1 for c in all_clients if c.get('status_id') == status_en_cours_id)
             self.ongoing_label.setText(str(ongoing_count))
             
-            cursor.execute("SELECT COUNT(*) FROM Clients WHERE status = 'Urgent'"); urgent_count = cursor.fetchone()[0] 
+            urgent_count = 0
+            if status_urgent_id is not None:
+                urgent_count = sum(1 for c in all_clients if c.get('status_id') == status_urgent_id)
             self.urgent_label.setText(str(urgent_count))
-        except sqlite3.Error as e:
+
+            # Old SQL queries:
+            # cursor.execute("SELECT COUNT(*) FROM Clients"); total_clients = cursor.fetchone()[0]
+            # cursor.execute("SELECT SUM(price) FROM Clients"); total_val = cursor.fetchone()[0] or 0
+            # cursor.execute("SELECT COUNT(*) FROM Clients WHERE status = 'En cours'"); ongoing_count = cursor.fetchone()[0]
+            # cursor.execute("SELECT COUNT(*) FROM Clients WHERE status = 'Urgent'"); urgent_count = cursor.fetchone()[0]
+
+        except Exception as e: # Catch generic db_manager errors or other issues
             print(f"Erreur de mise à jour des statistiques: {str(e)}")
-        finally:
-            if conn: conn.close()
+        # finally:
+            # if conn: conn.close() # Old sqlite3 connection
 
 class StatusDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
-        status_text = index.data(Qt.UserRole) 
-        bg_color_hex = "#95a5a6" 
-        conn = None
-        try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT color FROM StatusSettings WHERE status_name = ?", (status_text,))
-            color_row = cursor.fetchone() 
-            if color_row: bg_color_hex = color_row[0]
-        except sqlite3.Error: pass 
-        finally:
-            if conn: conn.close()
+        status_name_for_delegate = index.data(Qt.UserRole) # This is the status name (text)
+        bg_color_hex = "#95a5a6" # Default color
+
+        if status_name_for_delegate:
+            try:
+                # Assuming status_type is 'Client' for this delegate context,
+                # as this delegate is used in the client list.
+                status_setting = db_manager.get_status_setting_by_name(status_name_for_delegate, 'Client')
+                if status_setting and status_setting.get('color_hex'):
+                    bg_color_hex = status_setting['color_hex']
+            except Exception as e:
+                print(f"Error fetching status color for delegate: {e}")
+                # Keep default color if error
         
         painter.save()
         painter.fillRect(option.rect, QColor(bg_color_hex))
@@ -1848,266 +1895,372 @@ class DocumentManager(QMainWindow):
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
-    def load_countries_into_combo(self): 
+    def load_countries_into_combo(self):
         self.country_select_combo.clear()
-        conn = None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT country_name FROM Countries ORDER BY country_name")
-            for country_row in cursor.fetchall(): self.country_select_combo.addItem(country_row[0]) # Country names are data
-        except sqlite3.Error as e:
+            countries = db_manager.get_all_countries()
+            if countries is None: countries = []
+            for country_dict in countries:
+                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id')) # Store ID
+        except Exception as e: # More generic exception catch
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
             
-    def load_cities_for_country(self, country_name_str): 
+    def load_cities_for_country(self, country_name_str): # country_name_str is the displayed text
         self.city_select_combo.clear()
-        if not country_name_str: return
-        conn = None
+        if not country_name_str:
+            return
+
+        selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
+
+        if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
+            country_obj = db_manager.get_country_by_name(country_name_str)
+            if country_obj:
+                selected_country_id = country_obj['country_id']
+            else:
+                # If country_name_str is from an editable combo box and not in DB, do nothing.
+                return
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT city_name FROM Cities WHERE country_id = (SELECT country_id FROM Countries WHERE country_name = ?) ORDER BY city_name",
-                (country_name_str,)
-            )
-            for city_row in cursor.fetchall(): self.city_select_combo.addItem(city_row[0]) # City names are data
-        except sqlite3.Error as e:
+            cities = db_manager.get_all_cities(country_id=selected_country_id)
+            if cities is None: cities = []
+            for city_dict in cities:
+                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id')) # Store ID
+        except Exception as e: # More generic exception catch
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
             
-    def add_new_country_dialog(self): 
+    def add_new_country_dialog(self):
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
         if ok and country_text.strip():
-            conn = None
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_text.strip(),))
-                conn.commit()
-                self.load_countries_into_combo()
-                self.country_select_combo.setCurrentText(country_text.strip()) # country_text is data from input
-            except sqlite3.IntegrityError: QMessageBox.warning(self, self.tr("Pays Existant"), self.tr("Ce pays existe déjà."))
-            except sqlite3.Error as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
+                # db_manager.add_country should handle IntegrityError for unique names
+                new_country_obj = db_manager.add_country({'country_name': country_text.strip()})
+                if new_country_obj and new_country_obj.get('country_id'):
+                    self.load_countries_into_combo()
+                    index = self.country_select_combo.findText(country_text.strip())
+                    if index >= 0:
+                        self.country_select_combo.setCurrentIndex(index)
+                elif db_manager.get_country_by_name(country_text.strip()): # Check if it failed because it exists
+                     QMessageBox.warning(self, self.tr("Pays Existant"), self.tr("Ce pays existe déjà."))
+                     index = self.country_select_combo.findText(country_text.strip()) # Select existing
+                     if index >=0: self.country_select_combo.setCurrentIndex(index)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:\n{0}").format(str(e)))
                 
-    def add_new_city_dialog(self): 
-        current_country = self.country_select_combo.currentText() # current_country is data
-        if not current_country:
-            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner un pays.")); return
-        city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country))
+    def add_new_city_dialog(self):
+        current_country_name = self.country_select_combo.currentText()
+        current_country_id = self.country_select_combo.currentData()
+
+        if not current_country_id:
+            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner un pays valide.")); return
+
+        city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
         if ok and city_text.strip():
-            conn = None
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (current_country,))
-                country_id_row = cursor.fetchone() 
-                if not country_id_row: QMessageBox.warning(self, self.tr("Pays Inconnu"), self.tr("Pays sélectionné introuvable.")); return
-                cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id_row[0], city_text.strip()))
-                conn.commit()
-                self.load_cities_for_country(current_country)
-                self.city_select_combo.setCurrentText(city_text.strip()) # city_text is data from input
-            except sqlite3.IntegrityError: QMessageBox.warning(self, self.tr("Ville Existante"), self.tr("Cette ville existe déjà pour ce pays."))
-            except sqlite3.Error as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:\n{0}").format(str(e)))
-            finally:
-                if conn: conn.close()
+                city_data = {'country_id': current_country_id, 'city_name': city_text.strip()}
+                # db_manager.add_city should handle IntegrityError for unique (country_id, city_name)
+                new_city_obj = db_manager.add_city(city_data)
+
+                if new_city_obj and new_city_obj.get('city_id'):
+                    self.load_cities_for_country(current_country_name)
+                    index = self.city_select_combo.findText(city_text.strip())
+                    if index >= 0:
+                         self.city_select_combo.setCurrentIndex(index)
+                elif db_manager.get_city_by_name_and_country_id(city_text.strip(), current_country_id):
+                     QMessageBox.warning(self, self.tr("Ville Existante"), self.tr("Cette ville existe déjà pour ce pays."))
+                     index = self.city_select_combo.findText(city_text.strip()) # Select existing
+                     if index >=0: self.city_select_combo.setCurrentIndex(index)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:\n{0}").format(str(e)))
                 
-    def generate_new_client_id(self): # Internal logic, no UI text
-        conn = None
-        try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT MAX(CAST(SUBSTR(client_id, 2) AS INTEGER)) FROM Clients WHERE client_id LIKE 'C%'") 
-            last_num_row = cursor.fetchone() 
-            next_num = (last_num_row[0] or 0) + 1
-            return f"C{next_num:04d}"
-        except sqlite3.Error: return f"C{int(datetime.now().timestamp()) % 10000:04d}" 
-        finally:
-            if conn: conn.close()
+    def generate_new_client_id(self):
+        # This function is no longer used to generate primary client IDs as db_manager.add_client handles UUID generation.
+        # It can be removed or repurposed if a different kind of human-readable ID is needed elsewhere.
+        # For now, it's effectively dead code if client_id is always the UUID.
+        return f"LEGACY_ID_FORMAT_UNUSED_{int(datetime.now().timestamp())}"
                 
     def execute_create_client(self): 
         client_name_val = self.client_name_input.text().strip() 
         company_name_val = self.company_name_input.text().strip()
         need_val = self.client_need_input.text().strip()
-        country_val = self.country_select_combo.currentText().strip()
-        city_val = self.city_select_combo.currentText().strip()
-        project_id_val = self.project_id_input_field.text().strip()
+
+        country_id_val = self.country_select_combo.currentData() # This is country_id (int)
+        country_name_for_folder = self.country_select_combo.currentText().strip() # For folder name consistency
+        city_id_val = self.city_select_combo.currentData() # This is city_id (int)
+
+        project_identifier_val = self.project_id_input_field.text().strip() # This is the TEXT project_identifier
         price_val = self.final_price_input.value()
-        lang_option_text = self.language_select_combo.currentText() # This text comes from already translated QComboBox items
+        lang_option_text = self.language_select_combo.currentText()
         
-        if not client_name_val or not country_val or not project_id_val:
+        if not client_name_val or not country_id_val or not project_identifier_val:
             QMessageBox.warning(self, self.tr("Champs Requis"), self.tr("Nom client, Pays et ID Projet sont obligatoires.")); return
             
-        # Keys are already translated as they come from self.tr() used in QComboBox.addItems
         lang_map_from_display = {
-            self.tr("Français uniquement (fr)"): ["fr"],
-            self.tr("Arabe uniquement (ar)"): ["ar"],
-            self.tr("Turc uniquement (tr)"): ["tr"],
-            self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]
+            self.tr("Français uniquement (fr)"): ["fr"], self.tr("Arabe uniquement (ar)"): ["ar"],
+            self.tr("Turc uniquement (tr)"): ["tr"], self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]
         }
-        selected_langs_list = lang_map_from_display.get(lang_option_text, ["fr"]) # Default to fr
+        selected_langs_list = lang_map_from_display.get(lang_option_text, ["fr"])
         
-        folder_name_str = f"{client_name_val}_{country_val}_{project_id_val}".replace(" ", "_").replace("/", "-") 
+        folder_name_str = f"{client_name_val}_{country_name_for_folder}_{project_identifier_val}".replace(" ", "_").replace("/", "-")
         base_folder_full_path = os.path.join(self.config["clients_dir"], folder_name_str) 
         
+        # Check for existing folder path (which should be unique due to DB constraint on default_base_folder_path)
         if os.path.exists(base_folder_full_path):
-            QMessageBox.warning(self, self.tr("Dossier Existant"), self.tr("Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.")); return
-            
-        new_client_id = self.generate_new_client_id() 
-        conn = None
+            # It's possible the folder exists but the DB entry doesn't, or vice-versa if there was a past issue.
+            # The DB check for unique default_base_folder_path in add_client is the more critical one.
+            QMessageBox.warning(self, self.tr("Dossier Existant"),
+                                self.tr("Un dossier client avec un chemin similaire existe déjà. Veuillez vérifier les détails ou choisir un ID Projet différent."))
+            return
+
+        # Determine default status_id for new clients
+        default_status_name = "En cours" # Or fetch from a config/default setting
+        status_setting_obj = db_manager.get_status_setting_by_name(default_status_name, 'Client')
+        if not status_setting_obj or not status_setting_obj.get('status_id'):
+            QMessageBox.critical(self, self.tr("Erreur Configuration"),
+                                 self.tr("Statut par défaut '{0}' non trouvé pour les clients. Veuillez configurer les statuts.").format(default_status_name))
+            return
+        default_status_id = status_setting_obj['status_id']
+
+        # Prepare data for db_manager.add_client
+        client_data_for_db = {
+            'client_name': client_name_val,
+            'company_name': company_name_val if company_name_val else None,
+            'primary_need_description': need_val,
+            'project_identifier': project_identifier_val, # This is the TEXT field
+            'country_id': country_id_val,
+            'city_id': city_id_val if city_id_val else None,
+            'default_base_folder_path': base_folder_full_path,
+            'selected_languages': ",".join(selected_langs_list), # Stored as comma-separated string
+            'price': price_val,
+            'status_id': default_status_id,
+            'category': 'Standard', # Default category or could be a form field
+            'notes': '', # Default empty notes
+            # 'created_by_user_id': self.get_current_user_id(), # TODO: Implement user tracking if available
+        }
+
+        actual_new_client_id = None # This will be the UUID returned by add_client
+        new_project_id_central_db = None # This will be the UUID returned by add_project
+
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT client_id FROM Clients WHERE project_identifier = ?", (project_id_val,))
-            if cursor.fetchone():
-                 QMessageBox.warning(self, self.tr("ID Projet Existant"), self.tr("L'ID Projet '{0}' est déjà utilisé.").format(project_id_val)); return
+            actual_new_client_id = db_manager.add_client(client_data_for_db)
+            if not actual_new_client_id:
+                # db_manager.add_client should ideally raise specific exceptions or return error codes
+                # For now, assume unique constraint on project_identifier or default_base_folder_path failed
+                QMessageBox.critical(self, self.tr("Erreur DB"),
+                                     self.tr("Impossible de créer le client. L'ID de projet ou le chemin du dossier existe peut-être déjà, ou autre erreur de contrainte DB."))
+                return
 
-            cursor.execute(
-                "INSERT INTO Clients (client_id, client_name, company_name, need, country, city, project_identifier, base_folder_path, selected_languages, price, creation_date, status) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (new_client_id, client_name_val, company_name_val, need_val, country_val, city_val, project_id_val, base_folder_full_path, 
-                 ",".join(selected_langs_list), price_val, datetime.now().strftime("%Y-%m-%d"), "En cours")
-            )
-            conn.commit()
+            # Create client directory structure
             os.makedirs(base_folder_full_path, exist_ok=True)
-            for lang_code in selected_langs_list: os.makedirs(os.path.join(base_folder_full_path, lang_code), exist_ok=True) 
-                
-            # Project Management DB Integration
-            PROJECT_MANAGEMENT_DB_PATH = "management_db.sqlite"
-            pm_conn = None
-            try:
-                pm_conn = sqlite3.connect(PROJECT_MANAGEMENT_DB_PATH)
-                pm_cursor = pm_conn.cursor()
+            for lang_code in selected_langs_list:
+                os.makedirs(os.path.join(base_folder_full_path, lang_code), exist_ok=True)
 
-                project_name = client_name_val
-                project_description = f"Project for client: {client_name_val}. Initial need: {need_val}"
-                start_date = datetime.now().strftime("%Y-%m-%d")
-                deadline_date = (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d")
-                default_budget = 0.0
-                default_status = "planning"
-                default_priority = "medium"
+            # --- Create associated project and tasks in the central database (app_data.db) ---
+            project_status_planning_obj = db_manager.get_status_setting_by_name("Planning", "Project")
+            project_status_id_for_pm = project_status_planning_obj['status_id'] if project_status_planning_obj else None
 
-                pm_cursor.execute(
-                    "INSERT INTO projects (name, description, start_date, deadline, budget, status, priority) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (project_name, project_description, start_date, deadline_date, default_budget, default_status, default_priority)
-                )
-                new_project_id_pm = pm_cursor.lastrowid # Renamed to avoid conflict with client's new_project_id
+            if not project_status_id_for_pm:
+                 QMessageBox.warning(self, self.tr("Erreur Configuration Projet"),
+                                     self.tr("Statut de projet par défaut 'Planning' non trouvé. Le projet ne sera pas créé avec un statut initial."))
 
-                standard_tasks = [ # These are effectively seed data for the PM system.
-                    {"name": "Initial Client Consultation & Needs Assessment", "description": "Understand client requirements, objectives, target markets, and budget.", "priority": "High", "deadline_days": 3},
-                    {"name": "Market Research & Analysis", "description": "Research target international markets, including competition, regulations, and cultural nuances.", "priority": "Medium", "deadline_days": 7},
-                    {"name": "Develop International Marketing Strategy", "description": "Create a tailored marketing strategy including channels, messaging, and localization plans.", "priority": "High", "deadline_days": 14},
-                    {"name": "Prepare Sales Proposal/Offer", "description": "Draft a detailed sales proposal or proforma invoice.", "priority": "High", "deadline_days": 19},
-                    {"name": "Client Presentation & Negotiation", "description": "Present the proposal to the client and negotiate terms.", "priority": "High", "deadline_days": 26},
-                    {"name": "Contract Finalization & Signing", "description": "Prepare and finalize the sales contract.", "priority": "High", "deadline_days": 31},
-                    {"name": "Order Processing & Logistics Planning", "description": "Process the client's order, plan shipping, and coordinate logistics.", "priority": "Medium", "deadline_days": 35},
-                    {"name": "Prepare Shipping Documents", "description": "Prepare necessary export/import documents.", "priority": "Medium", "deadline_days": 45},
-                    {"name": "Shipment & Tracking", "description": "Manage the shipment process and provide tracking information.", "priority": "Medium", "deadline_days": 55},
-                    {"name": "Post-Sales Follow-up & Support", "description": "Follow up with the client after delivery.", "priority": "Medium", "deadline_days": 60}
+            project_data_for_db = {
+                'client_id': actual_new_client_id, # Link to the newly created client
+                'project_name': f"Projet pour {client_name_val}", # Default project name
+                'description': f"Projet pour client: {client_name_val}. Besoin initial: {need_val}",
+                'start_date': datetime.now().strftime("%Y-%m-%d"),
+                'deadline_date': (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d"), # Default deadline
+                'budget': 0.0, # Default budget
+                'status_id': project_status_id_for_pm, # Can be None if not found
+                'priority': 1 # Default priority (e.g., 0=Low, 1=Medium, 2=High)
+                # 'manager_team_member_id': self.get_current_user_id(), # TODO: Assign project manager if applicable
+            }
+            new_project_id_central_db = db_manager.add_project(project_data_for_db)
+
+            if new_project_id_central_db:
+                QMessageBox.information(self, self.tr("Projet Créé (Central DB)"),
+                                        self.tr("Un projet associé a été créé dans la base de données centrale pour {0}.").format(client_name_val))
+
+                # Add standard tasks for the new project
+                task_status_todo_obj = db_manager.get_status_setting_by_name("To Do", "Task")
+                task_status_id_for_todo = task_status_todo_obj['status_id'] if task_status_todo_obj else None
+
+                if not task_status_id_for_todo:
+                    QMessageBox.warning(self, self.tr("Erreur Configuration Tâche"),
+                                        self.tr("Statut de tâche par défaut 'To Do' non trouvé. Les tâches standard ne seront pas créées avec un statut initial."))
+
+                standard_tasks = [
+                    {"name": "Initial Client Consultation & Needs Assessment", "description": "Understand client requirements, objectives, target markets, and budget.", "priority_val": 2, "deadline_days": 3},
+                    {"name": "Market Research & Analysis", "description": "Research target international markets, including competition, regulations, and cultural nuances.", "priority_val": 1, "deadline_days": 7},
+                    # ... (add other standard tasks as before) ...
+                    {"name": "Post-Sales Follow-up & Support", "description": "Follow up with the client after delivery.", "priority_val": 1, "deadline_days": 60}
                 ]
 
-                for task in standard_tasks:
-                    task_name = task["name"]
-                    task_description = task["description"]
-                    task_priority = task["priority"]
-                    task_deadline = (datetime.now() + timedelta(days=task["deadline_days"])).strftime("%Y-%m-%d")
-                    default_task_status = "todo"
+                for task_item in standard_tasks:
+                    task_deadline = (datetime.now() + timedelta(days=task_item["deadline_days"])).strftime("%Y-%m-%d")
+                    db_manager.add_task({
+                        'project_id': new_project_id_central_db,
+                        'task_name': task_item["name"],
+                        'description': task_item["description"],
+                        'status_id': task_status_id_for_todo, # Can be None
+                        'priority': task_item["priority_val"],
+                        'due_date': task_deadline
+                        # 'assignee_team_member_id': None, # TODO: Assign tasks if logic exists
+                    })
+                QMessageBox.information(self, self.tr("Tâches Créées (Central DB)"),
+                                        self.tr("Des tâches standard ont été ajoutées au projet pour {0}.").format(client_name_val))
+            else:
+                QMessageBox.warning(self, self.tr("Erreur DB Projet"),
+                                    self.tr("Le client a été créé, mais la création du projet associé dans la base de données centrale a échoué."))
 
-                    pm_cursor.execute(
-                        "INSERT INTO tasks (project_id, name, description, status, priority, deadline, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (new_project_id_pm, task_name, task_description, default_task_status, task_priority, task_deadline, start_date)
-                    )
+            # --- Update UI ---
+            # Reload client from DB to get all fields correctly for the UI map, including generated UUID and timestamps
+            client_dict_from_db = db_manager.get_client_by_id(actual_new_client_id)
+            if client_dict_from_db:
+                # Fetch related names for UI display (Country, City, Status)
+                country_obj = db_manager.get_country_by_id(client_dict_from_db.get('country_id')) if client_dict_from_db.get('country_id') else None
+                city_obj = db_manager.get_city_by_id(client_dict_from_db.get('city_id')) if client_dict_from_db.get('city_id') else None
+                status_obj = db_manager.get_status_setting_by_id(client_dict_from_db.get('status_id')) if client_dict_from_db.get('status_id') else None
 
-                pm_conn.commit()
-                QMessageBox.information(self, self.tr("Projet Créé"), self.tr("Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.").format(client_name_val))
-
-            except sqlite3.Error as e_pm:
-                print(f"Error interacting with Project Management DB: {e_pm}") # Log as is
-                QMessageBox.warning(self, self.tr("Erreur DB Gestion de Projet"), self.tr("Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}").format(client_name_val, e_pm))
-            finally:
-                if pm_conn:
-                    pm_conn.close()
-
-            client_dict_data = { 
-                "client_id": new_client_id, "client_name": client_name_val, "company_name": company_name_val,
-                "need": need_val, "country": country_val, "city": city_val, "project_identifier": project_id_val,
-                "base_folder_path": base_folder_full_path, "selected_languages": selected_langs_list, "price": price_val,
-                "creation_date": datetime.now().strftime("%Y-%m-%d"), "status": "En cours", "notes": "" # Status key
-            }
-            self.clients_data_map[new_client_id] = client_dict_data 
-            self.add_client_to_list_widget(client_dict_data) 
+                ui_map_data = {
+                    "client_id": client_dict_from_db.get('client_id'), # UUID
+                    "client_name": client_dict_from_db.get('client_name'),
+                    "company_name": client_dict_from_db.get('company_name'),
+                    "need": client_dict_from_db.get('primary_need_description'),
+                    "country": country_obj['country_name'] if country_obj else "N/A",
+                    "country_id": client_dict_from_db.get('country_id'),
+                    "city": city_obj['city_name'] if city_obj else "N/A",
+                    "city_id": client_dict_from_db.get('city_id'),
+                    "project_identifier": client_dict_from_db.get('project_identifier'), # The text ID
+                    "base_folder_path": client_dict_from_db.get('default_base_folder_path'),
+                    "selected_languages": client_dict_from_db.get('selected_languages','').split(',') if client_dict_from_db.get('selected_languages') else [],
+                    "price": client_dict_from_db.get('price'),
+                    "notes": client_dict_from_db.get('notes'),
+                    "status": status_obj['status_name'] if status_obj else "N/A",
+                    "status_id": client_dict_from_db.get('status_id'),
+                    "creation_date": client_dict_from_db.get('created_at','').split("T")[0] if client_dict_from_db.get('created_at') else "N/A", # Format date part
+                    "category": client_dict_from_db.get('category')
+                }
+                self.clients_data_map[actual_new_client_id] = ui_map_data
+                self.add_client_to_list_widget(ui_map_data) # Update client list display
             
+            # Clear input fields
             self.client_name_input.clear(); self.company_name_input.clear(); self.client_need_input.clear()
             self.project_id_input_field.clear(); self.final_price_input.setValue(0)
+            # Optionally reset country/city/language combos to default
             
-            QMessageBox.information(self, self.tr("Client Créé"), self.tr("Client {0} créé (ID: {1}).").format(client_name_val, new_client_id))
-            self.open_client_tab_by_id(new_client_id) 
-            self.stats_widget.update_stats()
-        except sqlite3.IntegrityError as ie: 
-             QMessageBox.warning(self, self.tr("Conflit de Données"), self.tr("Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}").format(ie))
-        except sqlite3.Error as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde du client:\n{0}").format(str(e)))
-        except OSError as e: QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+            QMessageBox.information(self, self.tr("Client Créé"),
+                                    self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
+            self.open_client_tab_by_id(actual_new_client_id) # Open the new client's tab
+            self.stats_widget.update_stats() # Refresh statistics
+
+        except OSError as e_os:
+            QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
+            # Rollback: If client was added to DB but folder creation failed, delete client from DB
+            if actual_new_client_id:
+                 db_manager.delete_client(actual_new_client_id) # This will also cascade-delete related Project and Tasks if FKs are set up correctly
+                 QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
+        except Exception as e_db: # Catch other potential errors from db_manager calls or logic
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
+            # Rollback: If client or project was added before a subsequent error
+            if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
+                db_manager.delete_project(new_project_id_central_db) # Cascade delete tasks
+            if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
+                 db_manager.delete_client(actual_new_client_id)
+                 QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
             
     def load_clients_from_db(self):
         self.clients_data_map.clear()
         self.client_list_widget.clear()
-        conn = None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT client_id, client_name, company_name, need, country, city, project_identifier, base_folder_path, selected_languages, price, notes, status, creation_date FROM Clients ORDER BY client_name")
-            for row_data in cursor.fetchall(): 
-                client_dict = { 
-                    "client_id": row_data[0], "client_name": row_data[1], "company_name": row_data[2],
-                    "need": row_data[3], "country": row_data[4], "city": row_data[5], 
-                    "project_identifier": row_data[6], "base_folder_path": row_data[7],
-                    "selected_languages": row_data[8].split(',') if row_data[8] else ['fr'], 
-                    "price": row_data[9], "notes": row_data[10], "status": row_data[11], 
-                    "creation_date": row_data[12]
+            all_clients_dicts = db_manager.get_all_clients()
+            if all_clients_dicts is None: all_clients_dicts = []
+
+            all_clients_dicts.sort(key=lambda c: c.get('client_name', ''))
+
+            for client_data in all_clients_dicts:
+                country_name = "N/A"
+                if client_data.get('country_id'):
+                    country_obj = db_manager.get_country_by_id(client_data['country_id'])
+                    if country_obj: country_name = country_obj['country_name']
+
+                city_name = "N/A"
+                if client_data.get('city_id'):
+                    city_obj = db_manager.get_city_by_id(client_data['city_id'])
+                    if city_obj: city_name = city_obj['city_name']
+
+                status_name = "N/A"
+                status_id_val = client_data.get('status_id')
+                if status_id_val:
+                    status_obj = db_manager.get_status_setting_by_id(status_id_val)
+                    if status_obj: status_name = status_obj['status_name']
+
+                adapted_client_dict = {
+                    "client_id": client_data.get('client_id'),
+                    "client_name": client_data.get('client_name'),
+                    "company_name": client_data.get('company_name'),
+                    "need": client_data.get('primary_need_description'),
+                    "country": country_name,
+                    "country_id": client_data.get('country_id'),
+                    "city": city_name,
+                    "city_id": client_data.get('city_id'),
+                    "project_identifier": client_data.get('project_identifier'),
+                    "base_folder_path": client_data.get('default_base_folder_path'),
+                    "selected_languages": client_data.get('selected_languages', '').split(',') if client_data.get('selected_languages') else ['fr'],
+                    "price": client_data.get('price', 0),
+                    "notes": client_data.get('notes'),
+                    "status": status_name,
+                    "status_id": status_id_val,
+                    "creation_date": client_data.get('created_at', '').split('T')[0] if client_data.get('created_at') else "N/A",
+                    "category": client_data.get('category', 'Standard')
                 }
-                self.clients_data_map[client_dict["client_id"]] = client_dict 
-                self.add_client_to_list_widget(client_dict)
-        except sqlite3.Error as e:
+                self.clients_data_map[adapted_client_dict["client_id"]] = adapted_client_dict
+                self.add_client_to_list_widget(adapted_client_dict)
+        except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des clients:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
             
     def add_client_to_list_widget(self, client_dict_data): 
         item = QListWidgetItem(client_dict_data["client_name"])
-        item.setData(Qt.UserRole, client_dict_data["status"])  
+        item.setData(Qt.UserRole, client_dict_data.get("status", "N/A"))  # Status name for StatusDelegate
         item.setData(Qt.UserRole + 1, client_dict_data["client_id"]) 
         self.client_list_widget.addItem(item)
             
     def filter_client_list_display(self): 
         search_term = self.search_input_field.text().lower() 
-        status_val_filter = self.status_filter_combo.currentText() 
+        selected_status_id = self.status_filter_combo.currentData() # This will be status_id or None
+
         self.client_list_widget.clear()
         for client_id_key, client_data_val in self.clients_data_map.items(): 
-            if status_val_filter != "Tous les statuts" and client_data_val["status"] != status_val_filter:
-                continue
-            if search_term and not (search_term in client_data_val["client_name"].lower() or \
+            if selected_status_id is not None:
+                if client_data_val.get("status_id") != selected_status_id:
+                    continue
+
+            if search_term and not (search_term in client_data_val.get("client_name","").lower() or \
                                    search_term in client_data_val.get("project_identifier","").lower() or \
                                    search_term in client_data_val.get("company_name","").lower()): 
                 continue
             self.add_client_to_list_widget(client_data_val)
             
     def load_statuses_into_filter_combo(self): 
-        conn = None
+        current_selection_data = self.status_filter_combo.currentData()
+        self.status_filter_combo.clear()
+        self.status_filter_combo.addItem(self.tr("Tous les statuts"), None) # UserData for "All" is None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT status_name FROM StatusSettings ORDER BY status_name") 
-            for status_row in cursor.fetchall(): self.status_filter_combo.addItem(status_row[0]) # Status names are data keys
-        except sqlite3.Error as e:
-            print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e))) # This was already translated but re-included for context
-        finally:
-            if conn: conn.close()
+            # Only load 'Client' type statuses for this combo
+            client_statuses = db_manager.get_all_status_settings(status_type='Client')
+            if client_statuses is None: client_statuses = []
+            for status_dict in client_statuses:
+                self.status_filter_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+
+            index = self.status_filter_combo.findData(current_selection_data)
+            if index != -1:
+                self.status_filter_combo.setCurrentIndex(index)
+            # If not found by ID (e.g. "Tous les statuts" was selected), it defaults to index 0 ("Tous les statuts")
+
+        except Exception as e: # More generic error catch
+            print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)))
             
     def handle_client_list_click(self, item): 
         client_id_val = item.data(Qt.UserRole + 1) 
@@ -2151,70 +2304,165 @@ class DocumentManager(QMainWindow):
             
     def set_client_status_archived(self, client_id_val): 
         if client_id_val not in self.clients_data_map: return
-        conn = None
+        # conn = None # Old sqlite3
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE Clients SET status = 'Archivé' WHERE client_id = ?", (client_id_val,))
-            conn.commit()
-            self.clients_data_map[client_id_val]["status"] = "Archivé"
-            self.filter_client_list_display() 
-            for i in range(self.client_tabs_widget.count()):
-                tab_w = self.client_tabs_widget.widget(i)
-                if hasattr(tab_w, 'client_info') and tab_w.client_info["client_id"] == client_id_val:
-                    tab_w.status_combo.setCurrentText("Archivé") 
-                    break
-            self.stats_widget.update_stats()
-            QMessageBox.information(self, "Client Archivé", f"Le client '{self.clients_data_map[client_id_val]['client_name']}' a été archivé.")
-        except sqlite3.Error as e:
-            QMessageBox.critical(self, "Erreur DB", f"Erreur d'archivage du client:\n{str(e)}")
-        finally:
-            if conn: conn.close()
+            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
+            # cursor = conn.cursor() # Old sqlite3
+            # cursor.execute("UPDATE Clients SET status = 'Archivé' WHERE client_id = ?", (client_id_val,)) # Old sqlite3
+            # conn.commit() # Old sqlite3
+
+            status_archived_obj = db_manager.get_status_setting_by_name('Archivé', 'Client')
+            if not status_archived_obj:
+                QMessageBox.critical(self, self.tr("Erreur Configuration"),
+                                     self.tr("Statut 'Archivé' non trouvé. Veuillez configurer les statuts."))
+                return
+
+            archived_status_id = status_archived_obj['status_id']
+            updated = db_manager.update_client(client_id_val, {'status_id': archived_status_id})
+
+            if updated:
+                self.clients_data_map[client_id_val]["status"] = "Archivé" # Keep UI display name consistent
+                self.clients_data_map[client_id_val]["status_id"] = archived_status_id # Update status_id in local map
+                self.filter_client_list_display()
+                for i in range(self.client_tabs_widget.count()):
+                    tab_w = self.client_tabs_widget.widget(i)
+                    if hasattr(tab_w, 'client_info') and tab_w.client_info["client_id"] == client_id_val:
+                        tab_w.status_combo.setCurrentText("Archivé")
+                        break
+                self.stats_widget.update_stats()
+                QMessageBox.information(self, self.tr("Client Archivé"),
+                                        self.tr("Le client '{0}' a été archivé.").format(self.clients_data_map[client_id_val]['client_name']))
+            else:
+                QMessageBox.critical(self, self.tr("Erreur DB"),
+                                     self.tr("Erreur d'archivage du client. Vérifiez les logs."))
+
+        except Exception as e: # Catch generic db_manager errors or other issues
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'archivage du client:\n{0}").format(str(e)))
+        # finally:
+            # if conn: conn.close() # Old sqlite3
             
     def delete_client_permanently(self, client_id_val): 
         if client_id_val not in self.clients_data_map: return
         client_name_val = self.clients_data_map[client_id_val]['client_name']
-        reply = QMessageBox.question(self, "Confirmer Suppression", f"Supprimer '{client_name_val}'?\nCeci supprimera le client, ses contacts, et son dossier (si possible). Action irréversible.", QMessageBox.Yes | QMessageBox.No)
+        client_folder_path = self.clients_data_map[client_id_val]["base_folder_path"]
+
+        reply = QMessageBox.question(
+            self,
+            self.tr("Confirmer Suppression"),
+            self.tr("Supprimer '{0}'?\nCeci supprimera le client de la base de données (les contacts liés seront détachés mais pas supprimés globalement) et son dossier de fichiers (si possible).\nCette action est irréversible.").format(client_name_val),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
         if reply == QMessageBox.Yes:
-            conn = None
+            # conn = None # Old sqlite3
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id_val,))
-                cursor.execute("DELETE FROM Contacts WHERE client_id = ?", (client_id_val,))
-                conn.commit()
+                # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
+                # cursor = conn.cursor() # Old sqlite3
+                # cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id_val,)) # Old sqlite3
+                # cursor.execute("DELETE FROM Contacts WHERE client_id = ?", (client_id_val,)) # Old, and incorrect schema assumption
+                # conn.commit() # Old sqlite3
+
+                deleted_from_db = db_manager.delete_client(client_id_val)
                 
-                client_folder_path = self.clients_data_map[client_id_val]["base_folder_path"] 
-                if os.path.exists(client_folder_path): shutil.rmtree(client_folder_path, ignore_errors=True) 
-                
+                if deleted_from_db:
+                    if os.path.exists(client_folder_path):
+                        shutil.rmtree(client_folder_path, ignore_errors=True)
+
+                    del self.clients_data_map[client_id_val]
+                    self.filter_client_list_display()
+                    for i in range(self.client_tabs_widget.count()):
+                        if hasattr(self.client_tabs_widget.widget(i), 'client_info') and \
+                           self.client_tabs_widget.widget(i).client_info["client_id"] == client_id_val:
+                            self.close_client_tab(i); break
+                    self.stats_widget.update_stats()
+                    QMessageBox.information(self, self.tr("Client Supprimé"),
+                                            self.tr("Client '{0}' supprimé avec succès.").format(client_name_val))
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"),
+                                         self.tr("Erreur lors de la suppression du client de la base de données. Le dossier n'a pas été supprimé."))
+
+            # except sqlite3.Error as e: QMessageBox.critical(self, "Erreur DB", f"Erreur DB suppression client:\n{str(e)}") # Old sqlite3 error
+            except OSError as e_os:
+                QMessageBox.critical(self, self.tr("Erreur Dossier"),
+                                     self.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier:\n{0}").format(str(e_os)))
+                # Update UI anyway as DB deletion was successful before OS error
                 del self.clients_data_map[client_id_val]
-                self.filter_client_list_display() 
-                for i in range(self.client_tabs_widget.count()): 
-                    if hasattr(self.client_tabs_widget.widget(i), 'client_info') and self.client_tabs_widget.widget(i).client_info["client_id"] == client_id_val:
+                self.filter_client_list_display()
+                for i in range(self.client_tabs_widget.count()):
+                    if hasattr(self.client_tabs_widget.widget(i), 'client_info') and \
+                       self.client_tabs_widget.widget(i).client_info["client_id"] == client_id_val:
                         self.close_client_tab(i); break
                 self.stats_widget.update_stats()
-                QMessageBox.information(self, "Client Supprimé", f"Client '{client_name_val}' supprimé.")
-            except sqlite3.Error as e: QMessageBox.critical(self, "Erreur DB", f"Erreur DB suppression client:\n{str(e)}")
-            except OSError as e: QMessageBox.critical(self, "Erreur Dossier", f"Erreur suppression dossier client:\n{str(e)}") 
-            finally:
-                if conn: conn.close()
+            except Exception as e_db: # Catch generic db_manager errors or other issues
+                 QMessageBox.critical(self, self.tr("Erreur DB"),
+                                      self.tr("Erreur lors de la suppression du client:\n{0}").format(str(e_db)))
+            # finally:
+                # if conn: conn.close() # Old sqlite3
                 
     def check_old_clients_routine(self): 
-        conn = None
+        # conn = None # Old sqlite3
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
+            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
+            # cursor = conn.cursor() # Old sqlite3
             reminder_days_val = self.config.get("default_reminder_days", 30) 
-            cursor.execute(f"SELECT client_id, client_name, creation_date FROM Clients WHERE status NOT IN ('Archivé', 'Complété') AND date(creation_date) <= date('now', '-{reminder_days_val} days')")
-            old_clients_list = cursor.fetchall() 
-            if old_clients_list:
-                client_names_str = "\n".join([f"- {client_row[1]} (créé le {client_row[2]})" for client_row in old_clients_list]) 
-                reply = QMessageBox.question(self, "Clients Anciens Actifs", f"Les clients suivants sont actifs depuis plus de {reminder_days_val} jours:\n{client_names_str}\n\nVoulez-vous les archiver?", QMessageBox.Yes | QMessageBox.No)
+
+            # Fetch status IDs for 'Archivé' and 'Complété'
+            s_archived_obj = db_manager.get_status_setting_by_name('Archivé', 'Client')
+            s_archived_id = s_archived_obj['status_id'] if s_archived_obj else -1 # Use an invalid ID if not found to avoid matching None
+
+            s_complete_obj = db_manager.get_status_setting_by_name('Complété', 'Client')
+            s_complete_id = s_complete_obj['status_id'] if s_complete_obj else -2 # Use another invalid ID
+
+            all_clients = db_manager.get_all_clients()
+            if all_clients is None: all_clients = []
+
+            old_clients_to_notify = []
+            cutoff_date = datetime.now() - timedelta(days=reminder_days_val)
+
+            for client in all_clients:
+                if client.get('status_id') not in [s_archived_id, s_complete_id]:
+                    creation_date_str = client.get('created_at') # Format 'YYYY-MM-DDTHH:MM:SS.ffffffZ' or similar
+                    if creation_date_str:
+                        try:
+                            # Attempt to parse with common ISO formats, handling potential 'Z'
+                            if 'T' in creation_date_str and '.' in creation_date_str: # More precise format
+                                client_creation_date = datetime.fromisoformat(creation_date_str.split('.')[0]) # Remove microseconds for simplicity
+                            elif 'T' in creation_date_str: # Format like 'YYYY-MM-DDTHH:MM:SS'
+                                 client_creation_date = datetime.fromisoformat(creation_date_str.replace('Z', ''))
+                            else: # Simpler date format like 'YYYY-MM-DD'
+                                client_creation_date = datetime.strptime(creation_date_str, "%Y-%m-%d")
+
+                            if client_creation_date <= cutoff_date:
+                                old_clients_to_notify.append({
+                                    'client_id': client.get('client_id'),
+                                    'client_name': client.get('client_name'),
+                                    'creation_date_str': client_creation_date.strftime("%Y-%m-%d") # For display
+                                })
+                        except ValueError as ve:
+                            print(f"Could not parse creation_date '{creation_date_str}' for client {client.get('client_id')}: {ve}")
+                            continue # Skip this client if date is unparseable
+
+            # Old SQL query:
+            # cursor.execute(f"SELECT client_id, client_name, creation_date FROM Clients WHERE status NOT IN ('Archivé', 'Complété') AND date(creation_date) <= date('now', '-{reminder_days_val} days')")
+            # old_clients_list = cursor.fetchall()
+
+            if old_clients_to_notify:
+                client_names_str = "\n".join([f"- {c['client_name']} (créé le {c['creation_date_str']})" for c in old_clients_to_notify])
+                reply = QMessageBox.question(
+                    self,
+                    self.tr("Clients Anciens Actifs"),
+                    self.tr("Les clients suivants sont actifs depuis plus de {0} jours:\n{1}\n\nVoulez-vous les archiver?").format(reminder_days_val, client_names_str),
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
                 if reply == QMessageBox.Yes:
-                    for client_row in old_clients_list: self.set_client_status_archived(client_row[0]) 
-        except sqlite3.Error as e: print(f"Erreur vérification clients anciens: {str(e)}")
-        finally:
-            if conn: conn.close()
+                    for c_info in old_clients_to_notify:
+                        self.set_client_status_archived(c_info['client_id']) # This method now uses db_manager
+
+        except Exception as e: # Catch generic db_manager or other errors
+            print(f"Erreur vérification clients anciens: {str(e)}")
+        # finally:
+            # if conn: conn.close() # Old sqlite3
             
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self)
