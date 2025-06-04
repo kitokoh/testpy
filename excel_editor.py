@@ -1,87 +1,44 @@
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Fill, Alignment, Border, Side, PatternFill, NamedStyle
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.worksheet.merge import MergedCellRange
 import os
 import sys
 import logging
 import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
-from openpyxl import load_workbook, Workbook
-from openpyxl.styles import Font, Fill, Alignment, Border, Side, PatternFill, NamedStyle
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.worksheet import Worksheet
-from openpyxl.worksheet.merge import MergedCellRange
-from PyQt5.QtWidgets import (
-    QDialog, QTableWidget, QTableWidgetItem, QMessageBox, 
-    QVBoxLayout, QHBoxLayout, QPushButton, QDialogButtonBox,
-    QAbstractItemView, QHeaderView, QFileDialog, QProgressBar,
-    QLabel, QFrame, QSplitter, QWidget, QGroupBox, QFormLayout,
-    QLineEdit, QTextEdit, QComboBox, QSpinBox, QCheckBox, QStyleFactory, QAction
-)
-from PyQt5.QtGui import QFont, QColor, QIcon, QPalette, QBrush, QKeySequence
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtWidgets import QSpinBox
 
 # Reportlab imports
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, landscape, A4
-from reportlab.lib.units import inch, cm
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Define APP_ROOT_DIR for font path resolution
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    # PyInstaller creates a temp folder and stores path in _MEIPASS
-    APP_ROOT_DIR = sys._MEIPASS
-else:
-    APP_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
 # Enregistrer les polices pour Unicode
-# Arial
 try:
-    arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-    if os.path.exists(arial_path):
-        pdfmetrics.registerFont(TTFont('Arial', arial_path))
-    else:
-        print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
-except Exception as e:
-    print(f"Error registering Arial font: {e}")
+    pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+    pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
+except:
+    # Fallback si les polices ne sont pas disponibles
+    pass
 
-# Arial Bold
-try:
-    arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-    if os.path.exists(arial_bold_path):
-        pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-    else:
-        print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
-except Exception as e:
-    print(f"Error registering Arial Bold font: {e}")
-
-# Showcard Gothic
-try:
-    showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf') # Common name is Showcard Gothic.ttf or showg.ttf
-    # Attempt with ShowcardGothic.ttf first, then showg.ttf if not found
-    if not os.path.exists(showcard_path):
-        showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-        if os.path.exists(showcard_path_alt):
-            showcard_path = showcard_path_alt # Use alternative path
-
-    if os.path.exists(showcard_path):
-        pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
-        print(f"Successfully registered Showcard Gothic from {showcard_path}")
-    else:
-        # Fallback or warning if Showcard Gothic is not found
-        print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
-        # Example fallback: register Arial as Showcard Gothic
-        # try:
-        #     arial_fallback_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-        #     if os.path.exists(arial_fallback_path):
-        #        pdfmetrics.registerFont(TTFont('Showcard Gothic', arial_fallback_path))
-        #        print(f"Registered Arial as fallback for Showcard Gothic.")
-        # except Exception as fallback_e:
-        #    print(f"Could not register Arial as fallback for Showcard Gothic: {fallback_e}")
-except Exception as e:
-    print(f"Error registering Showcard Gothic font: {e}")
+# PyQt5 imports
+from PyQt5.QtWidgets import (
+    QDialog, QTableWidget, QTableWidgetItem, QMessageBox, 
+    QVBoxLayout, QHBoxLayout, QPushButton, 
+    QAbstractItemView, QHeaderView, QFileDialog, QProgressBar,
+    QLabel, QFrame, QSplitter, QWidget, QGroupBox, QFormLayout,
+    QLineEdit, QTextEdit, QComboBox, QStyleFactory
+)
+from PyQt5.QtGui import QFont, QColor, QIcon
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 
 
 class ExcelProcessor(QThread):
@@ -152,11 +109,9 @@ class ExcelProcessor(QThread):
             self.finished_signal.emit(False, str(e))
             
     def _save_excel(self):
-        # Implémentation de sauvegarde optimisée
         pass
         
     def _export_pdf(self):
-        # Implémentation d'export PDF
         pass
 
 
@@ -586,6 +541,7 @@ class ExcelEditor(QDialog):
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
         
+        # Créer l'interface avant de charger les données
         self._setup_ui()
         self._connect_signals()
         self._load_data()
@@ -895,6 +851,8 @@ class ExcelEditor(QDialog):
         try:
             self._update_status(f"Chargement de la feuille: {sheet.title}", "#3498db")
             self.table_widget.clear()
+            self.table_widget.setRowCount(0)
+            self.table_widget.setColumnCount(0)
             
             # Charger les cellules fusionnées
             self.merged_cells = []
@@ -976,7 +934,7 @@ class ExcelEditor(QDialog):
             return
             
         sheet_name = self.workbook.sheetnames[index]
-        if sheet_name == self.active_sheet.title:
+        if self.active_sheet and sheet_name == self.active_sheet.title:
             return
             
         # Sauvegarder les modifications de la feuille courante
