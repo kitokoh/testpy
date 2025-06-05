@@ -1913,7 +1913,7 @@ class DocumentManager(QMainWindow):
         selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
 
         if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
-            country_obj = db_manager.get_country_by_name(country_name_str)
+            country_obj = db_manager.get_country_by_id(selected_country_id)
             if country_obj:
                 selected_country_id = country_obj['country_id']
             else:
