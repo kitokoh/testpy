@@ -1056,17 +1056,27 @@ class ClientWidget(QWidget):
             if conn: conn.close()
             
     def update_client_status(self, status_text): 
-        conn = None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE Clients SET status = ? WHERE client_id = ?", (status_text, self.client_info["client_id"]))
-            conn.commit()
-            self.client_info["status"] = status_text 
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+            status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+            if status_setting and status_setting.get('status_id') is not None:
+                status_id_to_set = status_setting['status_id']
+                client_id_to_update = self.client_info["client_id"]
+
+                if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                    self.client_info["status"] = status_text # Keep display name
+                    self.client_info["status_id"] = status_id_to_set # Update the id in the local map
+                    # Find the item in the main list and update its UserRole for the delegate
+                    # This part is tricky as ClientWidget doesn't have direct access to DocumentManager.client_list_widget
+                    # For now, we'll rely on a full refresh from DocumentManager if the list display needs immediate color change,
+                    # or accept that the color might only update on next full load/filter.
+                    # Consider emitting a signal if immediate update of list widget item is needed.
+                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
+            else:
+                QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
             
     def save_client_notes(self): 
         notes = self.notes_edit.toPlainText()
@@ -1913,9 +1923,10 @@ class DocumentManager(QMainWindow):
         selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
 
         if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
-            country_obj = db_manager.get_country_by_name(country_name_str)
-            if country_obj:
-                selected_country_id = country_obj['country_id']
+            # Try to get country by name if ID is not available (e.g., user typed a new country name)
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name:
+                selected_country_id = country_obj_by_name['country_id']
             else:
                 # If country_name_str is from an editable combo box and not in DB, do nothing.
                 return
@@ -1932,21 +1943,30 @@ class DocumentManager(QMainWindow):
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
         if ok and country_text.strip():
             try:
-                # db_manager.add_country should handle IntegrityError for unique names
-                new_country_obj = db_manager.add_country({'country_name': country_text.strip()})
-                if new_country_obj and new_country_obj.get('country_id'):
-                    self.load_countries_into_combo()
-                    index = self.country_select_combo.findText(country_text.strip())
+                country_name_to_add = country_text.strip()
+                # db_manager.add_country returns the country_id (int) or None
+                returned_country_id = db_manager.add_country({'country_name': country_name_to_add})
+
+                if returned_country_id is not None:
+                    # Country was successfully added or already existed and its ID was returned.
+                    self.load_countries_into_combo() # Refresh the combo box
+                    # Find the country by text to select it.
+                    # The combo box items store country_id in UserRole, but findText works on display text.
+                    index = self.country_select_combo.findText(country_name_to_add)
                     if index >= 0:
                         self.country_select_combo.setCurrentIndex(index)
-                elif db_manager.get_country_by_name(country_text.strip()): # Check if it failed because it exists
-                     QMessageBox.warning(self, self.tr("Pays Existant"), self.tr("Ce pays existe déjà."))
-                     index = self.country_select_combo.findText(country_text.strip()) # Select existing
-                     if index >=0: self.country_select_combo.setCurrentIndex(index)
+                    # Check if the country was pre-existing by trying to get it by name again
+                    # This is a bit redundant as add_country now handles the "already exists" case by returning its ID.
+                    # We can simplify the user message.
+                    # If we reach here, it means add_country gave us an ID.
+                    # We don't need to explicitly show "Pays Existant" unless add_country itself printed it.
+                    # The main goal is that the combo is updated and the correct item is selected.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:\n{0}").format(str(e)))
+                    # This case means db_manager.add_country returned None, indicating an unexpected error.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. La fonction add_country a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions during the process
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout du pays:\n{0}").format(str(e)))
                 
     def add_new_city_dialog(self):
         current_country_name = self.country_select_combo.currentText()
@@ -1958,23 +1978,27 @@ class DocumentManager(QMainWindow):
         city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
         if ok and city_text.strip():
             try:
-                city_data = {'country_id': current_country_id, 'city_name': city_text.strip()}
-                # db_manager.add_city should handle IntegrityError for unique (country_id, city_name)
-                new_city_obj = db_manager.add_city(city_data)
+                city_name_to_add = city_text.strip()
+                city_data = {'country_id': current_country_id, 'city_name': city_name_to_add}
 
-                if new_city_obj and new_city_obj.get('city_id'):
-                    self.load_cities_for_country(current_country_name)
-                    index = self.city_select_combo.findText(city_text.strip())
+                returned_city_id = db_manager.add_city(city_data)
+
+                if returned_city_id is not None:
+                    # City was successfully added or already existed and its ID was returned.
+                    self.load_cities_for_country(current_country_name) # Refresh the city combo for the current country
+                    index = self.city_select_combo.findText(city_name_to_add)
                     if index >= 0:
-                         self.city_select_combo.setCurrentIndex(index)
-                elif db_manager.get_city_by_name_and_country_id(city_text.strip(), current_country_id):
-                     QMessageBox.warning(self, self.tr("Ville Existante"), self.tr("Cette ville existe déjà pour ce pays."))
-                     index = self.city_select_combo.findText(city_text.strip()) # Select existing
-                     if index >=0: self.city_select_combo.setCurrentIndex(index)
+                        self.city_select_combo.setCurrentIndex(index)
+                    # No need for an explicit "Ville Existante" message here,
+                    # as db.add_city now handles returning the ID of an existing city or a new one.
+                    # If an ID is returned, the operation was successful from the main.py perspective.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:\n{0}").format(str(e)))
+                    # This means db_manager.add_city returned None, indicating an issue like missing country_id/city_name or a DB error.
+                    # The db.add_city function itself prints specific errors for missing fields.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. La fonction add_city a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout de la ville:\n{0}").format(str(e)))
                 
     def generate_new_client_id(self):
         # This function is no longer used to generate primary client IDs as db_manager.add_client handles UUID generation.
@@ -2641,7 +2665,7 @@ def main():
         PACKING_LISTE_TEMPLATE_NAME: pd.DataFrame({'Colis': [1], 'Contenu': ["Marchandise X"], 'Poids': [5.0]})
     }
 
-    for lang_code in default_langs:
+    for lang_code in all_supported_template_langs:
         lang_specific_dir = os.path.join(templates_root_dir, lang_code)
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
