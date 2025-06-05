@@ -508,7 +508,7 @@ class ModernLineEdit(QLineEdit):
             QLineEdit:focus {
                 border-color: #80bdff;
                 outline: 0;
-                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); /* Not directly supported, use QGraphicsDropShadowEffect if exact match needed */
+                /* box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); */ /* Removed as it's not directly supported and QGraphicsDropShadowEffect is used */
             }
             QLineEdit:disabled {
                 background-color: #e9ecef;
@@ -1834,41 +1834,56 @@ class CoverPageGenerator(QMainWindow):
         buffer.open(QIODevice.ReadWrite)
 
         # --- Register Fonts ---
+        effective_arial_font = 'Helvetica'
+        effective_arial_bold_font = 'Helvetica-Bold'
+        effective_showcard_font = 'Helvetica' # Default fallback for Showcard Gothic
+
         # Arial
         try:
             arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
             if os.path.exists(arial_path):
                 pdfmetrics.registerFont(TTFont('Arial', arial_path))
+                effective_arial_font = 'Arial'
+                print(f"Successfully registered Arial from {arial_path}")
             else:
-                print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
+                print(f"Warning: Custom Arial font not found at {arial_path}. Using Helvetica.")
         except Exception as e:
-            print(f"Error registering Arial font: {e}")
+            print(f"Error registering custom Arial font from {arial_path}: {e}. Using Helvetica.")
 
         # Arial Bold
-        try:
-            arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-            if os.path.exists(arial_bold_path):
+        arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
+        if os.path.exists(arial_bold_path):
+            try:
                 pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-            else:
-                print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
-        except Exception as e:
-            print(f"Error registering Arial Bold font: {e}")
+                effective_arial_bold_font = 'Arial-Bold'
+                print(f"Successfully registered Arial-Bold from {arial_bold_path}")
+            except Exception as e:
+                print(f"Error registering custom Arial Bold font from {arial_bold_path}: {e}. Using Helvetica-Bold.")
+        else:
+            print(f"Warning: Custom Arial Bold font file 'arialbd.ttf' not found in 'fonts/' directory. Using Helvetica-Bold.")
 
         # Showcard Gothic
-        try:
-            showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
-            if not os.path.exists(showcard_path): # Try alternate name
-                showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-                if os.path.exists(showcard_path_alt):
-                    showcard_path = showcard_path_alt
-
+        showcard_font_name_to_register = 'Showcard Gothic'
+        showcard_paths_to_try = [
+            os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf'),
+            os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
+        ]
+        showcard_registered = False
+        for showcard_path in showcard_paths_to_try:
             if os.path.exists(showcard_path):
-                pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
-                print(f"Successfully registered Showcard Gothic from {showcard_path}")
-            else:
-                print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
-        except Exception as e:
-            print(f"Error registering Showcard Gothic font: {e}")
+                try:
+                    pdfmetrics.registerFont(TTFont(showcard_font_name_to_register, showcard_path))
+                    effective_showcard_font = showcard_font_name_to_register
+                    showcard_registered = True
+                    print(f"Successfully registered {showcard_font_name_to_register} from {showcard_path}")
+                    break
+                except Exception as e:
+                    print(f"Error registering {showcard_font_name_to_register} font from {showcard_path}: {e}")
+
+        if not showcard_registered:
+            print(f"Warning: Failed to load custom '{showcard_font_name_to_register}' font from expected paths. "
+                  f"Please ensure 'fonts/ShowcardGothic.ttf' or 'fonts/showg.ttf' is a valid TTF file. "
+                  f"Falling back to {effective_showcard_font}. Appearance will differ.")
         # --- End Font Registration ---
         
         # Use the CLI PDF generator class, but instantiated, not as a class method
@@ -1883,46 +1898,73 @@ class CoverPageGenerator(QMainWindow):
         
         # Simplified call to a hypothetical PDF generation logic class:
         try:
-            # pdf_logic = PDFGenerator_Logic( # Instantiate the logic class
-            #     title=pdf_config.get("title"),
-            #     subtitle=pdf_config.get("subtitle"),
-            #     # ... pass all other relevant items from pdf_config ...
-            #     custom_config=pdf_config # Pass the whole dict
-            # )
-            # # The logic class's generate method should accept a file-like object
-            # pdf_logic.generate(output_filename_or_buffer=buffer) # This needs adjustment in CLI class
+            # --- Text Sanitization ---
+            title_str = pdf_config.get("title", "").encode('latin-1', errors='replace').decode('latin-1')
+            subtitle_str = pdf_config.get("subtitle", "").encode('latin-1', errors='replace').decode('latin-1')
+            author_str = pdf_config.get("author", "").encode('latin-1', errors='replace').decode('latin-1')
+            # institution_str = pdf_config.get("institution", "").encode('latin-1', errors='replace').decode('latin-1') # Example if needed later
+            # department_str = pdf_config.get("department", "").encode('latin-1', errors='replace').decode('latin-1')
+            # doc_type_str = pdf_config.get("doc_type", "").encode('latin-1', errors='replace').decode('latin-1')
+            # date_str = pdf_config.get("date", "").encode('latin-1', errors='replace').decode('latin-1')
+            # version_str = pdf_config.get("version", "").encode('latin-1', errors='replace').decode('latin-1')
+            # footer_text_str = pdf_config.get("footer_text", "").encode('latin-1', errors='replace').decode('latin-1')
             
-            # Direct ReportLab usage for simplicity here, mirroring the CLI class's logic
-            # This part should be identical to the PDF generation logic from the CLI script
-            # For demonstration, a very simplified version:
             c = reportlab_canvas.Canvas(buffer, pagesize=A4)
-            c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_title", 24))
+
+            # Determine font to use based on pdf_config and registration success
+            requested_font_name = pdf_config.get("font_name", "Arial")
+            font_to_use = effective_arial_font # Default to Arial (or its fallback)
+
+            if requested_font_name == 'Arial-Bold':
+                font_to_use = effective_arial_bold_font
+            elif requested_font_name == 'Showcard Gothic':
+                font_to_use = effective_showcard_font
+            elif requested_font_name != 'Arial':
+                font_to_use = requested_font_name
+                # print(f"Warning: Font '{font_to_use}' requested directly in generate_pdf_to_buffer. Ensure it is standard or pre-registered.")
+
+            # --- Minimal PDF Test (Commented Out) ---
+            # """
+            # # == MINIMAL PDF TEST CODE (Uncomment to use) ==
+            # c.setFont('Helvetica', 12)
+            # c.drawString(100, 750, "Minimal Test String - ASCII")
+            # print("Minimal PDF test drawing attempted.")
+            # c.save()
+            # buffer.seek(0)
+            # pdf_bytes = buffer.data().data()
+            # buffer.close()
+            # print("Minimal PDF test finished.")
+            # return pdf_bytes
+            # """
+            # --- End Minimal PDF Test ---
+
+            c.setFont(font_to_use, pdf_config.get("font_size_title", 24))
             
             title_y = A4[1] - pdf_config.get("margin_top",25)*mm - 30*mm
-            if pdf_config.get("title"):
-                 c.drawCentredString(A4[0]/2, title_y, pdf_config.get("title"))
+            if title_str: # Use sanitized string
+                 c.drawCentredString(A4[0]/2, title_y, title_str)
             
-            if pdf_config.get("subtitle"):
-                c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_subtitle", 18))
+            c.setFont(font_to_use, pdf_config.get("font_size_subtitle", 18))
+            if subtitle_str: # Use sanitized string
                 title_y -= 15*mm
-                c.drawCentredString(A4[0]/2, title_y, pdf_config.get("subtitle"))
+                c.drawCentredString(A4[0]/2, title_y, subtitle_str)
 
-            if pdf_config.get("author"):
-                c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_author", 12))
-                author_y = A4[1]/2 # Example position
-                c.drawCentredString(A4[0]/2, author_y, pdf_config.get("author"))
+            c.setFont(font_to_use, pdf_config.get("font_size_author", 12))
+            if author_str: # Use sanitized string
+                author_y = A4[1]/2
+                c.drawCentredString(A4[0]/2, author_y, author_str)
 
             if pdf_config.get("logo_data"):
                 try:
-                    logo_image = ImageReader(QBuffer(QByteArray(pdf_config.get("logo_data")))) # Wrap bytes in QBuffer for ImageReader
-                    # Example positioning, make this configurable
+                    logo_image = ImageReader(QBuffer(QByteArray(pdf_config.get("logo_data"))))
                     c.drawImage(logo_image, A4[0]/2 - 25*mm, A4[1] - 60*mm, width=50*mm, height=50*mm, preserveAspectRatio=True)
                 except Exception as logo_e:
-                    print(f"Error drawing logo in PDF: {logo_e}", file=sys.stderr)
+                    print(f"Error drawing logo in PDF (generate_pdf_to_buffer): {logo_e}", file=sys.stderr)
 
+            print("PDF drawing commands completed for generate_pdf_to_buffer. Attempting to save.")
             c.save()
             buffer.seek(0)
-            pdf_bytes = buffer.data().data() # Get bytes from QByteArray
+            pdf_bytes = buffer.data().data()
             buffer.close()
             return pdf_bytes
 
@@ -2103,132 +2145,166 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
     # --- Register Fonts (copied from original generate_pdf_to_buffer) ---
     # This section should ideally be managed globally or passed if fonts are pre-registered.
     # For now, keeping it here to ensure the logic is self-contained.
+    # --- Register Fonts ---
+    effective_arial_font = 'Helvetica'
+    effective_arial_bold_font = 'Helvetica-Bold'
+    effective_showcard_font = 'Helvetica' # Default fallback for Showcard Gothic
+
     # Arial
     try:
         arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
         if os.path.exists(arial_path):
             pdfmetrics.registerFont(TTFont('Arial', arial_path))
+            effective_arial_font = 'Arial'
+            print(f"Successfully registered Arial from {arial_path} in generate_cover_page_logic")
         else:
-            print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
+            print(f"Warning (generate_cover_page_logic): Custom Arial font not found at {arial_path}. Using Helvetica.")
     except Exception as e:
-        print(f"Error registering Arial font: {e}")
+        print(f"Error (generate_cover_page_logic): Registering custom Arial font from {arial_path}: {e}. Using Helvetica.")
 
     # Arial Bold
-    try:
-        arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-        if os.path.exists(arial_bold_path):
+    arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
+    if os.path.exists(arial_bold_path):
+        try:
             pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-        else:
-            print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
-    except Exception as e:
-        print(f"Error registering Arial Bold font: {e}")
+            effective_arial_bold_font = 'Arial-Bold'
+            print(f"Successfully registered Arial-Bold from {arial_bold_path} in generate_cover_page_logic")
+        except Exception as e:
+            print(f"Error (generate_cover_page_logic): Registering custom Arial Bold from {arial_bold_path}: {e}. Using Helvetica-Bold.")
+    else:
+        print(f"Warning (generate_cover_page_logic): Custom Arial Bold font 'arialbd.ttf' not found in 'fonts/'. Using Helvetica-Bold.")
 
     # Showcard Gothic
-    try:
-        showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
-        if not os.path.exists(showcard_path): # Try alternate name
-            showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-            if os.path.exists(showcard_path_alt):
-                showcard_path = showcard_path_alt
-
+    showcard_font_name_to_register = 'Showcard Gothic'
+    showcard_paths_to_try = [
+        os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf'),
+        os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
+    ]
+    showcard_registered = False
+    for showcard_path in showcard_paths_to_try:
         if os.path.exists(showcard_path):
-            pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
-            print(f"Successfully registered Showcard Gothic from {showcard_path}")
-        else:
-            print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
-    except Exception as e:
-        print(f"Error registering Showcard Gothic font: {e}")
+            try:
+                pdfmetrics.registerFont(TTFont(showcard_font_name_to_register, showcard_path))
+                effective_showcard_font = showcard_font_name_to_register
+                showcard_registered = True
+                print(f"Successfully registered {showcard_font_name_to_register} from {showcard_path} in generate_cover_page_logic")
+                break
+            except Exception as e:
+                print(f"Error (generate_cover_page_logic): Registering {showcard_font_name_to_register} from {showcard_path}: {e}")
+
+    if not showcard_registered:
+        print(f"Warning (generate_cover_page_logic): Failed to load custom '{showcard_font_name_to_register}' font. "
+              f"Ensure 'fonts/ShowcardGothic.ttf' or 'fonts/showg.ttf' is valid. "
+              f"Falling back to {effective_showcard_font}. Appearance will differ.")
     # --- End Font Registration ---
 
     c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
-    # Use values from the config dictionary
-    # Example: Using config.get('key', default_value) pattern
+    # --- Text Sanitization ---
+    title_str = config.get("title", "").encode('latin-1', errors='replace').decode('latin-1')
+    subtitle_str = config.get("subtitle", "").encode('latin-1', errors='replace').decode('latin-1')
+    author_str = config.get("author", "").encode('latin-1', errors='replace').decode('latin-1')
+    institution_str = config.get("institution", "").encode('latin-1', errors='replace').decode('latin-1')
+    department_str = config.get("department", "").encode('latin-1', errors='replace').decode('latin-1')
+    doc_type_str = config.get("doc_type", "").encode('latin-1', errors='replace').decode('latin-1')
+    date_str = config.get("date", "").encode('latin-1', errors='replace').decode('latin-1')
+    version_str = config.get("version", "").encode('latin-1', errors='replace').decode('latin-1')
+    footer_text_str = config.get("footer_text", "").encode('latin-1', errors='replace').decode('latin-1')
+
+
+    # Determine base font to use based on pdf_config and registration success
+    requested_base_font_name = config.get("font_name", "Arial") # Default to "Arial" if not specified in config
+    base_font_to_use = effective_arial_font # Default to Arial (or its fallback)
+
+    if requested_base_font_name == 'Arial-Bold':
+        base_font_to_use = effective_arial_bold_font
+    elif requested_base_font_name == 'Showcard Gothic':
+        base_font_to_use = effective_showcard_font
+    elif requested_base_font_name != 'Arial': # If a different font than Arial was requested
+        base_font_to_use = requested_base_font_name # Use it directly, hoping it's standard or pre-registered
+        # print(f"Warning (generate_cover_page_logic): Font '{base_font_to_use}' requested directly. Ensure it's standard or pre-registered.")
+
+    # --- Minimal PDF Test (Commented Out) ---
+    # """
+    # # == MINIMAL PDF TEST CODE (Uncomment to use) ==
+    # c.setFont('Helvetica', 12)
+    # c.drawString(100, 750, "Minimal Test String - ASCII")
+    # print("Minimal PDF test drawing attempted for generate_cover_page_logic.")
+    # c.save()
+    # buffer.seek(0)
+    # pdf_bytes = buffer.getvalue()
+    # buffer.close()
+    # print("Minimal PDF test finished for generate_cover_page_logic.")
+    # return pdf_bytes
+    # """
+    # --- End Minimal PDF Test ---
 
     # Title
-    title_font_name = config.get("font_name", "Helvetica") # Default to Helvetica if not specified
-    title_font_size = config.get("font_size_title", 24)
-    c.setFont(title_font_name, title_font_size)
-
+    c.setFont(base_font_to_use, config.get("font_size_title", 24))
     title_y = A4[1] - config.get("margin_top", 25) * mm - 30 * mm # Example y position
-    if config.get("title"):
-        c.drawCentredString(A4[0] / 2, title_y, config.get("title"))
+    if title_str:
+        c.drawCentredString(A4[0] / 2, title_y, title_str)
 
     # Subtitle
-    subtitle_font_name = config.get("font_name", "Helvetica") # Could be different, e.g., config.get("font_name_subtitle")
-    subtitle_font_size = config.get("font_size_subtitle", 18)
-    if config.get("subtitle"):
-        c.setFont(subtitle_font_name, subtitle_font_size)
+    c.setFont(base_font_to_use, config.get("font_size_subtitle", 18))
+    if subtitle_str:
         title_y -= 15 * mm # Adjust Y position
-        c.drawCentredString(A4[0] / 2, title_y, config.get("subtitle"))
+        c.drawCentredString(A4[0] / 2, title_y, subtitle_str)
 
     # Author
-    author_font_name = config.get("font_name", "Helvetica") # config.get("font_name_author")
-    author_font_size = config.get("font_size_author", 12)
-    if config.get("author"):
-        c.setFont(author_font_name, author_font_size)
+    c.setFont(base_font_to_use, config.get("font_size_author", 12))
+    if author_str:
         author_y = A4[1] / 2  # Example position, make configurable via config
-        c.drawCentredString(A4[0] / 2, author_y, config.get("author"))
+        c.drawCentredString(A4[0] / 2, author_y, author_str)
 
     # Institution (similar to author)
-    if config.get("institution"):
-        c.setFont(author_font_name, author_font_size) # Assuming same font as author for now
+    if institution_str:
         institution_y = author_y - 10 * mm # Adjust as needed
-        c.drawCentredString(A4[0] / 2, institution_y, config.get("institution"))
+        c.drawCentredString(A4[0] / 2, institution_y, institution_str)
 
     # Department (similar to institution)
-    if config.get("department"):
-        c.setFont(author_font_name, author_font_size)
+    if department_str:
         department_y = institution_y - 7*mm
-        c.drawCentredString(A4[0]/2, department_y, config.get("department"))
+        c.drawCentredString(A4[0]/2, department_y, department_str)
 
     # Document Type
-    if config.get("doc_type"):
-        c.setFont(author_font_name, author_font_size) # Assuming same font
+    if doc_type_str:
         doc_type_y = department_y - 15*mm # Adjust
-        c.drawCentredString(A4[0]/2, doc_type_y, config.get("doc_type"))
+        c.drawCentredString(A4[0]/2, doc_type_y, doc_type_str)
 
     # Date & Version (typically at bottom or specific locations)
-    date_version_font_name = config.get("font_name", "Helvetica")
-    date_version_font_size = config.get("font_size_footer", 10) # Example, use a specific size
-    c.setFont(date_version_font_name, date_version_font_size)
+    c.setFont(base_font_to_use, config.get("font_size_footer", 10))
 
-    date_text = config.get("date", "")
-    version_text = config.get("version", "")
-
-    if date_text:
-        c.drawString(config.get("margin_left", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Date: {date_text}")
-    if version_text:
-        c.drawRightString(A4[0] - config.get("margin_right", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Version: {version_text}")
+    if date_str: # Use sanitized string
+        c.drawString(config.get("margin_left", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Date: {date_str}")
+    if version_str: # Use sanitized string
+        c.drawRightString(A4[0] - config.get("margin_right", 20)*mm, config.get("margin_bottom", 25)*mm + 10*mm, f"Version: {version_str}")
 
 
     # Logo
     if config.get("logo_data"):
         try:
-            logo_buffer = io.BytesIO(config.get("logo_data")) # ReportLab ImageReader needs a file-like object
+            logo_buffer = io.BytesIO(config.get("logo_data"))
             logo_image = ImageReader(logo_buffer)
 
-            # Positioning and sizing from config, with defaults
             logo_width_mm = config.get("logo_width_mm", 50)
-            logo_height_mm = config.get("logo_height_mm", 50) # Not used directly if preserveAspectRatio=True for drawImage
+            logo_height_mm = config.get("logo_height_mm", 50)
 
-            # Default to top center if not specified
             default_logo_x_mm = (A4[0]/mm - logo_width_mm) / 2
-            default_logo_y_mm = A4[1]/mm - config.get("margin_top", 25) - logo_width_mm - 10 # above title typically
+            default_logo_y_mm = A4[1]/mm - config.get("margin_top", 25) - logo_width_mm - 10
 
             logo_x_mm = config.get("logo_x_mm", default_logo_x_mm)
             logo_y_mm = config.get("logo_y_mm", default_logo_y_mm)
 
             c.drawImage(logo_image, logo_x_mm * mm, logo_y_mm * mm,
-                        width=logo_width_mm * mm, height=logo_height_mm*mm, # height is max_height with preserveAspectRatio
+                        width=logo_width_mm * mm, height=logo_height_mm*mm,
                         preserveAspectRatio=True, anchor='c', mask='auto')
         except Exception as logo_e:
             print(f"Error drawing logo in PDF (logic function): {logo_e}", file=sys.stderr)
-            # Optionally draw a placeholder or skip
 
     # Horizontal Line
     if config.get("show_horizontal_line", True):
-        line_y_mm = config.get("line_y_position_mm", A4[1]/mm / 2 + 20*mm) # Example position
+        line_y_mm = config.get("line_y_position_mm", A4[1]/mm / 2 + 20*mm)
         line_color_hex = config.get("line_color_hex", "#000000")
         line_thickness_pt = config.get("line_thickness_pt", 0.5)
 
@@ -2237,10 +2313,12 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
         c.line(config.get("margin_left", 20)*mm, line_y_mm*mm, A4[0] - config.get("margin_right", 20)*mm, line_y_mm*mm)
 
     # Footer text (example)
-    if config.get("footer_text"):
-        c.setFont(date_version_font_name, config.get("font_size_footer", 8))
-        c.drawCentredString(A4[0]/2, config.get("margin_bottom", 25)*mm / 2, config.get("footer_text"))
+    if footer_text_str: # Use sanitized string
+        # Font for footer was set with Date/Version, assuming it's the same: base_font_to_use, size_footer
+        c.setFont(base_font_to_use, config.get("font_size_footer", 8)) # Ensure font is set before drawing
+        c.drawCentredString(A4[0]/2, config.get("margin_bottom", 25)*mm / 2, footer_text_str)
 
+    print("PDF drawing commands completed for generate_cover_page_logic. Attempting to save.")
     c.save()
     pdf_bytes = buffer.getvalue()
     buffer.close()
@@ -2251,6 +2329,13 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
 def main():
     # Ensure resource file is imported if you use qrc paths (e.g. :/icons/)
     # import resources_rc # Assuming your .qrc is compiled to resources_rc.py
+
+    # For high DPI scaling (optional but recommended)
+    # These should be set BEFORE the QApplication is instantiated.
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     
     app = QApplication(sys.argv)
     app.setApplicationName("CoverPageGenerator")
@@ -2278,12 +2363,6 @@ def main():
     # QLocale.setDefault(QLocale(preferred_lang_code)) # This would need lang code e.g. 'en_US'
 
     del temp_db # Clean up temporary DB manager
-
-    # For high DPI scaling (optional but recommended)
-    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
-        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
-        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     main_window = CoverPageGenerator()
     main_window.show()
