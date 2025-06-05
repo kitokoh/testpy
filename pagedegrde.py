@@ -1874,24 +1874,32 @@ class CoverPageGenerator(QMainWindow):
             # For demonstration, a very simplified version:
             c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
-            # Determine font to use based on pdf_config and registration success
-            requested_font_name = pdf_config.get("font_name", "Arial")
-            font_to_use = effective_arial_font # Default to effective Arial
+            requested_font_name = pdf_config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+            font_to_use = None
+            standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+                "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+                "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+                "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+                "Symbol", "ZapfDingbats"
+            ]
 
-            if requested_font_name == 'Arial': # Check for 'Arial'
+            if requested_font_name in registered_fonts_map:
+                # It's one of the fonts we handle (Arial, Arial-Bold, Showcard Gothic)
+                font_to_use = registered_fonts_map[requested_font_name]
+                # If it fell back to Helvetica, and the original request was not Helvetica,
+                # it means our custom font wasn't found. Warning already issued by _register_fonts.
+            elif requested_font_name in standard_pdf_fonts:
+                # It's a standard PDF font ReportLab should know
+                font_to_use = requested_font_name
+            else:
+                # Font is not a registered custom font and not a known standard PDF font.
+                # This is where '8514oem' would be caught.
+                warning_message = f"Font '{requested_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+                QMessageBox.warning(self, "Font Substitution Warning", self.translator.tr(warning_message)) # Assuming translator can handle this or it's fine in English
+                font_to_use = effective_arial_font # Fallback to effective Arial
+
+            if not font_to_use: # Should not happen with the logic above, but as a safeguard
                 font_to_use = effective_arial_font
-            elif requested_font_name == 'Arial-Bold':
-                font_to_use = effective_arial_bold_font
-            elif requested_font_name == 'Showcard Gothic':
-                font_to_use = effective_showcard_font
-            # Check if the requested font is one we attempted to register (even if it fell back to Helvetica)
-            elif requested_font_name in registered_fonts_map:
-                 font_to_use = registered_fonts_map[requested_font_name] # Use the effective name
-            else: # Requested font is not one of the explicitly handled ones (Arial, Arial-Bold, Showcard Gothic)
-                font_to_use = requested_font_name # Use it directly
-                # This warning is important if the font isn't standard or wasn't registered by _register_fonts
-                print(f"Warning: Font '{font_to_use}' requested directly. Ensure it is a standard PDF font or already registered. ReportLab fallback may occur if not found.")
-
             c.setFont(font_to_use, pdf_config.get("font_size_title", 24))
             
             title_y = A4[1] - pdf_config.get("margin_top",25)*mm - 30*mm
@@ -2206,23 +2214,27 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
     c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
     # Determine base font to use based on pdf_config and registration success
-    requested_base_font_name = config.get("font_name", "Arial") # Default to "Arial" if not specified in config
-    base_font_to_use = effective_arial_font # Default to effective Arial
+    requested_base_font_name = config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+    base_font_to_use = None
+    standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+        "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+        "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+        "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+        "Symbol", "ZapfDingbats"
+    ]
 
-    if requested_base_font_name == 'Arial': # Check for 'Arial'
+    if requested_base_font_name in registered_fonts_map:
+        base_font_to_use = registered_fonts_map[requested_base_font_name]
+        # Warnings for custom fonts already handled by printing messages from _register_fonts's return
+    elif requested_base_font_name in standard_pdf_fonts:
+        base_font_to_use = requested_base_font_name
+    else:
+        warning_message = f"Font '{requested_base_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+        print(f"Warning (generate_cover_page_logic): {warning_message}", file=sys.stderr)
+        base_font_to_use = effective_arial_font # Fallback
+
+    if not base_font_to_use: # Safeguard
         base_font_to_use = effective_arial_font
-    elif requested_base_font_name == 'Arial-Bold':
-        base_font_to_use = effective_arial_bold_font
-    elif requested_base_font_name == 'Showcard Gothic':
-        base_font_to_use = effective_showcard_font
-    # Check if the requested font is one we attempted to register (even if it fell back)
-    elif requested_base_font_name in registered_fonts_map:
-        base_font_to_use = registered_fonts_map[requested_base_font_name] # Use the effective name
-    else: # Requested font is not one of the explicitly handled ones
-        base_font_to_use = requested_base_font_name # Use it directly
-        # This warning is important if the font isn't standard or wasn't registered by _register_fonts
-        print(f"Warning (generate_cover_page_logic): Font '{base_font_to_use}' requested directly. Ensure it is a standard PDF font or already registered. ReportLab fallback may occur if not found.")
-
     # Title
     c.setFont(base_font_to_use, config.get("font_size_title", 24))
     title_y = A4[1] - config.get("margin_top", 25) * mm - 30 * mm # Example y position
