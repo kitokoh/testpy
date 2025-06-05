@@ -2721,6 +2721,22 @@ def get_country_by_id(country_id: int) -> dict | None:
     finally:
         if conn: conn.close()
 
+def get_country_by_name(country_name: str) -> dict | None:
+    """Retrieves a country by its name. Returns a dict or None if not found."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_country_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 def get_all_cities(country_id: int = None) -> list[dict]:
     conn = None
     try:
