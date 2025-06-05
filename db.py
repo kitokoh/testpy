@@ -83,6 +83,45 @@ def initialize_database():
     )
     """)
 
+    # --- Pre-populate StatusSettings ---
+    default_statuses = [
+        # Client Statuses
+        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
+        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False}, # Yellow
+        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'is_completion_status': False, 'is_archival_status': False}, # Green
+        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'is_completion_status': False, 'is_archival_status': True},  # Grey
+        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'is_completion_status': True, 'is_archival_status': False}, # Darker Green
+        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True},  # Darker Grey
+        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},   # Red
+
+        # Project Statuses
+        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'is_completion_status': False, 'is_archival_status': False}, # Turquoise
+        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
+        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'is_completion_status': False, 'is_archival_status': False},# Orange
+        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},  # Green
+        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'is_completion_status': False, 'is_archival_status': True},   # Dark Red
+        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'is_completion_status': False, 'is_archival_status': False}, # Purple
+
+        # Task Statuses
+        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'is_completion_status': False, 'is_archival_status': False},      # Light Grey
+        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False},# Blue
+        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},     # Green
+        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},    # Red
+        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False},     # Yellow
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True}   # Dark Grey
+    ]
+
+    for status in default_statuses:
+        cursor.execute("""
+            INSERT OR IGNORE INTO StatusSettings (
+                status_name, status_type, color_hex, is_completion_status, is_archival_status
+            ) VALUES (?, ?, ?, ?, ?)
+        """, (
+            status['status_name'], status['status_type'], status['color_hex'],
+            status.get('is_completion_status', False),
+            status.get('is_archival_status', False)
+        ))
+
     # Create Clients table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Clients (
@@ -2720,6 +2759,56 @@ def get_country_by_id(country_id: int) -> dict | None:
         return None
     finally:
         if conn: conn.close()
+
+def get_country_by_name(country_name: str) -> dict | None:
+    """Retrieves a country by its name. Returns a dict or None if not found."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_country_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def add_country(country_data: dict) -> int | None:
+    """
+    Adds a new country to the Countries table.
+    Expects country_data to contain 'country_name'.
+    Returns the country_id of the newly added or existing country.
+    Returns None if an unexpected error occurs.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        country_name = country_data.get('country_name')
+        if not country_name:
+            print("Error: 'country_name' is required to add a country.")
+            return None
+
+        try:
+            cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Country name already exists, fetch its ID
+            print(f"Country '{country_name}' already exists. Fetching its ID.")
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            row = cursor.fetchone()
+            return row['country_id'] if row else None
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_country: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_all_cities(country_id: int = None) -> list[dict]:
     conn = None

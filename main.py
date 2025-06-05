@@ -1913,9 +1913,10 @@ class DocumentManager(QMainWindow):
         selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
 
         if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
-            country_obj = db_manager.get_country_by_name(country_name_str)
-            if country_obj:
-                selected_country_id = country_obj['country_id']
+            # Try to get country by name if ID is not available (e.g., user typed a new country name)
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name:
+                selected_country_id = country_obj_by_name['country_id']
             else:
                 # If country_name_str is from an editable combo box and not in DB, do nothing.
                 return
@@ -1932,21 +1933,30 @@ class DocumentManager(QMainWindow):
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
         if ok and country_text.strip():
             try:
-                # db_manager.add_country should handle IntegrityError for unique names
-                new_country_obj = db_manager.add_country({'country_name': country_text.strip()})
-                if new_country_obj and new_country_obj.get('country_id'):
-                    self.load_countries_into_combo()
-                    index = self.country_select_combo.findText(country_text.strip())
+                country_name_to_add = country_text.strip()
+                # db_manager.add_country returns the country_id (int) or None
+                returned_country_id = db_manager.add_country({'country_name': country_name_to_add})
+
+                if returned_country_id is not None:
+                    # Country was successfully added or already existed and its ID was returned.
+                    self.load_countries_into_combo() # Refresh the combo box
+                    # Find the country by text to select it.
+                    # The combo box items store country_id in UserRole, but findText works on display text.
+                    index = self.country_select_combo.findText(country_name_to_add)
                     if index >= 0:
                         self.country_select_combo.setCurrentIndex(index)
-                elif db_manager.get_country_by_name(country_text.strip()): # Check if it failed because it exists
-                     QMessageBox.warning(self, self.tr("Pays Existant"), self.tr("Ce pays existe déjà."))
-                     index = self.country_select_combo.findText(country_text.strip()) # Select existing
-                     if index >=0: self.country_select_combo.setCurrentIndex(index)
+                    # Check if the country was pre-existing by trying to get it by name again
+                    # This is a bit redundant as add_country now handles the "already exists" case by returning its ID.
+                    # We can simplify the user message.
+                    # If we reach here, it means add_country gave us an ID.
+                    # We don't need to explicitly show "Pays Existant" unless add_country itself printed it.
+                    # The main goal is that the combo is updated and the correct item is selected.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:\n{0}").format(str(e)))
+                    # This case means db_manager.add_country returned None, indicating an unexpected error.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. La fonction add_country a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions during the process
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout du pays:\n{0}").format(str(e)))
                 
     def add_new_city_dialog(self):
         current_country_name = self.country_select_combo.currentText()
@@ -2641,7 +2651,7 @@ def main():
         PACKING_LISTE_TEMPLATE_NAME: pd.DataFrame({'Colis': [1], 'Contenu': ["Marchandise X"], 'Poids': [5.0]})
     }
 
-    for lang_code in default_langs:
+    for lang_code in all_supported_template_langs:
         lang_specific_dir = os.path.join(templates_root_dir, lang_code)
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
