@@ -2641,7 +2641,7 @@ def main():
         PACKING_LISTE_TEMPLATE_NAME: pd.DataFrame({'Colis': [1], 'Contenu': ["Marchandise X"], 'Poids': [5.0]})
     }
 
-    for lang_code in default_langs:
+    for lang_code in all_supported_template_langs:
         lang_specific_dir = os.path.join(templates_root_dir, lang_code)
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
