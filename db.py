@@ -1131,6 +1131,25 @@ def get_user_by_username(username: str) -> dict | None:
         if conn:
             conn.close()
 
+def get_all_users() -> list[dict]:
+    """
+    Retrieves all users from the Users table.
+    Returns a list of dictionaries, where each dictionary represents a user.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Users")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_users: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def update_user(user_id: str, user_data: dict) -> bool:
     """
     Updates an existing user's information.
