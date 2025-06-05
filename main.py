@@ -1057,17 +1057,27 @@ class ClientWidget(QWidget):
             if conn: conn.close()
             
     def update_client_status(self, status_text): 
-        conn = None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE Clients SET status = ? WHERE client_id = ?", (status_text, self.client_info["client_id"]))
-            conn.commit()
-            self.client_info["status"] = status_text 
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+            status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+            if status_setting and status_setting.get('status_id') is not None:
+                status_id_to_set = status_setting['status_id']
+                client_id_to_update = self.client_info["client_id"]
+
+                if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                    self.client_info["status"] = status_text # Keep display name
+                    self.client_info["status_id"] = status_id_to_set # Update the id in the local map
+                    # Find the item in the main list and update its UserRole for the delegate
+                    # This part is tricky as ClientWidget doesn't have direct access to DocumentManager.client_list_widget
+                    # For now, we'll rely on a full refresh from DocumentManager if the list display needs immediate color change,
+                    # or accept that the color might only update on next full load/filter.
+                    # Consider emitting a signal if immediate update of list widget item is needed.
+                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
+            else:
+                QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
             
     def save_client_notes(self): 
         notes = self.notes_edit.toPlainText()

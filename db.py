@@ -1698,6 +1698,24 @@ def get_product_by_id(product_id: int) -> dict | None:
     finally:
         if conn: conn.close()
 
+def get_product_by_name(product_name: str) -> dict | None:
+    """Retrieves a product by its exact name. Returns a dict or None if not found."""
+    conn = None
+    if not product_name:
+        return None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_product_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 def get_all_products(filters: dict = None) -> list[dict]:
     """Retrieves all products. Filters by category (exact) or product_name (partial LIKE)."""
     conn = None
