@@ -1913,7 +1913,7 @@ class DocumentManager(QMainWindow):
         selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
 
         if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
-            country_obj = db_manager.get_country_by_name(country_name_str)
+            country_obj = db_manager.get_country_by_id(selected_country_id)
             if country_obj:
                 selected_country_id = country_obj['country_id']
             else:
@@ -2641,7 +2641,7 @@ def main():
         PACKING_LISTE_TEMPLATE_NAME: pd.DataFrame({'Colis': [1], 'Contenu': ["Marchandise X"], 'Poids': [5.0]})
     }
 
-    for lang_code in default_langs:
+    for lang_code in all_supported_template_langs:
         lang_specific_dir = os.path.join(templates_root_dir, lang_code)
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
