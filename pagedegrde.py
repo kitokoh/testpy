@@ -625,7 +625,10 @@ class PreviewWidget(QGraphicsView):
                 self.display_error_message("Impossible de charger l'aperçu du PDF.")
                 return
 
-            pixmap = QPixmap.fromImage(image)
+            # Create a copy of the image before converting to QPixmap
+            # to potentially help with QPaintDevice lifecycle issues.
+            copied_image = image.copy()
+            pixmap = QPixmap.fromImage(copied_image)
             if self.page_item:
                 self.scene.removeItem(self.page_item)
             
@@ -674,7 +677,7 @@ class PreviewWidget(QGraphicsView):
         painter.drawText(int((image_width_px - text_rect.width()) / 2), int((image_height_px / 2) - text_rect.height()), text_to_draw)
         
         painter.setFont(QFont("Arial", 10))
-        painter.drawText(10, image_height_px - 10, "Note: Ceci est un aperçu simplifié.")
+        painter.drawText(10, int(image_height_px - 10), "Note: Ceci est un aperçu simplifié.")
         painter.end()
         return image
 
