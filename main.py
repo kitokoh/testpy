@@ -210,7 +210,7 @@ class TemplateDialog(QDialog):
                 item.setData(Qt.UserRole, row[0]) 
                 self.template_list.addItem(item)
         except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{str(e)}"))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
         finally:
             if conn: conn.close()
             
@@ -247,7 +247,7 @@ class TemplateDialog(QDialog):
             self.load_templates()
             QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle ajouté avec succès."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:\n{str(e)}"))
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:\n{0}").format(str(e)))
         finally:
             if conn: conn.close()
             
@@ -2670,10 +2670,44 @@ def main():
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
             template_full_path = os.path.join(lang_specific_dir, template_file_name) 
+            created_file_on_disk = False
             if not os.path.exists(template_full_path):
                 try:
                     df_content.to_excel(template_full_path, index=False)
-                except Exception as e: print(f"Erreur création template {template_file_name} pour {lang_code}: {str(e)}")
+                    print(f"Created default template file: {template_full_path}")
+                    created_file_on_disk = True
+                except Exception as e:
+                    print(f"Erreur création template file {template_file_name} pour {lang_code}: {str(e)}")
+
+            # Regardless of whether it was just created or already existed, try to register in DB
+            # Determine template name and type from filename for registration
+            template_name_for_db = "Unknown Template"
+            if template_file_name == SPEC_TECH_TEMPLATE_NAME:
+                template_name_for_db = "Spécification Technique (Défaut)"
+            elif template_file_name == PROFORMA_TEMPLATE_NAME:
+                template_name_for_db = "Proforma (Défaut)"
+            elif template_file_name == CONTRAT_VENTE_TEMPLATE_NAME:
+                template_name_for_db = "Contrat de Vente (Défaut)"
+            elif template_file_name == PACKING_LISTE_TEMPLATE_NAME:
+                template_name_for_db = "Packing Liste (Défaut)"
+
+            template_metadata = {
+                'template_name': template_name_for_db,
+                'template_type': 'document_excel', # Assuming all these defaults are Excel
+                'language_code': lang_code,
+                'base_file_name': template_file_name,
+                'description': f"Modèle Excel par défaut pour {template_name_for_db} en {lang_code}.",
+                'category': "Général",
+                'is_default_for_type_lang': True
+            }
+            db_template_id = db_manager.add_default_template_if_not_exists(template_metadata)
+            if db_template_id:
+                if created_file_on_disk:
+                    print(f"Successfully registered new default template '{template_name_for_db}' ({lang_code}) in DB with ID: {db_template_id}")
+                # else: # File already existed, but ensure it's in DB
+                    # print(f"Ensured default template '{template_name_for_db}' ({lang_code}) is registered in DB with ID: {db_template_id}")
+            # else: # Error during DB registration
+                # print(f"Failed to register default template '{template_name_for_db}' ({lang_code}) in DB.")
     
     main_window = DocumentManager() 
     main_window.show()
