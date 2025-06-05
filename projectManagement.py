@@ -1747,82 +1747,43 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.tasks_table.resizeColumnsToContents()
 
     def load_activities(self):
-                frame.setStyleSheet("""
-                    QFrame {
-                        background-color: white;
-                        border-radius: 5px;
-                        padding: 15px;
-                        border: 1px solid #e0e0e0;
-                    }
-                    QLabel {
-                        font-size: 14px;
-                        color: #555555;
-                    }
-                    QLabel#kpi_title {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #2c3e50;
-                    }
-                    QLabel#kpi_value {
-                        font-size: 28px;
-                        font-weight: bold;
-                        color: #3498db;
-                    }
-                """)
-                frame.setFixedWidth(220)
+        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
+        # For now, preventing crash
+        # with self.db.get_connection() as conn:
+        #     cursor = conn.cursor()
+        #     cursor.execute('''
+        #         SELECT a.timestamp, u.full_name, a.action, a.details
+        #         FROM activities a
+        #         LEFT JOIN users u ON a.user_id = u.id
+        #         ORDER BY a.timestamp DESC
+        #         LIMIT 50
+        #     ''')
+        #     activities = cursor.fetchall()
+        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
+        if activities_data is None: activities_data = []
 
-                frame_layout = QVBoxLayout(frame)
-                frame_layout.setSpacing(5)
+        self.activities_table.setRowCount(len(activities_data))
 
-                title = QLabel(name.capitalize())
-                title.setObjectName("kpi_title")
+        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
+            # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
+            # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
 
-                value_label = QLabel(f"{value}{unit}")
-                value_label.setObjectName("kpi_value")
+            user_name_display = "System" # Default if user_id is None or user not found
+            user_id_for_log = log_entry.get('user_id')
+            if user_id_for_log:
+                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
+                if user_info:
+                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
 
-                target_label = QLabel(f"Target: {target}{unit}")
+            self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
+            self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
+            self.activities_table.setItem(row_idx, 2, QTableWidgetItem(log_entry.get('action_type', 'N/A')))
+            self.activities_table.setItem(row_idx, 3, QTableWidgetItem(log_entry.get('details', '')))
 
-                trend_icon = QLabel()
-                if trend == "up":
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
-                elif trend == "down":
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
-                else:
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
+        self.activities_table.resizeColumnsToContents()
 
-                trend_layout = QHBoxLayout()
-                trend_layout.addWidget(QLabel("Trend:"))
-                trend_layout.addWidget(trend_icon)
-                trend_layout.addStretch()
-
-                frame_layout.addWidget(title)
-                frame_layout.addWidget(value_label)
-                frame_layout.addWidget(target_label)
-                frame_layout.addLayout(trend_layout)
-
-                self.kpi_layout.addWidget(frame)
-
-            # If no KPIs, create examples
-            if not kpis:
-                example_kpis = [
-                    ("Productivity", 78, 85, "up", "%"),
-                    ("Quality", 92, 90, "stable", "%"),
-                    ("Efficiency", 81, 80, "up", "%"),
-                    ("Satisfaction", 88, 85, "down", "%")
-                ]
-
-                for name, value, target, trend, unit in example_kpis:
-                    cursor.execute('''
-                        INSERT INTO kpis (name, value, target, trend, unit)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (name, value, target, trend, unit))
-
-                conn.commit()
-                # Reload KPIs
-                self.load_kpis()
-
-        # This is the corrected load_team_members from the previous step.
-        # Uses main_db_manager.get_all_team_members()
+    def load_team_members(self):
+        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
         # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
         # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
 
@@ -3667,41 +3628,41 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             layout = QFormLayout(dialog)
 
-                username_label = QLabel(user_data.get('username', 'N/A'))
-                name_label = QLabel(user_data.get('full_name', 'N/A'))
+            username_label = QLabel(user_data.get('username', 'N/A'))
+            name_label = QLabel(user_data.get('full_name', 'N/A'))
 
-                role_combo = QComboBox()
-                role_combo.addItems(["Administrator", "Manager", "User"]) # These should match roles in db.py
-                                                                        # Consider fetching roles if they become dynamic
-                role_map = { # Assuming roles in db.py are 'admin', 'manager', 'member' or similar
-                    "admin": "Administrator",
-                    "manager": "Manager",
-                    "member": "User", # Adjust if db.py uses 'user'
-                    # Add other roles from db.py if necessary
-                }
-                # db.py stores roles like 'admin', 'manager', 'member'
-                # Need to map them to display names if different, or use db.py roles directly in combo
-                current_role_in_db = user_data.get('role', 'member') # Default to 'member' or a base role
+            role_combo = QComboBox()
+            role_combo.addItems(["Administrator", "Manager", "User"]) # These should match roles in db.py
+                                                                    # Consider fetching roles if they become dynamic
+            role_map = { # Assuming roles in db.py are 'admin', 'manager', 'member' or similar
+                "admin": "Administrator",
+                "manager": "Manager",
+                "member": "User", # Adjust if db.py uses 'user'
+                # Add other roles from db.py if necessary
+            }
+            # db.py stores roles like 'admin', 'manager', 'member'
+            # Need to map them to display names if different, or use db.py roles directly in combo
+            current_role_in_db = user_data.get('role', 'member') # Default to 'member' or a base role
 
-                # Find the display name for the current role from db
-                display_role = "User" # Default display
-                for db_role_val, display_name_val in role_map.items():
-                    if db_role_val == current_role_in_db:
-                        display_role = display_name_val
-                        break
-                role_combo.setCurrentText(display_role)
+            # Find the display name for the current role from db
+            display_role = "User" # Default display
+            for db_role_val, display_name_val in role_map.items():
+                if db_role_val == current_role_in_db:
+                    display_role = display_name_val
+                    break
+            role_combo.setCurrentText(display_role)
 
 
-                button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-                button_box.accepted.connect(dialog.accept)
-                button_box.rejected.connect(dialog.reject)
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
 
-                layout.addRow("Username:", username_label)
-                layout.addRow("Full Name:", name_label)
-                layout.addRow("Role:", role_combo)
-                layout.addRow(button_box)
+            layout.addRow("Username:", username_label)
+            layout.addRow("Full Name:", name_label)
+            layout.addRow("Role:", role_combo)
+            layout.addRow(button_box)
 
-                if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec_() == QDialog.Accepted:
                     selected_display_role = role_combo.currentText()
                     # Convert display role back to db.py role value
                     new_role_for_db = 'member' # default
