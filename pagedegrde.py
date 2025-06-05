@@ -2081,15 +2081,31 @@ class CoverPageGenerator(QMainWindow):
             event.ignore()
             
     def show_about_dialog(self):
+        about_text_key = ("<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n"
+                          "<p>Une application pour créer facilement des pages de garde personnalisées.\n"
+                          "<p>Développé avec PyQt5 et ReportLab.\n"
+                          "<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n"
+                          "<p><a href='https://example.com'>Visitez notre site web</a>\n")
+        about_text = self.translator.tr(about_text_key)
+
+        font_title_key = "about_font_info_title"
+        arial_info_key = "about_font_arial_info"
+        showcard_info_key = "about_font_showcard_info"
+        standard_info_key = "about_font_standard_pdf_info"
+
+        font_title = self.translator.tr(font_title_key)
+        arial_info = self.translator.tr(arial_info_key)
+        showcard_info = self.translator.tr(showcard_info_key)
+        standard_info = self.translator.tr(standard_info_key)
+
+        full_about_text = (f"{about_text}<br><br>"
+                           f"<h3>{font_title}</h3>"
+                           f"<p>{arial_info}</p>"
+                           f"<p>{showcard_info}</p>"
+                           f"<p>{standard_info}</p>")
+
         QMessageBox.about(self, self.translator.tr("À propos de Générateur de Page de Garde"),
-                          self.translator.tr(
-                          """
-                          <b>Générateur de Page de Garde Moderne</b> v0.1 Alpha
-                          <p>Une application pour créer facilement des pages de garde personnalisées.
-                          <p>Développé avec PyQt5 et ReportLab.
-                          <p>© 2023 Votre Nom/Organisation. Tous droits réservés.
-                          <p><a href='https://example.com'>Visitez notre site web</a>
-                          """)
+                          full_about_text
                           )
 
 # --- Standalone PDF Generation Logic ---
