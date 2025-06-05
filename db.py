@@ -749,6 +749,80 @@ def delete_template(template_id: int) -> bool:
         if conn:
             conn.close()
 
+def add_default_template_if_not_exists(template_data: dict) -> int | None:
+    """
+    Adds a template to the Templates table if it doesn't already exist
+    based on template_name, template_type, and language_code.
+    Returns the template_id of the new or existing template, or None on error.
+    Expects template_data to include:
+        'template_name' (e.g., "Proforma"),
+        'template_type' (e.g., "document_excel", "document_word"),
+        'language_code' (e.g., "fr", "en"),
+        'base_file_name' (e.g., "proforma_template.xlsx"),
+        'description' (optional),
+        'category' (optional, e.g., "Finance", "Technical"),
+        'is_default_for_type_lang' (optional, boolean, defaults to False)
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        name = template_data.get('template_name')
+        ttype = template_data.get('template_type')
+        lang = template_data.get('language_code')
+        filename = template_data.get('base_file_name')
+
+        if not all([name, ttype, lang, filename]):
+            print(f"Error: Missing required fields for default template: {template_data}")
+            return None
+
+        # Check if this specific template (name, type, lang) already exists
+        cursor.execute("""
+            SELECT template_id FROM Templates
+            WHERE template_name = ? AND template_type = ? AND language_code = ?
+        """, (name, ttype, lang))
+        existing_template = cursor.fetchone()
+
+        if existing_template:
+            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
+            return existing_template['template_id']
+        else:
+            now = datetime.utcnow().isoformat() + "Z"
+            sql = """
+                INSERT INTO Templates (
+                    template_name, template_type, language_code, base_file_name,
+                    description, category, is_default_for_type_lang,
+                    created_at, updated_at
+                    -- created_by_user_id could be NULL or a system user ID
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            params = (
+                name,
+                ttype,
+                lang,
+                filename,
+                template_data.get('description', f"Default {name} template"),
+                template_data.get('category', "Général"),
+                template_data.get('is_default_for_type_lang', True), # Make default templates the default for their type/lang
+                now,
+                now
+            )
+            cursor.execute(sql, params)
+            conn.commit()
+            new_id = cursor.lastrowid
+            print(f"Added default template '{name}' ({ttype}, {lang}) with ID: {new_id}.")
+            return new_id
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
+        if conn:
+            conn.rollback() # Rollback on error
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Projects
 def add_project(project_data: dict) -> str | None:
     """
