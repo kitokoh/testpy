@@ -456,16 +456,17 @@ def add_client(client_data: dict) -> str | None:
         # Ensure all required fields are present, or provide defaults
         sql = """
             INSERT INTO Clients (
-                client_id, client_name, company_name, primary_need_description,
+                client_id, client_name, company_name, primary_need_description, project_identifier,
                 country_id, city_id, default_base_folder_path, status_id,
                 selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_client_id,
             client_data.get('client_name'),
             client_data.get('company_name'),
             client_data.get('primary_need_description'),
+            client_data.get('project_identifier'), # Added
             client_data.get('country_id'),
             client_data.get('city_id'),
             client_data.get('default_base_folder_path'),
@@ -2829,6 +2830,66 @@ def get_all_cities(country_id: int = None) -> list[dict]:
         return []
     finally:
         if conn: conn.close()
+
+def add_city(city_data: dict) -> int | None:
+    """
+    Adds a new city to the Cities table.
+    Expects city_data to contain 'country_id' and 'city_name'.
+    Returns the city_id of the newly added or existing city.
+    Returns None if an unexpected error occurs or if country_id or city_name is missing.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        country_id = city_data.get('country_id')
+        city_name = city_data.get('city_name')
+
+        if not country_id or not city_name:
+            print("Error: 'country_id' and 'city_name' are required to add a city.")
+            return None
+
+        try:
+            # Check if city already exists for this country to avoid IntegrityError for composite uniqueness if not explicitly handled by schema (though schema doesn't show composite unique constraint for city_name+country_id, it's good practice)
+            # However, the current schema for Cities does not have a UNIQUE constraint on (country_id, city_name).
+            # It only has city_id as PK and country_id as FK.
+            # So, we will just insert. If a stricter uniqueness is needed, the table schema should be updated.
+            cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # This part would be relevant if there was a UNIQUE constraint on (country_id, city_name)
+            # For now, this block might not be hit unless city_name itself becomes unique across all countries (which is not typical)
+            print(f"IntegrityError likely means city '{city_name}' under country_id '{country_id}' already exists or other constraint failed.")
+            # If it were unique and we wanted to return existing:
+            # cursor.execute("SELECT city_id FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
+            # row = cursor.fetchone()
+            # return row['city_id'] if row else None
+            return None # For now, any IntegrityError is treated as a failure to add as new.
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_city: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_city_by_name_and_country_id(city_name: str, country_id: int) -> dict | None:
+    """Retrieves a specific city by name for a given country_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_city_by_name_and_country_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_city_by_id(city_id: int) -> dict | None:
     conn = None

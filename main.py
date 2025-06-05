@@ -1968,23 +1968,27 @@ class DocumentManager(QMainWindow):
         city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
         if ok and city_text.strip():
             try:
-                city_data = {'country_id': current_country_id, 'city_name': city_text.strip()}
-                # db_manager.add_city should handle IntegrityError for unique (country_id, city_name)
-                new_city_obj = db_manager.add_city(city_data)
+                city_name_to_add = city_text.strip()
+                city_data = {'country_id': current_country_id, 'city_name': city_name_to_add}
 
-                if new_city_obj and new_city_obj.get('city_id'):
-                    self.load_cities_for_country(current_country_name)
-                    index = self.city_select_combo.findText(city_text.strip())
+                returned_city_id = db_manager.add_city(city_data)
+
+                if returned_city_id is not None:
+                    # City was successfully added or already existed and its ID was returned.
+                    self.load_cities_for_country(current_country_name) # Refresh the city combo for the current country
+                    index = self.city_select_combo.findText(city_name_to_add)
                     if index >= 0:
-                         self.city_select_combo.setCurrentIndex(index)
-                elif db_manager.get_city_by_name_and_country_id(city_text.strip(), current_country_id):
-                     QMessageBox.warning(self, self.tr("Ville Existante"), self.tr("Cette ville existe déjà pour ce pays."))
-                     index = self.city_select_combo.findText(city_text.strip()) # Select existing
-                     if index >=0: self.city_select_combo.setCurrentIndex(index)
+                        self.city_select_combo.setCurrentIndex(index)
+                    # No need for an explicit "Ville Existante" message here,
+                    # as db.add_city now handles returning the ID of an existing city or a new one.
+                    # If an ID is returned, the operation was successful from the main.py perspective.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:\n{0}").format(str(e)))
+                    # This means db_manager.add_city returned None, indicating an issue like missing country_id/city_name or a DB error.
+                    # The db.add_city function itself prints specific errors for missing fields.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. La fonction add_city a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout de la ville:\n{0}").format(str(e)))
                 
     def generate_new_client_id(self):
         # This function is no longer used to generate primary client IDs as db_manager.add_client handles UUID generation.
