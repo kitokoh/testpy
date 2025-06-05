@@ -1131,25 +1131,6 @@ def get_user_by_username(username: str) -> dict | None:
         if conn:
             conn.close()
 
-def get_all_users() -> list[dict]:
-    """
-    Retrieves all users from the Users table.
-    Returns a list of dictionaries, where each dictionary represents a user.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Users")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_users: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
 def update_user(user_id: str, user_data: dict) -> bool:
     """
     Updates an existing user's information.
@@ -2751,6 +2732,40 @@ def get_country_by_name(country_name: str) -> dict | None:
         return dict(row) if row else None
     except sqlite3.Error as e:
         print(f"Database error in get_country_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def add_country(country_data: dict) -> int | None:
+    """
+    Adds a new country to the Countries table.
+    Expects country_data to contain 'country_name'.
+    Returns the country_id of the newly added or existing country.
+    Returns None if an unexpected error occurs.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        country_name = country_data.get('country_name')
+        if not country_name:
+            print("Error: 'country_name' is required to add a country.")
+            return None
+
+        try:
+            cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Country name already exists, fetch its ID
+            print(f"Country '{country_name}' already exists. Fetching its ID.")
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            row = cursor.fetchone()
+            return row['country_id'] if row else None
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_country: {e}")
         return None
     finally:
         if conn:
