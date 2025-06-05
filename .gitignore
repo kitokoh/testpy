@@ -1,0 +1,44 @@
+# Environnement virtuel Python
+env/
+venv/
+ENV/
+.venv/
+
+# Fichiers Python compilés
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Fichiers de log et de debug
+*.log
+
+# Fichiers de cache / temporaires
+*.tmp
+*.bak
+*.swp
+
+# Fichiers de sortie (PDF, images générées)
+*.pdf
+*.png
+*.jpg
+
+# Configuration d’IDE (VSCode, PyCharm, etc.)
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Fonts téléchargées si elles ne doivent pas être versionnées
+fonts/
+
+# Fichier de base de données SQLite (si présent)
+*.sqlite3
+*.db
+
+# Autres fichiers utilisateurs
+*.env
