@@ -1787,7 +1787,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
         # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
 
-        members_data = main_db_manager.get_all_team_members()
+        members_data = db_manager.get_all_team_members()
         if members_data is None: members_data = []
 
         self.team_table.setRowCount(len(members_data))
@@ -1853,7 +1853,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
         # priority (INTEGER), created_at, updated_at
 
-        projects_data = main_db_manager.get_all_projects()
+        projects_data = db_manager.get_all_projects()
         if projects_data is None:
             projects_data = []
 
@@ -1867,7 +1867,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name_display = "Unknown"
             status_color_hex = "#7f8c8d"
             if status_id is not None:
-                status_setting = main_db_manager.get_status_setting_by_id(status_id)
+                status_setting = db_manager.get_status_setting_by_id(status_id)
                 if status_setting:
                     status_name_display = status_setting.get('status_name', 'Unknown')
                     color_from_db = status_setting.get('color_hex')
@@ -1919,11 +1919,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             manager_user_id = project_dict.get('manager_team_member_id')
             manager_display_name = "Unassigned"
             if manager_user_id:
-                team_member_as_manager_list = main_db_manager.get_all_team_members({'user_id': manager_user_id})
+                team_member_as_manager_list = db_manager.get_all_team_members({'user_id': manager_user_id})
                 if team_member_as_manager_list and len(team_member_as_manager_list) > 0:
                     manager_display_name = team_member_as_manager_list[0].get('full_name', manager_user_id)
                 else:
-                    user_as_manager = main_db_manager.get_user_by_id(manager_user_id)
+                    user_as_manager = db_manager.get_user_by_id(manager_user_id)
                     if user_as_manager:
                         manager_display_name = user_as_manager.get('full_name', manager_user_id)
             self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
