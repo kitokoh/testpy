@@ -36,6 +36,7 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 from docx import Document # Added for .docx support
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
+import sqlite3
 
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
