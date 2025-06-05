@@ -625,7 +625,10 @@ class PreviewWidget(QGraphicsView):
                 self.display_error_message("Impossible de charger l'aperçu du PDF.")
                 return
 
-            pixmap = QPixmap.fromImage(image)
+            # Create a copy of the image before converting to QPixmap
+            # to potentially help with QPaintDevice lifecycle issues.
+            copied_image = image.copy()
+            pixmap = QPixmap.fromImage(copied_image)
             if self.page_item:
                 self.scene.removeItem(self.page_item)
             
@@ -671,10 +674,10 @@ class PreviewWidget(QGraphicsView):
 
         fm = QFontMetrics(painter.font())
         text_rect = fm.boundingRect(text_to_draw)
-        painter.drawText((image_width_px - text_rect.width()) / 2, (image_height_px / 2) - text_rect.height(), text_to_draw)
+        painter.drawText(int((image_width_px - text_rect.width()) / 2), int((image_height_px / 2) - text_rect.height()), text_to_draw)
         
         painter.setFont(QFont("Arial", 10))
-        painter.drawText(10, image_height_px - 10, "Note: Ceci est un aperçu simplifié.")
+        painter.drawText(10, int(image_height_px - 10), "Note: Ceci est un aperçu simplifié.")
         painter.end()
         return image
 
@@ -1834,56 +1837,14 @@ class CoverPageGenerator(QMainWindow):
         buffer.open(QIODevice.ReadWrite)
 
         # --- Register Fonts ---
-        effective_arial_font = 'Helvetica'
-        effective_arial_bold_font = 'Helvetica-Bold'
-        effective_showcard_font = 'Helvetica' # Default fallback for Showcard Gothic
+        registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
+        if font_warnings:
+            for warning_message in font_warnings:
+                QMessageBox.warning(self, "Font Loading Warning", warning_message)
 
-        # Arial
-        try:
-            arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-            if os.path.exists(arial_path):
-                pdfmetrics.registerFont(TTFont('Arial', arial_path))
-                effective_arial_font = 'Arial'
-                print(f"Successfully registered Arial from {arial_path}")
-            else:
-                print(f"Warning: Custom Arial font not found at {arial_path}. Using Helvetica.")
-        except Exception as e:
-            print(f"Error registering custom Arial font from {arial_path}: {e}. Using Helvetica.")
-
-        # Arial Bold
-        arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-        if os.path.exists(arial_bold_path):
-            try:
-                pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-                effective_arial_bold_font = 'Arial-Bold'
-                print(f"Successfully registered Arial-Bold from {arial_bold_path}")
-            except Exception as e:
-                print(f"Error registering custom Arial Bold font from {arial_bold_path}: {e}. Using Helvetica-Bold.")
-        else:
-            print(f"Warning: Custom Arial Bold font file 'arialbd.ttf' not found in 'fonts/' directory. Using Helvetica-Bold.")
-
-        # Showcard Gothic
-        showcard_font_name_to_register = 'Showcard Gothic'
-        showcard_paths_to_try = [
-            os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf'),
-            os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-        ]
-        showcard_registered = False
-        for showcard_path in showcard_paths_to_try:
-            if os.path.exists(showcard_path):
-                try:
-                    pdfmetrics.registerFont(TTFont(showcard_font_name_to_register, showcard_path))
-                    effective_showcard_font = showcard_font_name_to_register
-                    showcard_registered = True
-                    print(f"Successfully registered {showcard_font_name_to_register} from {showcard_path}")
-                    break
-                except Exception as e:
-                    print(f"Error registering {showcard_font_name_to_register} font from {showcard_path}: {e}")
-
-        if not showcard_registered:
-            print(f"Warning: Failed to load custom '{showcard_font_name_to_register}' font from expected paths. "
-                  f"Please ensure 'fonts/ShowcardGothic.ttf' or 'fonts/showg.ttf' is a valid TTF file. "
-                  f"Falling back to {effective_showcard_font}. Appearance will differ.")
+        effective_arial_font = registered_fonts_map.get('Arial', 'Helvetica')
+        effective_arial_bold_font = registered_fonts_map.get('Arial-Bold', 'Helvetica-Bold')
+        effective_showcard_font = registered_fonts_map.get('Showcard Gothic', 'Helvetica')
         # --- End Font Registration ---
         
         # Use the CLI PDF generator class, but instantiated, not as a class method
@@ -1897,6 +1858,7 @@ class CoverPageGenerator(QMainWindow):
         # If `PDFCoverPageGenerator` is the CLI script, it needs to be callable as an instance.
         
         # Simplified call to a hypothetical PDF generation logic class:
+        # Wrap the core PDF generation in a try-except block
         try:
             # pdf_logic = PDFGenerator_Logic( # Instantiate the logic class
             #     title=pdf_config.get("title"),
@@ -1912,23 +1874,32 @@ class CoverPageGenerator(QMainWindow):
             # For demonstration, a very simplified version:
             c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
-            # Determine font to use based on pdf_config and registration success
-            requested_font_name = pdf_config.get("font_name", "Arial")
-            font_to_use = effective_arial_font # Default to Arial (or its fallback)
+            requested_font_name = pdf_config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+            font_to_use = None
+            standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+                "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+                "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+                "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+                "Symbol", "ZapfDingbats"
+            ]
 
-            if requested_font_name == 'Arial-Bold':
-                font_to_use = effective_arial_bold_font
-            elif requested_font_name == 'Showcard Gothic':
-                font_to_use = effective_showcard_font
-            elif requested_font_name != 'Arial': # If a different font than Arial was requested and not Showcard or Arial-Bold
-                # This case implies a font name was provided that we don't have specific handling for here.
-                # We'll try to use it directly, hoping it's a standard one or already registered by some other means.
-                # If not, ReportLab will attempt its own fallback (often to Helvetica).
+            if requested_font_name in registered_fonts_map:
+                # It's one of the fonts we handle (Arial, Arial-Bold, Showcard Gothic)
+                font_to_use = registered_fonts_map[requested_font_name]
+                # If it fell back to Helvetica, and the original request was not Helvetica,
+                # it means our custom font wasn't found. Warning already issued by _register_fonts.
+            elif requested_font_name in standard_pdf_fonts:
+                # It's a standard PDF font ReportLab should know
                 font_to_use = requested_font_name
-                # A warning could be added here if font_to_use is not in our list of effectives
-                # print(f"Warning: Font '{font_to_use}' requested directly. Ensure it is a standard or pre-registered font.")
+            else:
+                # Font is not a registered custom font and not a known standard PDF font.
+                # This is where '8514oem' would be caught.
+                warning_message = f"Font '{requested_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+                QMessageBox.warning(self, "Font Substitution Warning", self.translator.tr(warning_message)) # Assuming translator can handle this or it's fine in English
+                font_to_use = effective_arial_font # Fallback to effective Arial
 
-
+            if not font_to_use: # Should not happen with the logic above, but as a safeguard
+                font_to_use = effective_arial_font
             c.setFont(font_to_use, pdf_config.get("font_size_title", 24))
             
             title_y = A4[1] - pdf_config.get("margin_top",25)*mm - 30*mm
@@ -1964,10 +1935,18 @@ class CoverPageGenerator(QMainWindow):
             pdf_bytes = buffer.data().data() # Get bytes from QByteArray
             buffer.close()
             return pdf_bytes
+        except Exception as e: # More specific error handling for PDF generation part
+            error_msg = f"Impossible de générer le PDF en mémoire: {str(e)}"
+            print(error_msg, file=sys.stderr) # Keep console log for debugging
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr(error_msg)) # Use translator if key exists
+            if buffer.isOpen(): buffer.close() # Ensure buffer is closed on error
+            return None
 
+        # Fallback for any other unexpected errors, though the above should catch most PDF-gen issues.
         except Exception as e:
-            print(f"Error generating PDF to buffer: {e}", file=sys.stderr)
-            QMessageBox.critical(self, "Erreur PDF", f"Impossible de générer le PDF en mémoire: {e}")
+            print(f"Unexpected error in generate_pdf_to_buffer: {e}", file=sys.stderr)
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), f"An unexpected error occurred: {str(e)}")
+            if buffer.isOpen(): buffer.close()
             return None
 
 
@@ -2092,6 +2071,88 @@ class CoverPageGenerator(QMainWindow):
                           """)
                           )
 
+# --- Font Registration Logic ---
+def _register_fonts(app_root_dir: str) -> Tuple[Dict[str, str], List[str]]:
+    """
+    Registers custom fonts and returns a mapping of requested to effective font names
+    and a list of warning messages for fonts that failed to load.
+    Tries to load Arial, Arial-Bold, and Showcard Gothic (or showg).
+    Falls back to Helvetica/Helvetica-Bold if custom fonts are not found.
+    """
+    font_mapping = {
+        'Arial': 'Helvetica',
+        'Arial-Bold': 'Helvetica-Bold',
+        'Showcard Gothic': 'Helvetica' # Default fallback for Showcard Gothic
+    }
+    warnings = []
+
+    # Arial
+    arial_font_name = 'Arial'
+    arial_path = os.path.join(app_root_dir, 'fonts', 'arial.ttf')
+    try:
+        if os.path.exists(arial_path):
+            pdfmetrics.registerFont(TTFont(arial_font_name, arial_path))
+            font_mapping[arial_font_name] = arial_font_name
+            # print(f"Successfully registered {arial_font_name} from {arial_path}") # Optional: keep for debugging
+        else:
+            msg = f"Custom Arial font not found at {arial_path}. Using fallback '{font_mapping[arial_font_name]}'."
+            warnings.append(msg)
+            print(msg, file=sys.stderr)
+    except Exception as e:
+        msg = f"Error registering custom Arial font from {arial_path}: {e}. Using fallback '{font_mapping[arial_font_name]}'."
+        warnings.append(msg)
+        print(msg, file=sys.stderr)
+
+    # Arial Bold
+    arial_bold_font_name = 'Arial-Bold'
+    arial_bold_path = os.path.join(app_root_dir, 'fonts', 'arialbd.ttf')
+    try:
+        if os.path.exists(arial_bold_path):
+            pdfmetrics.registerFont(TTFont(arial_bold_font_name, arial_bold_path))
+            font_mapping[arial_bold_font_name] = arial_bold_font_name
+            # print(f"Successfully registered {arial_bold_font_name} from {arial_bold_path}")
+        else:
+            msg = f"Custom Arial Bold font 'arialbd.ttf' not found in 'fonts/'. Using fallback '{font_mapping[arial_bold_font_name]}'."
+            warnings.append(msg)
+            print(msg, file=sys.stderr)
+    except Exception as e:
+        msg = f"Error registering custom Arial Bold font from {arial_bold_path}: {e}. Using fallback '{font_mapping[arial_bold_font_name]}'."
+        warnings.append(msg)
+        print(msg, file=sys.stderr)
+
+    # Showcard Gothic
+    showcard_font_name = 'Showcard Gothic'
+    showcard_paths_to_try = [
+        os.path.join(app_root_dir, 'fonts', 'ShowcardGothic.ttf'),
+        os.path.join(app_root_dir, 'fonts', 'showg.ttf') # Alternative name
+    ]
+    showcard_registered_successfully = False
+    for showcard_path in showcard_paths_to_try:
+        if os.path.exists(showcard_path):
+            try:
+                pdfmetrics.registerFont(TTFont(showcard_font_name, showcard_path))
+                font_mapping[showcard_font_name] = showcard_font_name
+                # print(f"Successfully registered {showcard_font_name} from {showcard_path}")
+                showcard_registered_successfully = True
+                break # Found and registered
+            except Exception as e:
+                # Log error for this specific path but continue trying other paths
+                msg = f"Error registering '{showcard_font_name}' font from {showcard_path}: {e}."
+                warnings.append(msg) # Add to warnings, but don't necessarily use fallback yet
+                print(msg, file=sys.stderr)
+
+    if not showcard_registered_successfully:
+        # This means all attempts failed or no path existed
+        final_fallback_msg = (f"Failed to load custom '{showcard_font_name}' font from all expected paths. "
+                              f"Using fallback '{font_mapping[showcard_font_name]}'. Appearance will differ.")
+        # Add this specific message if it's not already captured (e.g. if paths didn't exist)
+        # To avoid duplicate generic messages if specific path errors were already added.
+        if not any(showcard_font_name in w for w in warnings if showcard_path in w): # check if a path specific error for showcard was added
+            warnings.append(final_fallback_msg)
+        print(final_fallback_msg, file=sys.stderr)
+
+    return font_mapping, warnings
+
 # --- Standalone PDF Generation Logic ---
 def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
     """
@@ -2139,77 +2200,41 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
     """
     buffer = io.BytesIO()
 
-    # --- Register Fonts (copied from original generate_pdf_to_buffer) ---
-    # This section should ideally be managed globally or passed if fonts are pre-registered.
-    # For now, keeping it here to ensure the logic is self-contained.
     # --- Register Fonts ---
-    effective_arial_font = 'Helvetica'
-    effective_arial_bold_font = 'Helvetica-Bold'
-    effective_showcard_font = 'Helvetica' # Default fallback for Showcard Gothic
+    registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
+    if font_warnings:
+        for warning_message in font_warnings:
+            print(f"Font Warning (generate_cover_page_logic): {warning_message}", file=sys.stderr)
 
-    # Arial
-    try:
-        arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-        if os.path.exists(arial_path):
-            pdfmetrics.registerFont(TTFont('Arial', arial_path))
-            effective_arial_font = 'Arial'
-            print(f"Successfully registered Arial from {arial_path} in generate_cover_page_logic")
-        else:
-            print(f"Warning (generate_cover_page_logic): Custom Arial font not found at {arial_path}. Using Helvetica.")
-    except Exception as e:
-        print(f"Error (generate_cover_page_logic): Registering custom Arial font from {arial_path}: {e}. Using Helvetica.")
-
-    # Arial Bold
-    arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-    if os.path.exists(arial_bold_path):
-        try:
-            pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-            effective_arial_bold_font = 'Arial-Bold'
-            print(f"Successfully registered Arial-Bold from {arial_bold_path} in generate_cover_page_logic")
-        except Exception as e:
-            print(f"Error (generate_cover_page_logic): Registering custom Arial Bold from {arial_bold_path}: {e}. Using Helvetica-Bold.")
-    else:
-        print(f"Warning (generate_cover_page_logic): Custom Arial Bold font 'arialbd.ttf' not found in 'fonts/'. Using Helvetica-Bold.")
-
-    # Showcard Gothic
-    showcard_font_name_to_register = 'Showcard Gothic'
-    showcard_paths_to_try = [
-        os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf'),
-        os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-    ]
-    showcard_registered = False
-    for showcard_path in showcard_paths_to_try:
-        if os.path.exists(showcard_path):
-            try:
-                pdfmetrics.registerFont(TTFont(showcard_font_name_to_register, showcard_path))
-                effective_showcard_font = showcard_font_name_to_register
-                showcard_registered = True
-                print(f"Successfully registered {showcard_font_name_to_register} from {showcard_path} in generate_cover_page_logic")
-                break
-            except Exception as e:
-                print(f"Error (generate_cover_page_logic): Registering {showcard_font_name_to_register} from {showcard_path}: {e}")
-
-    if not showcard_registered:
-        print(f"Warning (generate_cover_page_logic): Failed to load custom '{showcard_font_name_to_register}' font. "
-              f"Ensure 'fonts/ShowcardGothic.ttf' or 'fonts/showg.ttf' is valid. "
-              f"Falling back to {effective_showcard_font}. Appearance will differ.")
+    effective_arial_font = registered_fonts_map.get('Arial', 'Helvetica')
+    effective_arial_bold_font = registered_fonts_map.get('Arial-Bold', 'Helvetica-Bold')
+    effective_showcard_font = registered_fonts_map.get('Showcard Gothic', 'Helvetica')
     # --- End Font Registration ---
 
     c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
     # Determine base font to use based on pdf_config and registration success
-    requested_base_font_name = config.get("font_name", "Arial") # Default to "Arial" if not specified in config
-    base_font_to_use = effective_arial_font # Default to Arial (or its fallback)
+    requested_base_font_name = config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+    base_font_to_use = None
+    standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+        "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+        "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+        "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+        "Symbol", "ZapfDingbats"
+    ]
 
-    if requested_base_font_name == 'Arial-Bold':
-        base_font_to_use = effective_arial_bold_font
-    elif requested_base_font_name == 'Showcard Gothic':
-        base_font_to_use = effective_showcard_font
-    elif requested_base_font_name != 'Arial': # If a different font than Arial was requested
-        base_font_to_use = requested_base_font_name # Use it directly, hoping it's standard or pre-registered
-        # print(f"Warning (generate_cover_page_logic): Font '{base_font_to_use}' requested directly. Ensure it's standard or pre-registered.")
+    if requested_base_font_name in registered_fonts_map:
+        base_font_to_use = registered_fonts_map[requested_base_font_name]
+        # Warnings for custom fonts already handled by printing messages from _register_fonts's return
+    elif requested_base_font_name in standard_pdf_fonts:
+        base_font_to_use = requested_base_font_name
+    else:
+        warning_message = f"Font '{requested_base_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+        print(f"Warning (generate_cover_page_logic): {warning_message}", file=sys.stderr)
+        base_font_to_use = effective_arial_font # Fallback
 
-
+    if not base_font_to_use: # Safeguard
+        base_font_to_use = effective_arial_font
     # Title
     c.setFont(base_font_to_use, config.get("font_size_title", 24))
     title_y = A4[1] - config.get("margin_top", 25) * mm - 30 * mm # Example y position
