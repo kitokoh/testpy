@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QStackedWidget # Added for preview
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
-from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication
+from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication, pyqtSignal # Added pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView # Added for HTML preview
 
 from app_config import CONFIG, APP_ROOT_DIR, load_config
@@ -40,13 +40,71 @@ from docx import Document # For populate_docx_template
 # PyPDF2 for CompilePdfDialog
 from PyPDF2 import PdfMerger
 
+# Replicated Helper Styles (from main_window.py / projectManagement.py)
+# These are simplified versions for use within this file.
+# Ideally, these would be in a shared styling module.
+
+STYLE_GENERIC_INPUT = """
+    QLineEdit, QComboBox, QTextEdit, QDoubleSpinBox, QSpinBox, QDateEdit {
+        padding: 8px 10px; border: 1px solid #ced4da;
+        border-radius: 4px; background-color: white; min-height: 20px;
+    }
+    QLineEdit:focus, QComboBox:focus, QTextEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus, QDateEdit:focus {
+        border-color: #80bdff;
+    }
+    QComboBox::drop-down {
+        subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+        border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+        border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+    }
+    QComboBox::down-arrow { image: url(icons/arrow_down.png); }
+"""
+
+STYLE_PRIMARY_BUTTON = """
+    QPushButton {
+        background-color: #28a745; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #218838; }
+    QPushButton:pressed { background-color: #1e7e34; }
+"""
+
+STYLE_SECONDARY_BUTTON = """
+    QPushButton {
+        background-color: #007bff; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #0069d9; }
+    QPushButton:pressed { background-color: #005cbf; }
+"""
+
+STYLE_DANGER_BUTTON = """
+    QPushButton {
+        background-color: #dc3545; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #c82333; }
+    QPushButton:pressed { background-color: #bd2130; }
+"""
+
+STYLE_NEUTRAL_BUTTON = """
+    QPushButton {
+        background-color: #6c757d; color: white; font-weight: normal;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #5a6268; }
+    QPushButton:pressed { background-color: #545b62; }
+"""
+
+
 class ContactDialog(QDialog):
     def __init__(self, client_id=None, contact_data=None, parent=None):
         super().__init__(parent)
         # self.client_id = client_id # Not directly used if contact_data has all info
         self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
-        self.setMinimumSize(400, 250) # Adjusted size
+        self.setMinimumSize(400, 270) # Adjusted size
+        self.setStyleSheet(STYLE_GENERIC_INPUT) # Apply to all inputs in dialog
         self.setup_ui()
 
     def setup_ui(self):
@@ -62,9 +120,16 @@ class ContactDialog(QDialog):
         self.primary_check = QCheckBox(self.tr("Contact principal"))
         self.primary_check.setChecked(bool(self.contact_data.get("is_primary", 0)))
         layout.addRow(self.primary_check)
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON) # Optional: for explicit neutral
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
@@ -423,6 +488,7 @@ class ProductDialog(QDialog):
         # self.client_id = client_id # Store if needed for linking new products
         self.product_data = product_data or {} # For editing existing linked product
         self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data.get('client_project_product_id') else self.tr("Modifier Produit"))
+        self.setStyleSheet(STYLE_GENERIC_INPUT)
         self.setup_ui()
 
     def setup_ui(self):
@@ -452,9 +518,15 @@ class ProductDialog(QDialog):
         self.total_price_label.setStyleSheet("font-weight: bold;")
         layout.addRow(total_price_title_label, self.total_price_label)
         self.update_total_price() # Initial calculation
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON)
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
@@ -762,6 +834,8 @@ class ClientWidget(QWidget):
         self.main_window = main_window_ref # Store reference to main window for callbacks if needed
         self.setup_ui()
 
+    manage_project_requested = pyqtSignal(str) # Signal takes client_id
+
     def setup_ui(self):
         layout = QVBoxLayout(self); layout.setContentsMargins(15, 15, 15, 15); layout.setSpacing(15)
         header = QLabel(f"<h2>{self.client_info['client_name']}</h2>"); header.setStyleSheet("color: #2c3e50;")
@@ -771,16 +845,26 @@ class ClientWidget(QWidget):
         action_layout.addWidget(self.create_docs_btn)
         self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF")); self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export")); self.compile_pdf_btn.setStyleSheet("background-color: #27ae60; color: white;"); self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog_for_client) # Renamed
         action_layout.addWidget(self.compile_pdf_btn)
+
+        self.manage_project_btn = QPushButton(self.tr("Manage Project Details"))
+        self.manage_project_btn.setIcon(QIcon.fromTheme("preferences-system"))
+        self.manage_project_btn.setStyleSheet("background-color: #545b62; color: white;")
+        self.manage_project_btn.clicked.connect(self._emit_manage_project_request)
+        action_layout.addWidget(self.manage_project_btn)
+        action_layout.addStretch() # Ensure buttons align left if there's space
+
         layout.addLayout(action_layout)
         status_layout = QHBoxLayout(); status_label = QLabel(self.tr("Statut:")); status_layout.addWidget(status_label)
         self.status_combo = QComboBox()
         self.load_client_statuses_for_combo() # Renamed
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
         self.status_combo.currentTextChanged.connect(self.update_client_status_in_db) # Renamed
+        self.status_combo.setStyleSheet(STYLE_GENERIC_INPUT)
         status_layout.addWidget(self.status_combo); layout.addLayout(status_layout)
+
         details_layout = QFormLayout(); details_layout.setLabelAlignment(Qt.AlignRight)
         details_data = [
-            (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
+            (self.tr("Référence Client/Commande:"), self.client_info.get("project_identifier", self.tr("N/A"))),
             (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
             (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
             (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
@@ -793,11 +877,14 @@ class ClientWidget(QWidget):
             value_widget.setOpenExternalLinks(True); value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
             details_layout.addRow(label_widget, value_widget)
         layout.addLayout(details_layout)
+
         notes_group = QGroupBox(self.tr("Notes")); notes_layout = QVBoxLayout(notes_group)
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
+        self.notes_edit.setStyleSheet(STYLE_GENERIC_INPUT)
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
         self.notes_edit.textChanged.connect(self.save_client_notes_to_db) # Renamed
         notes_layout.addWidget(self.notes_edit); layout.addWidget(notes_group)
+
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
         self.doc_table = QTableWidget(); self.doc_table.setColumnCount(5)
@@ -807,6 +894,7 @@ class ClientWidget(QWidget):
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
         refresh_btn = QPushButton(self.tr("Actualiser")); refresh_btn.setIcon(QIcon.fromTheme("view-refresh")); refresh_btn.clicked.connect(self.populate_doc_table_for_client) # Renamed
+        refresh_btn.setStyleSheet(STYLE_NEUTRAL_BUTTON)
         doc_btn_layout.addWidget(refresh_btn)
         # Removed Open and Delete buttons here, actions are in cell widgets
         docs_layout.addLayout(doc_btn_layout); self.tab_widget.addTab(docs_tab, self.tr("Documents"))
@@ -816,10 +904,13 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("Ajouter Contact")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")); self.add_contact_btn.clicked.connect(self.add_new_client_contact) # Renamed
+        self.add_contact_btn.setStyleSheet(STYLE_PRIMARY_BUTTON)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         self.edit_contact_btn = QPushButton(self.tr("Modifier Contact")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.clicked.connect(self.edit_client_contact) # Renamed
+        self.edit_contact_btn.setStyleSheet(STYLE_SECONDARY_BUTTON)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         self.remove_contact_btn = QPushButton(self.tr("Supprimer Contact")); self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_contact_btn.clicked.connect(self.remove_client_contact_link) # Renamed
+        self.remove_contact_btn.setStyleSheet(STYLE_DANGER_BUTTON)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         contacts_layout.addLayout(contacts_btn_layout); self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
 
@@ -833,10 +924,13 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         products_btn_layout = QHBoxLayout()
         self.add_product_btn = QPushButton(self.tr("Ajouter Produit")); self.add_product_btn.setIcon(QIcon.fromTheme("list-add")); self.add_product_btn.clicked.connect(self.add_product_to_client) # Renamed
+        self.add_product_btn.setStyleSheet(STYLE_PRIMARY_BUTTON)
         products_btn_layout.addWidget(self.add_product_btn)
         self.edit_product_btn = QPushButton(self.tr("Modifier Produit")); self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_product_btn.clicked.connect(self.edit_linked_client_product) # Renamed
+        self.edit_product_btn.setStyleSheet(STYLE_SECONDARY_BUTTON)
         products_btn_layout.addWidget(self.edit_product_btn)
         self.remove_product_btn = QPushButton(self.tr("Supprimer Produit")); self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_product_btn.clicked.connect(self.remove_linked_client_product) # Renamed
+        self.remove_product_btn.setStyleSheet(STYLE_DANGER_BUTTON)
         products_btn_layout.addWidget(self.remove_product_btn)
         products_layout.addLayout(products_btn_layout); self.tab_widget.addTab(products_tab, self.tr("Produits"))
 
@@ -907,10 +1001,10 @@ class ClientWidget(QWidget):
                     self.doc_table.setItem(row, 2, QTableWidgetItem(lang_code_folder))
                     self.doc_table.setItem(row, 3, QTableWidgetItem(mod_time))
                     action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(0,0,0,0); action_layout.setSpacing(5)
-                    open_btn_i = QPushButton(); open_btn_i.setIcon(QIcon.fromTheme("document-open")); open_btn_i.setToolTip(self.tr("Ouvrir")); open_btn_i.setFixedSize(28,28); open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p)); action_layout.addWidget(open_btn_i) # Renamed
+                    open_btn_i = QPushButton("📂"); open_btn_i.setToolTip(self.tr("Ouvrir")); open_btn_i.setFixedSize(28,28); open_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p)); action_layout.addWidget(open_btn_i) # Renamed
                     if file_name.lower().endswith('.xlsx') or file_name.lower().endswith('.html'):
-                        edit_btn_i = QPushButton(); edit_btn_i.setIcon(QIcon.fromTheme("document-edit")); edit_btn_i.setToolTip(self.tr("Éditer")); edit_btn_i.setFixedSize(28,28); edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p, edit_mode=True)); action_layout.addWidget(edit_btn_i) # Added edit_mode
-                    delete_btn_i = QPushButton(); delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")); delete_btn_i.setToolTip(self.tr("Supprimer")); delete_btn_i.setFixedSize(28,28); delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document_for_client(p)); action_layout.addWidget(delete_btn_i) # Renamed
+                        edit_btn_i = QPushButton("✏️"); edit_btn_i.setToolTip(self.tr("Éditer")); edit_btn_i.setFixedSize(28,28); edit_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p, edit_mode=True)); action_layout.addWidget(edit_btn_i) # Added edit_mode
+                    delete_btn_i = QPushButton("🗑️"); delete_btn_i.setToolTip(self.tr("Supprimer")); delete_btn_i.setFixedSize(28,28); delete_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document_for_client(p)); action_layout.addWidget(delete_btn_i) # Renamed
                     self.doc_table.setCellWidget(row, 4, action_widget)
                     row += 1
         self.doc_table.resizeColumnsToContents()
