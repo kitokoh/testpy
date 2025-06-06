@@ -312,31 +312,164 @@ def initialize_database():
     )
     """)
 
-    # Create Templates table
+    # Create TemplateCategories table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Templates (
-        template_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        template_name TEXT NOT NULL,
-        template_type TEXT NOT NULL, -- e.g., 'email', 'document_cover', 'report_section'
-        description TEXT,
-        base_file_name TEXT, -- e.g., 'invoice_template.docx'
-        language_code TEXT, -- e.g., 'en_US', 'es_ES'
-        is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-        category TEXT,
-        content_definition TEXT, -- For simple templates, the content itself (e.g., HTML for email)
-        email_subject_template TEXT,
-        email_variables_info TEXT, -- JSON or text explaining available variables
-        cover_page_config_json TEXT, -- JSON for document cover page configurations
-        document_mapping_config_json TEXT, -- JSON for mapping data to document fields
-        raw_template_file_data BLOB, -- For storing binary template files like .docx
-        version TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-        UNIQUE (template_name, template_type, language_code, version)
+    CREATE TABLE IF NOT EXISTS TemplateCategories (
+        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_name TEXT NOT NULL UNIQUE,
+        description TEXT
     )
     """)
+    # Pre-populate a "General" category
+    general_category_id_for_migration = None
+    try:
+        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                       ('General', 'General purpose templates'))
+        # Fetch its ID for fallback during migration
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
+        general_row = cursor.fetchone()
+        if general_row:
+            general_category_id_for_migration = general_row[0]
+        conn.commit() # Commit category creation before potential DDL changes for Templates
+    except sqlite3.Error as e_cat_init:
+        print(f"Error initializing General category: {e_cat_init}")
+        # Decide if this is fatal or if migration can proceed without a fallback ID
+        # For now, migration will use None if this fails, which _get_or_create_category_id handles.
+
+    # Check if Templates table needs migration
+    cursor.execute("PRAGMA table_info(Templates)")
+    columns = [column[1] for column in cursor.fetchall()]
+    needs_migration = 'category' in columns and 'category_id' not in columns
+
+    if needs_migration:
+        print("Templates table needs migration. Starting migration process...")
+        try:
+            # 1. Rename Templates to Templates_old
+            cursor.execute("ALTER TABLE Templates RENAME TO Templates_old")
+            print("Renamed Templates to Templates_old.")
+
+            # 2. Create the new Templates table with category_id FOREIGN KEY
+            cursor.execute("""
+            CREATE TABLE Templates (
+                template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_name TEXT NOT NULL,
+                template_type TEXT NOT NULL,
+                description TEXT,
+                base_file_name TEXT,
+                language_code TEXT,
+                is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+                category_id INTEGER,
+                content_definition TEXT,
+                email_subject_template TEXT,
+                email_variables_info TEXT,
+                cover_page_config_json TEXT,
+                document_mapping_config_json TEXT,
+                raw_template_file_data BLOB,
+                version TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by_user_id TEXT,
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+                FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
+                UNIQUE (template_name, template_type, language_code, version)
+            )
+            """)
+            print("Created new Templates table with category_id.")
+
+            # 3. Iterate through Templates_old and insert into new Templates
+            cursor.execute("SELECT * FROM Templates_old")
+            old_templates = cursor.fetchall()
+
+            # Make sure connection's row_factory is set to sqlite3.Row for dict-like access
+            # This is usually set in get_db_connection, but ensure it's active for this part.
+            # If cursor.fetchall() returns tuples, access by index. If dicts, by key.
+            # Assuming get_db_connection sets row_factory, so fetchall() gives list of Row objects.
+
+            # Need to get the column names from Templates_old to safely map
+            cursor_old_desc = conn.execute("PRAGMA table_info(Templates_old)")
+            old_column_names = [col_info[1] for col_info in cursor_old_desc.fetchall()]
+
+            for old_template_tuple in old_templates:
+                old_template_dict = {name: val for name, val in zip(old_column_names, old_template_tuple)}
+
+                category_name_text = old_template_dict.get('category')
+                # Use the internal helper _get_or_create_category_id
+                # Pass the main cursor, not creating a new one for this helper
+                new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
+
+                # Prepare values for insert, ensuring order and handling missing keys
+                new_template_values = (
+                    old_template_dict.get('template_id'),
+                    old_template_dict.get('template_name'),
+                    old_template_dict.get('template_type'),
+                    old_template_dict.get('description'),
+                    old_template_dict.get('base_file_name'),
+                    old_template_dict.get('language_code'),
+                    old_template_dict.get('is_default_for_type_lang', False), # Default if missing
+                    new_cat_id, # New category_id
+                    old_template_dict.get('content_definition'),
+                    old_template_dict.get('email_subject_template'),
+                    old_template_dict.get('email_variables_info'),
+                    old_template_dict.get('cover_page_config_json'),
+                    old_template_dict.get('document_mapping_config_json'),
+                    old_template_dict.get('raw_template_file_data'),
+                    old_template_dict.get('version'),
+                    old_template_dict.get('created_at'),
+                    old_template_dict.get('updated_at'),
+                    old_template_dict.get('created_by_user_id')
+                )
+
+                insert_sql = """
+                    INSERT INTO Templates (
+                        template_id, template_name, template_type, description, base_file_name,
+                        language_code, is_default_for_type_lang, category_id,
+                        content_definition, email_subject_template, email_variables_info,
+                        cover_page_config_json, document_mapping_config_json,
+                        raw_template_file_data, version, created_at, updated_at, created_by_user_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cursor.execute(insert_sql, new_template_values)
+            print(f"Migrated {len(old_templates)} templates to new schema.")
+
+            # 4. Drop Templates_old
+            cursor.execute("DROP TABLE Templates_old")
+            print("Dropped Templates_old table.")
+            conn.commit()
+            print("Templates table migration completed successfully.")
+        except sqlite3.Error as e:
+            conn.rollback()
+            print(f"Error during Templates table migration: {e}. Rolled back changes.")
+            # Consider re-creating the original Templates table if migration fails critically
+            # Or, if the new Templates table was created, drop it to allow retry.
+            # For now, just rollback and log. The DB might be in an inconsistent state (e.g. Templates_old exists).
+    else:
+        # Create Templates table if it doesn't exist (fresh setup or already migrated)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Templates (
+            template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_name TEXT NOT NULL,
+            template_type TEXT NOT NULL,
+            description TEXT,
+            base_file_name TEXT,
+            language_code TEXT,
+            is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+            category_id INTEGER, -- New field
+            content_definition TEXT,
+            email_subject_template TEXT,
+            email_variables_info TEXT,
+            cover_page_config_json TEXT,
+            document_mapping_config_json TEXT,
+            raw_template_file_data BLOB,
+            version TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by_user_id TEXT,
+            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL, -- Added FK
+            UNIQUE (template_name, template_type, language_code, version)
+        )
+        """)
+        # No conn.commit() here, let it be part of the larger transaction at the end of initialize_database
 
     # Create Tasks table (New)
     cursor.execute("""
@@ -492,6 +625,7 @@ def add_client(client_data: dict) -> str | None:
     Adds a new client to the database.
     Returns the new client_id if successful, otherwise None.
     Ensures created_at and updated_at are set.
+    Expects 'category_id' instead of 'category' text.
     """
     conn = None
     try:
@@ -649,6 +783,176 @@ def delete_client(client_id: str) -> bool:
         if conn:
             conn.close()
 
+# CRUD functions for TemplateCategories
+def add_template_category(category_name: str, description: str = None) -> int | None:
+    """
+    Adds a new template category if it doesn't exist by name.
+    Returns the category_id of the new or existing category, or None on error.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Check if category already exists
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor.fetchone()
+        if row:
+            return row['category_id']
+
+        # If not, insert new category
+        sql = "INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)"
+        cursor.execute(sql, (category_name, description))
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        print(f"Database error in add_template_category: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, default_category_id: int | None) -> int | None:
+    """
+    Internal helper: Gets category_id for a name, creates if not exists.
+    Uses the provided cursor and does not manage connection or transaction.
+    Returns category_id or default_category_id if name is None/empty.
+    """
+    if not category_name:
+        return default_category_id
+    try:
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor.fetchone()
+        if row:
+            return row['category_id']
+        else:
+            # Category does not exist, create it
+            cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                           (category_name, f"{category_name} (auto-created during migration)"))
+            # No conn.commit() here as it's part of a larger transaction
+            return cursor.lastrowid
+    except sqlite3.Error as e:
+        print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
+        # Depending on how critical this is, you might want to raise the error
+        # or return the default_category_id as a fallback.
+        return default_category_id
+
+
+def get_template_category_by_id(category_id: int) -> dict | None:
+    """Retrieves a template category by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM TemplateCategories WHERE category_id = ?", (category_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_category_by_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_template_category_by_name(category_name: str) -> dict | None:
+    """Retrieves a template category by its name."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_category_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_template_categories() -> list[dict]:
+    """Retrieves all template categories."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM TemplateCategories ORDER BY category_name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_template_categories: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_template_category(category_id: int, new_name: str = None, new_description: str = None) -> bool:
+    """
+    Updates a template category's name and/or description.
+    Returns True on success, False otherwise.
+    """
+    conn = None
+    if not new_name and not new_description:
+        return False # Nothing to update
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        set_clauses = []
+        params = []
+        if new_name:
+            set_clauses.append("category_name = ?")
+            params.append(new_name)
+        if new_description is not None: # Allow setting description to empty string
+            set_clauses.append("description = ?")
+            params.append(new_description)
+
+        if not set_clauses:
+            return False
+
+        sql = f"UPDATE TemplateCategories SET {', '.join(set_clauses)} WHERE category_id = ?"
+        params.append(category_id)
+
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_template_category: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def delete_template_category(category_id: int) -> bool:
+    """
+    Deletes a template category.
+    Templates using this category will have their category_id set to NULL
+    due to ON DELETE SET NULL foreign key constraint.
+    Returns True on success, False otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Before deleting, one might want to check if it's a protected category like "General"
+        # For now, allowing deletion of any category.
+        cursor.execute("DELETE FROM TemplateCategories WHERE category_id = ?", (category_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_template_category: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Templates
 def add_template(template_data: dict) -> int | None:
     """
@@ -664,7 +968,7 @@ def add_template(template_data: dict) -> int | None:
         sql = """
             INSERT INTO Templates (
                 template_name, template_type, description, base_file_name, language_code,
-                is_default_for_type_lang, category, content_definition, email_subject_template,
+                is_default_for_type_lang, category_id, content_definition, email_subject_template,
                 email_variables_info, cover_page_config_json, document_mapping_config_json,
                 raw_template_file_data, version, created_at, updated_at, created_by_user_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -676,7 +980,7 @@ def add_template(template_data: dict) -> int | None:
             template_data.get('base_file_name'),
             template_data.get('language_code'),
             template_data.get('is_default_for_type_lang', False),
-            template_data.get('category'),
+            template_data.get('category_id'), # Changed from 'category' to 'category_id'
             template_data.get('content_definition'),
             template_data.get('email_subject_template'),
             template_data.get('email_variables_info'),
@@ -797,6 +1101,160 @@ def delete_template(template_id: int) -> bool:
         if conn:
             conn.close()
 
+def get_template_details_for_preview(template_id: int) -> dict | None:
+    """
+    Fetches base_file_name and language_code for a given template_id for preview purposes.
+    Returns a dictionary like {'base_file_name': 'name.xlsx', 'language_code': 'fr'} or None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
+            (template_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return {'base_file_name': row['base_file_name'], 'language_code': row['language_code']}
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_details_for_preview: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_template_path_info(template_id: int) -> dict | None:
+    """
+    Fetches base_file_name (as file_name) and language_code (as language) for a given template_id.
+    Returns {'file_name': 'name.xlsx', 'language': 'fr'} or None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
+            (template_id,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return {'file_name': row['base_file_name'], 'language': row['language_code']}
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_path_info: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def delete_template_and_get_file_info(template_id: int) -> dict | None:
+    """
+    Deletes the template record by template_id after fetching its file information.
+    Returns {'file_name': 'name.xlsx', 'language': 'fr'} if successful, None otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        conn.isolation_level = None # Start transaction
+        cursor = conn.cursor()
+        cursor.execute("BEGIN")
+
+        # First, fetch the required information
+        cursor.execute(
+            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
+            (template_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            conn.rollback()
+            print(f"Template with ID {template_id} not found for deletion.")
+            return None
+
+        file_info = {'file_name': row['base_file_name'], 'language': row['language_code']}
+
+        # Proceed with deletion
+        cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
+
+        if cursor.rowcount > 0:
+            conn.commit()
+            return file_info
+        else:
+            # This case should ideally not be reached if the select was successful
+            # but included for robustness
+            conn.rollback()
+            print(f"Failed to delete template with ID {template_id} after fetching info.")
+            return None
+
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
+        print(f"Database error in delete_template_and_get_file_info: {e}")
+        return None
+    finally:
+        if conn:
+            conn.isolation_level = '' # Reset isolation level
+            conn.close()
+
+def set_default_template_by_id(template_id: int) -> bool:
+    """
+    Sets a template as the default for its template_type and language_code.
+    Unsets other templates of the same type and language.
+    Returns True on success, False on error.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        conn.isolation_level = None # Start transaction
+        cursor = conn.cursor()
+        cursor.execute("BEGIN")
+
+        # Get template_type and language_code for the given template_id
+        cursor.execute(
+            "SELECT template_type, language_code FROM Templates WHERE template_id = ?",
+            (template_id,)
+        )
+        template_info = cursor.fetchone()
+
+        if not template_info:
+            print(f"Template with ID {template_id} not found.")
+            conn.rollback()
+            return False
+
+        current_template_type = template_info['template_type']
+        current_language_code = template_info['language_code']
+
+        # Set is_default_for_type_lang = 0 for all templates of the same type and language
+        cursor.execute(
+            """
+            UPDATE Templates
+            SET is_default_for_type_lang = 0
+            WHERE template_type = ? AND language_code = ?
+            """,
+            (current_template_type, current_language_code)
+        )
+
+        # Set is_default_for_type_lang = 1 for the specified template_id
+        cursor.execute(
+            "UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?",
+            (template_id,)
+        )
+
+        conn.commit()
+        return True
+
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
+        print(f"Database error in set_default_template_by_id: {e}")
+        return False
+    finally:
+        if conn:
+            conn.isolation_level = '' # Reset isolation level
+            conn.close()
+
 def add_default_template_if_not_exists(template_data: dict) -> int | None:
     """
     Adds a template to the Templates table if it doesn't already exist
@@ -809,21 +1267,31 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
         'base_file_name' (e.g., "proforma_template.xlsx"),
         'description' (optional),
         'category' (optional, e.g., "Finance", "Technical"),
-        'is_default_for_type_lang' (optional, boolean, defaults to False)
+        'is_default_for_type_lang' (optional, boolean, defaults to False),
+        'category_name' (optional, string, defaults to "General")
     """
     conn = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor() # Get a cursor from the connection
 
         name = template_data.get('template_name')
         ttype = template_data.get('template_type')
         lang = template_data.get('language_code')
         filename = template_data.get('base_file_name')
+        category_name_text = template_data.get('category_name', "General")
 
         if not all([name, ttype, lang, filename]):
             print(f"Error: Missing required fields for default template: {template_data}")
             return None
+
+        # Get or create category_id (using a separate connection for this, or pass cursor)
+        # For simplicity here, calling the public function.
+        # In a high-performance scenario, might pass the cursor.
+        category_id = add_template_category(category_name_text, f"{category_name_text} (auto-created)")
+        if category_id is None:
+            print(f"Error: Could not get or create category_id for '{category_name_text}'.")
+            return None # Cannot proceed without a category_id
 
         # Check if this specific template (name, type, lang) already exists
         cursor.execute("""
@@ -840,7 +1308,7 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
             sql = """
                 INSERT INTO Templates (
                     template_name, template_type, language_code, base_file_name,
-                    description, category, is_default_for_type_lang,
+                    description, category_id, is_default_for_type_lang,
                     created_at, updated_at
                     -- created_by_user_id could be NULL or a system user ID
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -851,15 +1319,15 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
                 lang,
                 filename,
                 template_data.get('description', f"Default {name} template"),
-                template_data.get('category', "Général"),
-                template_data.get('is_default_for_type_lang', True), # Make default templates the default for their type/lang
+                category_id, # Use the fetched/created category_id
+                template_data.get('is_default_for_type_lang', True),
                 now,
                 now
             )
             cursor.execute(sql, params)
             conn.commit()
             new_id = cursor.lastrowid
-            print(f"Added default template '{name}' ({ttype}, {lang}) with ID: {new_id}.")
+            print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
             return new_id
 
     except sqlite3.Error as e:
@@ -3523,7 +3991,9 @@ def get_all_file_based_templates() -> list[dict]:
         conn = get_db_connection()
         cursor = conn.cursor()
         # Selects templates that are likely file-based documents
-        sql = "SELECT template_id, template_name, language_code, base_file_name, description, category FROM Templates WHERE base_file_name IS NOT NULL AND base_file_name != '' ORDER BY template_name, language_code"
+        # Changed 'category' to 'category_id'.
+        # If category_name is needed here, a JOIN with TemplateCategories would be required.
+        sql = "SELECT template_id, template_name, language_code, base_file_name, description, category_id FROM Templates WHERE base_file_name IS NOT NULL AND base_file_name != '' ORDER BY template_name, language_code"
         cursor.execute(sql)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
@@ -3532,6 +4002,22 @@ def get_all_file_based_templates() -> list[dict]:
         return []
     finally:
         if conn: conn.close()
+
+def get_templates_by_category_id(category_id: int) -> list[dict]:
+    """Retrieves all templates for a given category_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Templates WHERE category_id = ? ORDER BY template_name, language_code", (category_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_templates_by_category_id: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
 
 def get_all_tasks(active_only: bool = False, project_id_filter: str = None) -> list[dict]:
     """
