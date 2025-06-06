@@ -18,6 +18,8 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, Fill, Alignment, Border, Side, PatternFill, NamedStyle
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.utils.exceptions import InvalidFileException, ReadOnlyWorkbookException
+import zipfile
 from openpyxl.worksheet.page import PageMargins
 
 # PDF export
@@ -112,36 +114,65 @@ class PDFExportSettings:
 class ExcelTableModel:
     """Represents the complete Excel workbook model"""
     
-    def __init__(self, file_path: str = ""):
-        self.file_path = file_path
-        self.workbook = None
-        self.current_sheet = None
-        self.sheets = []
-        self.client_data = ClientData()
-        self.is_modified = False
-        
-        if file_path:
-            self.load_workbook(file_path)
+    def __init__(self):
+        self.file_path: Optional[str] = None
+        self.workbook: Optional[Workbook] = None
+        self.current_sheet: Optional[Worksheet] = None
+        self.sheets: List[str] = []
+        self.client_data: ClientData = ClientData()
+        self.is_modified: bool = False
+        self.load_error_message: Optional[str] = None
     
     def load_workbook(self, file_path: str):
         """Load workbook from file with maximum compatibility"""
+        self.load_error_message = None
+        self.workbook = None
         try:
-            # Try with different parameters to handle various Excel formats
+            # Primary attempt: load with data_only=False to preserve styles
+            logger.info(f"Attempting to load workbook (styles preserved): {file_path}")
+            self.workbook = load_workbook(
+                file_path,
+                read_only=False,  # Try to open in read-write mode first
+                keep_vba=True,
+                data_only=False, # Crucial for style preservation
+                keep_links=True
+            )
+            logger.info(f"Successfully loaded {file_path} with styles (read-write).")
+
+        except (InvalidFileException, ReadOnlyWorkbookException, IOError, zipfile.BadZipFile) as e_rw:
+            logger.warning(f"Read-write load attempt failed for {file_path} with {type(e_rw).__name__}: {e_rw}. Trying read-only.")
             try:
+                # Fallback attempt: load with read_only=True if read-write fails
+                logger.info(f"Attempting to load workbook (styles preserved, read-only): {file_path}")
                 self.workbook = load_workbook(
                     file_path,
-                    read_only=False,
+                    read_only=True,   # Fallback to read-only
                     keep_vba=True,
-                    data_only=True,
+                    data_only=False, # Crucial for style preservation
                     keep_links=True
                 )
-            except:
-                self.workbook = load_workbook(
-                    file_path,
-                    read_only=False,
-                    data_only=True
-                )
-            
+                logger.info(f"Successfully loaded {file_path} with styles (read-only).")
+            except (InvalidFileException, ReadOnlyWorkbookException, IOError, zipfile.BadZipFile) as e_ro:
+                error_msg = f"Error loading workbook '{file_path}' (read-only attempt): {type(e_ro).__name__} - {str(e_ro)}"
+                logger.error(error_msg)
+                self.load_error_message = error_msg
+                self.workbook = None
+                return False
+            except Exception as e_generic_ro: # Catch any other unexpected errors during read-only attempt
+                error_msg = f"Unexpected error loading workbook '{file_path}' (read-only attempt): {type(e_generic_ro).__name__} - {str(e_generic_ro)}"
+                logger.error(error_msg)
+                self.load_error_message = error_msg
+                self.workbook = None
+                return False
+        except Exception as e_generic_rw: # Catch any other unexpected errors during initial read-write attempt
+            error_msg = f"Unexpected error loading workbook '{file_path}': {type(e_generic_rw).__name__} - {str(e_generic_rw)}"
+            logger.error(error_msg)
+            self.load_error_message = error_msg
+            self.workbook = None
+            return False
+
+        # If workbook is loaded successfully by either method
+        if self.workbook:
             self.file_path = file_path
             self.sheets = self.workbook.sheetnames
             self.current_sheet = self.workbook.active
@@ -151,9 +182,16 @@ class ExcelTableModel:
             self.extract_client_data()
             
             return True
-        except Exception as e:
-            logger.error(f"Error loading workbook: {str(e)}")
+
+        # This part should ideally not be reached if logic is correct,
+        # but as a safeguard:
+        if not self.workbook:
+            if not self.load_error_message: # Ensure an error message is set
+                 self.load_error_message = f"Failed to load workbook '{file_path}' after multiple attempts."
+            logger.error(self.load_error_message)
             return False
+
+        return False # Should not be reached
     
     def extract_client_data(self):
         """Try to extract client data from common cell positions"""
@@ -787,15 +825,15 @@ class ExcelEditor(QDialog):
     
     def __init__(self, file_path: str = "", parent=None):
         super().__init__(parent)
-        self.file_path = file_path
-        self.excel_model = ExcelTableModel(file_path)
+        self.file_path: Optional[str] = file_path if file_path else None # Store initial file path
+        self.excel_model = ExcelTableModel() # Instantiate without file_path
         self.pdf_settings = PDFExportSettings()
         
-        self.setup_ui()
+        self.setup_ui() # Creates self.table, self.sheet_combo, self.file_label etc.
         self.setup_connections()
         
-        if file_path:
-            self.load_file(file_path)
+        if self.file_path: # If a file_path was provided to constructor
+            self.load_file(self.file_path)
     
     def setup_ui(self):
         """Initialize the main UI"""
@@ -1045,37 +1083,55 @@ class ExcelEditor(QDialog):
         self.table.itemChanged.connect(self.mark_as_modified)
     
     def load_file(self, file_path: str):
-        """Load Excel file into editor"""
-        try:
-            self.set_progress(True, "Loading file...")
-            
-            if not self.excel_model.load_workbook(file_path):
-                QMessageBox.critical(self, "Error", f"Could not load file: {file_path}")
-                return False
-            
-            # Update UI
-            self.file_path = file_path
+        """Load Excel file into editor, updating model and UI."""
+        self.set_progress(True, f"Loading file: {QFileInfo(file_path).fileName()}...")
+
+        if self.excel_model.load_workbook(file_path):
+            # Success case
+            self.file_path = file_path # Update editor's current file_path
             self.file_label.setText(QFileInfo(file_path).fileName())
             
-            # Load sheets
             self.sheet_combo.clear()
             self.sheet_combo.addItems(self.excel_model.sheets)
             
-            # Load client data
-            self.load_client_data()
+            self.load_client_data() # Populates UI from self.excel_model.client_data
             
-            # Load first sheet
             if self.excel_model.current_sheet:
                 self.table.load_excel_sheet(self.excel_model.current_sheet)
-            
+            else:
+                self.table.clearContents() # Clear table if no sheet is active
+                self.table.setRowCount(0)
+                self.table.setColumnCount(0)
+
             self.set_progress(False)
             self.update_status("File loaded successfully")
+            logger.info(f"Successfully loaded and UI updated for: {file_path}")
             return True
+        else:
+            # Failure case
+            error_msg = self.excel_model.load_error_message or f"Unknown error loading file: {file_path}"
+            QMessageBox.critical(self, "Error Loading File", error_msg)
             
-        except Exception as e:
-            logger.error(f"Error loading file: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Error loading file:\n{str(e)}")
+            self.file_path = None # Clear current file path
+            self.file_label.setText("No file loaded")
+            self.sheet_combo.clear()
+            self.table.clearContents()
+            self.table.setRowCount(0)
+            self.table.setColumnCount(0)
+            # Clear client data fields in UI as well
+            self.client_name.clear()
+            self.client_company.clear()
+            self.client_address.clear()
+            self.client_phone.clear()
+            self.client_email.clear()
+            self.project_name.clear()
+            self.project_id.clear()
+            self.project_price.setValue(0)
+            self.notes.clear()
+
             self.set_progress(False)
+            self.update_status("Failed to load file", "red")
+            logger.error(f"Failed to load and update UI for: {file_path}")
             return False
     
     def load_client_data(self):
