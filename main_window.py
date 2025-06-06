@@ -22,6 +22,9 @@ from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor
 from PyQt5.QtCore import Qt, QUrl, QTimer, QLocale, QLibraryInfo, QCoreApplication # QStandardPaths removed as get_config_dir is no longer here
 from PyQt5.QtWidgets import QDoubleSpinBox
 
+# Imports for sequential dialogs
+from gui_components import ContactDialog, ProductDialog, CreateDocumentDialog
+
 
 # Custom Notification Banner Class (copied from projectManagement.py)
 class CustomNotificationBanner(QFrame):
@@ -601,6 +604,229 @@ class DocumentManager(QMainWindow):
             self.show_notification(self.tr("Client Créé"), self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
             self.open_client_tab_by_id(actual_new_client_id)
             self.stats_widget.update_stats()
+
+            # --- Start of sequential dialog logic ---
+            client_widget_instance = None
+            for i in range(self.client_tabs_widget.count()):
+                widget = self.client_tabs_widget.widget(i)
+                if hasattr(widget, 'client_info') and widget.client_info.get("client_id") == actual_new_client_id:
+                    client_widget_instance = widget
+                    break
+
+            if not client_widget_instance:
+                print(f"Error: Could not find ClientWidget for client ID {actual_new_client_id} to refresh data after dialogs.")
+                # Not returning here, as the core client creation was successful.
+                # Document creation dialog might still be useful.
+
+            # B. Show Contact Dialog
+            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=self)
+            if contact_dialog.exec_() == QDialog.Accepted:
+                contact_form_data = contact_dialog.get_data()
+                existing_contact = db_manager.get_contact_by_email(contact_form_data['email'])
+                contact_id_to_link = None
+
+                if existing_contact:
+                    contact_id_to_link = existing_contact['contact_id']
+                    # Optional: Update existing global contact if details differ significantly
+                    # For now, we assume if email matches, we use this contact.
+                    # db_manager.update_contact(contact_id_to_link, {
+                    # 'name': contact_form_data['name'], 'phone': contact_form_data['phone'],
+                    # 'position': contact_form_data['position']
+                    # })
+                else:
+                    new_contact_id_global = db_manager.add_contact({
+                        'name': contact_form_data['name'], 'email': contact_form_data['email'],
+                        'phone': contact_form_data['phone'], 'position': contact_form_data['position']
+                    })
+                    if new_contact_id_global:
+                        contact_id_to_link = new_contact_id_global
+                    else:
+                        QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not create global contact record."))
+                        # No return here, proceed to product dialog if user wishes, but contact part failed.
+
+                if contact_id_to_link:
+                    # Check if this contact is already linked to this client
+                    already_linked = False
+                    client_current_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
+                    if client_current_contacts:
+                        for c_link in client_current_contacts:
+                            if c_link['contact_id'] == contact_id_to_link:
+                                already_linked = True
+                                # Potentially update the existing link's primary status if changed
+                                if contact_form_data['is_primary'] != c_link.get('is_primary_for_client'):
+                                    if contact_form_data['is_primary']: # Unset other primaries
+                                        for cc_item in client_current_contacts:
+                                            if cc_item.get('is_primary_for_client') and cc_item['contact_id'] != contact_id_to_link:
+                                                db_manager.update_client_contact_link(cc_item['client_contact_id'], {'is_primary_for_client': False})
+                                    db_manager.update_client_contact_link(c_link['client_contact_id'], {'is_primary_for_client': contact_form_data['is_primary']})
+                                self.show_notification(self.tr("Contact Updated"), self.tr("Contact link updated for this client."))
+                                break
+
+                    if not already_linked:
+                        if contact_form_data['is_primary']:
+                            client_contacts_list = db_manager.get_contacts_for_client(actual_new_client_id) # Re-fetch, could be empty
+                            if client_contacts_list: # Ensure it's not None
+                                for cc_link_item in client_contacts_list:
+                                    if cc_link_item.get('is_primary_for_client'):
+                                        db_manager.update_client_contact_link(cc_link_item['client_contact_id'], {'is_primary_for_client': False})
+
+                        link_id = db_manager.link_contact_to_client(
+                            actual_new_client_id, contact_id_to_link,
+                            is_primary=contact_form_data['is_primary']
+                        )
+                        if not link_id:
+                            QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not link contact to client."))
+                            # No return, proceed to product.
+
+                    if client_widget_instance:
+                        client_widget_instance.load_contacts_for_client()
+                else: # Failed to get or create a global contact ID
+                    QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to obtain contact ID for linking. Contact not added to client."))
+                    # No return, proceed.
+
+                # C. Show Product Dialog (if Contact Dialog was accepted - this means we are inside this block)
+                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=self)
+                if product_dialog.exec_() == QDialog.Accepted:
+                    product_form_data = product_dialog.get_data()
+                    global_product = db_manager.get_product_by_name(product_form_data['product_name'])
+                    global_product_id = None
+
+                    if global_product:
+                        global_product_id = global_product['product_id']
+                        # Optional: Update global product description if it has changed
+                        # if global_product['description'] != product_form_data['product_description']:
+                        #     db_manager.update_product(global_product_id, {'description': product_form_data['product_description']})
+                    else:
+                        new_global_product_id = db_manager.add_product({
+                            'product_name': product_form_data['product_name'],
+                            'description': product_form_data['product_description'],
+                            'base_unit_price': product_form_data['unit_price_for_dialog'] # Store the price given as base if new
+                        })
+                        if new_global_product_id:
+                            global_product_id = new_global_product_id
+                            global_product = db_manager.get_product_by_id(global_product_id) # Fetch to get consistent data
+                        else:
+                            QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not create global product."))
+                            # No return, proceed to doc dialog if user wishes.
+
+                    if global_product_id:
+                        # Determine unit_price_override
+                        # Base price is from the global product table. If it's a new product, it's what user entered.
+                        # If existing product, it's its stored base_unit_price.
+                        base_price_to_compare = global_product['base_unit_price'] if global_product else product_form_data['unit_price_for_dialog']
+                        price_override = None
+                        if product_form_data['unit_price_for_dialog'] != base_price_to_compare:
+                            price_override = product_form_data['unit_price_for_dialog']
+
+                        link_data = {
+                            'client_id': actual_new_client_id,
+                            'project_id': None, # Not linked to a specific project from this workflow
+                            'product_id': global_product_id,
+                            'quantity': product_form_data['quantity'],
+                            'unit_price_override': price_override
+                        }
+                        cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                        if cpp_id:
+                            if client_widget_instance:
+                                client_widget_instance.load_products_for_client()
+                        else:
+                            QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not link product to client."))
+                            # No return
+                    else: # Should not happen if logic is correct
+                        QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to obtain product ID for linking. Product not added."))
+                        # No return
+
+                    # D. Show CreateDocumentDialog (if Product Dialog was accepted)
+                    # client_info_for_doc_dialog is ui_map_data from earlier in execute_create_client
+                    # or self.clients_data_map.get(actual_new_client_id)
+                    client_info_for_doc_dialog = self.clients_data_map.get(actual_new_client_id)
+                    if not client_info_for_doc_dialog:
+                        QMessageBox.warning(self, self.tr("Error"), self.tr("Client data not found for document creation step."))
+                        # No return here, this is the end of the sequence if this fails.
+                    else:
+                        doc_dialog = CreateDocumentDialog(client_info_for_doc_dialog, self.config, self)
+                        if doc_dialog.exec_() == QDialog.Accepted:
+                            if client_widget_instance:
+                                client_widget_instance.populate_doc_table_for_client()
+                        # No return, end of sequence regardless of doc_dialog acceptance.
+
+                else: # Product dialog cancelled
+                    self.show_notification(self.tr("Product Skipped"), self.tr("Product addition was skipped by the user."))
+                    # Proceed to Document Creation even if product is skipped.
+                    client_info_for_doc_dialog = self.clients_data_map.get(actual_new_client_id)
+                    if not client_info_for_doc_dialog:
+                        QMessageBox.warning(self, self.tr("Error"), self.tr("Client data not found for document creation step."))
+                    else:
+                        doc_dialog = CreateDocumentDialog(client_info_for_doc_dialog, self.config, self)
+                        if doc_dialog.exec_() == QDialog.Accepted:
+                            if client_widget_instance:
+                                client_widget_instance.populate_doc_table_for_client()
+                    return # End of workflow if product dialog is cancelled.
+
+            else: # Contact dialog cancelled
+                self.show_notification(self.tr("Contact Skipped"), self.tr("Contact addition was skipped by the user."))
+                # Ask if user wants to proceed to Product addition anyway
+                reply = QMessageBox.question(self, self.tr("Skip Contact"),
+                                             self.tr("Contact addition was skipped. Do you want to add a product and create a document for this client?"),
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    product_dialog = ProductDialog(client_id=actual_new_client_id, parent=self)
+                    if product_dialog.exec_() == QDialog.Accepted:
+                        product_form_data = product_dialog.get_data()
+                        # ... (Same product logic as above)
+                        global_product = db_manager.get_product_by_name(product_form_data['product_name'])
+                        global_product_id = None
+                        if global_product:
+                            global_product_id = global_product['product_id']
+                        else:
+                            new_global_product_id = db_manager.add_product({
+                                'product_name': product_form_data['product_name'],
+                                'description': product_form_data['product_description'],
+                                'base_unit_price': product_form_data['unit_price_for_dialog']
+                            })
+                            if new_global_product_id:
+                                global_product_id = new_global_product_id
+                                global_product = db_manager.get_product_by_id(global_product_id)
+                            else:
+                                QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not create global product."))
+
+                        if global_product_id:
+                            base_price_to_compare = global_product['base_unit_price'] if global_product else product_form_data['unit_price_for_dialog']
+                            price_override = None
+                            if product_form_data['unit_price_for_dialog'] != base_price_to_compare:
+                                price_override = product_form_data['unit_price_for_dialog']
+                            link_data = {
+                                'client_id': actual_new_client_id, 'project_id': None,
+                                'product_id': global_product_id, 'quantity': product_form_data['quantity'],
+                                'unit_price_override': price_override
+                            }
+                            cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                            if cpp_id and client_widget_instance:
+                                client_widget_instance.load_products_for_client()
+                            elif not cpp_id:
+                                QMessageBox.critical(self, self.tr("Error DB"), self.tr("Could not link product to client."))
+                        else:
+                             QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to obtain product ID for linking."))
+
+                        # Proceed to Document Creation
+                        client_info_for_doc_dialog = self.clients_data_map.get(actual_new_client_id)
+                        if not client_info_for_doc_dialog:
+                            QMessageBox.warning(self, self.tr("Error"), self.tr("Client data not found for document creation step."))
+                        else:
+                            doc_dialog = CreateDocumentDialog(client_info_for_doc_dialog, self.config, self)
+                            if doc_dialog.exec_() == QDialog.Accepted:
+                                if client_widget_instance:
+                                    client_widget_instance.populate_doc_table_for_client()
+                        return # End of workflow here
+
+                    else: # Product dialog cancelled after contact was skipped
+                        self.show_notification(self.tr("Workflow Skipped"), self.tr("Product and document steps skipped by the user."))
+                        return # Stop the workflow
+                else: # User chose not to proceed after skipping contact
+                    self.show_notification(self.tr("Workflow Stopped"), self.tr("Client creation complete. Contact, product, and document steps skipped."))
+                    return # Stop the workflow
+            # --- End of sequential dialog logic ---
+
         except OSError as e_os:
             # Keep critical for OS errors that prevent folder creation
             QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:
