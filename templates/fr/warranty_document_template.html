@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{document_title}} - {{related_invoice_number}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            color: #333;
+            font-size: 11pt;
+        }
+        .warranty-container {
+            max-width: 750px;
+            margin: 30px auto;
+            padding: 30px;
+            border: 1px solid #555;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .document-main-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 25px;
+            color: #000;
+            text-transform: uppercase;
+        }
+        .section {
+            margin-bottom: 15px;
+        }
+        .section-title {
+            font-size: 13pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #ccc;
+        }
+        .section-content p, .section-content ul, .section-content div {
+            margin-bottom: 8px;
+        }
+        .section-content ul {
+            list-style-type: disc;
+            margin-left: 30px;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Two equal columns */
+            gap: 20px; /* Space between columns */
+            margin-bottom: 15px;
+        }
+        .details-box {
+            padding: 10px;
+            border: 1px solid #eee;
+        }
+        .details-box p { margin: 3px 0; }
+        .bold { font-weight: bold; }
+        .signature-section {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+        }
+        .signature-block {
+            margin-top: 10px;
+        }
+        .signature-line {
+            width: 250px;
+            border-bottom: 1px solid #000;
+            margin-top: 20px;
+            margin-bottom: 5px;
+        }
+        .footer-info {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #777;
+        }
+        /* Products table if used */
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+        .products-table th, .products-table td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+            font-size: 0.95em;
+        }
+        .products-table th {
+            background-color: #f7f7f7;
+        }
+    </style>
+</head>
+<body>
+    <div class="warranty-container">
+        <div class="document-main-title">{{document_title}}</div>
+
+        <div class="section">
+            <p><span class="bold">Date d'Émission de la Garantie :</span> {{date_of_issue_of_warranty}}</p>
+            <p><span class="bold">Facture Associée N° :</span> {{related_invoice_number}}</p>
+            <p><span class="bold">Date d'Achat :</span> {{date_of_purchase}}</p>
+        </div>
+
+        <div class="details-grid">
+            <div class="details-box">
+                <p class="section-title" style="border:none; margin-bottom:5px;">Bénéficiaire</p>
+                <p><span class="bold">{{beneficiary_name}}</span></p>
+                <p>{{beneficiary_address}}</p>
+                {{#if beneficiary_contact_person}}<p>Attn: {{beneficiary_contact_person}}</p>{{/if}}
+                {{#if beneficiary_phone}}<p>Tel: {{beneficiary_phone}}</p>{{/if}}
+                {{#if beneficiary_email}}<p>Email: {{beneficiary_email}}</p>{{/if}}
+            </div>
+            <div class="details-box">
+                <p class="section-title" style="border:none; margin-bottom:5px;">Garant (Vendeur)</p>
+                <p><span class="bold">{{warrantor_company_name}}</span></p>
+                <p>{{warrantor_address}}</p>
+                {{#if warrantor_contact_person}}<p>Attn: {{warrantor_contact_person}}</p>{{/if}}
+                {{#if warrantor_phone}}<p>Tel: {{warrantor_phone}}</p>{{/if}}
+                {{#if warrantor_email}}<p>Email: {{warrantor_email}}</p>{{/if}}
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Produit(s) Couvert(s)</p>
+            <div class="section-content">
+                {{#if products_covered}}
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Nom du Produit</th>
+                            <th>Numéro de Série / Identification</th>
+                            <th>Autre Info</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- {{#each products_covered}} -->
+                        <tr>
+                            <td>{{product_name}}</td>
+                            <td>{{product_serial_number}}</td>
+                            <td>{{product_other_identifier}}</td>
+                        </tr>
+                        <!-- {{/each}} -->
+                    </tbody>
+                </table>
+                {{else}}
+                <p><span class="bold">Nom du Produit :</span> {{product_name_single}}</p>
+                <p><span class="bold">Numéro de Série / Identification :</span> {{product_serial_number_single}}</p>
+                <p><span class="bold">Description Complémentaire :</span> {{product_description_single}}</p>
+                {{/if}}
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Période de Garantie</p>
+            <div class="section-content">
+                <p>{{warranty_period_description}}</p>
+                <p><span class="bold">Date de Début :</span> {{warranty_start_date}}</p>
+                <p><span class="bold">Date de Fin :</span> {{warranty_end_date}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Couverture de la Garantie</p>
+            <div class="section-content">
+                <p>{{warranty_coverage_details}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Exclusions de la Garantie</p>
+            <div class="section-content">
+                <p>{{exclusions_from_warranty_details}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Procédure de Réclamation</p>
+            <div class="section-content">
+                <p>{{claim_procedure_details}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Recours</p>
+            <div class="section-content">
+                <p>{{remedies_details}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Limitation de Responsabilité</p>
+            <div class="section-content">
+                <p>{{limitation_of_liability_details}}</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <p class="section-title">Droit Applicable</p>
+            <div class="section-content">
+                <p>La présente garantie est régie et interprétée conformément aux lois de {{governing_law_jurisdiction}}.</p>
+            </div>
+        </div>
+
+        <div class="signature-section">
+            <p class="bold">Pour et au nom de {{warrantor_company_name}} (le Garant) :</p>
+            <div class="signature-block">
+                <div class="signature-line"></div>
+                <p><span class="bold">Nom :</span> {{authorized_signature_name}}</p>
+                <p><span class="bold">Titre :</span> {{authorized_signature_title}}</p>
+                {{#if signature_date}}
+                <p><span class="bold">Date de Signature :</span> {{signature_date}}</p>
+                {{else}}
+                <p><span class="bold">Date de Signature :</span> {{date_of_issue_of_warranty}}</p>
+                {{/if}}
+            </div>
+        </div>
+
+        <div class="footer-info">
+            <p>{{warrantor_company_name}} - {{warrantor_address}}</p>
+            <p>Contact: {{warrantor_phone}} | {{warrantor_email}}</p>
+        </div>
+    </div>
+</body>
+</html>
