@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{document_title}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background-color: #f0f0f0; }
+        .cover-container { width: 80%; max-width: 700px; background-color: white; padding: 40px; box-shadow: 0 0 20px rgba(0,0,0,0.1); text-align: center; border-top: 10px solid #3498db; }
+        .logo { max-height: 100px; margin-bottom: 20px; }
+        h1 { font-size: 2.5em; color: #333; margin-bottom: 10px; }
+        h2 { font-size: 1.5em; color: #555; margin-bottom: 30px; }
+        .meta-info p { font-size: 1em; color: #666; margin: 5px 0; }
+        .footer-info { margin-top: 40px; font-size: 0.9em; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="cover-container">
+        <img src="{{company_logo_path}}" alt="Company Logo" class="logo">
+        <h1>{{document_title}}</h1>
+        <h2>{{document_subtitle}}</h2>
+        <div class="meta-info">
+            <p><strong>Client:</strong> {{client_name}}</p>
+            <p><strong>Projet:</strong> {{project_name}}</p>
+            <p><strong>Date:</strong> {{date_created}}</p>
+            <p><strong>Version:</strong> {{version}}</p>
+        </div>
+        <div class="footer-info">
+            <p>{{company_name}}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -2,279 +2,254 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liste de Colisage</title>
+    <title>Liste de Colisage - {{packing_list_number}}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
             color: #333;
+            font-size: 10px; /* Smaller base font for more info on one page */
         }
-        .packing-list-container {
-            border: 1px solid #ccc;
+        .packing-list-box {
+            max-width: 1000px; /* Allow wider for more table columns */
+            margin: 20px auto;
             padding: 20px;
-            max-width: 800px; /* Adjusted for potentially wider tables */
-            margin: auto;
-            background: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
         }
-        .header-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #000;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
         }
-        .header-section .company-details,
-        .header-section .document-details {
-            width: 48%;
+        th, td {
+            border: 1px solid #666; /* Clearer borders for customs docs */
+            padding: 6px;
+            text-align: left;
+            vertical-align: top;
         }
-        .header-section h1 {
-            margin: 0 0 10px 0;
-            font-size: 2.2em;
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .header-table td, .parties-table td, .details-table td {
+            border: none; /* No borders for layout tables */
+            padding: 3px 0;
+        }
+        .header-table { margin-bottom: 20px; }
+        .document-title {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
             color: #000;
         }
-        .company-address p, .document-info p {
-            margin: 4px 0;
-            font-size: 0.9em;
+        .company-logo {
+            max-height: 70px;
+            margin-bottom: 10px;
         }
-        .parties-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-        .parties-section .shipper-details,
-        .parties-section .consignee-details,
-        .parties-section .notify-party-details {
-            width: 32%; /* Adjust if notify party is not always present */
-            padding: 10px;
-            border: 1px solid #eee;
-            background-color: #f9f9f9;
-            font-size: 0.85em;
-        }
-        .parties-section h4 {
-            margin-top: 0;
-            font-size: 1.1em;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
-        .shipment-info-section {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #eee;
-        }
-        .shipment-info-section h4 {
-             margin-top: 0;
-            font-size: 1.1em;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
-        .shipment-info-section p {
-            margin: 5px 0;
-            font-size: 0.9em;
-        }
-        .packages-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        .packages-table th, .packages-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-            font-size: 0.85em;
-        }
-        .packages-table th {
-            background-color: #f2f2f2;
+        .section-title {
+            font-size: 12px;
             font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 3px;
         }
-        .packages-table td.number-column { /* For numeric values like quantity, weights, dimensions */
-            text-align: right;
+        .text-right { text-align: right !important; }
+        .text-center { text-align: center !important; }
+        .bold { font-weight: bold; }
+        .items-table th { font-size: 9px; } /* Smaller font for item table headers */
+        .items-table td { font-size: 9px; }
+        .totals-table td { font-weight: bold; }
+        .declaration, .signature-section {
+            margin-top: 20px;
+            font-size: 10px;
         }
-        .totals-summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        .totals-summary-table th, .totals-summary-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            font-size: 0.9em;
-            text-align: right;
-            font-weight: bold;
-        }
-        .totals-summary-table th {
-            text-align: left;
-            background-color: #f2f2f2;
-        }
-        .footer {
-            text-align: center;
+        .signature-line {
+            border-bottom: 1px solid #333;
+            width: 250px;
             margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #ccc;
-            font-size: 0.8em;
-            color: #777;
+            margin-bottom: 5px;
         }
-        .signature-area {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px dashed #ccc;
-            text-align: right;
+        .stamp-area {
+            border: 1px dashed #ccc;
+            height: 100px;
+            width: 200px;
+            text-align: center;
+            padding: 5px;
+            margin-top: 10px;
         }
-        .signature-area p {
-            margin-top: 25px;
+        .stamp-area img { max-width: 100%; max-height: 100%; }
+        @media print {
+            body { font-size: 9pt; } /* Adjust print font size */
+            .packing-list-box { margin: 0; box-shadow: none; border: none; }
+            th, td { border: 1px solid #333 !important; /* Ensure borders print */ }
+            .items-table th { font-size: 8pt; }
+            .items-table td { font-size: 8pt; }
+            .section-title { page-break-after: avoid; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
         }
     </style>
 </head>
 <body>
-    <div class="packing-list-container">
-        <header class="header-section">
-            <div class="company-details">
-                <h2>{{shipper_name}}</h2>
-                <div class="company-address">
-                    <p>{{shipper_address_line1}}</p>
-                    <p>{{shipper_address_line2}}</p>
-                    <p>{{shipper_city_zip_country}}</p>
-                    <p>Tél: {{shipper_phone}}</p>
-                </div>
-            </div>
-            <div class="document-details" style="text-align: right;">
-                <h1>LISTE DE COLISAGE</h1>
-                <div class="document-info">
-                    <p><strong>Liste de Colisage N°:</strong> {{packing_list_number}}</p>
-                    <p><strong>Date:</strong> {{packing_list_date}}</p>
-                    <p><strong>Facture Commerciale N°:</strong> {{invoice_number}}</p>
-                    <p><strong>Commande N°:</strong> {{order_number}}</p>
-                </div>
-            </div>
-        </header>
+    <div class="packing-list-box">
+        <table class="header-table">
+            <tr>
+                <td>
+                    {{#if company_logo_path_for_stamp}}
+                        <img src="{{company_logo_path_for_stamp}}" alt="Company Logo" class="company-logo">
+                    {{/if}}
+                </td>
+                <td class="text-right">
+                    <h1 class="document-title">LISTE DE COLISAGE</h1>
+                </td>
+            </tr>
+        </table>
 
-        <section class="parties-section">
-            <div class="shipper-details">
-                <h4>Expéditeur:</h4>
-                <p><strong>{{shipper_name}}</strong></p>
-                <p>{{shipper_address_line1}}</p>
-                <p>{{shipper_address_line2}}</p>
-                <p>{{shipper_city_zip_country}}</p>
-                <p>Contact: {{shipper_contact_person}}</p>
-            </div>
-            <div class="consignee-details">
-                <h4>Destinataire:</h4>
-                <p><strong>{{consignee_name}}</strong></p>
-                <p>{{consignee_address_line1}}</p>
-                <p>{{consignee_address_line2}}</p>
-                <p>{{consignee_city_zip_country}}</p>
-                <p>Contact: {{consignee_contact_person}}</p>
-            </div>
-            <div class="notify-party-details">
-                <h4>Notifier (si applicable):</h4>
-                <p><strong>{{notify_party_name}}</strong></p>
-                <p>{{notify_party_address_line1}}</p>
-                <p>{{notify_party_address_line2}}</p>
-                <p>{{notify_party_city_zip_country}}</p>
-            </div>
-        </section>
+        <table class="parties-table">
+            <tr>
+                <td style="width:50%;">
+                    <div class="section-title">Exportateur / Expéditeur</div>
+                    <strong>{{exporter_company_name}}</strong><br>
+                    {{exporter_address}}<br>
+                    Attn: {{exporter_contact_person}}<br>
+                    Tel: {{exporter_phone}}<br>
+                    Email: {{exporter_email}}
+                </td>
+                <td style="width:50%;">
+                    <div class="section-title">Destinataire (Consignee)</div>
+                    <strong>{{consignee_name}}</strong><br>
+                    {{consignee_address}}<br>
+                    Attn: {{consignee_contact_person}}<br>
+                    Tel: {{consignee_phone}}<br>
+                    Email: {{consignee_email}}
+                </td>
+            </tr>
+            {{#if notify_party_name}}
+            <tr>
+                <td colspan="2">
+                    <div class="section-title">Partie à Notifier (Notify Party)</div>
+                    <strong>{{notify_party_name}}</strong><br>
+                    {{notify_party_address}}
+                </td>
+            </tr>
+            {{/if}}
+        </table>
 
-        <section class="shipment-info-section">
-            <h4>Informations sur l'Expédition:</h4>
-            <p><strong>Date d'expédition:</strong> {{shipping_date}}</p>
-            <p><strong>Mode de Transport:</strong> {{mode_of_transport}}</p>
-            <p><strong>Navire/Vol N°:</strong> {{vessel_flight_number}}</p>
-            <p><strong>Port de Chargement:</strong> {{port_of_loading}}</p>
-            <p><strong>Port de Déchargement:</strong> {{port_of_discharge}}</p>
-            <p><strong>Destination Finale:</strong> {{final_destination}}</p>
-        </section>
+        <table class="details-table">
+            <tr>
+                <td><strong>N° Liste de Colisage:</strong> {{packing_list_number}}</td>
+                <td><strong>Date Liste de Colisage:</strong> {{packing_list_date}}</td>
+            </tr>
+            <tr>
+                <td><strong>N° Facture:</strong> {{invoice_number}}</td>
+                <td><strong>N° Commande:</strong> {{order_number}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"><strong>Date d'Expédition:</strong> {{date_of_shipment}}</td>
+            </tr>
+        </table>
 
-        <table class="packages-table">
+        <div class="section-title">Détails d'Expédition</div>
+        <table>
+            <tr>
+                <td style="width:50%;"><strong>Port de Chargement:</strong> {{port_of_loading}}</td>
+                <td style="width:50%;"><strong>Port de Déchargement:</strong> {{port_of_discharge}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"><strong>Navire / Vol / Détails Transport:</strong> {{vessel_flight_details}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"><strong>Marques d'Expédition:</strong><br>{{shipping_marks}}</td>
+            </tr>
+        </table>
+
+        <div class="section-title">Contenu des Colis</div>
+        <table class="items-table">
             <thead>
                 <tr>
-                    <th>Colis N°</th>
-                    <th>Marques et Numéros</th>
-                    <th>Description des Marchandises</th>
-                    <th class="number-column">Quantité</th>
-                    <th class="number-column">Poids Net ({{weight_unit}})</th>
-                    <th class="number-column">Poids Brut ({{weight_unit}})</th>
-                    <th>Dimensions (LxlxH {{dimension_unit}})</th>
-                    <th class="number-column">Volume ({{volume_unit}})</th>
+                    <th>Code Article</th>
+                    <th>Description</th>
+                    <th>Qté Colis</th>
+                    <th>Unités/Colis</th>
+                    <th>Total Unités</th>
+                    <th>Poids Net/Unité (kg)</th>
+                    <th>Poids Brut/Unité (kg)</th>
+                    <th>Poids Net Total (kg)</th>
+                    <th>Poids Brut Total (kg)</th>
+                    <th>Dimensions Colis (cm)</th>
+                    <th>Volume Colis (m³)</th>
                 </tr>
             </thead>
             <tbody>
-                <!-- Start: Packages Loop -->
-                <!-- {{#each packages}} -->
+                <!-- {{#each items}} -->
                 <tr>
-                    <td>{{package_number_identifier}}</td> <!-- e.g., "1 sur N" or specific ID -->
-                    <td>{{package_marks_and_numbers}}</td>
-                    <td>{{package_goods_description}}</td>
-                    <td class="number-column">{{package_quantity}}</td>
-                    <td class="number-column">{{package_net_weight}}</td>
-                    <td class="number-column">{{package_gross_weight}}</td>
-                    <td>{{package_dimensions}}</td>
-                    <td class="number-column">{{package_volume}}</td>
+                    <td>{{item_number_or_code}}</td>
+                    <td>{{item_description}}</td>
+                    <td class="text-center">{{item_quantity_packages}}</td>
+                    <td class="text-center">{{item_quantity_units_per_package}}</td>
+                    <td class="text-center bold">{{item_total_units}}</td>
+                    <td class="text-right">{{item_net_weight_per_unit_formatted}}</td>
+                    <td class="text-right">{{item_gross_weight_per_unit_formatted}}</td>
+                    <td class="text-right bold">{{item_total_net_weight_formatted}}</td>
+                    <td class="text-right bold">{{item_total_gross_weight_formatted}}</td>
+                    <td class="text-center">{{item_package_dimensions}}</td>
+                    <td class="text-right">{{item_package_volume_formatted}}</td>
                 </tr>
                 <!-- {{/each}} -->
-                <!-- Example Row (remove or comment out) -->
-                <tr>
-                    <td>1/2</td>
-                    <td>ORDER #123<br>CTN 1<br>MADE IN FR</td>
-                    <td>Pièces détachées Modèle X (Vis, Boulons, Écrous assortis)</td>
-                    <td class="number-column">1 CARTON</td>
-                    <td class="number-column">10.50</td>
-                    <td class="number-column">11.20</td>
-                    <td>60x40x30 cm</td>
-                    <td class="number-column">0.072</td>
-                </tr>
-                <tr>
-                    <td>2/2</td>
-                    <td>ORDER #123<br>CTN 2<br>MADE IN FR</td>
-                    <td>Unité principale Modèle Y (assemblée)</td>
-                    <td class="number-column">1 CAISSE</td>
-                    <td class="number-column">75.00</td>
-                    <td class="number-column">82.50</td>
-                    <td>120x80x100 cm</td>
-                    <td class="number-column">0.960</td>
-                </tr>
             </tbody>
         </table>
 
-        <table class="totals-summary-table">
-            <thead>
-                <tr>
-                    <th colspan="4">Récapitulatif Total:</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Nombre Total de Colis:</strong></td>
-                    <td>{{total_packages_quantity}}</td>
-                    <td><strong>Poids Net Total:</strong></td>
-                    <td>{{total_net_weight}} {{weight_unit}}</td>
-                </tr>
-                <tr>
-                    <td><strong>Volume Total:</strong></td>
-                    <td>{{total_volume}} {{volume_unit}}</td>
-                    <td><strong>Poids Brut Total:</strong></td>
-                    <td>{{total_gross_weight}} {{weight_unit}}</td>
-                </tr>
-            </tbody>
+        <div class="section-title">Totaux</div>
+        <table class="totals-table">
+            <tr>
+                <td style="width:70%;"><strong>Nombre total de colis:</strong></td>
+                <td class="text-right" style="width:30%;">{{total_packages_count}}</td>
+            </tr>
+            <tr>
+                <td><strong>Poids Net Total de l'Expédition (kg):</strong></td>
+                <td class="text-right">{{total_net_weight_shipment_formatted}}</td>
+            </tr>
+            <tr>
+                <td><strong>Poids Brut Total de l'Expédition (kg):</strong></td>
+                <td class="text-right">{{total_gross_weight_shipment_formatted}}</td>
+            </tr>
+            <tr>
+                <td><strong>Volume Total de l'Expédition (m³):</strong></td>
+                <td class="text-right">{{total_volume_shipment_formatted}}</td>
+            </tr>
         </table>
 
-        <section class="remarks-section" style="margin-top: 20px; padding: 10px; border: 1px solid #eee; font-size:0.9em;">
-            <h4>Remarques:</h4>
-            <p>{{remarks}}</p>
-            <!-- Example: "Contenu fragile. Manipuler avec soin." -->
-        </section>
-
-        <div class="signature-area">
-            <p>_________________________</p>
-            <p>Signature Autorisée / Cachet de l'entreprise</p>
-            <p><strong>{{authorized_signature_name}}</strong></p>
-            <p><em>{{authorized_signature_title}}</em></p>
+        <div class="declaration">
+            <div class="section-title">Déclaration</div>
+            <p>{{declaration_statement}}</p>
         </div>
 
-        <footer class="footer">
-            <p>{{footer_notes}}</p>
-            <p>&copy; {{current_year}} {{shipper_name}}.</p>
-        </footer>
+        <table style="margin-top: 40px; border:none;">
+            <tr>
+                <td style="width: 60%; border:none;">
+                    <div class="signature-section">
+                        <p>Pour et au nom de {{exporter_company_name}}:</p>
+                        <div class="signature-line"></div>
+                        <p><strong>{{authorized_signature_name}}</strong></p>
+                        <p><em>{{authorized_signature_title}}</em></p>
+                        <p>Date: {{signature_date}}</p>
+                    </div>
+                </td>
+                <td style="width: 40%; text-align: center; border:none;">
+                    {{#if company_logo_path_for_stamp}}
+                    <div class="section-title">Cachet de l'Entreprise</div>
+                    <div class="stamp-area">
+                        <img src="{{company_logo_path_for_stamp}}" alt="Cachet de l'entreprise">
+                    </div>
+                    {{/if}}
+                </td>
+            </tr>
+        </table>
     </div>
 </body>
 </html>

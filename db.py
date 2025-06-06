@@ -3,9 +3,18 @@ import uuid
 import hashlib
 from datetime import datetime
 import json
+import os # Added os import
 
 # Global variable for the database name
 DATABASE_NAME = "app_data.db"
+
+# Constants for document context paths
+# Assuming db.py is in a subdirectory of the app root (e.g., /app/core/db.py or /app/db.py)
+# If db.py is directly in /app, then os.path.dirname(__file__) is /app
+# If db.py is in /app/core, then os.path.dirname(__file__) is /app/core, so "../" goes to /app
+APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+LOGO_SUBDIR_CONTEXT = "company_logos" # Example, adjust if actual path is different, e.g., "static/logos" or "data/logos"
+
 
 def initialize_database():
     """
@@ -4400,6 +4409,193 @@ def get_status_setting_by_name(status_name: str, status_type: str) -> dict | Non
         return None
     finally:
         if conn: conn.close()
+
+# --- Document Context Data Function ---
+
+def format_currency(amount: float | None, symbol: str = "€", precision: int = 2) -> str:
+    """Formats a numerical amount into a currency string."""
+    if amount is None:
+        return ""
+    return f"{symbol}{amount:,.{precision}f}"
+
+def get_document_context_data(
+    client_id: str,
+    company_id: str,
+    project_id: str = None,
+    product_ids: list[int] = None,
+    additional_context: dict = None
+) -> dict:
+    """
+    Gathers and structures data from various database sources to provide a comprehensive
+    context dictionary for document generation.
+    """
+    context = {
+        "doc": {},
+        "client": {},
+        "seller": {},
+        "seller_personnel": {},
+        "project": {}, # Added project key
+        "products": [],
+        "additional": {}
+    }
+
+    # 1. Populate context["doc"]
+    now_dt = datetime.now()
+    context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
+    context["doc"]["current_year"] = str(now_dt.year)
+    context["doc"]["currency_symbol"] = "€" # Default, can be made dynamic
+
+    # 2. Fetch Client Information
+    client_data = get_client_by_id(client_id)
+    if client_data:
+        context["client"]["name"] = client_data.get('client_name')
+        context["client"]["company_name_raw"] = client_data.get('company_name')
+        context["client"]["id"] = client_data.get('client_id')
+        context["client"]["project_identifier"] = client_data.get('project_identifier')
+        context["client"]["primary_need"] = client_data.get('primary_need_description')
+        context["client"]["raw_address_country_id"] = client_data.get('country_id')
+        context["client"]["raw_address_city_id"] = client_data.get('city_id')
+        context["client"]["notes"] = client_data.get('notes')
+        context["client"]["price_formatted"] = format_currency(client_data.get('price'))
+        context["client"]["raw_price"] = client_data.get('price')
+
+
+        client_country_name = "N/A"
+        if client_data.get('country_id'):
+            country = get_country_by_id(client_data['country_id'])
+            if country:
+                client_country_name = country.get('country_name', "N/A")
+        context["client"]["country_name"] = client_country_name
+
+        client_city_name = "N/A"
+        if client_data.get('city_id'):
+            city = get_city_by_id(client_data['city_id'])
+            if city:
+                client_city_name = city.get('city_name', "N/A")
+        context["client"]["city_name"] = client_city_name
+
+        # Construct full_address (simplified for now)
+        # A more robust version would check for None or empty strings for each part
+        address_parts = []
+        # Assuming a hypothetical 'street_address' field in Clients table for a more complete address
+        # if client_data.get('street_address'): address_parts.append(client_data.get('street_address'))
+        if client_city_name != "N/A": address_parts.append(client_city_name)
+        if client_country_name != "N/A": address_parts.append(client_country_name)
+        context["client"]["full_address"] = ", ".join(address_parts) if address_parts else "N/A"
+
+        # Attempt to fetch primary contact details
+        client_contacts = get_contacts_for_client(client_id)
+        primary_contact = next((c for c in client_contacts if c.get('is_primary_for_client')), None)
+        if not primary_contact and client_contacts: # Fallback to first contact if no primary
+            primary_contact = client_contacts[0]
+
+        if primary_contact:
+            context["client"]["contact_name"] = primary_contact.get('name')
+            context["client"]["contact_email"] = primary_contact.get('email')
+            context["client"]["contact_phone"] = primary_contact.get('phone')
+            context["client"]["contact_position"] = primary_contact.get('position')
+
+
+    # 3. Fetch Seller/Company Information
+    company_data = get_company_by_id(company_id)
+    if company_data:
+        context["seller"]["name"] = company_data.get('company_name')
+        context["seller"]["address_raw"] = company_data.get('address') # Could be structured further
+        context["seller"]["payment_info_raw"] = company_data.get('payment_info')
+        context["seller"]["other_info"] = company_data.get('other_info')
+
+        logo_path_relative = company_data.get('logo_path')
+        context["seller"]["logo_path_relative"] = logo_path_relative
+        if logo_path_relative:
+            # Check if APP_ROOT_DIR_CONTEXT and LOGO_SUBDIR_CONTEXT are correctly defined and accessible
+            # This path construction assumes db.py is in a location relative to app root as defined
+            # e.g. if db.py is in /app/core, APP_ROOT_DIR_CONTEXT becomes /app
+            # and logo_path_absolute becomes /app/company_logos/your_logo.png
+            context["seller"]["logo_path_absolute"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
+        else:
+            context["seller"]["logo_path_absolute"] = None
+
+    # 4. Fetch Seller Personnel
+    sellers = get_personnel_for_company(company_id, role='seller')
+    if sellers:
+        context["seller_personnel"]["sales_person_name"] = sellers[0].get('name')
+    else:
+        context["seller_personnel"]["sales_person_name"] = "N/A"
+
+    tech_managers = get_personnel_for_company(company_id, role='technical_manager')
+    if tech_managers:
+        context["seller_personnel"]["technical_manager_name"] = tech_managers[0].get('name')
+    else:
+        context["seller_personnel"]["technical_manager_name"] = "N/A"
+
+    # 5. Fetch Project Information (if project_id is provided)
+    if project_id:
+        project_data = get_project_by_id(project_id)
+        if project_data:
+            context["project"]["name"] = project_data.get('project_name')
+            context["project"]["id"] = project_data.get('project_id')
+            context["project"]["description"] = project_data.get('description')
+            context["project"]["start_date"] = project_data.get('start_date')
+            context["project"]["deadline_date"] = project_data.get('deadline_date')
+            context["project"]["budget_formatted"] = format_currency(project_data.get('budget'))
+            context["project"]["raw_budget"] = project_data.get('budget')
+            context["project"]["progress_percentage"] = project_data.get('progress_percentage')
+            # manager_team_member_id would need another fetch to get name, simplified for now
+            context["project"]["manager_id"] = project_data.get('manager_team_member_id')
+
+            status_id = project_data.get('status_id')
+            if status_id:
+                status_info = get_status_setting_by_id(status_id)
+                context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
+            else:
+                context["project"]["status_name"] = "N/A"
+
+
+    # 6. Fetch Products
+    fetched_products_data = []
+    if project_id: # Products associated with a project take precedence
+        fetched_products_data = get_products_for_client_or_project(client_id, project_id)
+    elif product_ids: # Explicit list of product_ids
+        for pid in product_ids:
+            prod = get_product_by_id(pid)
+            if prod:
+                # Mimic structure from get_products_for_client_or_project if necessary
+                # This path might need quantity/override price from somewhere else or defaults
+                fetched_products_data.append({
+                    **prod, # Contains base_unit_price
+                    'quantity': 1, # Default quantity
+                    'unit_price_override': None # No override when fetching by ID directly like this
+                })
+    elif client_id: # Fallback to general client products (not tied to a specific project)
+         fetched_products_data = get_products_for_client_or_project(client_id, project_id=None)
+
+
+    for prod_data in fetched_products_data:
+        quantity = prod_data.get('quantity', 1)
+
+        # Determine unit price: override, then base_unit_price from Products table via join
+        unit_price = prod_data.get('unit_price_override')
+        if unit_price is None: # No override for this specific client/project link
+            unit_price = prod_data.get('base_unit_price') # Base price from Products table
+
+        total_price = (quantity * unit_price) if unit_price is not None else None
+
+        context["products"].append({
+            "name": prod_data.get('product_name'),
+            "description": prod_data.get('product_description'), # or 'description' if directly from Products
+            "quantity": quantity,
+            "unit_price_formatted": format_currency(unit_price),
+            "total_price_formatted": format_currency(total_price),
+            "raw_unit_price": unit_price,
+            "raw_total_price": total_price,
+            "unit_of_measure": prod_data.get('unit_of_measure')
+        })
+
+    # 7. Handle additional_context
+    if isinstance(additional_context, dict):
+        context["additional"].update(additional_context)
+
+    return context
 
 
 if __name__ == '__main__':

@@ -28,6 +28,7 @@ from docx import Document # Added for Word preview (already here but good to not
 import db as db_manager # Assuming db.py is accessible
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
+from html_to_pdf_util import render_html_template, convert_html_to_pdf # Added
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG
 from docx import Document # For populate_docx_template
 
@@ -845,6 +846,39 @@ class ClientWidget(QWidget):
         self.load_contacts_for_client() # Renamed
         self.load_products_for_client() # Renamed
 
+        # PDF Generation Section
+        pdf_generation_group = QGroupBox(self.tr("Générer Documents PDF"))
+        pdf_gen_layout = QVBoxLayout()
+
+        self.btn_generate_proforma = QPushButton(self.tr("Générer Facture Proforma PDF"))
+        self.btn_generate_proforma.setIcon(QIcon.fromTheme("document-export")) # Example icon
+        self.btn_generate_proforma.clicked.connect(lambda: self.generate_document_pdf('proforma'))
+        pdf_gen_layout.addWidget(self.btn_generate_proforma)
+
+        self.btn_generate_packing_list = QPushButton(self.tr("Générer Packing List PDF"))
+        self.btn_generate_packing_list.setIcon(QIcon.fromTheme("document-export"))
+        self.btn_generate_packing_list.clicked.connect(lambda: self.generate_document_pdf('packing_list'))
+        pdf_gen_layout.addWidget(self.btn_generate_packing_list)
+
+        self.btn_generate_sales_contract = QPushButton(self.tr("Générer Contrat de Vente PDF"))
+        self.btn_generate_sales_contract.setIcon(QIcon.fromTheme("document-export"))
+        self.btn_generate_sales_contract.clicked.connect(lambda: self.generate_document_pdf('sales_contract'))
+        pdf_gen_layout.addWidget(self.btn_generate_sales_contract)
+
+        self.btn_generate_warranty = QPushButton(self.tr("Générer Document de Garantie PDF"))
+        self.btn_generate_warranty.setIcon(QIcon.fromTheme("document-export"))
+        self.btn_generate_warranty.clicked.connect(lambda: self.generate_document_pdf('warranty'))
+        pdf_gen_layout.addWidget(self.btn_generate_warranty)
+
+        self.btn_generate_cover_page = QPushButton(self.tr("Générer Page de Garde PDF"))
+        self.btn_generate_cover_page.setIcon(QIcon.fromTheme("document-export"))
+        self.btn_generate_cover_page.clicked.connect(lambda: self.generate_document_pdf('cover_page'))
+        pdf_gen_layout.addWidget(self.btn_generate_cover_page)
+
+        pdf_generation_group.setLayout(pdf_gen_layout)
+        layout.addWidget(pdf_generation_group)
+
+
     def load_client_statuses_for_combo(self): # Renamed
         self.status_combo.clear()
         try:
@@ -1165,3 +1199,140 @@ def populate_docx_template(docx_path, client_data):
     except Exception as e:
         print(f"Error populating DOCX template {docx_path}: {e}")
         raise
+
+    def generate_document_pdf(self, doc_type_key: str):
+        template_map = {
+            'proforma': {'filename': 'proforma_invoice_template.html', 'title': self.tr("Facture Proforma")},
+            'packing_list': {'filename': 'packing_list_template.html', 'title': self.tr("Packing List")},
+            'sales_contract': {'filename': 'sales_contract_template.html', 'title': self.tr("Contrat de Vente")},
+            'warranty': {'filename': 'warranty_document_template.html', 'title': self.tr("Document de Garantie")},
+            'cover_page': {'filename': 'cover_page_template.html', 'title': self.tr("Page de Garde")},
+        }
+
+        if doc_type_key not in template_map:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Type de document inconnu."))
+            return
+
+        template_info = template_map[doc_type_key]
+        template_filename = template_info['filename']
+        doc_title_for_context = template_info['title']
+
+        client_id = self.client_info.get('client_id')
+        # Prefer 'project_id' (UUID) if available, else 'project_identifier' (human-readable)
+        # db_manager.get_document_context_data expects project_id to be the UUID if provided.
+        project_id = self.client_info.get('project_id') or self.client_info.get('project_identifier')
+
+
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non trouvé."))
+            return
+
+        default_company = db_manager.get_default_company()
+        if not default_company:
+            QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Aucune société par défaut configurée."))
+            return
+        company_id = default_company['company_id']
+
+        selected_languages = self.client_info.get("selected_languages", ["fr"]) # Default to 'fr'
+        lang_code = selected_languages[0] if selected_languages and isinstance(selected_languages, list) else "fr"
+
+
+        template_path = os.path.join(self.config.get("templates_dir", "templates"), lang_code, template_filename)
+
+        if not os.path.exists(template_path):
+            QMessageBox.critical(self, self.tr("Erreur Fichier"), self.tr("Le fichier modèle HTML est introuvable: {0}").format(template_path))
+            return
+
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Lecture Modèle"), self.tr("Impossible de lire le fichier modèle HTML: {0}").format(str(e)))
+            return
+
+        additional_doc_context = {
+            "document_title": doc_title_for_context,
+            # Add any other specific context needed per doc_type_key
+        }
+        # Example of adding specific context based on document type
+        current_time_str = datetime.now().strftime("%Y%m%d%H%M")
+        project_identifier_short = self.client_info.get('project_identifier', client_id[:5])
+
+        if doc_type_key == 'proforma':
+            additional_doc_context["invoice_number"] = f"PRO-{project_identifier_short}-{current_time_str}"
+            additional_doc_context["invoice_date_issue"] = datetime.now().strftime("%Y-%m-%d")
+            # invoice_date_due could be calculated, e.g., invoice_date_issue + 30 days
+            additional_doc_context["invoice_date_due"] = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        elif doc_type_key == 'packing_list':
+             additional_doc_context["packing_list_number"] = f"PL-{project_identifier_short}-{current_time_str}"
+             additional_doc_context["packing_list_date"] = datetime.now().strftime("%Y-%m-%d")
+             additional_doc_context["date_of_shipment"] = datetime.now().strftime("%Y-%m-%d") # Placeholder, adjust as needed
+        elif doc_type_key == 'sales_contract':
+            additional_doc_context["contract_number"] = f"SC-{project_identifier_short}-{current_time_str}"
+            additional_doc_context["date_of_agreement"] = datetime.now().strftime("%Y-%m-%d")
+        elif doc_type_key == 'warranty':
+            additional_doc_context["date_of_issue_of_warranty"] = datetime.now().strftime("%Y-%m-%d")
+            additional_doc_context["related_invoice_number"] = f"INV-{project_identifier_short}-{current_time_str}" # Example
+            additional_doc_context["date_of_purchase"] = datetime.now().strftime("%Y-%m-%d") # Example
+        # For 'cover_page', the title is already set. Other fields will come from context.
+
+
+        # Fetch the main context
+        context = db_manager.get_document_context_data(client_id, company_id, project_id, additional_context=additional_doc_context)
+
+        try:
+            populated_html = render_html_template(template_content, context)
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Rendu HTML"), self.tr("Erreur lors du rendu du modèle HTML: {0}").format(str(e)))
+            return
+
+        # Determine base_url for WeasyPrint.
+        # It needs to allow access to resources like company_logos.
+        # APP_ROOT_DIR should be the absolute path to the application's root.
+        # Example: if logos are in APP_ROOT_DIR/company_logos/
+        base_url_for_pdf = f"file://{APP_ROOT_DIR}/"
+        # Ensure APP_ROOT_DIR ends with a slash if it's used as a base for relative paths in HTML
+        # However, os.path.join in get_document_context_data for logo_path_absolute should create correct absolute file paths.
+        # So, base_url might be more for CSS or other template-relative assets not covered by absolute paths.
+        # If all image paths (like logos) are made absolute in the context, base_url is less critical for them.
+        # For now, using APP_ROOT_DIR as base_url.
+
+        try:
+            pdf_bytes = convert_html_to_pdf(populated_html, base_url=base_url_for_pdf)
+            if not pdf_bytes:
+                QMessageBox.warning(self, self.tr("Erreur PDF"), self.tr("La génération du PDF a échoué (contenu vide)."))
+                return
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Génération PDF"), self.tr("Erreur lors de la conversion HTML en PDF: {0}").format(str(e)))
+            return
+
+        default_pdf_name = f"{doc_type_key}_{self.client_info.get('client_name', 'client').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
+
+        # Ensure client_info["base_folder_path"] exists.
+        client_base_folder = self.client_info.get("base_folder_path")
+        if not client_base_folder or not os.path.isdir(client_base_folder):
+            # Fallback to documents location if client's base folder is not set or invalid
+            client_base_folder = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+            os.makedirs(client_base_folder, exist_ok=True) # Ensure this fallback directory exists
+
+        client_lang_folder = os.path.join(client_base_folder, lang_code)
+        os.makedirs(client_lang_folder, exist_ok=True)
+
+        suggested_path = os.path.join(client_lang_folder, default_pdf_name)
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Enregistrer PDF sous"), suggested_path, self.tr("Fichiers PDF (*.pdf)")
+        )
+
+        if save_path:
+            try:
+                with open(save_path, 'wb') as f:
+                    f.write(pdf_bytes)
+                QMessageBox.information(self, self.tr("Succès"), self.tr("PDF généré et sauvegardé: {0}").format(save_path))
+                QDesktopServices.openUrl(QUrl.fromLocalFile(save_path))
+
+                # Refresh document list in ClientWidget if it's displayed
+                if hasattr(self, 'populate_doc_table_for_client'):
+                    self.populate_doc_table_for_client()
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Sauvegarde"), self.tr("Impossible de sauvegarder le PDF: {0}").format(str(e)))

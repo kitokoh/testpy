@@ -5,12 +5,14 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QTextEdit, QVBoxLayout, QHBoxLayout,
     QPushButton, QMessageBox, QFileDialog, QStyle, QLabel, QLineEdit, QWidget,
-    QSizePolicy
+    QSizePolicy, QCheckBox # Added QCheckBox
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication
 import functools # For partial
 import db # Import the real db module
+from db import get_document_context_data, get_default_company # Added
+from html_to_pdf_util import render_html_template # Added
 
 # Assuming excel_editor.ClientInfoWidget exists and is importable
 # If not, this will need adjustment or a placeholder class
@@ -55,6 +57,13 @@ class HtmlEditor(QDialog):
         self.client_data = client_data
         self._current_pdf_export_path = None
 
+        default_company_obj = get_default_company() # Use the imported db function
+        self.default_company_id = default_company_obj['company_id'] if default_company_obj else None
+        if not self.default_company_id:
+            # In a real app, use logging. For this example, print is fine.
+            print("WARNING: No default company found in database. Some template placeholders (e.g., seller details) may not populate correctly.")
+            # Potentially show a QMessageBox.warning to the user if this is critical for editor functionality.
+
         # Ensure ClientInfoWidget is created before methods that might use it (like _replace_placeholders_html via _load_content)
         # self.client_info_widget = ClientInfoWidget(self.client_data) # Moved to _setup_ui as per standard practice
 
@@ -62,7 +71,7 @@ class HtmlEditor(QDialog):
         self._load_content() # Now it's safe to call this
 
     def _setup_ui(self):
-        self.setWindowTitle(self.tr("HTML Editor - {0}").format(os.path.basename(self.file_path)))
+        self.setWindowTitle(self.tr("HTML Editor - {0}").format(os.path.basename(self.file_path) if self.file_path else "New Document")) # Handle None file_path
         self.setGeometry(100, 100, 1000, 700)  # Initial size
 
         main_layout = QVBoxLayout(self)
@@ -82,6 +91,23 @@ class HtmlEditor(QDialog):
         self.client_info_widget = ClientInfoWidget(self.client_data, self) # parent is self
         main_layout.addWidget(self.client_info_widget, 1)
 
+        # Options Layout (for checkbox)
+        options_layout = QHBoxLayout()
+        self.toggle_code_view_checkbox = QCheckBox(self.tr("Show HTML Code Editor"))
+        self.toggle_code_view_checkbox.setChecked(True) # Editor is visible by default
+        self.toggle_code_view_checkbox.toggled.connect(self.toggle_code_editor_visibility)
+        options_layout.addWidget(self.toggle_code_view_checkbox)
+        options_layout.addStretch() # To push checkbox to the left
+        # Insert options_layout before the button_layout.
+        # If main_layout has other items after client_info_widget and before buttons, adjust index.
+        # Current structure: editor_preview_layout, client_info_widget, then buttons.
+        # So, index main_layout.count() - 1 might not be right if button_layout is the last one.
+        # Let's assume button_layout is added last, so we add options before it.
+        # If main_layout structure is [editor_preview_layout, client_info_widget, button_layout],
+        # this means index 2 is where button_layout is, so we insert at 2.
+        # A safer way if button_layout is always last: main_layout.insertLayout(main_layout.count() -1 , options_layout)
+        # For now, assuming button_layout is the last element to be added to main_layout
+
         # Buttons
         button_layout = QHBoxLayout()
         self.save_button = QPushButton(self.tr("Save"))
@@ -100,7 +126,9 @@ class HtmlEditor(QDialog):
         button_layout.addStretch()
         button_layout.addWidget(self.close_button)
 
-        main_layout.addLayout(button_layout)
+        # Add layouts to main_layout in order
+        main_layout.addLayout(options_layout) # Add options layout
+        main_layout.addLayout(button_layout)  # Then add button layout
 
         # Connect signals
         self.save_button.clicked.connect(self.save_content)
@@ -200,100 +228,116 @@ class HtmlEditor(QDialog):
         self.html_edit.setPlainText(skeleton_html)
 
     def _replace_placeholders_html(self, html_content: str) -> str:
-        current_client_data = self.client_info_widget.get_client_data()
+        # Ensure client_data and default_company_id are available
+        if not self.client_data or 'client_id' not in self.client_data:
+            QMessageBox.warning(self, self.tr("Data Error"), self.tr("Client ID is missing. Cannot populate template fully."))
+            return html_content # Return original content or minimal processing
 
-        # Existing replacements from client_info_widget (using {...} style)
-        replacements = {
-            "{NOM_CLIENT}": current_client_data.get("Nom du client", ""),
-            "{BESOIN_CLIENT}": current_client_data.get("Besoin", ""),
-            "{DATE_CREATION}": datetime.now().strftime("%d/%m/%Y"),
-            "{PRIX_FINAL}": str(current_client_data.get("price", "")),
-            "{PROJECT_ID}": current_client_data.get("project_identifier", ""),
-            # Example of other client-specific data that might be in client_info_widget
-            # "{CLIENT_SPECIFIC_FIELD}": current_client_data.get("some_client_field", ""),
-        }
+        if not self.default_company_id:
+            QMessageBox.warning(self, self.tr("Configuration Error"), self.tr("Default company ID is not set. Seller details may be missing."))
+            # Proceed, but seller details might be empty if get_document_context_data relies on it.
+            # For now, we allow proceeding, get_document_context_data might handle missing company_id gracefully or fail.
+            # A better approach for a hard dependency is to prevent this call if default_company_id is None.
+            # For now, let it pass to db.get_document_context_data.
 
-        for placeholder, value in replacements.items():
-            html_content = html_content.replace(placeholder, str(value))
+        client_id = self.client_data.get('client_id')
+        # Determine project_id: 'project_id' might be the direct UUID, 'project_identifier' might be a human-readable one.
+        # get_document_context_data expects the UUID form if 'project_id' is used for DB lookups.
+        # Let's assume 'project_id' is the correct key if available, otherwise 'project_identifier'
+        # The actual key name for project's database ID in client_data should be consistent.
+        # For this example, let's prioritize 'project_id' if it exists, then 'project_identifier'.
+        # This depends on how client_data is structured when passed to HtmlEditor.
+        project_id = self.client_data.get('project_id') or self.client_data.get('project_identifier')
 
-        # New replacements from db settings (using {{...}} style)
-        company_legal_name = db.get_setting('company_legal_name') or ""
-        company_address_line1 = db.get_setting('company_address_line1') or ""
-        company_city = db.get_setting('company_city') or ""
-        company_postal_code = db.get_setting('company_postal_code') or ""
-        company_country = db.get_setting('company_country') or ""
-        company_email = db.get_setting('company_email') or ""
-        # Add other company settings as needed
-        # company_phone = db.get_setting('company_phone') or ""
-        # company_vat_number = db.get_setting('company_vat_number') or ""
-        # company_logo_path = db.get_setting('company_logo_path') or "" # For image tags if used
-
-        html_content = html_content.replace("{{company_legal_name}}", company_legal_name)
-        html_content = html_content.replace("{{company_address_line1}}", company_address_line1)
-        html_content = html_content.replace("{{company_city}}", company_city)
-        html_content = html_content.replace("{{company_postal_code}}", company_postal_code)
-        html_content = html_content.replace("{{company_country}}", company_country)
-        html_content = html_content.replace("{{company_email}}", company_email)
-        # html_content = html_content.replace("{{company_phone}}", company_phone)
-        # html_content = html_content.replace("{{company_vat_number}}", company_vat_number)
-        # html_content = html_content.replace("{{seller_logo_url}}", company_logo_path) # Example for logo
-
-        # Generic placeholders that might be common and can be sourced from company profile or app settings
-        html_content = html_content.replace("{{current_year}}", datetime.now().strftime("%Y"))
-
-
-        # It's important to handle placeholders that might not be filled to avoid showing them.
-        # For example, if a db.get_setting() returns None or empty string, it's handled by `or ""`.
-        # However, if a placeholder like `{{some_unfilled_placeholder}}` remains, it will appear literally.
-        # A more robust system might involve regex to find all `{{...}}` and remove those not found in data.
-
-        return html_content
+        try:
+            # Fetch the comprehensive context
+            # Pass project_id only if it's not None or empty string
+            context = get_document_context_data(
+                client_id=client_id,
+                company_id=self.default_company_id, # This could be None if no default company
+                project_id=project_id if project_id else None
+                # product_ids and additional_context can be added if needed by editor
+            )
+            # Render the HTML using the new advanced renderer
+            return render_html_template(html_content, context)
+        except Exception as e:
+            # Catch-all for errors during context fetching or rendering
+            print(f"Error during placeholder replacement: {e}") # Log this
+            QMessageBox.critical(self, self.tr("Template Error"),
+                                 self.tr("Could not process template placeholders: {0}").format(e))
+            return html_content # Return original on error to avoid breaking editor further
 
     def refresh_preview(self):
         raw_html = self.html_edit.toPlainText()
         processed_html = self._replace_placeholders_html(raw_html)
-        # Provide a base URL for relative paths (e.g., images, CSS) if they are in the same dir as the HTML file
-        base_url = QUrl.fromLocalFile(os.path.dirname(os.path.abspath(self.file_path)) + os.path.sep)
-        self.preview_pane.setHtml(processed_html, baseUrl=base_url)
+        # Provide a base URL for relative paths (e.g., images, CSS)
+        # if they are in the same dir as the HTML file or a known assets directory.
+        base_url = None
+        if self.file_path and os.path.exists(self.file_path):
+            base_url = QUrl.fromLocalFile(os.path.dirname(os.path.abspath(self.file_path)) + os.path.sep)
+        else:
+            # Fallback if file_path is not set (e.g. new document not yet saved)
+            # Or use a known global assets directory if applicable.
+            # For simplicity, if no file_path, relative local resources might not load in preview.
+            # Consider setting base_url to QUrl.fromLocalFile(os.getcwd() + os.path.sep) or similar.
+            pass
+        self.preview_pane.setHtml(processed_html, baseUrl=base_url if base_url else QUrl())
 
+    def toggle_code_editor_visibility(self, checked):
+        self.html_edit.setVisible(checked)
 
     def save_content(self):
         template_html = self.html_edit.toPlainText() # This is the version with placeholders
-        # If you want to save the version processed for the current client:
-        # final_html_content = self._replace_placeholders_html(template_html)
-        # However, typically templates are saved with placeholders.
-        # For this implementation, let's assume we save the client-specific version.
+        # The current requirement is that save_content saves the *processed* HTML.
+        # This means placeholders are filled based on the current client_data and default_company.
         final_html_content = self._replace_placeholders_html(template_html)
 
+        # If self.file_path is None or empty (e.g., new document), prompt for save location.
+        if not self.file_path:
+            default_save_dir = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+            file_dialog = QFileDialog(self, self.tr("Save HTML File"), default_save_dir, self.tr("HTML Files (*.html *.htm)"))
+            file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+            if file_dialog.exec_():
+                self.file_path = file_dialog.selectedFiles()[0]
+            else:
+                return # User cancelled save dialog
 
         try:
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 f.write(final_html_content)
-            QMessageBox.information(self, self.tr("Success"), self.tr("HTML content saved successfully."))
+            QMessageBox.information(self, self.tr("Success"), self.tr("HTML content saved successfully to {0}.").format(self.file_path))
+            self.setWindowTitle(self.tr("HTML Editor - {0}").format(os.path.basename(self.file_path))) # Update window title
             # self.accept() # Uncomment if dialog should close on successful save
         except IOError as e:
             QMessageBox.critical(self, self.tr("Save Error"), self.tr("Could not save HTML file: {0}\n{1}").format(self.file_path, e))
 
     @staticmethod
-    def populate_html_content(html_template_content: str, client_data_dict: dict) -> str:
-       # This method will be similar to _replace_placeholders_html but callable statically.
-       # It won't have access to self.client_info_widget directly.
-       # It needs client_data_dict passed in.
+    def populate_html_content(html_template_content: str, client_data_dict: dict, # Added default_company_id_static
+                              default_company_id_static: str) -> str: # Added default_company_id_static
+       # This static method needs to replicate the logic of _replace_placeholders_html
+       # but without instance attributes. It needs client_id and default_company_id.
 
-       # Minimal client data for direct use (adapt if ClientInfoWidget provides more complex structure)
-       replacements = {
-           "{NOM_CLIENT}": client_data_dict.get("client_name", ""), # Note: key change from "Nom du client"
-           "{BESOIN_CLIENT}": client_data_dict.get("need", ""),    # Note: key change
-           "{DATE_CREATION}": datetime.now().strftime("%d/%m/%Y"),
-           "{PRIX_FINAL}": str(client_data_dict.get("price", "")),
-           "{PROJECT_ID}": client_data_dict.get("project_identifier", "")
-           # Add any other direct client_data fields needed
-       }
+       client_id = client_data_dict.get("client_id")
+       project_id = client_data_dict.get("project_id") or client_data_dict.get("project_identifier")
 
-       processed_html = html_template_content
-       for placeholder, value in replacements.items():
-           processed_html = processed_html.replace(placeholder, str(value))
-       return processed_html
+       if not client_id:
+           print("Static Populate Error: Client ID missing from client_data_dict.")
+           return html_template_content # Or raise error
+       if not default_company_id_static:
+           print("Static Populate Error: default_company_id_static not provided.")
+           # Not returning original, as some placeholders might be from client_data
+
+       try:
+            context = get_document_context_data(
+                client_id=client_id,
+                company_id=default_company_id_static,
+                project_id=project_id if project_id else None
+            )
+            return render_html_template(html_template_content, context)
+       except Exception as e:
+            print(f"Error in static populate_html_content: {e}")
+            return html_template_content
+
 
 if __name__ == '__main__':
     # Required for QWebEngineView
@@ -304,98 +348,126 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
 
-    # Dummy data for testing ClientInfoWidget
-    # These should ideally not conflict with company profile keys fetched from db.get_setting
     dummy_client_data = {
-        "Nom du client": "Client Test Widget",
-        "project_identifier": "WIDGET_PROJ_007",
-        "Besoin": "Testing Widget Integration",
-        "price": 99.99,
-        # Keys like "company_name", "country", "city" that were previously in dummy_client_data
-        # for direct replacement should be removed if they are now intended to be fetched
-        # via db.get_setting for {{company_...}} placeholders.
-        # If they are meant for client-specific fields like {COMPANY_NAME}, they can remain.
-        # The current _replace_placeholders_html uses current_client_data.get("company_name", "") for {COMPANY_NAME}
-        # and db.get_setting('company_legal_name') for {{company_legal_name}}. This is fine.
+        "client_id": "dummy_client_uuid_123", # Added client_id
+        "Nom du client": "Client Test Main", # Used by ClientInfoWidget directly
+        "project_identifier": "MAIN_PROJ_001", # Used by _replace_placeholders and ClientInfoWidget
+        "Besoin": "Testing Main Application Flow", # Used by ClientInfoWidget
+        "price": 123.45, # Used by ClientInfoWidget
     }
 
-    # Mock db operations for __main__ if db.py is not fully set up or for isolated testing
-    # This is a local mock, not replacing the global `db` import for the class itself.
     class MockDBForMain:
         def __init__(self):
-            self._settings = {
-                'company_legal_name': "Main Test Corp.",
-                'company_address_line1': "123 Main St",
-                'company_city': "Testville",
-                'company_postal_code': "12345",
-                'company_country': "Testland",
-                'company_email': "main_contact@testcorp.com"
-            }
             print("Using MockDBForMain for html_editor.py's __main__ block.")
 
+        def get_default_company(self):
+            print("MockDB: get_default_company called")
+            return {"company_id": "dummy_company_uuid_456", "company_name": "Mock Default Corp"}
+
+        def get_document_context_data(self, client_id, company_id, project_id=None, product_ids=None, additional_context=None):
+            print(f"MockDB: get_document_context_data called with client_id={client_id}, company_id={company_id}, project_id={project_id}")
+            # Return a simplified context for the __main__ test template
+            mock_context = {
+                "doc": {
+                    "current_date": datetime.now().strftime("%Y-%m-%d"),
+                    "current_year": str(datetime.now().year),
+                    "currency_symbol": "$",
+                    "show_products": True
+                },
+                "client": {
+                    "name": dummy_client_data.get("Nom du client", "N/A Client from Mock"),
+                    "id": client_id,
+                    "full_address": "Mock Client Address, Mock City, Mock Country",
+                    "contact_name": "Mock Client Contact"
+                },
+                "seller": {
+                    "name": "Mock Default Corp from Mock",
+                    "address_raw": "Mock Seller St, Seller City",
+                    "logo_path_absolute": None # No logo for this mock
+                },
+                "seller_personnel": {
+                    "sales_person_name": "Mock Sales Person"
+                },
+                "project": {
+                    "name": project_id if project_id else "N/A Project from Mock",
+                    "id": project_id
+                },
+                "products": [
+                    {"name": "Mock Product A", "price_formatted": "$100", "description": "Desc A"},
+                    {"name": "Mock Product B", "price_formatted": "$200", "description": "Desc B"}
+                ] if project_id else [], # Only show products if project_id is present for this mock
+                "additional": {}
+            }
+            if additional_context:
+                mock_context["additional"].update(additional_context)
+            return mock_context
+
+        # Add other db functions that *might* be directly called by HtmlEditor or its components,
+        # though with the new _replace_placeholders_html, most data comes via get_document_context_data.
+        # db.get_setting was used before, if any part of UI still uses it, it might need mocking.
+        # For now, assume these are not directly called by the parts being tested in __main__.
         def get_setting(self, key, default=""):
-            return self._settings.get(key, default)
-
-        def initialize_database(self): # Add if db.initialize_database() is called in main
-            print("MockDBForMain: Database initialized.")
-
-    # Replace the global db object with the mock FOR THE DURATION OF __main__
-    # This is generally not ideal, but for a simple script test it can work.
-    # A better approach would be dependency injection for HtmlEditor if db access needs to be mocked.
-    original_db = db
-    db = MockDBForMain()
-    if hasattr(db, 'initialize_database'): # Check if initialize_database is needed by main's usage of db
-        db.initialize_database()
+            print(f"MockDB: get_setting called for {key}")
+            return f"MockSetting: {key}"
 
 
-    # Create a dummy file path in a writable temporary location
-    temp_dir = QStandardPaths.writableLocation(QStandardPaths.GenericTempLocation) # More generic temp
-    if not temp_dir: # Fallback if generic temp is not found
-        temp_dir = "."
+    original_db_module = sys.modules['db']
+    mock_db_instance = MockDBForMain()
 
-    # Ensure temp_dir exists
+    # Monkey patch functions in the actual 'db' module namespace that HtmlEditor imports from
+    # This is more targeted than replacing sys.modules['db']
+    original_get_default_company = db.get_default_company
+    original_get_document_context_data = db.get_document_context_data
+
+    db.get_default_company = mock_db_instance.get_default_company
+    db.get_document_context_data = mock_db_instance.get_document_context_data
+    # If HtmlEditor directly calls db.get_setting, mock that too:
+    # original_get_setting = db.get_setting
+    # db.get_setting = mock_db_instance.get_setting
+
+
+    temp_dir = QStandardPaths.writableLocation(QStandardPaths.TemporaryLocation)
     os.makedirs(temp_dir, exist_ok=True)
-
-    dummy_file_name = f"test_document_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
+    dummy_file_name = f"test_editor_doc_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
     dummy_file_path = os.path.join(temp_dir, dummy_file_name)
+    print(f"Test HTML file will be at: {dummy_file_path}")
 
-    print(f"Test HTML file will be at: {dummy_file_path}") # For debugging test setup
-
-    # Optional: Create a dummy HTML file for testing loading, with correct placeholders
-    # This template should now use {{company_...}} placeholders for company data
-    # and {...} for client-specific data.
+    # Updated HTML for __main__ to use {{ }} and new context structure
     with open(dummy_file_path, 'w', encoding='utf-8') as f_dummy:
         f_dummy.write("""<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Test Document</title>
-    <style> body { font-family: sans-serif; } .seller-details h2 {color: blue;} </style>
+    <title>{{doc.current_date}} - {{client.name}}</title>
 </head>
 <body>
-    <div class="seller-details">
-        <h2>{{company_legal_name}}</h2>
-        <p>{{company_address_line1}}</p>
-        <p>{{company_city}} {{company_postal_code}} {{company_country}}</p>
-        <p>Email: {{company_email}}</p>
-    </div>
+    <h1>Client: {{client.name}}</h1>
+    <p>Address: {{client.full_address}}</p>
+    <p>Contact: {{client.contact_name}}</p>
     <hr>
-    <h1>Facture pour {NOM_CLIENT}</h1>
-    <p>ID Projet: {PROJECT_ID}</p>
-    <p>Besoin: {BESOIN_CLIENT}</p>
-    <p>Prix: {PRIX_FINAL} EUR</p>
-    <p>Date de création: {DATE_CREATION}</p>
-    <p>Année en cours pour le pied de page: {{current_year}}</p>
-    <img src="non_existent_image.png" alt="Test Image">
+    <h2>Vendeur: {{seller.name}}</h2>
+    <p>Vendeur (Commercial): {{seller_personnel.sales_person_name}}</p>
+    <p>Projet: {{project.name}} (ID: {{project.id}})</p>
+
+    {{#if doc.show_products}}
+        <h3>Produits:</h3>
+        <ul>
+            {{#each products}}
+            <li>{{this.name}} - {{this.price_formatted}} -- {{this.description}}</li>
+            {{/each}}
+        </ul>
+    {{/if}}
+    <p>Document généré le: {{doc.current_date}}. Année: {{doc.current_year}}.</p>
 </body>
 </html>""")
 
     editor = HtmlEditor(file_path=dummy_file_path, client_data=dummy_client_data)
     editor.show()
-
     app_exit_code = app.exec_()
 
-    # Restore original db object if it was mocked for main
-    db = original_db
+    # Restore original db functions
+    db.get_default_company = original_get_default_company
+    db.get_document_context_data = original_get_document_context_data
+    # if 'original_get_setting' in locals(): db.get_setting = original_get_setting
 
     sys.exit(app_exit_code)
