@@ -14,10 +14,10 @@ from PyQt5.QtWidgets import (
     QListWidget, QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QDialogButtonBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QHeaderView, QInputDialog, QGroupBox, QCheckBox, QListWidgetItem, QDoubleSpinBox,
-    QStackedWidget, QStyle # Added for preview and QStyle
+    QStackedWidget # Added for preview
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
-from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication
+from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication, pyqtSignal # Added pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView # Added for HTML preview
 
 from app_config import CONFIG, APP_ROOT_DIR, load_config
@@ -40,44 +40,75 @@ from docx import Document # For populate_docx_template
 # PyPDF2 for CompilePdfDialog
 from PyPDF2 import PdfMerger
 
+# Replicated Helper Styles (from main_window.py / projectManagement.py)
+# These are simplified versions for use within this file.
+# Ideally, these would be in a shared styling module.
+
+STYLE_GENERIC_INPUT = """
+    QLineEdit, QComboBox, QTextEdit, QDoubleSpinBox, QSpinBox, QDateEdit {
+        padding: 8px 10px; border: 1px solid #ced4da;
+        border-radius: 4px; background-color: white; min-height: 20px;
+    }
+    QLineEdit:focus, QComboBox:focus, QTextEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus, QDateEdit:focus {
+        border-color: #80bdff;
+    }
+    QComboBox::drop-down {
+        subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+        border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+        border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+    }
+    QComboBox::down-arrow { image: url(icons/arrow_down.png); }
+"""
+
+STYLE_PRIMARY_BUTTON = """
+    QPushButton {
+        background-color: #28a745; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #218838; }
+    QPushButton:pressed { background-color: #1e7e34; }
+"""
+
+STYLE_SECONDARY_BUTTON = """
+    QPushButton {
+        background-color: #007bff; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #0069d9; }
+    QPushButton:pressed { background-color: #005cbf; }
+"""
+
+STYLE_DANGER_BUTTON = """
+    QPushButton {
+        background-color: #dc3545; color: white; font-weight: bold;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #c82333; }
+    QPushButton:pressed { background-color: #bd2130; }
+"""
+
+STYLE_NEUTRAL_BUTTON = """
+    QPushButton {
+        background-color: #6c757d; color: white; font-weight: normal;
+        padding: 8px 12px; border-radius: 4px; border: none;
+    }
+    QPushButton:hover { background-color: #5a6268; }
+    QPushButton:pressed { background-color: #545b62; }
+"""
+
+
 class ContactDialog(QDialog):
     def __init__(self, client_id=None, contact_data=None, parent=None):
         super().__init__(parent)
+        # self.client_id = client_id # Not directly used if contact_data has all info
         self.contact_data = contact_data or {}
-        title = self.tr("Ajouter Nouveau Contact") if not contact_data else self.tr("Modifier Détails Contact")
-        self.setWindowTitle(title)
-        self.setMinimumSize(450, 300) # Increased size
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f7f7f7;
-            }
-            QLineEdit, QTextEdit, QComboBox {
-                border: 1px solid #ccc;
-                border-radius: 3px;
-                padding: 5px;
-                background-color: white;
-            }
-            QPushButton {
-                padding: 6px 12px;
-                border-radius: 3px;
-                border: 1px solid #007bff;
-                background-color: #007bff;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-                border-color: #0056b3;
-            }
-            QDialogButtonBox QPushButton[text="OK"], QDialogButtonBox QPushButton[text="Annuler"] {
-                 min-width: 80px;
-            }
-        """)
+        self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
+        self.setMinimumSize(400, 270) # Adjusted size
+        self.setStyleSheet(STYLE_GENERIC_INPUT) # Apply to all inputs in dialog
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        layout.setContentsMargins(15, 15, 15, 15) # Added margins
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
         layout.addRow(self.tr("Nom complet:"), self.name_input)
         self.email_input = QLineEdit(self.contact_data.get("email", ""))
@@ -90,11 +121,14 @@ class ContactDialog(QDialog):
         self.primary_check.setChecked(bool(self.contact_data.get("is_primary", 0)))
         layout.addRow(self.primary_check)
 
-        button_box = QDialogButtonBox()
-        ok_button = button_box.addButton(self.tr("OK"), QDialogButtonBox.AcceptRole)
-        ok_button.setIcon(self.style().standardIcon(QStyle.SP_DialogOkButton))
-        cancel_button = button_box.addButton(self.tr("Annuler"), QDialogButtonBox.RejectRole)
-        cancel_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCancelButton))
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON) # Optional: for explicit neutral
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -239,7 +273,8 @@ class TemplateDialog(QDialog):
                 item.setData(Qt.UserRole + 1, template_data.get('template_id'))
                 self.template_list.addItem(item)
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error loading templates: {0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error loading templates:
+{0}").format(str(e)))
 
     def add_template(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -281,7 +316,8 @@ class TemplateDialog(QDialog):
             else:
                 QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle à la DB."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle: {0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:
+{0}").format(str(e)))
 
     def edit_template(self):
         item = self.template_list.currentItem()
@@ -304,7 +340,8 @@ class TemplateDialog(QDialog):
                 else:
                     QMessageBox.warning(self, self.tr("Error"), self.tr("Template details not found in DB."))
             except Exception as e:
-                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error accessing template details: {0}").format(str(e)))
+                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error accessing template details:
+{0}").format(str(e)))
 
 
     def delete_template(self):
@@ -327,7 +364,8 @@ class TemplateDialog(QDialog):
                 else:
                      QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template from DB."))
             except Exception as e:
-                QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template: {0}").format(str(e)))
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template:
+{0}").format(str(e)))
 
     def set_default_template(self):
         item = self.template_list.currentItem()
@@ -341,7 +379,8 @@ class TemplateDialog(QDialog):
             else:
                 QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error setting default template."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error updating template: {0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error updating template:
+{0}").format(str(e)))
 
     def get_selected_template_path(self):
         selected_items = self.template_list.selectedItems()
@@ -446,46 +485,14 @@ class TemplateDialog(QDialog):
 class ProductDialog(QDialog):
     def __init__(self, client_id, product_data=None, parent=None): # client_id might not be needed if product_data is self-sufficient for editing
         super().__init__(parent)
-        self.product_data = product_data or {}
-        title = self.tr("Ajouter Nouveau Produit") if not self.product_data.get('client_project_product_id') else self.tr("Modifier Détails Produit")
-        self.setWindowTitle(title)
-        self.setMinimumSize(480, 350) # Adjusted size
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f7f7f7;
-            }
-            QLineEdit, QTextEdit, QComboBox, QDoubleSpinBox {
-                border: 1px solid #ccc;
-                border-radius: 3px;
-                padding: 5px;
-                background-color: white;
-            }
-            QPushButton {
-                padding: 6px 12px;
-                border-radius: 3px;
-                border: 1px solid #007bff;
-                background-color: #007bff;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-                border-color: #0056b3;
-            }
-            QDialogButtonBox QPushButton[text="OK"], QDialogButtonBox QPushButton[text="Annuler"] {
-                 min-width: 80px;
-            }
-            QLabel[objectName="totalPriceLabel"] {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-            }
-        """)
+        # self.client_id = client_id # Store if needed for linking new products
+        self.product_data = product_data or {} # For editing existing linked product
+        self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data.get('client_project_product_id') else self.tr("Modifier Produit"))
+        self.setStyleSheet(STYLE_GENERIC_INPUT)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(15, 15, 15, 15)
         self.name_input = QLineEdit(self.product_data.get("product_name", "")) # Global product name
         layout.addRow(self.tr("Nom du Produit:"), self.name_input)
         self.description_input = QTextEdit(self.product_data.get("product_description", "")) # Global product desc
@@ -508,15 +515,17 @@ class ProductDialog(QDialog):
 
         total_price_title_label = QLabel(self.tr("Prix Total:"))
         self.total_price_label = QLabel("€ 0.00")
-        self.total_price_label.setObjectName("totalPriceLabel") # For styling
+        self.total_price_label.setStyleSheet("font-weight: bold;")
         layout.addRow(total_price_title_label, self.total_price_label)
-        self.update_total_price()
+        self.update_total_price() # Initial calculation
 
-        button_box = QDialogButtonBox()
-        ok_button = button_box.addButton(self.tr("OK"), QDialogButtonBox.AcceptRole)
-        ok_button.setIcon(self.style().standardIcon(QStyle.SP_DialogOkButton))
-        cancel_button = button_box.addButton(self.tr("Annuler"), QDialogButtonBox.RejectRole)
-        cancel_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCancelButton))
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON)
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -544,47 +553,12 @@ class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, parent=None): # Removed config, uses global CONFIG
         super().__init__(parent)
         self.client_info = client_info
-        self.setWindowTitle(self.tr("Générer Documents Client"))
-        self.setMinimumSize(650, 450) # Adjusted size
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f7f7f7;
-            }
-            QListWidget {
-                border: 1px solid #ccc;
-                border-radius: 3px;
-                background-color: white;
-            }
-            QPushButton#createDocsButton {
-                padding: 8px 15px;
-                border-radius: 4px;
-                border: 1px solid #218838; /* Darker green */
-                background-color: #28a745; /* Green */
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton#createDocsButton:hover {
-                background-color: #218838;
-                border-color: #1e7e34;
-            }
-            QPushButton#cancelDocsButton {
-                padding: 8px 15px;
-                border-radius: 4px;
-                border: 1px solid #c82333; /* Darker red */
-                background-color: #dc3545; /* Red */
-                color: white;
-            }
-            QPushButton#cancelDocsButton:hover {
-                background-color: #c82333;
-                border-color: #bd2130;
-            }
-        """)
+        self.setWindowTitle(self.tr("Créer des Documents"))
+        self.setMinimumSize(600, 400)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(15, 15, 15, 15)
         lang_layout = QHBoxLayout()
         lang_layout.addWidget(QLabel(self.tr("Langue:")))
         self.lang_combo = QComboBox()
@@ -593,26 +567,18 @@ class CreateDocumentDialog(QDialog):
         layout.addLayout(lang_layout)
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        self.templates_list.setStyleSheet("QListWidget::item { padding: 5px; } QListWidget::item:selected { background-color: #007bff; color: white; }")
-        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")), alignment=Qt.AlignLeft) # Align label
+        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")))
         layout.addWidget(self.templates_list)
-        self.load_templates_for_creation()
-
+        self.load_templates_for_creation() # Renamed to avoid conflict
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10) # Spacing for buttons
-
         create_btn = QPushButton(self.tr("Créer Documents"))
-        create_btn.setObjectName("createDocsButton") # For specific styling
-        create_btn.setIcon(QIcon.fromTheme("document-new", self.style().standardIcon(QStyle.SP_DialogSaveButton)))
-        create_btn.clicked.connect(self.create_documents_from_selection)
+        create_btn.setIcon(QIcon.fromTheme("document-new"))
+        create_btn.clicked.connect(self.create_documents_from_selection) # Renamed
         btn_layout.addWidget(create_btn)
-
         cancel_btn = QPushButton(self.tr("Annuler"))
-        cancel_btn.setObjectName("cancelDocsButton") # For specific styling (optional here if covered by generic QPushButton)
-        cancel_btn.setIcon(self.style().standardIcon(QStyle.SP_DialogCancelButton))
+        cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
-
         layout.addLayout(btn_layout)
 
     def load_templates_for_creation(self):
@@ -631,7 +597,8 @@ class CreateDocumentDialog(QDialog):
                 item.setData(Qt.UserRole, (name, lang, base_file_name)) # Store data for creation
                 self.templates_list.addItem(item)
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles: {0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:
+{0}").format(str(e)))
 
     def create_documents_from_selection(self): # Renamed
         selected_items = self.templates_list.selectedItems()
@@ -655,14 +622,16 @@ class CreateDocumentDialog(QDialog):
                     try:
                         populate_docx_template(target_path, self.client_info) # Defined below
                     except Exception as e_pop:
-                        QMessageBox.warning(self, self.tr("Erreur DOCX"), self.tr("Impossible de populer le modèle Word '{0}': {1}").format(os.path.basename(target_path), e_pop))
+                        QMessageBox.warning(self, self.tr("Erreur DOCX"), self.tr("Impossible de populer le modèle Word '{0}':
+{1}").format(os.path.basename(target_path), e_pop))
                 elif target_path.lower().endswith(".html"):
                     try:
                         with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
                         populated_content = HtmlEditor.populate_html_content(template_content, self.client_info)
                         with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
                     except Exception as e_html_pop:
-                        QMessageBox.warning(self, self.tr("Erreur HTML"), self.tr("Impossible de populer le modèle HTML '{0}': {1}").format(os.path.basename(target_path), e_html_pop))
+                        QMessageBox.warning(self, self.tr("Erreur HTML"), self.tr("Impossible de populer le modèle HTML '{0}':
+{1}").format(os.path.basename(target_path), e_html_pop))
                 created_files.append(target_path)
             else:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
@@ -773,13 +742,15 @@ class CompilePdfDialog(QDialog):
                             if '-' in part: start, end = part.split('-'); pages.extend(range(int(start), int(end)+1))
                             else: pages.append(int(part))
                         merger.append(file_path, pages=[p-1 for p in pages])
-                except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout de {0}: {1}").format(os.path.basename(file_path), str(e)))
+                except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout de {0}:
+{1}").format(os.path.basename(file_path), str(e)))
         try:
             with open(output_path, 'wb') as f: merger.write(f)
             if cover_path and os.path.exists(cover_path): os.remove(cover_path)
             self.offer_download_or_email_compiled_pdf(output_path) # Renamed
             self.accept()
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF: {0}").format(str(e)))
+        except Exception as e: QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF:
+{0}").format(str(e)))
 
     def generate_cover_page_pdf(self): # Renamed
         config_dict = {
@@ -809,7 +780,8 @@ class CompilePdfDialog(QDialog):
 
     def offer_download_or_email_compiled_pdf(self, pdf_path): # Renamed
         msg_box = QMessageBox(self); msg_box.setWindowTitle(self.tr("Compilation réussie"))
-        msg_box.setText(self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(pdf_path))
+        msg_box.setText(self.tr("Le PDF compilé a été sauvegardé dans:
+{0}").format(pdf_path))
         download_btn = msg_box.addButton(self.tr("Télécharger"), QMessageBox.ActionRole)
         email_btn = msg_box.addButton(self.tr("Envoyer par email"), QMessageBox.ActionRole)
         msg_box.addButton(self.tr("Fermer"), QMessageBox.RejectRole)
@@ -835,10 +807,13 @@ class CompilePdfDialog(QDialog):
             return
         msg = MIMEMultipart(); msg['From'] = current_app_config["smtp_user"]; msg['To'] = email
         msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info['client_name'])
-        email_body_template = "Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe"
-        translated_body_template = self.tr(email_body_template)
-        body_text = translated_body_template.format(self.client_info.get('project_identifier', 'N/A'))
-        msg.attach(MIMEText(body_text, 'plain'))
+        body = self.tr("Bonjour,
+
+Veuillez trouver ci-joint les documents compilés pour le projet {0}.
+
+Cordialement,
+Votre équipe").format(self.client_info.get('project_identifier', 'N/A'))
+        msg.attach(MIMEText(body, 'plain'))
         with open(pdf_path, 'rb') as f: part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
         part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
         msg.attach(part)
@@ -848,7 +823,8 @@ class CompilePdfDialog(QDialog):
             server.login(current_app_config["smtp_user"], current_app_config["smtp_password"])
             server.send_message(msg); server.quit()
             QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email: {0}").format(str(e)))
+        except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:
+{0}").format(str(e)))
 
 class ClientWidget(QWidget):
     def __init__(self, client_info, parent_config, main_window_ref=None): # parent_config is CONFIG from main_window
@@ -857,6 +833,8 @@ class ClientWidget(QWidget):
         self.config = parent_config # Use the passed config
         self.main_window = main_window_ref # Store reference to main window for callbacks if needed
         self.setup_ui()
+
+    manage_project_requested = pyqtSignal(str) # Signal takes client_id
 
     def setup_ui(self):
         layout = QVBoxLayout(self); layout.setContentsMargins(15, 15, 15, 15); layout.setSpacing(15)
@@ -867,16 +845,26 @@ class ClientWidget(QWidget):
         action_layout.addWidget(self.create_docs_btn)
         self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF")); self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export")); self.compile_pdf_btn.setStyleSheet("background-color: #27ae60; color: white;"); self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog_for_client) # Renamed
         action_layout.addWidget(self.compile_pdf_btn)
+
+        self.manage_project_btn = QPushButton(self.tr("Manage Project Details"))
+        self.manage_project_btn.setIcon(QIcon.fromTheme("preferences-system"))
+        self.manage_project_btn.setStyleSheet("background-color: #545b62; color: white;")
+        self.manage_project_btn.clicked.connect(self._emit_manage_project_request)
+        action_layout.addWidget(self.manage_project_btn)
+        action_layout.addStretch() # Ensure buttons align left if there's space
+
         layout.addLayout(action_layout)
         status_layout = QHBoxLayout(); status_label = QLabel(self.tr("Statut:")); status_layout.addWidget(status_label)
         self.status_combo = QComboBox()
         self.load_client_statuses_for_combo() # Renamed
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
         self.status_combo.currentTextChanged.connect(self.update_client_status_in_db) # Renamed
+        self.status_combo.setStyleSheet(STYLE_GENERIC_INPUT)
         status_layout.addWidget(self.status_combo); layout.addLayout(status_layout)
+
         details_layout = QFormLayout(); details_layout.setLabelAlignment(Qt.AlignRight)
         details_data = [
-            (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
+            (self.tr("Référence Client/Commande:"), self.client_info.get("project_identifier", self.tr("N/A"))),
             (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
             (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
             (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
@@ -889,11 +877,14 @@ class ClientWidget(QWidget):
             value_widget.setOpenExternalLinks(True); value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
             details_layout.addRow(label_widget, value_widget)
         layout.addLayout(details_layout)
+
         notes_group = QGroupBox(self.tr("Notes")); notes_layout = QVBoxLayout(notes_group)
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
+        self.notes_edit.setStyleSheet(STYLE_GENERIC_INPUT)
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
         self.notes_edit.textChanged.connect(self.save_client_notes_to_db) # Renamed
         notes_layout.addWidget(self.notes_edit); layout.addWidget(notes_group)
+
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
         self.doc_table = QTableWidget(); self.doc_table.setColumnCount(5)
@@ -903,6 +894,7 @@ class ClientWidget(QWidget):
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
         refresh_btn = QPushButton(self.tr("Actualiser")); refresh_btn.setIcon(QIcon.fromTheme("view-refresh")); refresh_btn.clicked.connect(self.populate_doc_table_for_client) # Renamed
+        refresh_btn.setStyleSheet(STYLE_NEUTRAL_BUTTON)
         doc_btn_layout.addWidget(refresh_btn)
         # Removed Open and Delete buttons here, actions are in cell widgets
         docs_layout.addLayout(doc_btn_layout); self.tab_widget.addTab(docs_tab, self.tr("Documents"))
@@ -912,10 +904,13 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("Ajouter Contact")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")); self.add_contact_btn.clicked.connect(self.add_new_client_contact) # Renamed
+        self.add_contact_btn.setStyleSheet(STYLE_PRIMARY_BUTTON)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         self.edit_contact_btn = QPushButton(self.tr("Modifier Contact")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.clicked.connect(self.edit_client_contact) # Renamed
+        self.edit_contact_btn.setStyleSheet(STYLE_SECONDARY_BUTTON)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         self.remove_contact_btn = QPushButton(self.tr("Supprimer Contact")); self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_contact_btn.clicked.connect(self.remove_client_contact_link) # Renamed
+        self.remove_contact_btn.setStyleSheet(STYLE_DANGER_BUTTON)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         contacts_layout.addLayout(contacts_btn_layout); self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
 
@@ -929,10 +924,13 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         products_btn_layout = QHBoxLayout()
         self.add_product_btn = QPushButton(self.tr("Ajouter Produit")); self.add_product_btn.setIcon(QIcon.fromTheme("list-add")); self.add_product_btn.clicked.connect(self.add_product_to_client) # Renamed
+        self.add_product_btn.setStyleSheet(STYLE_PRIMARY_BUTTON)
         products_btn_layout.addWidget(self.add_product_btn)
         self.edit_product_btn = QPushButton(self.tr("Modifier Produit")); self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_product_btn.clicked.connect(self.edit_linked_client_product) # Renamed
+        self.edit_product_btn.setStyleSheet(STYLE_SECONDARY_BUTTON)
         products_btn_layout.addWidget(self.edit_product_btn)
         self.remove_product_btn = QPushButton(self.tr("Supprimer Produit")); self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_product_btn.clicked.connect(self.remove_linked_client_product) # Renamed
+        self.remove_product_btn.setStyleSheet(STYLE_DANGER_BUTTON)
         products_btn_layout.addWidget(self.remove_product_btn)
         products_layout.addLayout(products_btn_layout); self.tab_widget.addTab(products_tab, self.tr("Produits"))
 
@@ -950,7 +948,8 @@ class ClientWidget(QWidget):
             for status_dict in client_statuses:
                 self.status_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
         except Exception as e: # Catch generic db_manager error
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts: {0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:
+{0}").format(str(e)))
 
     def update_client_status_in_db(self, status_text): # Renamed
         status_id = self.status_combo.currentData()
@@ -969,7 +968,8 @@ class ClientWidget(QWidget):
             else:
                  QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut."))
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut: {0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut:
+{0}").format(str(e)))
 
     def save_client_notes_to_db(self): # Renamed
         notes = self.notes_edit.toPlainText()
@@ -978,7 +978,8 @@ class ClientWidget(QWidget):
             if updated: self.client_info["notes"] = notes
             # else: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec sauvegarde des notes.")) # Optional feedback
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:
+{0}").format(str(e)))
 
     def populate_doc_table_for_client(self): # Renamed
         self.doc_table.setRowCount(0)
@@ -1000,10 +1001,10 @@ class ClientWidget(QWidget):
                     self.doc_table.setItem(row, 2, QTableWidgetItem(lang_code_folder))
                     self.doc_table.setItem(row, 3, QTableWidgetItem(mod_time))
                     action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(0,0,0,0); action_layout.setSpacing(5)
-                    open_btn_i = QPushButton(); open_btn_i.setIcon(QIcon.fromTheme("document-open")); open_btn_i.setToolTip(self.tr("Ouvrir")); open_btn_i.setFixedSize(28,28); open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p)); action_layout.addWidget(open_btn_i) # Renamed
+                    open_btn_i = QPushButton("📂"); open_btn_i.setToolTip(self.tr("Ouvrir")); open_btn_i.setFixedSize(28,28); open_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p)); action_layout.addWidget(open_btn_i) # Renamed
                     if file_name.lower().endswith('.xlsx') or file_name.lower().endswith('.html'):
-                        edit_btn_i = QPushButton(); edit_btn_i.setIcon(QIcon.fromTheme("document-edit")); edit_btn_i.setToolTip(self.tr("Éditer")); edit_btn_i.setFixedSize(28,28); edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p, edit_mode=True)); action_layout.addWidget(edit_btn_i) # Added edit_mode
-                    delete_btn_i = QPushButton(); delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")); delete_btn_i.setToolTip(self.tr("Supprimer")); delete_btn_i.setFixedSize(28,28); delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document_for_client(p)); action_layout.addWidget(delete_btn_i) # Renamed
+                        edit_btn_i = QPushButton("✏️"); edit_btn_i.setToolTip(self.tr("Éditer")); edit_btn_i.setFixedSize(28,28); edit_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document_for_client(p, edit_mode=True)); action_layout.addWidget(edit_btn_i) # Added edit_mode
+                    delete_btn_i = QPushButton("🗑️"); delete_btn_i.setToolTip(self.tr("Supprimer")); delete_btn_i.setFixedSize(28,28); delete_btn_i.setStyleSheet("background-color: transparent; border: none; font-size: 16px;"); delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document_for_client(p)); action_layout.addWidget(delete_btn_i) # Renamed
                     self.doc_table.setCellWidget(row, 4, action_widget)
                     row += 1
         self.doc_table.resizeColumnsToContents()
@@ -1034,7 +1035,8 @@ class ClientWidget(QWidget):
                     if html_editor_dialog.exec_() == QDialog.Accepted: self.populate_doc_table_for_client()
                 else: # Default open for PDF, DOCX, or non-edit mode for XLSX/HTML
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-            except Exception as e: QMessageBox.warning(self, self.tr("Erreur Ouverture Fichier"), self.tr("Impossible d'ouvrir/éditer le fichier: {0}").format(str(e)))
+            except Exception as e: QMessageBox.warning(self, self.tr("Erreur Ouverture Fichier"), self.tr("Impossible d'ouvrir/éditer le fichier:
+{0}").format(str(e)))
         else:
             QMessageBox.warning(self, self.tr("Fichier Introuvable"), self.tr("Le fichier n'existe plus.")); self.populate_doc_table_for_client()
 
@@ -1045,7 +1047,8 @@ class ClientWidget(QWidget):
             try:
                 os.remove(file_path); self.populate_doc_table_for_client()
                 QMessageBox.information(self, self.tr("Fichier supprimé"), self.tr("Le fichier a été supprimé.")) # Simplified
-            except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier: {0}").format(str(e)))
+            except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:
+{0}").format(str(e)))
 
     def load_contacts_for_client(self): # Renamed
         self.contacts_list.clear()
@@ -1062,7 +1065,8 @@ class ClientWidget(QWidget):
                 item = QListWidgetItem(contact_text)
                 item.setData(Qt.UserRole, {'contact_id': contact.get('contact_id'), 'client_contact_id': contact.get('client_contact_id')})
                 self.contacts_list.addItem(item)
-        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur chargement contacts: {0}").format(str(e)))
+        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur chargement contacts:
+{0}").format(str(e)))
 
     def add_new_client_contact(self): # Renamed
         client_uuid = self.client_info.get("client_id");
@@ -1088,22 +1092,10 @@ class ClientWidget(QWidget):
                             for cc in client_contacts:
                                 if cc['is_primary_for_client']: db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
                     link_id = db_manager.link_contact_to_client(client_uuid, contact_id_to_link, is_primary=contact_form_data['is_primary'])
-                    if link_id:
-                        self.load_contacts_for_client()
-                        self.trigger_add_product_dialog() # Call to add product dialog
+                    if link_id: self.load_contacts_for_client()
                     else: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de lier contact au client (lien existe peut-être).")) # Simplified
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact: {0}").format(str(e)))
-
-    def trigger_add_contact_dialog(self):
-        """Triggers the add new client contact dialog."""
-        self.add_new_client_contact()
-
-    def trigger_add_product_dialog(self):
-        """Triggers the add product to client dialog."""
-        # This method will be more fleshed out or replaced by direct call.
-        # For now, it calls the existing product dialog.
-        print(f"DEBUG: ClientWidget.trigger_add_product_dialog called for client {self.client_info.get('client_id')}")
-        self.add_product_to_client()
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:
+{0}").format(str(e)))
 
     def edit_client_contact(self): # Renamed
         item = self.contacts_list.currentItem();
@@ -1132,7 +1124,8 @@ class ClientWidget(QWidget):
                                         db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
                         db_manager.update_client_contact_link(client_contact_id, {'is_primary_for_client': new_form_data['is_primary']})
                     self.load_contacts_for_client()
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur modification contact: {0}").format(str(e)))
+        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur modification contact:
+{0}").format(str(e)))
 
     def remove_client_contact_link(self): # Renamed
         item = self.contacts_list.currentItem();
@@ -1141,15 +1134,15 @@ class ClientWidget(QWidget):
         client_uuid = self.client_info.get("client_id")
         if not contact_id or not client_uuid: return
         contact_name = db_manager.get_contact_by_id(contact_id)['name'] if db_manager.get_contact_by_id(contact_id) else "Inconnu"
-        reply = QMessageBox.question(self, self.tr("Confirmer Suppression Lien"),
-                                     self.tr("Supprimer lien vers {0} pour ce client ?\n(Contact global non supprimé).").format(contact_name),
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression Lien"), self.tr("Supprimer lien vers {0} pour ce client ?
+(Contact global non supprimé).").format(contact_name), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
                 unlinked = db_manager.unlink_contact_from_client(client_uuid, contact_id)
                 if unlinked: self.load_contacts_for_client()
                 else: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression lien contact-client."))
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression lien contact: {0}").format(str(e)))
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression lien contact:
+{0}").format(str(e)))
 
     def add_product_to_client(self): # Renamed
         client_uuid = self.client_info.get("client_id");
@@ -1174,16 +1167,10 @@ class ClientWidget(QWidget):
 
                     link_data = {'client_id': client_uuid, 'project_id': None, 'product_id': global_product_id, 'quantity': form_data['quantity'], 'unit_price_override': price_override}
                     cpp_id = db_manager.add_product_to_client_or_project(link_data)
-                    if cpp_id:
-                        self.load_products_for_client()
-                        self.trigger_create_document_dialog() # Call to create document dialog
+                    if cpp_id: self.load_products_for_client()
                     else: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de lier produit au client."))
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du produit: {0}").format(str(e)))
-
-    def trigger_create_document_dialog(self):
-        """Triggers the create document dialog for the client."""
-        print(f"DEBUG: ClientWidget.trigger_create_document_dialog called for client {self.client_info.get('client_id')}")
-        self.open_create_docs_dialog_for_client()
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du produit:
+{0}").format(str(e)))
 
     def edit_linked_client_product(self): # Renamed
         selected_row = self.products_table.currentRow();
@@ -1208,7 +1195,8 @@ class ClientWidget(QWidget):
                     if db_manager.update_client_project_product(client_project_product_id, update_link_data): self.load_products_for_client()
                     else: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec mise à jour produit lié."))
             else: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails produit lié introuvables."))
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur modification produit: {0}").format(str(e)))
+        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur modification produit:
+{0}").format(str(e)))
 
     def remove_linked_client_product(self): # Renamed
         selected_row = self.products_table.currentRow();
@@ -1222,7 +1210,8 @@ class ClientWidget(QWidget):
             try:
                 if db_manager.remove_product_from_client_or_project(client_project_product_id): self.load_products_for_client()
                 else: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression produit lié."))
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression produit lié: {0}").format(str(e)))
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur suppression produit lié:
+{0}").format(str(e)))
 
     def load_products_for_client(self): # Renamed
         self.products_table.setRowCount(0)
@@ -1241,7 +1230,8 @@ class ClientWidget(QWidget):
                 unit_price_item = QTableWidgetItem(f"€ {effective_unit_price:.2f}"); unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter); self.products_table.setItem(row_idx, 4, unit_price_item)
                 total_price_item = QTableWidgetItem(f"€ {prod_link_data.get('total_price_calculated', 0.0):.2f}"); total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter); self.products_table.setItem(row_idx, 5, total_price_item)
             self.products_table.resizeColumnsToContents()
-        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur chargement produits: {0}").format(str(e)))
+        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur chargement produits:
+{0}").format(str(e)))
 
 def populate_docx_template(docx_path, client_data):
     try:
