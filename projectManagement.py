@@ -21,15 +21,100 @@ from PyQt5.QtWidgets import QTextEdit
 from PyQt5.QtWidgets import QDialogButtonBox
 from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QMenu
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, QRect
+from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy
 import db as db_manager # Standardized to db_manager
 from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
 
+
+class CustomNotificationBanner(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel) # or QFrame.Box, QFrame.Panel
+        self.setObjectName("customNotificationBanner")
+
+        # Initial styling - can be refined via main app stylesheet or here
+        self.setStyleSheet("""
+            #customNotificationBanner {
+                background-color: #333333;
+                color: white;
+                border-radius: 5px;
+                padding: 10px;
+            }
+            #customNotificationBanner QLabel {
+                color: white;
+                font-size: 10pt;
+            }
+            #customNotificationBanner QPushButton {
+                color: white;
+                background-color: #555555;
+                border: 1px solid #666666;
+                border-radius: 3px;
+                padding: 5px 8px;
+                font-size: 9pt;
+            }
+            #customNotificationBanner QPushButton:hover {
+                background-color: #666666;
+            }
+        """)
+
+        self.setFixedHeight(50)
+        self.setFixedWidth(350)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5) # Adjust margins as needed
+
+        self.icon_label = QLabel("ℹ️") # Default icon
+        self.icon_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+
+        self.message_label = QLabel("Notification message will appear here.")
+        self.message_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.message_label.setWordWrap(True)
+
+        self.close_button = QPushButton("X")
+        self.close_button.setToolTip("Close")
+        self.close_button.setFixedSize(25, 25) # Small fixed size for 'X' button
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                font-weight: bold;
+                background-color: transparent;
+                border: none;
+                color: white;
+                font-size: 12pt;
+            }
+            QPushButton:hover { background-color: #c0392b; }
+        """)
+        self.close_button.clicked.connect(self.hide)
+
+        layout.addWidget(self.icon_label)
+        layout.addWidget(self.message_label)
+        layout.addStretch()
+        layout.addWidget(self.close_button)
+
+        self.hide() # Hidden by default
+
+    def set_message(self, title, message):
+        full_message = f"<b>{title}</b><br>{message}"
+        self.message_label.setText(full_message)
+
+        # Update icon based on title (simple emoji logic)
+        if "error" in title.lower() or "alert" in title.lower():
+            self.icon_label.setText("⚠️")
+        elif "success" in title.lower():
+            self.icon_label.setText("✅")
+        elif "urgent" in title.lower() or "reminder" in title.lower():
+            self.icon_label.setText("🔔") # Bell for urgent/reminder
+        else:
+            self.icon_label.setText("ℹ️") # Default info icon
+
+
 class NotificationManager:
-    def __init__(self, parent_window): # Removed db_manager from constructor
+    def __init__(self, parent_window):
         self.parent_window = parent_window
-        # self.db_manager = db_manager # Removed, will use direct import of db_manager
         self.timer = QTimer(parent_window)
+        self.notification_banner = CustomNotificationBanner(parent_window)
+        # Ensure the banner is raised to be on top of other widgets within its parent
+        self.notification_banner.raise_()
 
     def setup_timer(self, interval_ms=300000):  # Default 5 minutes
         self.timer.timeout.connect(self.check_notifications)
@@ -122,11 +207,23 @@ class NotificationManager:
 
 
     def show_notification(self, title, message, project_id=None, task_id=None):
-        # In a real application, you might want to make these notifications less intrusive
-        # or allow users to click them to navigate to the item.
-        # For now, a simple QMessageBox.
-        print(f"Showing notification: {title} - {message}") # For debugging
-        QMessageBox.information(self.parent_window, title, message)
+        self.notification_banner.set_message(title, message)
+
+        if self.parent_window:
+            parent_width = self.parent_window.width()
+            banner_width = self.notification_banner.width()
+
+            # Position banner at top-right with 10px margin
+            x = parent_width - banner_width - 10
+            y = 10
+            self.notification_banner.move(x, y)
+
+        self.notification_banner.show()
+        self.notification_banner.raise_() # Ensure it's on top of other widgets
+
+        # Auto-hide after 7 seconds
+        QTimer.singleShot(7000, self.notification_banner.hide)
+        print(f"Showing custom notification: {title} - {message}") # For debugging
 
 
 class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
@@ -136,10 +233,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         self.setStyleSheet("""
             QWidget {
-                background-color: #f5f7fa; /* Changed from QMainWindow */
+                background-color: #f8f9fa; /* Lighter background */
+                font-family: 'Segoe UI'; /* Ensure base font */
+                font-size: 10pt; /* Default font size */
             }
             QLabel {
-                color: #333333;
+                color: #212529; /* Darker text for better contrast */
+            }
+            QPushButton { /* General button reset/base */
+                border: none;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
         """)
 
@@ -212,59 +317,81 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
     def setup_topbar(self):
         self.topbar = QFrame()
-        self.topbar.setFixedHeight(70)  # Slightly taller for more elegance
+        self.topbar.setFixedHeight(70)
         self.topbar.setStyleSheet("""
             QFrame {
-                background-color: #2c3e50;
-                color: white;
-                border-bottom: 1px solid #3498db;
+                background-color: #343a40; /* Dark charcoal */
+                color: #ffffff;
+                border-bottom: 2px solid #007bff; /* Primary accent border */
             }
             QPushButton {
                 background-color: transparent;
-                color: white;
+                color: #f8f9fa; /* Lighter text for topbar buttons */
                 padding: 10px 15px;
                 border: none;
-                font-size: 14px;
-                border-radius: 4px;
-                min-width: 80px;
+                font-size: 11pt; /* Slightly larger for nav */
+                border-radius: 5px;
+                min-width: 90px;
             }
             QPushButton:hover {
-                background-color: #34495e;
+                background-color: #495057; /* Slightly lighter dark for hover */
             }
             QPushButton#selected {
-                background-color: #3498db;
+                background-color: #007bff; /* Primary accent */
+                color: white;
                 font-weight: bold;
-                border-left: 3px solid white;
             }
-            QPushButton#menu_button {
-                padding-right: 25px;
-                position: relative;
+            QPushButton#menu_button { /* Style for buttons with menus */
+                padding-right: 30px; /* More space for bigger arrow */
             }
+            QPushButton#menu_button::indicator { /* Hide default menu indicator if any */
+                width: 0px;
+            }
+            /* Custom arrow using a pseudo-element (might not work on all Qt styles/platforms)
+               If not, a QLabel with a unicode arrow could be an alternative */
             QPushButton#menu_button::after {
-                content: "▼";
+                content: "▼"; /* Unicode arrow */
                 position: absolute;
-                right: 8px;
+                right: 10px;
                 top: 50%;
                 transform: translateY(-50%);
-                font-size: 10px;
+                font-size: 12px; /* Larger arrow */
+                color: #f8f9fa;
             }
-            QLabel {
-                color: white;
+            QLabel { /* Labels within topbar, e.g., user name, logo text */
+                color: #f8f9fa;
+                font-size: 10pt;
+            }
+            QLabel#UserFullNameLabel { /* Specific ID for user name if needed */
+                 font-weight: bold;
+                 font-size: 11pt;
+            }
+            QLabel#UserRoleLabel {
+                 font-size: 9pt;
+                 color: #adb5bd; /* Lighter gray for role */
             }
             QMenu {
-                background-color: #34495e;
-                color: white;
-                border: 1px solid #3498db;
-                padding: 5px;
+                background-color: #343a40; /* Match topbar */
+                color: #f8f9fa;
+                border: 1px solid #495057; /* Border for menu */
+                padding: 8px;
+                font-size: 10pt;
             }
             QMenu::item {
-                padding: 8px 25px 8px 15px;
+                padding: 10px 20px;
+                border-radius: 4px;
             }
             QMenu::item:selected {
-                background-color: #3498db;
+                background-color: #007bff; /* Primary accent for selected menu item */
+                color: white;
             }
             QMenu::icon {
                 padding-left: 10px;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #495057;
+                margin: 5px 0;
             }
         """)
 
@@ -281,9 +408,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         logo_text = QLabel("Management Pro")
         logo_text.setStyleSheet("""
-            font-size: 20px;
+            font-size: 18pt; /* Adjusted size */
             font-weight: bold;
-            color: #3498db;
+            color: #007bff; /* Primary accent */
             font-family: 'Segoe UI', Arial, sans-serif;
         """)
 
@@ -398,16 +525,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         user_info.setSpacing(0)
 
         self.user_name = QLabel("Guest")
+        self.user_name.setObjectName("UserFullNameLabel") # For specific styling if needed
         self.user_name.setStyleSheet("""
             font-weight: bold;
-            font-size: 14px;
+            font-size: 11pt;
+            color: #f8f9fa;
         """)
 
         self.user_role = QLabel("Not logged in")
+        self.user_role.setObjectName("UserRoleLabel")
         self.user_role.setStyleSheet("""
-            font-size: 11px;
-            color: #bdc3c7;
-            font-style: italic;
+            font-size: 9pt;
+            color: #adb5bd; /* Lighter gray for role */
         """)
 
         user_info.addWidget(self.user_name)
@@ -503,30 +632,51 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") /* Updated color and size */
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
         self.date_picker.setStyleSheet("""
             QDateEdit {
                 padding: 8px;
-                border: 1px solid #ddd;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QDateEdit:focus {
+                border-color: #80bdff;
+            }
+            QDateEdit::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QDateEdit::down-arrow {
+                image: url({self.resource_path('icons/calendar.png')}); /* Needs a calendar icon */
             }
         """)
         self.date_picker.dateChanged.connect(self.update_dashboard)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png')))
+        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png'))) # Icon can be kept or removed
         refresh_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #3498db;
+                padding: 10px 18px;
+                background-color: #007bff;
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
             }
         """)
         refresh_btn.clicked.connect(self.update_dashboard)
@@ -567,21 +717,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         activities_widget = QGroupBox("Recent Activities")
         activities_widget.setStyleSheet("""
             QGroupBox {
-                font-size: 16px;
+                font-size: 12pt; /* Consistent font size */
                 font-weight: bold;
-                color: #2c3e50;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                margin-top: 20px;
+                color: #343a40; /* Updated title color */
+                border: 1px solid #dee2e6; /* Softer border */
+                border-radius: 6px; /* Slightly more rounded */
+                margin-top: 15px; /* Adjusted margin */
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 3px;
+                subcontrol-position: top left; /* Position title at top-left */
+                padding: 5px 10px; /* Padding around title */
+                background-color: #e9ecef; /* Light background for title area */
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border-bottom: 1px solid #dee2e6;
             }
         """)
 
         activities_layout = QVBoxLayout(activities_widget)
+        activities_layout.setContentsMargins(10, 10, 10, 10) # Padding inside groupbox
 
         self.activities_table = QTableWidget()
         self.activities_table.setColumnCount(4)
@@ -589,13 +744,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.activities_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: none;
+                border: 1px solid #dee2e6; /* Table border */
+                border-radius: 5px; /* Rounded corners for table */
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef; /* Light gray header */
+                color: #495057; /* Dark text for header */
+                padding: 10px; /* Increased padding */
                 font-weight: bold;
+                border: none; /* Remove default border */
+                border-bottom: 2px solid #dee2e6; /* Bottom border for separation */
+            }
+            QTableWidget::item {
+                padding: 8px; /* Cell padding */
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
             }
         """)
         self.activities_table.verticalHeader().setVisible(False)
@@ -623,19 +788,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Team Management")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png')))
+        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png'))) # Icon can be kept
         self.add_member_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #27ae60;
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #219653;
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
@@ -652,9 +821,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.team_search.setPlaceholderText("Search a member...")
         self.team_search.setStyleSheet("""
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
             }
         """)
         self.team_search.textChanged.connect(self.filter_team_members)
@@ -663,9 +836,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.role_filter.addItems(["All Roles", "Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance"])
         self.role_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')}); /* Needs a down arrow icon */
             }
         """)
         self.role_filter.currentIndexChanged.connect(self.filter_team_members)
@@ -674,9 +864,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.status_filter.addItems(["All Statuses", "Active", "Inactive", "On Leave"])
         self.status_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.status_filter.currentIndexChanged.connect(self.filter_team_members)
@@ -696,14 +903,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.team_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #ddd;
+                border: 1px solid #dee2e6;
                 border-radius: 5px;
+                gridline-color: #e9ecef; /* Lighter grid lines */
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
                 font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
             }
         """)
         self.team_table.verticalHeader().setVisible(False)
@@ -729,19 +946,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Project Management")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
 
         self.add_project_btn = QPushButton("New Project")
-        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png')))
+        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png'))) # Icon can be kept
         self.add_project_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #27ae60;
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #219653;
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
         self.add_project_btn.clicked.connect(self.show_add_project_dialog)
@@ -758,9 +979,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.project_search.setPlaceholderText("Search a project...")
         self.project_search.setStyleSheet("""
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
             }
         """)
         self.project_search.textChanged.connect(self.filter_projects)
@@ -769,9 +994,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
         self.status_filter_proj.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.status_filter_proj.currentIndexChanged.connect(self.filter_projects)
@@ -780,9 +1022,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
         self.priority_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.priority_filter.currentIndexChanged.connect(self.filter_projects)
@@ -798,14 +1057,36 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #ddd;
+                border: 1px solid #dee2e6;
                 border-radius: 5px;
+                gridline-color: #e9ecef;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
                 font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+            /* Progress bar specific styling within table */
+            QProgressBar {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                text-align: center;
+                height: 18px;
+                font-size: 9pt;
+            }
+            QProgressBar::chunk {
+                background-color: #007bff; /* Primary accent */
+                border-radius: 3px;
             }
         """)
         self.projects_table.verticalHeader().setVisible(False)
@@ -831,19 +1112,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Task Management")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
 
         self.add_task_btn = QPushButton("New Task")
-        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png')))
+        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png'))) # Icon can be kept
         self.add_task_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #27ae60;
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #219653;
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
         self.add_task_btn.clicked.connect(self.show_add_task_dialog)
@@ -860,9 +1145,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.task_search.setPlaceholderText("Search a task...")
         self.task_search.setStyleSheet("""
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
             }
         """)
         self.task_search.textChanged.connect(self.filter_tasks)
@@ -871,9 +1160,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.task_status_filter.addItems(["All Statuses", "To Do", "In Progress", "In Review", "Completed"])
         self.task_status_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.task_status_filter.currentIndexChanged.connect(self.filter_tasks)
@@ -882,9 +1188,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.task_priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
         self.task_priority_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.task_priority_filter.currentIndexChanged.connect(self.filter_tasks)
@@ -893,9 +1216,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.task_project_filter.addItem("All Projects")
         self.task_project_filter.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
         self.task_project_filter.currentIndexChanged.connect(self.filter_tasks)
@@ -912,14 +1252,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.tasks_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #ddd;
+                border: 1px solid #dee2e6;
                 border-radius: 5px;
+                gridline-color: #e9ecef;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
                 font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
             }
         """)
         self.tasks_table.verticalHeader().setVisible(False)
@@ -941,7 +1291,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Reports and Analytics")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
 
         # Report options
         report_options = QWidget()
@@ -951,9 +1301,26 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_type.addItems(["Team Performance", "Project Progress", "Workload", "Key Indicators", "Budget Analysis"])
         self.report_type.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
 
@@ -961,38 +1328,63 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_period.addItems(["Last 7 Days", "Last 30 Days", "Current Quarter", "Current Year", "Custom..."])
         self.report_period.setStyleSheet("""
             QComboBox {
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
             }
         """)
 
         generate_btn = QPushButton("Generate Report")
-        generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png')))
+        generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png'))) # Icon can be kept
         generate_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #3498db;
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
             }
         """)
         generate_btn.clicked.connect(self.generate_report)
 
         export_btn = QPushButton("Export PDF")
-        export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png')))
+        export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png'))) # Icon can be kept
         export_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #e74c3c;
+                padding: 10px 18px;
+                background-color: #dc3545; /* Red */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #c0392b;
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
             }
         """)
         export_btn.clicked.connect(self.export_report)
@@ -1008,20 +1400,29 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_view = QTabWidget()
         self.report_view.setStyleSheet("""
             QTabWidget::pane {
-                border: 1px solid #ddd;
-                border-radius: 5px;
+                border: 1px solid #dee2e6; /* Softer border */
+                border-top: none; /* Remove top border as tabs cover it */
+                border-radius: 0 0 5px 5px; /* Round bottom corners */
+                padding: 10px;
             }
             QTabBar::tab {
-                padding: 8px 15px;
-                background: #f1f1f1;
-                border: 1px solid #ddd;
-                border-bottom: none;
+                padding: 10px 18px;
+                background: #e9ecef; /* Light gray for inactive tabs */
+                border: 1px solid #dee2e6;
+                border-bottom: none; /* Remove bottom border for tab, pane has top */
                 border-top-left-radius: 5px;
                 border-top-right-radius: 5px;
+                color: #495057;
+                font-weight: bold;
+                margin-right: 2px; /* Space between tabs */
             }
             QTabBar::tab:selected {
-                background: #3498db;
+                background: #007bff; /* Primary accent */
                 color: white;
+                border-color: #007bff;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #d8dde2; /* Slightly darker for hover on inactive */
             }
         """)
 
@@ -1037,13 +1438,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_data_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: none;
+                border: 1px solid #dee2e6; /* Table border */
+                border-radius: 5px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef; /* Light gray header */
+                color: #495057; /* Dark text for header */
+                padding: 10px;
                 font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
             }
         """)
         self.report_data_table.verticalHeader().setVisible(False)
@@ -1067,33 +1478,72 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50;")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
 
         # Tabs
         tabs = QTabWidget()
         tabs.setStyleSheet("""
             QTabWidget::pane {
-                border: 1px solid #ddd;
-                border-radius: 5px;
+                border: 1px solid #dee2e6;
+                border-top: none;
+                border-radius: 0 0 5px 5px;
+                padding: 15px; /* Padding for content within tab pane */
             }
             QTabBar::tab {
-                padding: 8px 15px;
-                background: #f1f1f1;
-                border: 1px solid #ddd;
+                padding: 10px 18px;
+                background: #e9ecef;
+                border: 1px solid #dee2e6;
                 border-bottom: none;
                 border-top-left-radius: 5px;
                 border-top-right-radius: 5px;
+                color: #495057;
+                font-weight: bold;
+                margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background: #3498db;
+                background: #007bff;
                 color: white;
+                border-color: #007bff;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #d8dde2;
             }
         """)
 
+        # General style for input fields and combo boxes in settings
+        settings_input_style = """
+            QLineEdit, QComboBox, QDateEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+                min-height: 20px; /* Ensure consistent height */
+            }
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """
+
         # Account tab
         account_tab = QWidget()
+        account_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
         account_layout = QFormLayout(account_tab)
         account_layout.setSpacing(15)
+        account_layout.setLabelAlignment(Qt.AlignRight)
+
 
         account_layout.addRow(QLabel("<b>Personal Information</b>"))
 
@@ -1122,13 +1572,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         save_btn = QPushButton("Save Changes")
         save_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #3498db;
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 10px; /* Add some margin above button */
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
             }
         """)
         save_btn.clicked.connect(self.save_account_settings)
@@ -1136,8 +1591,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Preferences tab
         pref_tab = QWidget()
+        pref_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
         pref_layout = QFormLayout(pref_tab)
         pref_layout.setSpacing(15)
+        pref_layout.setLabelAlignment(Qt.AlignRight)
 
         pref_layout.addRow(QLabel("<b>Display</b>"))
 
@@ -1168,13 +1625,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         save_pref_btn = QPushButton("Save Preferences")
         save_pref_btn.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
-                background-color: #3498db;
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
                 color: white;
-                border-radius: 4px;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 10px;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
             }
         """)
         save_pref_btn.clicked.connect(self.save_preferences)
@@ -1190,14 +1652,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.access_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #ddd;
+                border: 1px solid #dee2e6;
                 border-radius: 5px;
+                gridline-color: #e9ecef;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
-                padding: 8px;
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
                 font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
             }
         """)
         self.access_table.verticalHeader().setVisible(False)
@@ -1412,7 +1884,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QLabel#kpi_value {
                     font-size: 28px;
                     font-weight: bold;
-                    color: #3498db;
+                    color: #007bff; /* Updated to new primary accent blue */
                 }
             """)
             frame.setFixedWidth(220)
@@ -1505,18 +1977,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             current_member_id = member['team_member_id']
 
-            edit_btn = QPushButton()
-            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
 
-            delete_btn = QPushButton()
-            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn = QPushButton("🗑️")
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
 
             action_layout.addWidget(edit_btn)
@@ -1615,25 +2085,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             action_layout.setContentsMargins(0,0,0,0)
             action_layout.setSpacing(5)
 
-            details_btn = QPushButton()
-            details_btn.setIcon(QIcon(self.resource_path('icons/details.png')))
+            details_btn = QPushButton("ℹ️")
             details_btn.setToolTip("Details")
             details_btn.setFixedSize(30,30)
-            details_btn.setStyleSheet("background-color: transparent;")
+            details_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
 
-            edit_btn = QPushButton()
-            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
 
-            delete_btn = QPushButton()
-            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn = QPushButton("🗑️")
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
 
             action_layout.addWidget(details_btn)
@@ -1717,25 +2184,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             action_layout.setContentsMargins(0, 0, 0, 0)
             action_layout.setSpacing(5)
 
-            complete_btn = QPushButton()
-            complete_btn.setIcon(QIcon(self.resource_path('icons/complete.png')))
+            complete_btn = QPushButton("✅")
             complete_btn.setToolTip("Mark as Completed")
             complete_btn.setFixedSize(30, 30)
-            complete_btn.setStyleSheet("background-color: transparent;")
+            complete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
 
-            edit_btn = QPushButton()
-            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30, 30)
-            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
 
-            delete_btn = QPushButton()
-            delete_btn.setIcon(QIcon(self.resource_path('icons/delete.png')))
+            delete_btn = QPushButton("🗑️")
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30, 30)
-            delete_btn.setStyleSheet("background-color: transparent;")
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
 
             action_layout.addWidget(complete_btn)
@@ -2138,11 +2602,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             action_layout.setContentsMargins(0,0,0,0)
             action_layout.setSpacing(5)
 
-            edit_btn = QPushButton()
-            edit_btn.setIcon(QIcon(self.resource_path('icons/edit.png')))
+            edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit User Access")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent;")
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
             edit_btn.clicked.connect(lambda _, u_id=user_id_str: self.edit_user_access(u_id))
 
             action_layout.addWidget(edit_btn)
@@ -3821,10 +4284,21 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         elif index == 3:  # Tasks
             self.load_tasks()
         elif index == 4:  # Reports
-            # Reports are generated on demand, but ensure dependencies are loaded if any page change logic was here
+            # Reports are generated on demand
             pass
         elif index == 5:  # Settings
-            self.load_access_table() # Ensure user data is loaded for settings page
+            self.load_access_table()
+            if self.current_user: # Also load user preferences if a user is logged in
+                self.load_user_preferences()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event) # Call parent's resizeEvent
+        if hasattr(self, 'notification_manager') and self.notification_manager.notification_banner.isVisible():
+            # Recalculate and move the banner to keep it in the top-right
+            banner = self.notification_manager.notification_banner
+            x = self.width() - banner.width() - 10
+            y = 10 # 10px margin from top
+            banner.move(x, y)
 
     # closeEvent is typically for QMainWindow. If this widget is embedded,
     # the main application's closeEvent will handle application closure.
