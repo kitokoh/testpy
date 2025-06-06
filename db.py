@@ -2,6 +2,7 @@ import sqlite3
 import uuid
 import hashlib
 from datetime import datetime
+import json
 
 # Global variable for the database name
 DATABASE_NAME = "app_data.db"
@@ -423,6 +424,53 @@ def initialize_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE
+    )
+    """)
+
+    # Create CoverPageTemplates table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CoverPageTemplates (
+        template_id TEXT PRIMARY KEY,
+        template_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        default_title TEXT,
+        default_subtitle TEXT,
+        default_author TEXT,
+        style_config_json TEXT, -- JSON string for detailed styling (fonts, colors, layout hints)
+        is_default_template INTEGER DEFAULT 0 NOT NULL, -- Added new flag
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by_user_id TEXT,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
+    # Create CoverPages table (linking to Clients/Projects and Templates)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CoverPages (
+        cover_page_id TEXT PRIMARY KEY,
+        cover_page_name TEXT, -- User-defined name for this instance
+        client_id TEXT,
+        project_id TEXT,
+        template_id TEXT,
+        title TEXT NOT NULL,
+        subtitle TEXT,
+        author_text TEXT,
+        institution_text TEXT,
+        department_text TEXT,
+        document_type_text TEXT,
+        document_version TEXT,
+        creation_date DATE, -- Renamed from document_date for consistency with table
+        logo_name TEXT,
+        logo_data BLOB,
+        custom_style_config_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by_user_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+        FOREIGN KEY (template_id) REFERENCES CoverPageTemplates (template_id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
     )
     """)
 
@@ -2824,6 +2872,443 @@ def get_activity_logs(limit: int = 50, filters: dict = None) -> list[dict]:
     finally:
         if conn: conn.close()
 
+# --- Default Templates Population ---
+DEFAULT_COVER_PAGE_TEMPLATES = [
+    {
+        'template_name': 'Standard Report Cover',
+        'description': 'A standard cover page for general reports.',
+        'default_title': 'Report Title',
+        'default_subtitle': 'Company Subdivision',
+        'default_author': 'Automated Report Generator',
+        'style_config_json': {'font': 'Helvetica', 'primary_color': '#2a2a2a', 'secondary_color': '#5cb85c'},
+        'is_default_template': 1 # Mark as default
+    },
+    {
+        'template_name': 'Financial Statement Cover',
+        'description': 'Cover page for official financial statements.',
+        'default_title': 'Financial Statement',
+        'default_subtitle': 'Fiscal Year Ending YYYY',
+        'default_author': 'Finance Department',
+        'style_config_json': {'font': 'Times New Roman', 'primary_color': '#003366', 'secondary_color': '#e0a800'},
+        'is_default_template': 1 # Mark as default
+    },
+    {
+        'template_name': 'Creative Project Brief',
+        'description': 'A vibrant cover for creative project briefs and proposals.',
+        'default_title': 'Creative Brief: [Project Name]',
+        'default_subtitle': 'Client: [Client Name]',
+        'default_author': 'Creative Team',
+        'style_config_json': {'font': 'Montserrat', 'primary_color': '#ff6347', 'secondary_color': '#4682b4', 'layout_hint': 'two-column'},
+        'is_default_template': 1 # Mark as default
+    },
+    {
+        'template_name': 'Technical Document Cover',
+        'description': 'A clean and formal cover for technical documentation.',
+        'default_title': 'Technical Specification Document',
+        'default_subtitle': 'Version [VersionNumber]',
+        'default_author': 'Engineering Team',
+        'style_config_json': {'font': 'Roboto', 'primary_color': '#191970', 'secondary_color': '#cccccc'},
+        'is_default_template': 1 # Mark as default
+    }
+]
+
+def _populate_default_cover_page_templates():
+    """
+    Populates the CoverPageTemplates table with predefined default templates
+    if they do not already exist by name.
+    """
+    print("Attempting to populate default cover page templates...")
+    # Optionally, fetch a system user ID if you want to set created_by_user_id
+    # system_user = get_user_by_username('system_user') # Define or fetch a system user
+    # system_user_id = system_user['user_id'] if system_user else None
+
+    for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
+        existing_template = get_cover_page_template_by_name(template_def['template_name'])
+        if existing_template:
+            print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
+        else:
+            # template_def_with_user = {**template_def, 'created_by_user_id': system_user_id}
+            # new_id = add_cover_page_template(template_def_with_user)
+            new_id = add_cover_page_template(template_def) # Simpler: no user_id for defaults for now
+            if new_id:
+                print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
+            else:
+                print(f"Failed to add default cover page template: '{template_def['template_name']}'")
+    print("Default cover page templates population attempt finished.")
+
+# --- CoverPageTemplates CRUD ---
+def add_cover_page_template(template_data: dict) -> str | None:
+    """Adds a new cover page template. Returns template_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_template_id = uuid.uuid4().hex
+        now = datetime.utcnow().isoformat() + "Z"
+
+        style_config = template_data.get('style_config_json')
+        if isinstance(style_config, dict): # Ensure it's a JSON string
+            style_config = json.dumps(style_config)
+
+        sql = """
+            INSERT INTO CoverPageTemplates (
+                template_id, template_name, description, default_title, default_subtitle,
+                default_author, style_config_json, is_default_template,
+                created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_template_id,
+            template_data.get('template_name'),
+            template_data.get('description'),
+            template_data.get('default_title'),
+            template_data.get('default_subtitle'),
+            template_data.get('default_author'),
+            style_config,
+            template_data.get('is_default_template', 0), # Handle new field, default to 0
+            now, now,
+            template_data.get('created_by_user_id')
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_template_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_cover_page_template: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_cover_page_template_by_id(template_id: str) -> dict | None:
+    """Retrieves a cover page template by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_id = ?", (template_id,))
+        row = cursor.fetchone()
+        if row:
+            data = dict(row)
+            if data.get('style_config_json'):
+                try:
+                    data['style_config_json'] = json.loads(data['style_config_json'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse style_config_json for template {template_id}")
+                    # Keep as string or set to default dict? For now, keep as is.
+            return data
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_page_template_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_cover_page_template_by_name(template_name: str) -> dict | None:
+    """Retrieves a cover page template by its unique name."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
+        row = cursor.fetchone()
+        if row:
+            data = dict(row)
+            if data.get('style_config_json'):
+                try:
+                    data['style_config_json'] = json.loads(data['style_config_json'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse style_config_json for template {template_name}")
+            return data
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_page_template_by_name: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offset: int = 0) -> list[dict]:
+    """
+    Retrieves all cover page templates, optionally filtered by is_default.
+    Includes pagination.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql = "SELECT * FROM CoverPageTemplates"
+        params = []
+
+        if is_default is not None:
+            sql += " WHERE is_default_template = ?"
+            params.append(1 if is_default else 0)
+
+        sql += " ORDER BY template_name LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        templates = []
+        for row in rows:
+            data = dict(row)
+            if data.get('style_config_json'):
+                try:
+                    data['style_config_json'] = json.loads(data['style_config_json'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse style_config_json for template ID {data['template_id']}")
+            templates.append(data)
+        return templates
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_cover_page_templates: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_cover_page_template(template_id: str, update_data: dict) -> bool:
+    """Updates an existing cover page template."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+
+        if 'style_config_json' in update_data and isinstance(update_data['style_config_json'], dict):
+            update_data['style_config_json'] = json.dumps(update_data['style_config_json'])
+
+        # Ensure boolean/integer fields are correctly formatted for SQL if needed
+        if 'is_default_template' in update_data:
+            update_data['is_default_template'] = 1 if update_data['is_default_template'] else 0
+
+        valid_columns = [
+            'template_name', 'description', 'default_title', 'default_subtitle',
+            'default_author', 'style_config_json', 'is_default_template', 'updated_at'
+            # created_by_user_id is typically not updated this way
+        ]
+
+        set_clauses = []
+        sql_params = []
+
+        for key, value in update_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                sql_params.append(value)
+
+        if not set_clauses:
+            return False # Nothing valid to update
+
+        sql_params.append(template_id)
+        sql = f"UPDATE CoverPageTemplates SET {', '.join(set_clauses)} WHERE template_id = ?"
+
+        cursor.execute(sql, sql_params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_cover_page_template: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_cover_page_template(template_id: str) -> bool:
+    """Deletes a cover page template."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consider impact on CoverPages using this template (ON DELETE SET NULL)
+        cursor.execute("DELETE FROM CoverPageTemplates WHERE template_id = ?", (template_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_cover_page_template: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CoverPages CRUD ---
+def add_cover_page(cover_data: dict) -> str | None:
+    """Adds a new cover page instance. Returns cover_page_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_cover_id = uuid.uuid4().hex
+        now = datetime.utcnow().isoformat() + "Z"
+
+        custom_style_config = cover_data.get('custom_style_config_json')
+        if isinstance(custom_style_config, dict):
+            custom_style_config = json.dumps(custom_style_config)
+
+        sql = """
+            INSERT INTO CoverPages (
+                cover_page_id, cover_page_name, client_id, project_id, template_id,
+                title, subtitle, author_text, institution_text, department_text,
+                document_type_text, document_version, creation_date,
+                logo_name, logo_data, custom_style_config_json,
+                created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_cover_id,
+            cover_data.get('cover_page_name'),
+            cover_data.get('client_id'),
+            cover_data.get('project_id'),
+            cover_data.get('template_id'),
+            cover_data.get('title'),
+            cover_data.get('subtitle'),
+            cover_data.get('author_text'),
+            cover_data.get('institution_text'),
+            cover_data.get('department_text'),
+            cover_data.get('document_type_text'),
+            cover_data.get('document_version'),
+            cover_data.get('creation_date'),
+            cover_data.get('logo_name'),
+            cover_data.get('logo_data'),
+            custom_style_config,
+            now, now,
+            cover_data.get('created_by_user_id')
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_cover_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_cover_page: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_cover_page_by_id(cover_page_id: str) -> dict | None:
+    """Retrieves a cover page instance by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM CoverPages WHERE cover_page_id = ?", (cover_page_id,))
+        row = cursor.fetchone()
+        if row:
+            data = dict(row)
+            if data.get('custom_style_config_json'):
+                try:
+                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse custom_style_config_json for cover page {cover_page_id}")
+            return data
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_page_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_cover_pages_for_client(client_id: str) -> list[dict]:
+    """Retrieves all cover pages for a specific client."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM CoverPages WHERE client_id = ? ORDER BY created_at DESC", (client_id,))
+        rows = cursor.fetchall()
+        cover_pages = []
+        for row in rows:
+            data = dict(row)
+            # JSON parsing similar to get_cover_page_by_id if needed
+            cover_pages.append(data)
+        return cover_pages
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_pages_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_cover_pages_for_project(project_id: str) -> list[dict]:
+    """Retrieves all cover pages for a specific project."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM CoverPages WHERE project_id = ? ORDER BY created_at DESC", (project_id,))
+        rows = cursor.fetchall()
+        cover_pages = []
+        for row in rows:
+            data = dict(row)
+            # JSON parsing similar to get_cover_page_by_id if needed
+            cover_pages.append(data)
+        return cover_pages
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_pages_for_project: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_cover_page(cover_page_id: str, update_data: dict) -> bool:
+    """Updates an existing cover page instance."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+
+        if 'custom_style_config_json' in update_data and isinstance(update_data['custom_style_config_json'], dict):
+            update_data['custom_style_config_json'] = json.dumps(update_data['custom_style_config_json'])
+
+        set_clauses = [f"{key} = ?" for key in update_data.keys() if key != 'cover_page_id']
+        params = [update_data[key] for key in update_data.keys() if key != 'cover_page_id']
+        params.append(cover_page_id)
+
+        sql = f"UPDATE CoverPages SET {', '.join(set_clauses)} WHERE cover_page_id = ?"
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_cover_page: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_cover_page(cover_page_id: str) -> bool:
+    """Deletes a cover page instance."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM CoverPages WHERE cover_page_id = ?", (cover_page_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_cover_page: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def get_cover_pages_for_user(user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+    """Retrieves cover pages created by a specific user, with pagination."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Querying by 'created_by_user_id' as per the CoverPages table schema
+        sql = "SELECT * FROM CoverPages WHERE created_by_user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        params = (user_id, limit, offset)
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        # It's good practice to parse JSON fields here if any, similar to other get functions
+        cover_pages = []
+        for row in rows:
+            data = dict(row)
+            if data.get('custom_style_config_json'):
+                try:
+                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse custom_style_config_json for cover page {data['cover_page_id']}")
+            cover_pages.append(data)
+        return cover_pages
+    except sqlite3.Error as e:
+        print(f"Database error in get_cover_pages_for_user: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 # --- Lookup Table GET Functions ---
 def get_all_countries() -> list[dict]:
     conn = None
@@ -3354,7 +3839,155 @@ if __name__ == '__main__':
     # if test_user_id and get_user_by_id(test_user_id): delete_user(test_user_id)
 
     print("\n--- TeamMembers Extended Fields and KPIs CRUD Examples ---")
+
+    # --- Cover Page Templates and Cover Pages Test ---
+    print("\n--- Testing Cover Page Templates and Cover Pages ---")
+    cpt_user_id = add_user({'username': 'cpt_user', 'password': 'password123', 'full_name': 'Cover Template User', 'email': 'cpt@example.com', 'role': 'designer'})
+    if not cpt_user_id: cpt_user_id = get_user_by_username('cpt_user')['user_id']
+
+    cpt_custom_id = add_cover_page_template({ # Renamed to avoid confusion with defaults
+        'template_name': 'My Custom Report',
+        'description': 'A custom template for special reports.',
+        'default_title': 'Custom Report Title',
+        'style_config_json': {'font': 'Georgia', 'primary_color': '#AA00AA'},
+        'created_by_user_id': cpt_user_id,
+        'is_default_template': 0 # Explicitly not default
+    })
+    if cpt_custom_id: print(f"Added Custom Cover Page Template 'My Custom Report' ID: {cpt_custom_id}, IsDefault: 0")
+
+    if cpt_custom_id:
+        ret_cpt_custom = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved Custom CPT by ID: {ret_cpt_custom['template_name'] if ret_cpt_custom else 'Not found'}, IsDefault: {ret_cpt_custom.get('is_default_template') if ret_cpt_custom else 'N/A'}")
+
+        # Test update: make it a default template (then change back for other tests)
+        update_cpt_success = update_cover_page_template(cpt_custom_id, {'description': 'Updated custom description.', 'is_default_template': 1})
+        print(f"Update Custom CPT 'My Custom Report' to be default success: {update_cpt_success}")
+        ret_cpt_custom_updated = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved updated Custom CPT: {ret_cpt_custom_updated['template_name'] if ret_cpt_custom_updated else 'N/A'}, IsDefault: {ret_cpt_custom_updated.get('is_default_template') if ret_cpt_custom_updated else 'N/A'}")
+        assert ret_cpt_custom_updated.get('is_default_template') == 1
+
+        # Change it back to not default
+        update_cpt_success_back = update_cover_page_template(cpt_custom_id, {'is_default_template': 0})
+        print(f"Update Custom CPT 'My Custom Report' back to NOT default success: {update_cpt_success_back}")
+        ret_cpt_custom_final = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved final Custom CPT: {ret_cpt_custom_final['template_name'] if ret_cpt_custom_final else 'N/A'}, IsDefault: {ret_cpt_custom_final.get('is_default_template') if ret_cpt_custom_final else 'N/A'}")
+        assert ret_cpt_custom_final.get('is_default_template') == 0
+
+
+    print(f"\n--- Testing get_all_cover_page_templates with is_default filter ---")
+    all_tmpls = get_all_cover_page_templates() # No filter
+    print(f"Total templates (no filter): {len(all_tmpls)}")
+
+    default_tmpls = get_all_cover_page_templates(is_default=True)
+    print(f"Default templates (is_default=True): {len(default_tmpls)}")
+    for t in default_tmpls:
+        print(f"  - Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
+        assert t['is_default_template'] == 1, f"Template '{t['template_name']}' should be default!"
+
+    non_default_tmpls = get_all_cover_page_templates(is_default=False)
+    print(f"Non-default templates (is_default=False): {len(non_default_tmpls)}")
+    if cpt_custom_id and ret_cpt_custom_final and ret_cpt_custom_final.get('is_default_template') == 0:
+        found_in_non_default = any(t['template_id'] == cpt_custom_id for t in non_default_tmpls)
+        assert found_in_non_default, "'My Custom Report' was set to non-default but NOT found in non-defaults."
+        print(f"'My Custom Report' correctly found in non-default list.")
+    for t in non_default_tmpls:
+         print(f"  - Non-Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
+         assert t['is_default_template'] == 0, f"Template '{t['template_name']}' should be non-default!"
+
+    # Test get_cover_page_template_by_name for a default template
+    standard_report_template = get_cover_page_template_by_name('Standard Report Cover')
+    if standard_report_template:
+        print(f"Retrieved 'Standard Report Cover' by name. IsDefault: {standard_report_template.get('is_default_template')}")
+        assert standard_report_template.get('is_default_template') == 1, "'Standard Report Cover' should be default by name."
+    else:
+        print("Could not retrieve 'Standard Report Cover' by name for is_default check.")
+
+    # Cover Page instance
+    cp_client_id = add_client({'client_name': 'CoverPage Client', 'project_identifier': 'CP_Test_001'})
+    if not cp_client_id: cp_client_id = get_all_clients({'client_name': 'CoverPage Client'})[0]['client_id']
+
+    cp1_id = None
+    if cp_client_id and cpt1_id and cpt_user_id:
+        cp1_id = add_cover_page({
+            'cover_page_name': 'Client X - Proposal Cover V1',
+            'client_id': cp_client_id,
+            'template_id': cpt1_id,
+            'title': 'Specific Project Proposal',
+            'subtitle': 'For CoverPage Client',
+            'author_text': 'Sales Team', # Updated field name
+            'institution_text': 'Our Company LLC',
+            'department_text': 'Sales Department',
+            'document_type_text': 'Proposal',
+            'document_version': '1.0',
+            'creation_date': datetime.utcnow().date().isoformat(),
+            'logo_name': 'specific_logo.png', # Updated field name
+            'logo_data': b'somedummyimagedata',   # Added field
+            'custom_style_config_json': {'secondary_color': '#FF0000'},
+            'created_by_user_id': cpt_user_id
+        })
+        if cp1_id: print(f"Added Cover Page instance ID: {cp1_id}")
+
+    if cp1_id:
+        ret_cp1 = get_cover_page_by_id(cp1_id)
+        print(f"Retrieved Cover Page by ID: {ret_cp1['title'] if ret_cp1 else 'Not found'}")
+        print(f"  Custom Style: {ret_cp1.get('custom_style_config_json') if ret_cp1 else ''}")
+
+    if cp_client_id:
+        client_cover_pages = get_cover_pages_for_client(cp_client_id)
+        print(f"Cover pages for client {cp_client_id}: {len(client_cover_pages)}")
+
+    # Clean up Cover Page related test data
+    if cp1_id and get_cover_page_by_id(cp1_id): delete_cover_page(cp1_id) # cp1_id is a cover page instance
+    if cpt_custom_id and get_cover_page_template_by_id(cpt_custom_id): # cpt_custom_id is a template
+        delete_cover_page_template(cpt_custom_id)
+        print(f"Cleaned up custom template ID {cpt_custom_id}")
+    # Default templates (like 'Classic Formal' referenced by cpt2_id) should not be deleted here by tests.
+
+    # Test get_cover_pages_for_user (using cpt_user_id for whom defaults were made)
+    if cpt_user_id:
+        # Add a cover page specifically for this user to test retrieval
+        # Ensure cp_client_id is still valid or re-fetch/re-create.
+        # For simplicity, assume cp_client_id created earlier is still usable for this test.
+        # If cp_client_id was deleted, this part needs adjustment or ensure it's created before this block.
+
+        # Let's ensure a client exists for this test section
+        test_get_user_pages_client_id = cp_client_id # Try to reuse if available
+        if not test_get_user_pages_client_id or not get_client_by_id(test_get_user_pages_client_id):
+            test_get_user_pages_client_id = add_client({'client_name': 'ClientForUserPageTest', 'project_identifier': 'CPUPT_001', 'created_by_user_id': cpt_user_id})
+
+        temp_cp_for_user_test_id = None
+        if test_get_user_pages_client_id and cpt_user_id:
+             temp_cp_for_user_test_id = add_cover_page({
+                'cover_page_name': 'User Specific Cover Test for Get',
+                'client_id': test_get_user_pages_client_id,
+                'title': 'User Test Document - Get Test',
+                'created_by_user_id': cpt_user_id
+            })
+
+        if temp_cp_for_user_test_id:
+            print(f"\n--- Testing get_cover_pages_for_user for user: {cpt_user_id} ---")
+            user_cover_pages = get_cover_pages_for_user(cpt_user_id)
+            print(f"Found {len(user_cover_pages)} cover page(s) for user {cpt_user_id}.")
+            if user_cover_pages:
+                print(f"First cover page found: '{user_cover_pages[0]['cover_page_name']}' with title '{user_cover_pages[0]['title']}'")
+            delete_cover_page(temp_cp_for_user_test_id) # Cleanup
+            print(f"Cleaned up temporary cover page ID: {temp_cp_for_user_test_id}")
+        else:
+            print(f"\nCould not create a temporary cover page for user {cpt_user_id} for get_cover_pages_for_user test.")
+
+        if test_get_user_pages_client_id and test_get_user_pages_client_id != cp_client_id: # If we created a new one for this test
+             delete_client(test_get_user_pages_client_id)
+
+
+    if cp_client_id and get_client_by_id(cp_client_id): delete_client(cp_client_id)
+    if cpt_user_id and get_user_by_id(cpt_user_id): delete_user(cpt_user_id)
+    print("--- Cover Page testing completed and cleaned up. ---")
+
     initialize_database() # Ensure tables are created with new schema
+
+    # --- Populate Default Cover Page Templates ---
+    # This should be called AFTER initialize_database() to ensure tables exist.
+    _populate_default_cover_page_templates()
 
     # Test TeamMembers
     print("\nTesting TeamMembers...")
