@@ -635,7 +635,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(20)
 
-        # Header
+        # Heajjjder
         header = QWidget()
         header_layout = QHBoxLayout(header)
 

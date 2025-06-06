@@ -123,7 +123,7 @@ def initialize_database():
             status.get('is_archival_status', False)
         ))
 
-    # Create Clients table
+    # Create Clients tabhhhle
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Clients (
         client_id TEXT PRIMARY KEY,
