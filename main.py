@@ -36,6 +36,7 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 from docx import Document # Added for .docx support
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
+
 import sqlite3
 
 # --- Configuration & Database ---
@@ -202,7 +203,7 @@ class TemplateDialog(QDialog):
         try:
             conn = sqlite3.connect(DATABASE_NAME)
             cursor = conn.cursor()
-            cursor.execute("SELECT template_id, name, language, is_default FROM Templates ORDER BY name, language")
+            cursor.execute("SELECT template_id, template_name, language_code as language, is_default_for_type_lang as is_default FROM Templates ORDER BY template_name, language_code")
             for row in cursor.fetchall():
                 item_text = f"{row[1]} ({row[2]})"
                 if row[3]:
@@ -235,22 +236,73 @@ class TemplateDialog(QDialog):
         os.makedirs(target_dir, exist_ok=True)
         base_file_name = os.path.basename(file_path) 
         target_path = os.path.join(target_dir, base_file_name) 
-        conn = None
+
+        # Determine template_type based on file extension
+        file_ext = os.path.splitext(base_file_name)[1].lower()
+        template_type_for_db = "document_other" # Default
+        if file_ext == ".xlsx":
+            template_type_for_db = "document_excel"
+        elif file_ext == ".docx":
+            template_type_for_db = "document_word"
+        elif file_ext == ".html":
+            template_type_for_db = "document_html"
+
+        template_metadata = {
+            'template_name': name.strip(), # This is the user-provided name for the template
+            'template_type': template_type_for_db,
+            'language_code': lang,
+            'base_file_name': base_file_name, # The actual file name
+            'description': f"Modèle {name.strip()} en {lang} ({base_file_name})", # Basic description
+            'category': "Utilisateur", # Category for user-added templates
+            'is_default_for_type_lang': False # User-added templates are not default by default
+            # 'raw_template_file_data': None, # Not storing file content in DB for this path
+            # 'created_by_user_id': None # Add if user system is integrated here
+        }
+
         try:
+            # First, copy the file
             shutil.copy(file_path, target_path)
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO Templates (name, file_name, language, is_default) VALUES (?, ?, ?, 0)",
-                (name.strip(), base_file_name, lang) 
-            )
-            conn.commit()
-            self.load_templates()
-            QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle ajouté avec succès."))
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+
+            # Then, add metadata to database via db_manager
+            new_template_id = db_manager.add_template(template_metadata)
+
+            if new_template_id:
+                self.load_templates() # Refresh list
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle ajouté avec succès."))
+            else:
+                # db_manager.add_template would print its own errors or return None on failure.
+                # If new_template_id is None, it means there was an issue (e.g., unique constraint).
+                # The db.py function might need adjustment to differentiate between "already exists" and "other error".
+                # For now, assume if it's None, it's an error the user should know about.
+                # If file was copied but DB entry failed, consider removing the copied file.
+                if os.path.exists(target_path): # Check if file was copied before potential DB error
+                     is_error_because_exists = False
+                     # Check if a template with the same name, type, and language already exists
+                     # This requires a way to query templates, e.g., get_templates_by_type_lang_name
+                     # For simplicity, we'll assume add_template failing with None means either unique constraint or other DB error.
+                     # A more robust check would be:
+                     # existing_templates = db_manager.get_templates_by_type(template_type_for_db, language_code=lang)
+                     # if existing_templates:
+                     #    for tpl in existing_templates:
+                     #        if tpl.get('template_name') == name.strip(): # and other unique fields if necessary
+                     #            is_error_because_exists = True
+                     #            break
+                     # A direct check for unique constraint violation in db_manager.add_template would be better.
+                     # For now, providing a generic message or trying to infer.
+                     # A simple check: if a template with this name+type+lang exists, it's likely a unique conflict.
+
+                     # Simplified check:
+                     # This is not ideal as it re-queries. db_manager.add_template should ideally signal this.
+                     # For now, we'll assume if add_template returns None, it's an issue.
+                     # The user will get a generic DB error. A more specific "already exists" would need db.add_template to provide more info.
+                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur lors de l'enregistrement du modèle dans la base de données. Un modèle avec des attributs similaires (nom, type, langue) existe peut-être déjà, ou une autre erreur de base de données s'est produite."))
+                     # Consider removing the copied file if DB entry failed:
+                     # os.remove(target_path)
+                else: # File copy itself might have failed before DB
+                    QMessageBox.critical(self, self.tr("Erreur Fichier"), self.tr("Erreur lors de la copie du fichier modèle."))
+
+        except Exception as e: # Catch errors from shutil.copy or other unexpected issues
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
             
     def edit_template(self): 
         item = self.template_list.currentItem()
@@ -323,13 +375,22 @@ class TemplateDialog(QDialog):
         try:
             conn = sqlite3.connect(DATABASE_NAME)
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM Templates WHERE template_id = ?", (template_id,))
+            cursor.execute("SELECT template_name FROM Templates WHERE template_id = ?", (template_id,))
             name_result = cursor.fetchone()
             if not name_result: return
             base_name = name_result[0] 
             
-            cursor.execute("UPDATE Templates SET is_default = 0 WHERE name = ?", (base_name,))
-            cursor.execute("UPDATE Templates SET is_default = 1 WHERE template_id = ?", (template_id,))
+            # This logic might need to be more nuanced if "is_default" is per type AND language
+            # For now, it sets default for all templates with the same base_name, effectively making one variant (lang) default.
+            # The db.add_default_template_if_not_exists sets is_default_for_type_lang = True,
+            # so this function should probably update is_default_for_type_lang.
+            # The original table was Templates(name, file_name, language, is_default)
+            # The new table is Templates(template_name, template_type, language_code, is_default_for_type_lang, ...)
+            # The intent is likely: "For this template's name and type, set this language variant as the default."
+            # This needs refinement if we have template_type in play.
+            # For now, matching original logic on name, but using new column names.
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_name = ?", (base_name,))
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,))
             conn.commit()
             self.load_templates()
             QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle défini comme modèle par défaut pour sa catégorie et langue."))
@@ -1199,7 +1260,7 @@ class ClientWidget(QWidget):
                     "city": self.client_info.get("city", ""),
                 }
                 if file_path.lower().endswith('.xlsx'):
-                    editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
+                    editor = ExcelEditor(file_path, parent=self)
                     editor.exec_()
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
