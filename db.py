@@ -1,5186 +1,5213 @@
+import sys
 import sqlite3
-import uuid
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                            QLabel, QPushButton, QStackedWidget, QFrame, QSizePolicy,
+                            QTableWidget, QTableWidgetItem, QComboBox, QDateEdit, QLineEdit,
+                            QProgressBar, QTabWidget, QCheckBox, QMessageBox, QFileDialog,
+                            QInputDialog, QFormLayout, QSpacerItem, QGroupBox)
+from PyQt5.QtCore import Qt, QDate, QTimer
+from PyQt5.QtGui import QFont, QColor, QIcon, QPixmap
+import pyqtgraph as pg
+from datetime import datetime, timedelta
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import hashlib
-from datetime import datetime
-import json
+import os
+from PyQt5.QtWidgets import QHeaderView
+from PyQt5.QtWidgets import QDialog
+from PyQt5.QtWidgets import QSpinBox
+from PyQt5.QtWidgets import QTextEdit
+from PyQt5.QtWidgets import QDialogButtonBox
+from PyQt5.QtWidgets import QDoubleSpinBox
+from PyQt5.QtWidgets import QMenu
+from PyQt5.QtCore import QSize, QRect
+from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
+import db as db_manager # Standardized to db_manager
+from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
+from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
+import json # For CoverPageEditorDialog style_config_json
+import os # For CoverPageEditorDialog logo_name
+from dashboard_extensions import ProjectTemplateManager # Added for Project Templates
 
-# Global variable for the database name
-DATABASE_NAME = "app_data.db"
 
-def initialize_database():
-    """
-    Initializes the database by creating tables if they don't already exist.
-    """
-    conn = sqlite3.connect(DATABASE_NAME)
-    cursor = conn.cursor()
+class CustomNotificationBanner(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel) # or QFrame.Box, QFrame.Panel
+        self.setObjectName("customNotificationBanner")
 
-    # Create Users table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Users (
-        user_id TEXT PRIMARY KEY, 
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        full_name TEXT,
-        email TEXT NOT NULL UNIQUE,
-        role TEXT NOT NULL, -- e.g., 'admin', 'manager', 'member'
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login_at TIMESTAMP
-    )
-    """)
-
-    # Create Companies table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Companies (
-        company_id TEXT PRIMARY KEY,
-        company_name TEXT NOT NULL,
-        address TEXT,
-        payment_info TEXT,
-        logo_path TEXT,
-        other_info TEXT,
-        is_default BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    # Create CompanyPersonnel table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CompanyPersonnel (
-        personnel_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL, -- e.g., "seller", "technical_manager"
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE
-    )
-    """)
-
-    # Create TeamMembers table (New, depends on Users)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS TeamMembers (
-        team_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT UNIQUE,      -- Link to Users table, can be NULL
-        full_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        role_or_title TEXT,       -- e.g., 'Project Manager', 'Developer', 'Designer'
-        department TEXT,          -- e.g., 'Engineering', 'Design', 'Sales'
-        phone_number TEXT,
-        profile_picture_url TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        notes TEXT,
-        hire_date TEXT,
-        performance INTEGER DEFAULT 0,
-        skills TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL -- If user is deleted, set user_id to NULL
-    )
-    """)
-
-    # Create Countries table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Countries (
-        country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_name TEXT NOT NULL UNIQUE
-    )
-    """)
-
-    # Create Cities table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Cities (
-        city_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_id INTEGER NOT NULL,
-        city_name TEXT NOT NULL,
-        FOREIGN KEY (country_id) REFERENCES Countries (country_id)
-    )
-    """)
-
-    # Create StatusSettings table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS StatusSettings (
-        status_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        status_name TEXT NOT NULL,
-        status_type TEXT NOT NULL, -- e.g., 'Client', 'Project', 'Task'
-        color_hex TEXT,
-        default_duration_days INTEGER,
-        is_archival_status BOOLEAN DEFAULT FALSE,
-        is_completion_status BOOLEAN DEFAULT FALSE,
-        UNIQUE (status_name, status_type)
-    )
-    """)
-
-    # --- Pre-populate StatusSettings ---
-    default_statuses = [
-        # Client Statuses
-        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
-        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False}, # Yellow
-        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'is_completion_status': False, 'is_archival_status': False}, # Green
-        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'is_completion_status': False, 'is_archival_status': True},  # Grey
-        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'is_completion_status': True, 'is_archival_status': False}, # Darker Green
-        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True},  # Darker Grey
-        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},   # Red
-
-        # Project Statuses
-        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'is_completion_status': False, 'is_archival_status': False}, # Turquoise
-        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
-        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'is_completion_status': False, 'is_archival_status': False},# Orange
-        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},  # Green
-        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'is_completion_status': False, 'is_archival_status': True},   # Dark Red
-        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'is_completion_status': False, 'is_archival_status': False}, # Purple
-
-        # Task Statuses
-        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'is_completion_status': False, 'is_archival_status': False},      # Light Grey
-        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False},# Blue
-        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},     # Green
-        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},    # Red
-        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False},     # Yellow
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True}   # Dark Grey
-    ]
-
-    for status in default_statuses:
-        cursor.execute("""
-            INSERT OR IGNORE INTO StatusSettings (
-                status_name, status_type, color_hex, is_completion_status, is_archival_status
-            ) VALUES (?, ?, ?, ?, ?)
-        """, (
-            status['status_name'], status['status_type'], status['color_hex'],
-            status.get('is_completion_status', False),
-            status.get('is_archival_status', False)
-        ))
-
-    # Create Clients tabhhhle
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Clients (
-        client_id TEXT PRIMARY KEY,
-        client_name TEXT NOT NULL,
-        company_name TEXT,
-        primary_need_description TEXT, -- Maps to 'need' from main.py
-        project_identifier TEXT NOT NULL, -- Added from main.py
-        country_id INTEGER,
-        city_id INTEGER,
-        default_base_folder_path TEXT UNIQUE, -- Added UNIQUE from main.py's base_folder_path
-        status_id INTEGER,
-        selected_languages TEXT, -- Comma-separated list of language codes
-        price REAL DEFAULT 0, -- Added from main.py
-        notes TEXT,
-        category TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to creation_date from main.py
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to last_modified from main.py
-        created_by_user_id TEXT,
-        FOREIGN KEY (country_id) REFERENCES Countries (country_id),
-        FOREIGN KEY (city_id) REFERENCES Cities (city_id),
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
-    )
-    """)
-
-    # Create Projects table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Projects (
-        project_id TEXT PRIMARY KEY,
-        client_id TEXT NOT NULL,
-        project_name TEXT NOT NULL,
-        description TEXT,
-        start_date DATE,
-        deadline_date DATE,
-        budget REAL,
-        status_id INTEGER,
-        progress_percentage INTEGER DEFAULT 0,
-        manager_team_member_id TEXT, -- Assuming this refers to a User ID
-        priority INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id),
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (manager_team_member_id) REFERENCES Users (user_id)
-    )
-    """)
-
-    # Create Contacts table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Contacts (
-        contact_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Changed to INTEGER for AUTOINCREMENT
-        name TEXT NOT NULL,
-        email TEXT UNIQUE,
-        phone TEXT,
-        position TEXT,
-        company_name TEXT,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    # Create ClientContacts table (associative table)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientContacts (
-        client_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id TEXT NOT NULL,
-        contact_id TEXT NOT NULL,
-        is_primary_for_client BOOLEAN DEFAULT FALSE,
-        can_receive_documents BOOLEAN DEFAULT TRUE,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, -- Added ON DELETE CASCADE
-        FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE, -- Added ON DELETE CASCADE
-        UNIQUE (client_id, contact_id)
-    )
-    """)
-
-    # Create Products table (New)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Products (
-        product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT NOT NULL UNIQUE,
-        description TEXT,
-        category TEXT, 
-        base_unit_price REAL NOT NULL,
-        unit_of_measure TEXT, 
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    # Create ClientProjectProducts table (New - Association)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientProjectProducts (
-        client_project_product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id TEXT NOT NULL,
-        project_id TEXT, 
-        product_id INTEGER NOT NULL,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        unit_price_override REAL, 
-        total_price_calculated REAL, 
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
-        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
-        UNIQUE (client_id, project_id, product_id)
-    )
-    """)
-
-    # Create ScheduledEmails table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ScheduledEmails (
-        scheduled_email_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        recipient_email TEXT NOT NULL,
-        subject TEXT NOT NULL,
-        body_html TEXT,
-        body_text TEXT,
-        scheduled_send_at TIMESTAMP NOT NULL, 
-        status TEXT NOT NULL DEFAULT 'pending', 
-        sent_at TIMESTAMP, 
-        error_message TEXT,
-        related_client_id TEXT,
-        related_project_id TEXT,
-        created_by_user_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (related_client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
-        FOREIGN KEY (related_project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create EmailReminders table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS EmailReminders (
-        reminder_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        scheduled_email_id INTEGER NOT NULL,
-        reminder_type TEXT NOT NULL, 
-        reminder_send_at TIMESTAMP NOT NULL, 
-        status TEXT NOT NULL DEFAULT 'pending', 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (scheduled_email_id) REFERENCES ScheduledEmails (scheduled_email_id) ON DELETE CASCADE
-    )
-    """)
-
-    # Create ContactLists table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ContactLists (
-        list_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        list_name TEXT NOT NULL UNIQUE,
-        description TEXT,
-        created_by_user_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create ContactListMembers table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ContactListMembers (
-        list_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        list_id INTEGER NOT NULL,
-        contact_id INTEGER NOT NULL,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (list_id) REFERENCES ContactLists (list_id) ON DELETE CASCADE,
-        FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE,
-        UNIQUE (list_id, contact_id)
-    )
-    """)
-    
-    # Create ActivityLog table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ActivityLog (
-        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT, 
-        action_type TEXT NOT NULL, 
-        details TEXT, 
-        related_entity_type TEXT, 
-        related_entity_id TEXT, 
-        related_client_id TEXT, 
-        ip_address TEXT,
-        user_agent TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL,
-        FOREIGN KEY (related_client_id) REFERENCES Clients (client_id) ON DELETE SET NULL 
-    )
-    """)
-
-    # Create TemplateCategories table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS TemplateCategories (
-        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_name TEXT NOT NULL UNIQUE,
-        description TEXT
-    )
-    """)
-    # Pre-populate a "General" category
-    general_category_id_for_migration = None
-    try:
-        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)",
-                       ('General', 'General purpose templates'))
-        # Fetch its ID for fallback during migration
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
-        general_row = cursor.fetchone()
-        if general_row:
-            general_category_id_for_migration = general_row[0]
-        conn.commit() # Commit category creation before potential DDL changes for Templates
-    except sqlite3.Error as e_cat_init:
-        print(f"Error initializing General category: {e_cat_init}")
-        # Decide if this is fatal or if migration can proceed without a fallback ID
-        # For now, migration will use None if this fails, which _get_or_create_category_id handles.
-
-    # Check if Templates table needs migration
-    cursor.execute("PRAGMA table_info(Templates)")
-    columns = [column[1] for column in cursor.fetchall()]
-    needs_migration = 'category' in columns and 'category_id' not in columns
-
-    if needs_migration:
-        print("Templates table needs migration. Starting migration process...")
-        try:
-            # 1. Rename Templates to Templates_old
-            cursor.execute("ALTER TABLE Templates RENAME TO Templates_old")
-            print("Renamed Templates to Templates_old.")
-
-            # 2. Create the new Templates table with category_id FOREIGN KEY
-            cursor.execute("""
-            CREATE TABLE Templates (
-                template_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                template_name TEXT NOT NULL,
-                template_type TEXT NOT NULL,
-                description TEXT,
-                base_file_name TEXT,
-                language_code TEXT,
-                is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-                category_id INTEGER,
-                content_definition TEXT,
-                email_subject_template TEXT,
-                email_variables_info TEXT,
-                cover_page_config_json TEXT,
-                document_mapping_config_json TEXT,
-                raw_template_file_data BLOB,
-                version TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                created_by_user_id TEXT,
-                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-                FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-                UNIQUE (template_name, template_type, language_code, version)
-            )
-            """)
-            print("Created new Templates table with category_id.")
-
-            # 3. Iterate through Templates_old and insert into new Templates
-            cursor.execute("SELECT * FROM Templates_old")
-            old_templates = cursor.fetchall()
-
-            # Make sure connection's row_factory is set to sqlite3.Row for dict-like access
-            # This is usually set in get_db_connection, but ensure it's active for this part.
-            # If cursor.fetchall() returns tuples, access by index. If dicts, by key.
-            # Assuming get_db_connection sets row_factory, so fetchall() gives list of Row objects.
-
-            # Need to get the column names from Templates_old to safely map
-            cursor_old_desc = conn.execute("PRAGMA table_info(Templates_old)")
-            old_column_names = [col_info[1] for col_info in cursor_old_desc.fetchall()]
-
-            for old_template_tuple in old_templates:
-                old_template_dict = {name: val for name, val in zip(old_column_names, old_template_tuple)}
-
-                category_name_text = old_template_dict.get('category')
-                # Use the internal helper _get_or_create_category_id
-                # Pass the main cursor, not creating a new one for this helper
-                new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
-
-                # Prepare values for insert, ensuring order and handling missing keys
-                new_template_values = (
-                    old_template_dict.get('template_id'),
-                    old_template_dict.get('template_name'),
-                    old_template_dict.get('template_type'),
-                    old_template_dict.get('description'),
-                    old_template_dict.get('base_file_name'),
-                    old_template_dict.get('language_code'),
-                    old_template_dict.get('is_default_for_type_lang', False), # Default if missing
-                    new_cat_id, # New category_id
-                    old_template_dict.get('content_definition'),
-                    old_template_dict.get('email_subject_template'),
-                    old_template_dict.get('email_variables_info'),
-                    old_template_dict.get('cover_page_config_json'),
-                    old_template_dict.get('document_mapping_config_json'),
-                    old_template_dict.get('raw_template_file_data'),
-                    old_template_dict.get('version'),
-                    old_template_dict.get('created_at'),
-                    old_template_dict.get('updated_at'),
-                    old_template_dict.get('created_by_user_id')
-                )
-
-                insert_sql = """
-                    INSERT INTO Templates (
-                        template_id, template_name, template_type, description, base_file_name,
-                        language_code, is_default_for_type_lang, category_id,
-                        content_definition, email_subject_template, email_variables_info,
-                        cover_page_config_json, document_mapping_config_json,
-                        raw_template_file_data, version, created_at, updated_at, created_by_user_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                cursor.execute(insert_sql, new_template_values)
-            print(f"Migrated {len(old_templates)} templates to new schema.")
-
-            # 4. Drop Templates_old
-            cursor.execute("DROP TABLE Templates_old")
-            print("Dropped Templates_old table.")
-            conn.commit()
-            print("Templates table migration completed successfully.")
-        except sqlite3.Error as e:
-            conn.rollback()
-            print(f"Error during Templates table migration: {e}. Rolled back changes.")
-            # Consider re-creating the original Templates table if migration fails critically
-            # Or, if the new Templates table was created, drop it to allow retry.
-            # For now, just rollback and log. The DB might be in an inconsistent state (e.g. Templates_old exists).
-    else:
-        # Create Templates table if it doesn't exist (fresh setup or already migrated)
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            template_name TEXT NOT NULL,
-            template_type TEXT NOT NULL,
-            description TEXT,
-            base_file_name TEXT,
-            language_code TEXT,
-            is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-            category_id INTEGER, -- New field
-            content_definition TEXT,
-            email_subject_template TEXT,
-            email_variables_info TEXT,
-            cover_page_config_json TEXT,
-            document_mapping_config_json TEXT,
-            raw_template_file_data BLOB,
-            version TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by_user_id TEXT,
-            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL, -- Added FK
-            UNIQUE (template_name, template_type, language_code, version)
-        )
+        # Initial styling - can be refined via main app stylesheet or here
+        self.setStyleSheet("""
+            #customNotificationBanner {
+                background-color: #333333;
+                color: white;
+                border-radius: 5px;
+                padding: 10px;
+            }
+            #customNotificationBanner QLabel {
+                color: white;
+                font-size: 10pt;
+            }
+            #customNotificationBanner QPushButton {
+                color: white;
+                background-color: #555555;
+                border: 1px solid #666666;
+                border-radius: 3px;
+                padding: 5px 8px;
+                font-size: 9pt;
+            }
+            #customNotificationBanner QPushButton:hover {
+                background-color: #666666;
+            }
         """)
-        # No conn.commit() here, let it be part of the larger transaction at the end of initialize_database
 
-    # Create Tasks table (New)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Tasks (
-        task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        task_name TEXT NOT NULL,
-        description TEXT,
-        status_id INTEGER,
-        assignee_team_member_id INTEGER, -- Changed to INTEGER to match TeamMembers.team_member_id
-        reporter_team_member_id INTEGER,   -- Changed to INTEGER to match TeamMembers.team_member_id
-        due_date DATE,
-        priority INTEGER DEFAULT 0,
-        estimated_hours REAL,
-        actual_hours_spent REAL,
-        parent_task_id INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (assignee_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
-        FOREIGN KEY (reporter_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
-        FOREIGN KEY (parent_task_id) REFERENCES Tasks (task_id) ON DELETE SET NULL
-    )
-    """)
+        self.setFixedHeight(50)
+        self.setFixedWidth(350)
 
-    # Create TaskDependencies table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS TaskDependencies (
-        dependency_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER NOT NULL, -- The task that is dependent
-        predecessor_task_id INTEGER NOT NULL, -- The task it depends upon
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (task_id) REFERENCES Tasks (task_id) ON DELETE CASCADE,
-        FOREIGN KEY (predecessor_task_id) REFERENCES Tasks (task_id) ON DELETE CASCADE,
-        UNIQUE (task_id, predecessor_task_id) -- Prevent duplicate dependencies
-    )
-    """)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5) # Adjust margins as needed
 
-    # Create ClientDocuments table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientDocuments (
-        document_id TEXT PRIMARY KEY,
-        client_id TEXT NOT NULL,
-        project_id TEXT,
-        document_name TEXT NOT NULL,
-        file_name_on_disk TEXT NOT NULL, -- Actual name on the file system
-        file_path_relative TEXT NOT NULL, -- Relative to a base documents folder
-        document_type_generated TEXT, -- e.g., 'Proposal', 'Contract', 'Invoice'
-        source_template_id INTEGER,
-        version_tag TEXT,
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id),
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id),
-        FOREIGN KEY (source_template_id) REFERENCES Templates (template_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
-    )
-    """)
+        self.icon_label = QLabel("ℹ️") # Default icon
+        self.icon_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
-    # Create SmtpConfigs table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS SmtpConfigs (
-        smtp_config_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        config_name TEXT NOT NULL UNIQUE,
-        smtp_server TEXT NOT NULL,
-        smtp_port INTEGER NOT NULL,
-        username TEXT,
-        password_encrypted TEXT, -- Store encrypted password
-        use_tls BOOLEAN DEFAULT TRUE,
-        is_default BOOLEAN DEFAULT FALSE,
-        sender_email_address TEXT NOT NULL,
-        sender_display_name TEXT
-    )
-    """)
+        self.message_label = QLabel("Notification message will appear here.")
+        self.message_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.message_label.setWordWrap(True)
 
-    # Create ApplicationSettings table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ApplicationSettings (
-        setting_key TEXT PRIMARY KEY,
-        setting_value TEXT
-    )
-    """)
+        self.close_button = QPushButton("X")
+        self.close_button.setToolTip("Close")
+        self.close_button.setFixedSize(25, 25) # Small fixed size for 'X' button
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                font-weight: bold;
+                background-color: transparent;
+                border: none;
+                color: white;
+                font-size: 12pt;
+            }
+            QPushButton:hover { background-color: #c0392b; }
+        """)
+        self.close_button.clicked.connect(self.hide)
 
-    # Create KPIs table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS KPIs (
-        kpi_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        value REAL NOT NULL,
-        target REAL NOT NULL,
-        trend TEXT NOT NULL, -- 'up', 'down', 'stable'
-        unit TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE
-    )
-    """)
+        layout.addWidget(self.icon_label)
+        layout.addWidget(self.message_label)
+        layout.addStretch()
+        layout.addWidget(self.close_button)
 
-    # Create CoverPageTemplates table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CoverPageTemplates (
-        template_id TEXT PRIMARY KEY,
-        template_name TEXT NOT NULL UNIQUE,
-        description TEXT,
-        default_title TEXT,
-        default_subtitle TEXT,
-        default_author TEXT,
-        style_config_json TEXT, -- JSON string for detailed styling (fonts, colors, layout hints)
-        is_default_template INTEGER DEFAULT 0 NOT NULL, -- Added new flag
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
+        self.hide() # Hidden by default
 
-    # Create CoverPages table (linking to Clients/Projects and Templates)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CoverPages (
-        cover_page_id TEXT PRIMARY KEY,
-        cover_page_name TEXT, -- User-defined name for this instance
-        client_id TEXT,
-        project_id TEXT,
-        template_id TEXT,
-        title TEXT NOT NULL,
-        subtitle TEXT,
-        author_text TEXT,
-        institution_text TEXT,
-        department_text TEXT,
-        document_type_text TEXT,
-        document_version TEXT,
-        creation_date DATE, -- Renamed from document_date for consistency with table
-        logo_name TEXT,
-        logo_data BLOB,
-        custom_style_config_json TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
-        FOREIGN KEY (template_id) REFERENCES CoverPageTemplates (template_id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
+    def set_message(self, title, message):
+        full_message = f"<b>{title}</b><br>{message}"
+        self.message_label.setText(full_message)
 
-    # Create Milestones table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Milestones (
-        milestone_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        milestone_name TEXT NOT NULL,
-        description TEXT,
-        due_date TEXT, -- ISO8601 format "YYYY-MM-DD"
-        status_id INTEGER,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Trigger for Milestones updated_at
-    cursor.execute("""
-    CREATE TRIGGER IF NOT EXISTS UpdateMilestoneUpdatedAt
-    AFTER UPDATE ON Milestones FOR EACH ROW
-    BEGIN
-        UPDATE Milestones SET updated_at = CURRENT_TIMESTAMP WHERE milestone_id = OLD.milestone_id;
-    END;
-    """)
-
-    conn.commit()
-    conn.close()
-
-def get_db_connection():
-    """
-    Returns a new database connection object.
-    The connection is configured to return rows as dictionary-like objects.
-    """
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# CRUD functions for Clients
-def add_client(client_data: dict) -> str | None:
-    """
-    Adds a new client to the database.
-    Returns the new client_id if successful, otherwise None.
-    Ensures created_at and updated_at are set.
-    Expects 'category_id' instead of 'category' text.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        new_client_id = uuid.uuid4().hex
-        now = datetime.utcnow().isoformat() + "Z"
-
-        # Ensure all required fields are present, or provide defaults
-        sql = """
-            INSERT INTO Clients (
-                client_id, client_name, company_name, primary_need_description, project_identifier,
-                country_id, city_id, default_base_folder_path, status_id,
-                selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_client_id,
-            client_data.get('client_name'),
-            client_data.get('company_name'),
-            client_data.get('primary_need_description'),
-            client_data.get('project_identifier'), # Added
-            client_data.get('country_id'),
-            client_data.get('city_id'),
-            client_data.get('default_base_folder_path'),
-            client_data.get('status_id'),
-            client_data.get('selected_languages'),
-            client_data.get('notes'),
-            client_data.get('category'),
-            now,  # created_at
-            now,  # updated_at
-            client_data.get('created_by_user_id')
-        )
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_client_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_client: {e}")
-        # Consider raising a custom exception or logging more formally
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_client_by_id(client_id: str) -> dict | None:
-    """Retrieves a client by their ID. Returns a dict or None if not found."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Clients WHERE client_id = ?", (client_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_client_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_clients(filters: dict = None) -> list[dict]:
-    """
-    Retrieves all clients, optionally applying filters.
-    Filters can be e.g. {'status_id': 1, 'category': 'VIP'}.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM Clients"
-        params = []
-        
-        if filters:
-            where_clauses = []
-            for key, value in filters.items():
-                # Basic protection against non-column names; ideally, validate keys against known columns
-                if key in ['client_name', 'company_name', 'country_id', 'city_id', 'status_id', 'category', 'created_by_user_id']: # Add other filterable columns
-                    where_clauses.append(f"{key} = ?")
-                    params.append(value)
-            if where_clauses:
-                sql += " WHERE " + " AND ".join(where_clauses)
-                
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_clients: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_client(client_id: str, client_data: dict) -> bool:
-    """
-    Updates an existing client's information.
-    Ensures updated_at is set to the current timestamp.
-    Returns True if update was successful, False otherwise.
-    """
-    conn = None
-    if not client_data:
-        return False # Nothing to update
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        now = datetime.utcnow().isoformat() + "Z"
-        client_data['updated_at'] = now
-        
-        set_clauses = []
-        params = []
-        
-        for key, value in client_data.items():
-            # Validate keys against actual column names to prevent SQL injection if keys are from unsafe source
-            # For now, assuming keys are controlled or map to valid columns
-            if key != 'client_id': # client_id should not be updated here
-                 set_clauses.append(f"{key} = ?")
-                 params.append(value)
-        
-        if not set_clauses:
-            return False # No valid fields to update
-            
-        sql = f"UPDATE Clients SET {', '.join(set_clauses)} WHERE client_id = ?"
-        params.append(client_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_client: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_client(client_id: str) -> bool:
-    """
-    Deletes a client from the database.
-    Returns True if deletion was successful, False otherwise.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_client: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# CRUD functions for Companies
-def add_company(company_data: dict) -> str | None:
-    """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        new_company_id = str(uuid.uuid4())
-
-        sql = """
-            INSERT INTO Companies (
-                company_id, company_name, address, payment_info, logo_path,
-                other_info, is_default, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_company_id,
-            company_data.get('company_name'),
-            company_data.get('address'),
-            company_data.get('payment_info'),
-            company_data.get('logo_path'),
-            company_data.get('other_info'),
-            company_data.get('is_default', False),
-            now,  # created_at
-            now   # updated_at
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_company_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_company: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_company_by_id(company_id: str) -> dict | None:
-    """Fetches a company by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Companies WHERE company_id = ?", (company_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_company_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_companies() -> list[dict]:
-    """Fetches all companies."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Companies ORDER BY company_name")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_companies: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_company(company_id: str, company_data: dict) -> bool:
-    """Updates company details. Manages updated_at."""
-    conn = None
-    if not company_data:
-        return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        company_data['updated_at'] = now
-
-        set_clauses = [f"{key} = ?" for key in company_data.keys() if key != 'company_id']
-        params = [value for key, value in company_data.items() if key != 'company_id']
-
-        if not set_clauses:
-            return False # No valid fields to update
-
-        params.append(company_id)
-        sql = f"UPDATE Companies SET {', '.join(set_clauses)} WHERE company_id = ?"
-
-        cursor.execute(sql, tuple(params))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_company: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_company(company_id: str) -> bool:
-    """Deletes a company."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # ON DELETE CASCADE will handle CompanyPersonnel
-        cursor.execute("DELETE FROM Companies WHERE company_id = ?", (company_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_company: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def set_default_company(company_id: str) -> bool:
-    """Sets a company as default, ensuring only one company can be default."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        conn.isolation_level = None # Start transaction
-        cursor.execute("BEGIN")
-        # Unset other defaults
-        cursor.execute("UPDATE Companies SET is_default = FALSE WHERE is_default = TRUE AND company_id != ?", (company_id,))
-        # Set the new default
-        cursor.execute("UPDATE Companies SET is_default = TRUE WHERE company_id = ?", (company_id,))
-        conn.commit()
-        return True
-    except sqlite3.Error as e:
-        if conn:
-            conn.rollback()
-        print(f"Database error in set_default_company: {e}")
-        return False
-    finally:
-        if conn:
-            conn.isolation_level = '' # Reset isolation level
-            conn.close()
-
-# CRUD functions for CompanyPersonnel
-def add_company_personnel(personnel_data: dict) -> int | None:
-    """Inserts new personnel linked to a company. Returns personnel_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """
-            INSERT INTO CompanyPersonnel (company_id, name, role, created_at)
-            VALUES (?, ?, ?, ?)
-        """
-        params = (
-            personnel_data.get('company_id'),
-            personnel_data.get('name'),
-            personnel_data.get('role'),
-            now
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_company_personnel: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_personnel_for_company(company_id: str, role: str = None) -> list[dict]:
-    """Fetches personnel for a company, optionally filtering by role."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM CompanyPersonnel WHERE company_id = ?"
-        params = [company_id]
-        if role:
-            sql += " AND role = ?"
-            params.append(role)
-        sql += " ORDER BY name"
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_personnel_for_company: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_company_personnel(personnel_id: int, personnel_data: dict) -> bool:
-    """Updates personnel details."""
-    conn = None
-    if not personnel_data:
-        return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # We don't update created_at, but if there was an updated_at for this table:
-        # personnel_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
-
-        set_clauses = [f"{key} = ?" for key in personnel_data.keys() if key != 'personnel_id']
-        params = [value for key, value in personnel_data.items() if key != 'personnel_id']
-
-        if not set_clauses:
-            return False
-
-        params.append(personnel_id)
-        sql = f"UPDATE CompanyPersonnel SET {', '.join(set_clauses)} WHERE personnel_id = ?"
-
-        cursor.execute(sql, tuple(params))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_company_personnel: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_company_personnel(personnel_id: int) -> bool:
-    """Deletes a personnel entry."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM CompanyPersonnel WHERE personnel_id = ?", (personnel_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_company_personnel: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# CRUD functions for TemplateCategories
-def add_template_category(category_name: str, description: str = None) -> int | None:
-    """
-    Adds a new template category if it doesn't exist by name.
-    Returns the category_id of the new or existing category, or None on error.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Check if category already exists
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
-        if row:
-            return row['category_id']
-
-        # If not, insert new category
-        sql = "INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)"
-        cursor.execute(sql, (category_name, description))
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_template_category: {e}")
-        if conn:
-            conn.rollback()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, default_category_id: int | None) -> int | None:
-    """
-    Internal helper: Gets category_id for a name, creates if not exists.
-    Uses the provided cursor and does not manage connection or transaction.
-    Returns category_id or default_category_id if name is None/empty.
-    """
-    if not category_name:
-        return default_category_id
-    try:
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
-        if row:
-            return row['category_id']
+        # Update icon based on title (simple emoji logic)
+        if "error" in title.lower() or "alert" in title.lower():
+            self.icon_label.setText("⚠️")
+        elif "success" in title.lower():
+            self.icon_label.setText("✅")
+        elif "urgent" in title.lower() or "reminder" in title.lower():
+            self.icon_label.setText("🔔") # Bell for urgent/reminder
         else:
-            # Category does not exist, create it
-            cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)",
-                           (category_name, f"{category_name} (auto-created during migration)"))
-            # No conn.commit() here as it's part of a larger transaction
-            return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
-        # Depending on how critical this is, you might want to raise the error
-        # or return the default_category_id as a fallback.
-        return default_category_id
+            self.icon_label.setText("ℹ️") # Default info icon
 
 
-def get_template_category_by_id(category_id: int) -> dict | None:
-    """Retrieves a template category by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM TemplateCategories WHERE category_id = ?", (category_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_template_category_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+class NotificationManager:
+    def __init__(self, parent_window):
+        self.parent_window = parent_window
+        self.timer = QTimer(parent_window)
+        self.notification_banner = CustomNotificationBanner(parent_window)
+        # Ensure the banner is raised to be on top of other widgets within its parent
+        self.notification_banner.raise_()
 
-def get_template_category_by_name(category_name: str) -> dict | None:
-    """Retrieves a template category by its name."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_template_category_by_name: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+    def setup_timer(self, interval_ms=300000):  # Default 5 minutes
+        self.timer.timeout.connect(self.check_notifications)
+        self.timer.start(interval_ms)
+        print(f"Notification timer started with interval: {interval_ms}ms") # For debugging
 
-def get_all_template_categories() -> list[dict]:
-    """Retrieves all template categories."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM TemplateCategories ORDER BY category_name")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_template_categories: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
+    def check_notifications(self):
+        print(f"Checking notifications at {datetime.now()}") # For debugging
+        notifications_found = []
 
-def update_template_category(category_id: int, new_name: str = None, new_description: str = None) -> bool:
-    """
-    Updates a template category's name and/or description.
-    Returns True on success, False otherwise.
-    """
-    conn = None
-    if not new_name and not new_description:
-        return False # Nothing to update
+        # Get all relevant statuses to avoid multiple DB calls for status properties
+        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Project')}
+        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
 
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        try:
+            all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
+            if all_projects is None: all_projects = []
 
-        set_clauses = []
-        params = []
-        if new_name:
-            set_clauses.append("category_name = ?")
-            params.append(new_name)
-        if new_description is not None: # Allow setting description to empty string
-            set_clauses.append("description = ?")
-            params.append(new_description)
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            three_days_later = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
 
-        if not set_clauses:
-            return False
+            for p in all_projects:
+                project_status_id = p.get('status_id')
+                project_status_info = all_project_statuses.get(project_status_id, {})
+                is_completed_or_archived = project_status_info.get('is_completion_status', False) or \
+                                           project_status_info.get('is_archival_status', False)
 
-        sql = f"UPDATE TemplateCategories SET {', '.join(set_clauses)} WHERE category_id = ?"
-        params.append(category_id)
+                # Urgent Projects: priority = 2 (High)
+                if p.get('priority') == 2 and not is_completed_or_archived:
+                    notifications_found.append({
+                        "title": "Urgent Project Reminder",
+                        "message": f"Project '{p.get('project_name')}' (ID: {p.get('project_id')}) is high priority.",
+                        "project_id": p.get('project_id')
+                    })
 
-        cursor.execute(sql, tuple(params))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_template_category: {e}")
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
+                # Overdue Projects
+                deadline_str = p.get('deadline_date')
+                if deadline_str and deadline_str < today_str and not is_completed_or_archived:
+                    notifications_found.append({
+                        "title": "Overdue Project Alert",
+                        "message": f"Project '{p.get('project_name')}' (ID: {p.get('project_id')}) was due on {deadline_str}.",
+                        "project_id": p.get('project_id')
+                    })
 
-def delete_template_category(category_id: int) -> bool:
-    """
-    Deletes a template category.
-    Templates using this category will have their category_id set to NULL
-    due to ON DELETE SET NULL foreign key constraint.
-    Returns True on success, False otherwise.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Before deleting, one might want to check if it's a protected category like "General"
-        # For now, allowing deletion of any category.
-        cursor.execute("DELETE FROM TemplateCategories WHERE category_id = ?", (category_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_template_category: {e}")
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
+                # Tasks for this project
+                tasks_for_project = db_manager.get_tasks_by_project_id(p.get('project_id')) # Changed main_db_manager
+                if tasks_for_project is None: tasks_for_project = []
 
-# CRUD functions for Templates
-def add_template(template_data: dict) -> int | None:
-    """
-    Adds a new template to the database. Returns the template_id if successful.
-    Ensures created_at and updated_at are set.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
+                for t in tasks_for_project:
+                    task_status_id = t.get('status_id')
+                    task_status_info = all_task_statuses.get(task_status_id, {})
+                    is_task_completed = task_status_info.get('is_completion_status', False)
+                    # Assuming tasks don't have 'archival' status, or add if they do.
 
-        sql = """
-            INSERT INTO Templates (
-                template_name, template_type, description, base_file_name, language_code,
-                is_default_for_type_lang, category_id, content_definition, email_subject_template,
-                email_variables_info, cover_page_config_json, document_mapping_config_json,
-                raw_template_file_data, version, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            template_data.get('template_name'),
-            template_data.get('template_type'),
-            template_data.get('description'),
-            template_data.get('base_file_name'),
-            template_data.get('language_code'),
-            template_data.get('is_default_for_type_lang', False),
-            template_data.get('category_id'), # Changed from 'category' to 'category_id'
-            template_data.get('content_definition'),
-            template_data.get('email_subject_template'),
-            template_data.get('email_variables_info'),
-            template_data.get('cover_page_config_json'),
-            template_data.get('document_mapping_config_json'),
-            template_data.get('raw_template_file_data'),
-            template_data.get('version'),
-            now,  # created_at
-            now,  # updated_at
-            template_data.get('created_by_user_id')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid # For AUTOINCREMENT PK
-    except sqlite3.Error as e:
-        print(f"Database error in add_template: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+                    task_deadline_str = t.get('due_date')
 
-def get_template_by_id(template_id: int) -> dict | None:
-    """Retrieves a template by its ID. Returns a dict or None if not found."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Templates WHERE template_id = ?", (template_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_template_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+                    # Tasks Nearing Deadline (High Priority)
+                    if t.get('priority') == 2 and not is_task_completed and \
+                       task_deadline_str and today_str <= task_deadline_str <= three_days_later:
+                        notifications_found.append({
+                            "title": "High Priority Task Nearing Deadline",
+                            "message": f"Task '{t.get('task_name')}' for project '{p.get('project_name')}' (Deadline: {task_deadline_str}) is high priority.",
+                            "task_id": t.get('task_id')
+                        })
 
-def get_templates_by_type(template_type: str, language_code: str = None) -> list[dict]:
-    """
-    Retrieves templates filtered by template_type.
-    If language_code is provided, also filters by language_code.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM Templates WHERE template_type = ?"
-        params = [template_type]
-        
-        if language_code:
-            sql += " AND language_code = ?"
-            params.append(language_code)
-            
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_templates_by_type: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
+                    # Overdue Tasks
+                    if task_deadline_str and task_deadline_str < today_str and not is_task_completed:
+                         notifications_found.append({
+                            "title": "Overdue Task Alert",
+                            "message": f"Task '{t.get('task_name')}' for project '{p.get('project_name')}' was due on {task_deadline_str}.",
+                            "task_id": t.get('task_id')
+                        })
+        except Exception as e: # Catch generic Exception as db.py functions might raise various errors
+            print(f"Error checking notifications: {e}")
+            # Optionally show a subtle error to the user or log it more formally
+            # self.show_notification("Notification System Error", f"Could not check for notifications: {e}")
+            return # Stop processing if DB error
 
-def update_template(template_id: int, template_data: dict) -> bool:
-    """
-    Updates an existing template.
-    Ensures updated_at is set.
-    Returns True on success.
-    """
-    conn = None
-    if not template_data:
-        return False
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        template_data['updated_at'] = now
-        
-        set_clauses = []
-        params = []
-        
-        for key, value in template_data.items():
-            if key != 'template_id': # template_id should not be updated
-                set_clauses.append(f"{key} = ?")
-                params.append(value)
-        
-        if not set_clauses:
-            return False
-            
-        sql = f"UPDATE Templates SET {', '.join(set_clauses)} WHERE template_id = ?"
-        params.append(template_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_template: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_template(template_id: int) -> bool:
-    """Deletes a template from the database. Returns True on success."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_template: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def get_template_details_for_preview(template_id: int) -> dict | None:
-    """
-    Fetches base_file_name and language_code for a given template_id for preview purposes.
-    Returns a dictionary like {'base_file_name': 'name.xlsx', 'language_code': 'fr'} or None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
-            (template_id,)
-        )
-        row = cursor.fetchone()
-        if row:
-            return {'base_file_name': row['base_file_name'], 'language_code': row['language_code']}
-        return None
-    except sqlite3.Error as e:
-        print(f"Database error in get_template_details_for_preview: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_template_path_info(template_id: int) -> dict | None:
-    """
-    Fetches base_file_name (as file_name) and language_code (as language) for a given template_id.
-    Returns {'file_name': 'name.xlsx', 'language': 'fr'} or None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
-            (template_id,)
-        )
-        row = cursor.fetchone()
-        if row:
-            return {'file_name': row['base_file_name'], 'language': row['language_code']}
-        return None
-    except sqlite3.Error as e:
-        print(f"Database error in get_template_path_info: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def delete_template_and_get_file_info(template_id: int) -> dict | None:
-    """
-    Deletes the template record by template_id after fetching its file information.
-    Returns {'file_name': 'name.xlsx', 'language': 'fr'} if successful, None otherwise.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        conn.isolation_level = None # Start transaction
-        cursor = conn.cursor()
-        cursor.execute("BEGIN")
-
-        # First, fetch the required information
-        cursor.execute(
-            "SELECT base_file_name, language_code FROM Templates WHERE template_id = ?",
-            (template_id,)
-        )
-        row = cursor.fetchone()
-
-        if not row:
-            conn.rollback()
-            print(f"Template with ID {template_id} not found for deletion.")
-            return None
-
-        file_info = {'file_name': row['base_file_name'], 'language': row['language_code']}
-
-        # Proceed with deletion
-        cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
-
-        if cursor.rowcount > 0:
-            conn.commit()
-            return file_info
+        if notifications_found:
+            print(f"Found {len(notifications_found)} notifications.") # For debugging
+            for notification in notifications_found:
+                self.show_notification(
+                    notification["title"],
+                    notification["message"],
+                    notification.get("project_id"),
+                    notification.get("task_id")
+                )
         else:
-            # This case should ideally not be reached if the select was successful
-            # but included for robustness
-            conn.rollback()
-            print(f"Failed to delete template with ID {template_id} after fetching info.")
-            return None
+            print("No new notifications.") # For debugging
 
-    except sqlite3.Error as e:
-        if conn:
-            conn.rollback()
-        print(f"Database error in delete_template_and_get_file_info: {e}")
-        return None
-    finally:
-        if conn:
-            conn.isolation_level = '' # Reset isolation level
-            conn.close()
 
-def set_default_template_by_id(template_id: int) -> bool:
-    """
-    Sets a template as the default for its template_type and language_code.
-    Unsets other templates of the same type and language.
-    Returns True on success, False on error.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        conn.isolation_level = None # Start transaction
-        cursor = conn.cursor()
-        cursor.execute("BEGIN")
+    def show_notification(self, title, message, project_id=None, task_id=None):
+        self.notification_banner.set_message(title, message)
 
-        # Get template_type and language_code for the given template_id
-        cursor.execute(
-            "SELECT template_type, language_code FROM Templates WHERE template_id = ?",
-            (template_id,)
+        if self.parent_window:
+            parent_width = self.parent_window.width()
+            banner_width = self.notification_banner.width()
+
+            # Position banner at top-right with 10px margin
+            x = parent_width - banner_width - 10
+            y = 10
+            self.notification_banner.move(x, y)
+
+        self.notification_banner.show()
+        self.notification_banner.raise_() # Ensure it's on top of other widgets
+
+        # Auto-hide after 7 seconds
+        QTimer.singleShot(7000, self.notification_banner.hide)
+        print(f"Showing custom notification: {title} - {message}") # For debugging
+
+
+class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
+    def __init__(self, parent=None, current_user=None): # Added current_user parameter
+        super().__init__(parent)
+        self.current_user = current_user # Use passed-in user
+        self.template_manager = ProjectTemplateManager() # Initialize ProjectTemplateManager
+
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa; /* Lighter background */
+                font-family: 'Segoe UI'; /* Ensure base font */
+                font-size: 10pt; /* Default font size */
+            }
+            QLabel {
+                color: #212529; /* Darker text for better contrast */
+            }
+            QPushButton { /* General button reset/base */
+                border: none;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 10pt;
+            }
+        """)
+
+        self._main_layout = QVBoxLayout(self) # Set layout directly on QWidget
+        self._main_layout.setContentsMargins(0, 0, 0, 0)
+        self._main_layout.setSpacing(0)
+
+        self.init_ui() # Initialize UI components
+
+        if self.current_user: # If user is passed, update UI and load data
+            self.user_name.setText(self.current_user.get('full_name', "N/A"))
+            self.user_role.setText(self.current_user.get('role', "N/A").capitalize())
+            self.load_initial_data()
+        else: # No user passed, potentially show internal login or a message
+            self.user_name.setText("Guest (No User Context)")
+            self.user_role.setText("Limited Functionality")
+
+        self.notification_manager = NotificationManager(self) # Pass self (dashboard) as parent
+        self.notification_manager.setup_timer()
+
+    def module_closed(self, module_id):
+        """Clean up after module closure"""
+        self.parent.modules[module_id] = None
+
+    def resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and for PyInstaller"""
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+
+        return os.path.join(base_path, relative_path)
+
+    def init_ui(self):
+        # central_widget is now self (the MainDashboard QWidget)
+        # main_layout is self._main_layout, already set on self
+
+        # Topbar (replaces sidebar)
+        self.setup_topbar()
+        self._main_layout.addWidget(self.topbar) # Add topbar to self._main_layout
+
+        # Main content
+        self.main_content = QStackedWidget()
+        self.main_content.setStyleSheet("""
+            QStackedWidget {
+                background-color: #ffffff;
+            }
+        """)
+
+        # Pages
+        self.setup_dashboard_page()
+        self.setup_team_page()
+        self.setup_projects_page()
+        self.setup_tasks_page()
+        self.setup_reports_page()
+        self.setup_settings_page()
+        self.setup_cover_page_management_page() # New page
+
+        # Add main content below the topbar
+        self._main_layout.addWidget(self.main_content) # Add main_content to self._main_layout
+
+        # Status bar removed - self.statusBar().showMessage("Ready")
+
+        # Check if user is logged in - Handled in __init__ now
+        # if not self.current_user:
+        #     # This might be shown if __init__ doesn't receive a user.
+        #     # self.show_login_dialog()
+        #     pass
+
+
+    def setup_topbar(self):
+        self.topbar = QFrame()
+        self.topbar.setFixedHeight(70)
+        self.topbar.setStyleSheet("""
+            QFrame {
+                background-color: #343a40; /* Dark charcoal */
+                color: #ffffff;
+                border-bottom: 2px solid #007bff; /* Primary accent border */
+            }
+            QPushButton {
+                background-color: transparent;
+                color: #f8f9fa; /* Lighter text for topbar buttons */
+                padding: 10px 15px;
+                border: none;
+                font-size: 11pt; /* Slightly larger for nav */
+                border-radius: 5px;
+                min-width: 90px;
+            }
+            QPushButton:hover {
+                background-color: #495057; /* Slightly lighter dark for hover */
+            }
+            QPushButton#selected {
+                background-color: #007bff; /* Primary accent */
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton#menu_button { /* Style for buttons with menus */
+                padding-right: 30px; /* More space for bigger arrow */
+            }
+            QPushButton#menu_button::indicator { /* Hide default menu indicator if any */
+                width: 0px;
+            }
+            /* Custom arrow using a pseudo-element (might not work on all Qt styles/platforms)
+               If not, a QLabel with a unicode arrow could be an alternative */
+            QPushButton#menu_button::after {
+                content: "▼"; /* Unicode arrow */
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 12px; /* Larger arrow */
+                color: #f8f9fa;
+            }
+            QLabel { /* Labels within topbar, e.g., user name, logo text */
+                color: #f8f9fa;
+                font-size: 10pt;
+            }
+            QLabel#UserFullNameLabel { /* Specific ID for user name if needed */
+                 font-weight: bold;
+                 font-size: 11pt;
+            }
+            QLabel#UserRoleLabel {
+                 font-size: 9pt;
+                 color: #adb5bd; /* Lighter gray for role */
+            }
+            QMenu {
+                background-color: #343a40; /* Match topbar */
+                color: #f8f9fa;
+                border: 1px solid #495057; /* Border for menu */
+                padding: 8px;
+                font-size: 10pt;
+            }
+            QMenu::item {
+                padding: 10px 20px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #007bff; /* Primary accent for selected menu item */
+                color: white;
+            }
+            QMenu::icon {
+                padding-left: 10px;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #495057;
+                margin: 5px 0;
+            }
+        """)
+
+        topbar_layout = QHBoxLayout(self.topbar)
+        topbar_layout.setContentsMargins(15, 10, 15, 10)
+        topbar_layout.setSpacing(20)
+
+        # Logo and title - Left side
+        logo_container = QHBoxLayout()
+        logo_container.setSpacing(10)
+
+        logo_icon = QLabel()
+        logo_icon.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(45, 45))
+
+        logo_text = QLabel("Management Pro")
+        logo_text.setStyleSheet("""
+            font-size: 18pt; /* Adjusted size */
+            font-weight: bold;
+            color: #007bff; /* Primary accent */
+            font-family: 'Segoe UI', Arial, sans-serif;
+        """)
+
+        logo_container.addWidget(logo_icon)
+        logo_container.addWidget(logo_text)
+        topbar_layout.addLayout(logo_container)
+
+        # Central space for menus
+        topbar_layout.addStretch(1)
+
+        # Main Menu - Center
+        self.nav_buttons = []
+
+        # Dashboard button (single)
+        dashboard_btn = QPushButton("Dashboard")
+        dashboard_btn.setIcon(QIcon(self.resource_path('icons/dashboard.png')))
+        dashboard_btn.clicked.connect(lambda: self.change_page(0))
+        self.nav_buttons.append(dashboard_btn)
+        topbar_layout.addWidget(dashboard_btn)
+
+        # Management Menu (Team + Settings)
+        management_menu = QMenu()
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/team.png')),
+            "Team",
+            lambda: self.change_page(1)
         )
-        template_info = cursor.fetchone()
-
-        if not template_info:
-            print(f"Template with ID {template_id} not found.")
-            conn.rollback()
-            return False
-
-        current_template_type = template_info['template_type']
-        current_language_code = template_info['language_code']
-
-        # Set is_default_for_type_lang = 0 for all templates of the same type and language
-        cursor.execute(
-            """
-            UPDATE Templates
-            SET is_default_for_type_lang = 0
-            WHERE template_type = ? AND language_code = ?
-            """,
-            (current_template_type, current_language_code)
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Settings",
+            lambda: self.change_page(5)
         )
 
-        # Set is_default_for_type_lang = 1 for the specified template_id
-        cursor.execute(
-            "UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?",
-            (template_id,)
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Notifications",
+            lambda: self.gestion_notification()
+        )
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Client Support",
+            lambda: self.gestion_sav()
+        )
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Prospect",
+            lambda: self.gestion_prospects()
+        )
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Documents",
+            lambda: self.gestion_documents()
+        )
+        management_menu.addAction(
+            QIcon(self.resource_path('icons/settings.png')),
+            "Contacts",
+            lambda: self.gestion_contacts()
         )
 
-        conn.commit()
-        return True
+        management_btn = QPushButton("Management")
+        management_btn.setIcon(QIcon(self.resource_path('icons/management.png')))
+        management_btn.setMenu(management_menu)
+        management_btn.setObjectName("menu_button")
+        self.nav_buttons.append(management_btn)
+        topbar_layout.addWidget(management_btn)
 
-    except sqlite3.Error as e:
-        if conn:
-            conn.rollback()
-        print(f"Database error in set_default_template_by_id: {e}")
-        return False
-    finally:
-        if conn:
-            conn.isolation_level = '' # Reset isolation level
-            conn.close()
+        # Projects Menu (Projects + Tasks + Reports)
+        projects_menu = QMenu()
+        projects_menu.addAction(
+            QIcon(self.resource_path('icons/projects.png')),
+            "Projects",
+            lambda: self.change_page(2)
+        )
+        projects_menu.addAction(
+            QIcon(self.resource_path('icons/tasks.png')),
+            "Tasks",
+            lambda: self.change_page(3)
+        )
+        projects_menu.addAction(
+            QIcon(self.resource_path('icons/reports.png')),
+            "Reports",
+            lambda: self.change_page(4)
+        )
+        projects_menu.addAction(
+            QIcon(self.resource_path('icons/document.png')), # Placeholder icon
+            "Cover Pages",
+            lambda: self.change_page(6) # Assuming this will be the 7th page (index 6)
+        )
 
-def add_default_template_if_not_exists(template_data: dict) -> int | None:
-    """
-    Adds a template to the Templates table if it doesn't already exist
-    based on template_name, template_type, and language_code.
-    Returns the template_id of the new or existing template, or None on error.
-    Expects template_data to include:
-        'template_name' (e.g., "Proforma"),
-        'template_type' (e.g., "document_excel", "document_word"),
-        'language_code' (e.g., "fr", "en"),
-        'base_file_name' (e.g., "proforma_template.xlsx"),
-        'description' (optional),
-        'category' (optional, e.g., "Finance", "Technical"),
-        'is_default_for_type_lang' (optional, boolean, defaults to False),
-        'category_name' (optional, string, defaults to "General")
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor() # Get a cursor from the connection
+        projects_btn = QPushButton("Activities")
+        projects_btn.setIcon(QIcon(self.resource_path('icons/activities.png')))
+        projects_btn.setMenu(projects_menu)
+        projects_btn.setObjectName("menu_button")
+        self.nav_buttons.append(projects_btn)
+        topbar_layout.addWidget(projects_btn)
 
-        name = template_data.get('template_name')
-        ttype = template_data.get('template_type')
-        lang = template_data.get('language_code')
-        filename = template_data.get('base_file_name')
-        category_name_text = template_data.get('category_name', "General")
+        # Add-on button (single)
+        add_on_btn = QPushButton("Add-on")
+        add_on_btn.setIcon(QIcon(self.resource_path('icons/add_on.png')))
+        add_on_btn.clicked.connect(lambda: self.add_on_page())
+        self.nav_buttons.append(add_on_btn)
+        topbar_layout.addWidget(add_on_btn)
 
-        if not all([name, ttype, lang, filename]):
-            print(f"Error: Missing required fields for default template: {template_data}")
-            return None
+        topbar_layout.addStretch(1)
 
-        # Get or create category_id (using a separate connection for this, or pass cursor)
-        # For simplicity here, calling the public function.
-        # In a high-performance scenario, might pass the cursor.
-        category_id = add_template_category(category_name_text, f"{category_name_text} (auto-created)")
-        if category_id is None:
-            print(f"Error: Could not get or create category_id for '{category_name_text}'.")
-            return None # Cannot proceed without a category_id
+        # User section - Right side
+        user_container = QHBoxLayout()
+        user_container.setSpacing(10)
 
-        # Check if this specific template (name, type, lang) already exists
-        cursor.execute("""
-            SELECT template_id FROM Templates
-            WHERE template_name = ? AND template_type = ? AND language_code = ?
-        """, (name, ttype, lang))
-        existing_template = cursor.fetchone()
+        # User avatar
+        user_avatar = QLabel()
+        user_avatar.setPixmap(QIcon(self.resource_path('icons/user.png')).pixmap(35, 35))
+        user_avatar.setStyleSheet("border-radius: 17px; border: 2px solid #3498db;")
 
-        if existing_template:
-            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
-            return existing_template['template_id']
+        # User info
+        user_info = QVBoxLayout()
+        user_info.setSpacing(0)
+
+        self.user_name = QLabel("Guest")
+        self.user_name.setObjectName("UserFullNameLabel") # For specific styling if needed
+        self.user_name.setStyleSheet("""
+            font-weight: bold;
+            font-size: 11pt;
+            color: #f8f9fa;
+        """)
+
+        self.user_role = QLabel("Not logged in")
+        self.user_role.setObjectName("UserRoleLabel")
+        self.user_role.setStyleSheet("""
+            font-size: 9pt;
+            color: #adb5bd; /* Lighter gray for role */
+        """)
+
+        user_info.addWidget(self.user_name)
+        user_info.addWidget(self.user_role)
+
+        user_container.addWidget(user_avatar)
+        user_container.addLayout(user_info)
+
+        # Logout button
+        logout_btn = QPushButton()
+        logout_btn.setIcon(QIcon(self.resource_path('icons/logout.png')))
+        logout_btn.setIconSize(QSize(20, 20))
+        logout_btn.setToolTip("Logout")
+        logout_btn.setFixedSize(35, 35)
+        logout_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(231, 76, 60, 0.2);
+                border-radius: 17px;
+            }
+            QPushButton:hover {
+                background-color: rgba(231, 76, 60, 0.8);
+            }
+        """)
+        logout_btn.clicked.connect(self.logout)
+
+        user_container.addWidget(logout_btn)
+
+        user_widget = QWidget()
+        user_widget.setLayout(user_container)
+        topbar_layout.addWidget(user_widget)
+
+        # Mark dashboard as selected by default
+        self.nav_buttons[0].setObjectName("selected")
+
+    # Function to manage notifications
+    def gestion_notification(self):
+        print("Notification management enabled.")
+        # Add logic to send or receive notifications
+        # Example: Check if new notifications exist, or send them
+        notifications = ["Notification 1", "Notification 2"]
+        for notification in notifications:
+            print(f"Notification: {notification}")
+        return notifications
+
+    # Function to manage prospects
+    def gestion_prospects(self):
+        print("Prospect management enabled.")
+        # Add logic to manage prospects
+        # Example: Add a prospect to a list
+        prospects = ["Prospect 1", "Prospect 2"]
+        for prospect in prospects:
+            print(f"Prospect: {prospect}")
+        return prospects
+
+    # Function to manage documents
+    def gestion_documents(self):
+        print("Document management enabled.")
+        # Add logic to manage documents
+        # Example: Download or delete a document
+        documents = ["Document 1", "Document 2"]
+        for document in documents:
+            print(f"Document: {document}")
+        return documents
+
+    # Function to manage contacts
+    def gestion_contacts(self):
+        print("Contact management enabled.")
+        # Add logic to add, modify, or delete contacts
+        # Example: Add a contact
+        contacts = ["Contact 1", "Contact 2"]
+        for contact in contacts:
+            print(f"Contact: {contact}")
+        return contacts
+
+    # Function to manage after-sales service (Support)
+    def gestion_sav(self):
+        print("Support management enabled.")
+        # Add logic to manage after-sales service
+        # Example: Track a support request
+        support_requests = ["Support Request 1", "Support Request 2"]
+        for request in support_requests:
+            print(f"Support Request: {request}")
+        return support_requests
+
+    def setup_dashboard_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Heajjjder
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+
+        title = QLabel("Management Dashboard")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") 
+
+        self.date_picker = QDateEdit(QDate.currentDate())
+        self.date_picker.setCalendarPopup(True)
+        self.date_picker.setStyleSheet("""
+            QDateEdit {
+                padding: 8px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QDateEdit:focus {
+                border-color: #80bdff;
+            }
+            QDateEdit::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QDateEdit::down-arrow {
+                image: url({self.resource_path('icons/calendar.png')}); /* Needs a calendar icon */
+            }
+        """)
+        self.date_picker.dateChanged.connect(self.update_dashboard)
+
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png'))) # Icon can be kept or removed
+        # Consistent style with "Generate Report" button
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue - Primary Action */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
+            }
+        """)
+        refresh_btn.clicked.connect(self.update_dashboard)
+
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.date_picker)
+        header_layout.addWidget(refresh_btn)
+
+        # KPIs
+        self.kpi_widget = QWidget()
+        self.kpi_layout = QHBoxLayout(self.kpi_widget)
+        self.kpi_layout.setSpacing(15)
+
+        # Charts
+        graph_widget = QWidget()
+        graph_layout = QHBoxLayout(graph_widget)
+        graph_layout.setSpacing(15)
+
+        # Performance chart
+        self.performance_graph = pg.PlotWidget()
+        self.performance_graph.setBackground('w')
+        self.performance_graph.setTitle("Team Performance", color='#333333', size='12pt')
+        self.performance_graph.showGrid(x=True, y=True)
+        self.performance_graph.setMinimumHeight(300)
+
+        # Project progress chart
+        self.project_progress_graph = pg.PlotWidget()
+        self.project_progress_graph.setBackground('w')
+        self.project_progress_graph.setTitle("Project Progress", color='#333333', size='12pt')
+        self.project_progress_graph.showGrid(x=True, y=True)
+        self.project_progress_graph.setMinimumHeight(300)
+
+        graph_layout.addWidget(self.performance_graph, 1)
+        graph_layout.addWidget(self.project_progress_graph, 1)
+
+        # Recent activities
+        activities_widget = QGroupBox("Recent Activities")
+        activities_widget.setStyleSheet("""
+            QGroupBox {
+                font-size: 12pt; /* Consistent font size */
+                font-weight: bold;
+                color: #343a40; /* Updated title color */
+                border: 1px solid #dee2e6; /* Softer border */
+                border-radius: 6px; /* Slightly more rounded */
+                margin-top: 15px; /* Adjusted margin */
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left; /* Position title at top-left */
+                padding: 5px 10px; /* Padding around title */
+                background-color: #e9ecef; /* Light background for title area */
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                border-bottom: 1px solid #dee2e6;
+            }
+        """)
+
+        activities_layout = QVBoxLayout(activities_widget)
+        activities_layout.setContentsMargins(10, 10, 10, 10) # Padding inside groupbox
+
+        self.activities_table = QTableWidget()
+        self.activities_table.setColumnCount(4)
+        self.activities_table.setHorizontalHeaderLabels(["Date", "Member", "Action", "Details"])
+        self.activities_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6; /* Table border */
+                border-radius: 5px; /* Rounded corners for table */
+            }
+            QHeaderView::section {
+                background-color: #e9ecef; /* Light gray header */
+                color: #495057; /* Dark text for header */
+                padding: 10px; /* Increased padding */
+                font-weight: bold;
+                border: none; /* Remove default border */
+                border-bottom: 2px solid #dee2e6; /* Bottom border for separation */
+            }
+            QTableWidget::item {
+                padding: 8px; /* Cell padding */
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+        """)
+        self.activities_table.verticalHeader().setVisible(False)
+        self.activities_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.activities_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.activities_table.setSortingEnabled(True)
+
+        activities_layout.addWidget(self.activities_table)
+
+        layout.addWidget(header)
+        layout.addWidget(self.kpi_widget)
+        layout.addWidget(graph_widget)
+        layout.addWidget(activities_widget)
+
+        self.main_content.addWidget(page)
+
+    def setup_team_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Header
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+
+        title = QLabel("Team Management")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+
+        self.add_member_btn = QPushButton("Add Member")
+        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png'))) # Icon can be kept
+        self.add_member_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
+            }
+        """)
+        self.add_member_btn.clicked.connect(self.show_add_member_dialog)
+
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.add_member_btn)
+
+        # Filters
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
+
+        self.team_search = QLineEdit()
+        self.team_search.setPlaceholderText("Search a member...")
+        self.team_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
+            }
+        """)
+        self.team_search.textChanged.connect(self.filter_team_members)
+
+        self.role_filter = QComboBox()
+        self.role_filter.addItems(["All Roles", "Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance"])
+        self.role_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')}); /* Needs a down arrow icon */
+            }
+        """)
+        self.role_filter.currentIndexChanged.connect(self.filter_team_members)
+
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["All Statuses", "Active", "Inactive", "On Leave"])
+        self.status_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.status_filter.currentIndexChanged.connect(self.filter_team_members)
+
+        filters_layout.addWidget(self.team_search)
+        filters_layout.addWidget(self.role_filter)
+        filters_layout.addWidget(self.status_filter)
+
+        # Team table
+        self.team_table = QTableWidget()
+        # Adjusted column count and labels for new fields
+        self.team_table.setColumnCount(10)
+        self.team_table.setHorizontalHeaderLabels([
+            "Name", "Email", "Role/Title", "Department", "Hire Date",
+            "Performance", "Skills", "Active", "Tasks", "Actions"
+        ])
+        self.team_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                gridline-color: #e9ecef; /* Lighter grid lines */
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+        """)
+        self.team_table.verticalHeader().setVisible(False)
+        self.team_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.team_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.team_table.setSortingEnabled(True)
+        self.team_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+
+        layout.addWidget(header)
+        layout.addWidget(filters)
+        layout.addWidget(self.team_table)
+
+        self.main_content.addWidget(page)
+
+    def setup_projects_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Header
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+
+        title = QLabel("Project Management")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+
+        self.add_project_btn = QPushButton("New Project")
+        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png'))) # Icon can be kept
+        self.add_project_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
+            }
+        """)
+        self.add_project_btn.clicked.connect(self.show_add_project_dialog)
+
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.add_project_btn)
+
+        # Filters
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
+
+        self.project_search = QLineEdit()
+        self.project_search.setPlaceholderText("Search a project...")
+        self.project_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
+            }
+        """)
+        self.project_search.textChanged.connect(self.filter_projects)
+
+        self.status_filter_proj = QComboBox()
+        self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
+        self.status_filter_proj.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.status_filter_proj.currentIndexChanged.connect(self.filter_projects)
+
+        self.priority_filter = QComboBox()
+        self.priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
+        self.priority_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.priority_filter.currentIndexChanged.connect(self.filter_projects)
+
+        filters_layout.addWidget(self.project_search)
+        filters_layout.addWidget(self.status_filter_proj)
+        filters_layout.addWidget(self.priority_filter)
+
+        # Projects table
+        self.projects_table = QTableWidget()
+        self.projects_table.setColumnCount(8)
+        self.projects_table.setHorizontalHeaderLabels(["Name", "Status", "Progress", "Priority", "Deadline", "Budget", "Manager", "Actions"])
+        self.projects_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                gridline-color: #e9ecef;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+            /* Progress bar specific styling within table */
+            QProgressBar {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                text-align: center;
+                height: 18px;
+                font-size: 9pt;
+            }
+            QProgressBar::chunk {
+                background-color: #007bff; /* Primary accent */
+                border-radius: 3px;
+            }
+        """)
+        self.projects_table.verticalHeader().setVisible(False)
+        self.projects_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.projects_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.projects_table.setSortingEnabled(True)
+        self.projects_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+
+        layout.addWidget(header)
+        layout.addWidget(filters)
+        layout.addWidget(self.projects_table)
+
+        self.main_content.addWidget(page)
+
+    def setup_tasks_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Header
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+
+        title = QLabel("Task Management")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+
+        self.add_task_btn = QPushButton("New Task")
+        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png'))) # Icon can be kept
+        self.add_task_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #28a745; /* Green */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
+            }
+        """)
+        self.add_task_btn.clicked.connect(self.show_add_task_dialog)
+
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.add_task_btn)
+
+        # Filters
+        filters = QWidget()
+        filters_layout = QHBoxLayout(filters)
+
+        self.task_search = QLineEdit()
+        self.task_search.setPlaceholderText("Search a task...")
+        self.task_search.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
+            }
+        """)
+        self.task_search.textChanged.connect(self.filter_tasks)
+
+        self.task_status_filter = QComboBox()
+        self.task_status_filter.addItems(["All Statuses", "To Do", "In Progress", "In Review", "Completed"])
+        self.task_status_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.task_status_filter.currentIndexChanged.connect(self.filter_tasks)
+
+        self.task_priority_filter = QComboBox()
+        self.task_priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
+        self.task_priority_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.task_priority_filter.currentIndexChanged.connect(self.filter_tasks)
+
+        self.task_project_filter = QComboBox()
+        self.task_project_filter.addItem("All Projects")
+        self.task_project_filter.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+        self.task_project_filter.currentIndexChanged.connect(self.filter_tasks)
+
+        filters_layout.addWidget(self.task_search)
+        filters_layout.addWidget(self.task_status_filter)
+        filters_layout.addWidget(self.task_priority_filter)
+        filters_layout.addWidget(self.task_project_filter)
+
+        # Tasks table
+        self.tasks_table = QTableWidget()
+        self.tasks_table.setColumnCount(7)
+        self.tasks_table.setHorizontalHeaderLabels(["Name", "Project", "Status", "Priority", "Assigned To", "Deadline", "Actions"])
+        self.tasks_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                gridline-color: #e9ecef;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+        """)
+        self.tasks_table.verticalHeader().setVisible(False)
+        self.tasks_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tasks_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.tasks_table.setSortingEnabled(True)
+        self.tasks_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+
+        layout.addWidget(header)
+        layout.addWidget(filters)
+        layout.addWidget(self.tasks_table)
+
+        self.main_content.addWidget(page)
+
+    def setup_reports_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        title = QLabel("Reports and Analytics")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+
+        # Report options
+        report_options = QWidget()
+        options_layout = QHBoxLayout(report_options)
+
+        self.report_type = QComboBox()
+        self.report_type.addItems(["Team Performance", "Project Progress", "Workload", "Key Indicators", "Budget Analysis"])
+        self.report_type.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+
+        self.report_period = QComboBox()
+        self.report_period.addItems(["Last 7 Days", "Last 30 Days", "Current Quarter", "Current Year", "Custom..."])
+        self.report_period.setStyleSheet("""
+            QComboBox {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QComboBox:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """)
+
+        generate_btn = QPushButton("Generate Report")
+        generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png'))) # Icon can be kept
+        generate_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
+            }
+        """)
+        generate_btn.clicked.connect(self.generate_report)
+
+        export_btn = QPushButton("Export PDF")
+        export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png'))) # Icon can be kept
+        export_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #dc3545; /* Red */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
+        export_btn.clicked.connect(self.export_report)
+
+        options_layout.addWidget(QLabel("Type:"))
+        options_layout.addWidget(self.report_type)
+        options_layout.addWidget(QLabel("Period:"))
+        options_layout.addWidget(self.report_period)
+        options_layout.addWidget(generate_btn)
+        options_layout.addWidget(export_btn)
+
+        # Report area
+        self.report_view = QTabWidget()
+        self.report_view.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #dee2e6; /* Softer border */
+                border-top: none; /* Remove top border as tabs cover it */
+                border-radius: 0 0 5px 5px; /* Round bottom corners */
+                padding: 10px;
+            }
+            QTabBar::tab {
+                padding: 10px 18px;
+                background: #e9ecef; /* Light gray for inactive tabs */
+                border: 1px solid #dee2e6;
+                border-bottom: none; /* Remove bottom border for tab, pane has top */
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+                color: #495057;
+                font-weight: bold;
+                margin-right: 2px; /* Space between tabs */
+            }
+            QTabBar::tab:selected {
+                background: #007bff; /* Primary accent */
+                color: white;
+                border-color: #007bff;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #d8dde2; /* Slightly darker for hover on inactive */
+            }
+        """)
+
+        # Chart tab
+        self.graph_tab = QWidget()
+        self.graph_layout = QVBoxLayout(self.graph_tab)
+
+        # Data tab
+        self.data_tab = QWidget()
+        self.data_layout = QVBoxLayout(self.data_tab)
+
+        self.report_data_table = QTableWidget()
+        self.report_data_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6; /* Table border */
+                border-radius: 5px;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef; /* Light gray header */
+                color: #495057; /* Dark text for header */
+                padding: 10px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+        """)
+        self.report_data_table.verticalHeader().setVisible(False)
+        self.report_data_table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        self.data_layout.addWidget(self.report_data_table)
+
+        self.report_view.addTab(self.graph_tab, "Visualization")
+        self.report_view.addTab(self.data_tab, "Data")
+
+        layout.addWidget(title)
+        layout.addWidget(report_options)
+        layout.addWidget(self.report_view)
+
+        self.main_content.addWidget(page)
+
+    def setup_settings_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        title = QLabel("Settings")
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+
+        # Tabs
+        tabs = QTabWidget()
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                border-top: none;
+                border-radius: 0 0 5px 5px;
+                padding: 15px; /* Padding for content within tab pane */
+            }
+            QTabBar::tab {
+                padding: 10px 18px;
+                background: #e9ecef;
+                border: 1px solid #dee2e6;
+                border-bottom: none;
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+                color: #495057;
+                font-weight: bold;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background: #007bff;
+                color: white;
+                border-color: #007bff;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #d8dde2;
+            }
+        """)
+
+        # General style for input fields and combo boxes in settings
+        settings_input_style = """
+            QLineEdit, QComboBox, QDateEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+                min-height: 20px; /* Ensure consistent height */
+            }
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus {
+                border-color: #80bdff;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left-width: 1px;
+                border-left-color: #ced4da;
+                border-left-style: solid;
+                border-top-right-radius: 3px;
+                border-bottom-right-radius: 3px;
+            }
+            QComboBox::down-arrow {
+                image: url({self.resource_path('icons/arrow_down.png')});
+            }
+        """
+
+        # Account tab
+        account_tab = QWidget()
+        account_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
+        account_layout = QFormLayout(account_tab)
+        account_layout.setSpacing(15)
+        account_layout.setLabelAlignment(Qt.AlignRight)
+
+
+        account_layout.addRow(QLabel("<b>Personal Information</b>"))
+
+        self.name_edit = QLineEdit()
+        self.email_edit = QLineEdit()
+        self.phone_edit = QLineEdit()
+
+        account_layout.addRow("Full Name:", self.name_edit)
+        account_layout.addRow("Email:", self.email_edit)
+        account_layout.addRow("Phone:", self.phone_edit)
+
+        account_layout.addItem(QSpacerItem(20, 20))
+        account_layout.addRow(QLabel("<b>Security</b>"))
+
+        self.current_pwd_edit = QLineEdit()
+        self.current_pwd_edit.setEchoMode(QLineEdit.Password)
+        self.new_pwd_edit = QLineEdit()
+        self.new_pwd_edit.setEchoMode(QLineEdit.Password)
+        self.confirm_pwd_edit = QLineEdit()
+        self.confirm_pwd_edit.setEchoMode(QLineEdit.Password)
+
+        account_layout.addRow("Current Password:", self.current_pwd_edit)
+        account_layout.addRow("New Password:", self.new_pwd_edit)
+        account_layout.addRow("Confirm:", self.confirm_pwd_edit)
+
+        save_btn = QPushButton("Save Changes")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 10px; /* Add some margin above button */
+            }
+            QPushButton:hover {
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
+            }
+        """)
+        save_btn.clicked.connect(self.save_account_settings)
+        account_layout.addRow(save_btn)
+
+        # Preferences tab
+        pref_tab = QWidget()
+        pref_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
+        pref_layout = QFormLayout(pref_tab)
+        pref_layout.setSpacing(15)
+        pref_layout.setLabelAlignment(Qt.AlignRight)
+
+        pref_layout.addRow(QLabel("<b>Display</b>"))
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["Light", "Dark", "Blue", "Automatic"])
+
+        self.density_combo = QComboBox()
+        self.density_combo.addItems(["Compact", "Normal", "Large"])
+
+        self.language_combo = QComboBox()
+        self.language_combo.addItems(["French", "English", "Spanish"])
+
+        pref_layout.addRow("Theme:", self.theme_combo)
+        pref_layout.addRow("Density:", self.density_combo)
+        pref_layout.addRow("Language:", self.language_combo)
+
+        pref_layout.addItem(QSpacerItem(20, 20))
+        pref_layout.addRow(QLabel("<b>Notifications</b>"))
+
+        self.email_notif = QCheckBox("Email")
+        self.app_notif = QCheckBox("Application")
+        self.sms_notif = QCheckBox("SMS")
+
+        pref_layout.addRow(self.email_notif)
+        pref_layout.addRow(self.app_notif)
+        pref_layout.addRow(self.sms_notif)
+
+        save_pref_btn = QPushButton("Save Preferences")
+        save_pref_btn.setStyleSheet("""
+            QPushButton {
+                padding: 10px 18px;
+                background-color: #007bff; /* Blue */
+                color: white;
+                border-radius: 5px;
+                font-weight: bold;
+                margin-top: 10px;
+            }
+            QPushButton:hover {
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #005cbf;
+            }
+        """)
+        save_pref_btn.clicked.connect(self.save_preferences)
+        pref_layout.addRow(save_pref_btn)
+
+        # Team tab
+        team_tab = QWidget()
+        team_layout = QVBoxLayout(team_tab)
+
+        self.access_table = QTableWidget()
+        self.access_table.setColumnCount(4)
+        self.access_table.setHorizontalHeaderLabels(["Name", "Role", "Access", "Actions"])
+        self.access_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                gridline-color: #e9ecef;
+            }
+            QHeaderView::section {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 10px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #dee2e6;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #007bff;
+                color: white;
+            }
+        """)
+        self.access_table.verticalHeader().setVisible(False)
+        self.access_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.access_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+
+        team_layout.addWidget(self.access_table)
+
+        tabs.addTab(account_tab, "Account")
+        tabs.addTab(pref_tab, "Preferences")
+        tabs.addTab(team_tab, "Access Management")
+
+        layout.addWidget(title)
+        layout.addWidget(tabs)
+
+        self.main_content.addWidget(page)
+
+    def show_login_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Login")
+        dialog.setFixedSize(350, 250)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+            }
+            QLabel {
+                color: #333333;
+            }
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            QPushButton {
+                padding: 8px 15px;
+                border-radius: 4px;
+            }
+            QPushButton#login_btn {
+                background-color: #3498db;
+                color: white;
+            }
+            QPushButton#login_btn:hover {
+                background-color: #2980b9;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+
+        logo = QLabel()
+        logo.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(80, 80))
+        logo.setAlignment(Qt.AlignCenter)
+
+        username_edit = QLineEdit()
+        username_edit.setPlaceholderText("Username")
+
+        password_edit = QLineEdit()
+        password_edit.setPlaceholderText("Password")
+        password_edit.setEchoMode(QLineEdit.Password)
+
+        login_btn = QPushButton("Login")
+        login_btn.setObjectName("login_btn")
+        login_btn.clicked.connect(lambda: self.handle_login(username_edit.text(), password_edit.text(), dialog))
+
+        layout.addWidget(logo)
+        layout.addWidget(QLabel("Username:"))
+        layout.addWidget(username_edit)
+        layout.addWidget(QLabel("Password:"))
+        layout.addWidget(password_edit)
+        layout.addItem(QSpacerItem(20, 20))
+        layout.addWidget(login_btn)
+
+        dialog.exec_()
+
+    def handle_login(self, username, password, dialog):
+        # hashed_pwd = hashlib.sha256(password.encode()).hexdigest() # Old method
+
+        # Use db_manager for verification (changed from main_db_manager)
+        user_data_from_db = db_manager.verify_user_password(username, password)
+
+        if user_data_from_db: # This is a dict from db.py's row_factory
+            # Directly use the dictionary returned by verify_user_password as self.current_user
+            # Ensure all keys needed by the UI (e.g., 'full_name', 'role') are present in the dict from db.py
+            self.current_user = dict(user_data_from_db) # Convert sqlite3.Row to dict if not already
+
+            # Update UI
+            self.user_name.setText(self.current_user.get('full_name', "N/A"))
+            self.user_role.setText(self.current_user.get('role', "N/A").capitalize())
+
+            # Log activity - ensure self.current_user['id'] maps to user_id for log_activity
+            # db.py's Users table has user_id as PK. verify_user_password returns this.
+            # log_activity expects 'id' key in self.current_user for user_id.
+            # So, ensure self.current_user['id'] is set correctly, or adjust log_activity.
+            # For now, assuming log_activity will be adapted or current_user dict has 'id' as user_id.
+            # To be safe, let's prepare a dict for log_activity if needed, or ensure 'id' exists.
+            # The log_activity expects self.current_user['id']. Let's make sure it's there.
+            # If user_data_from_db has 'user_id', we can map it to 'id' in self.current_user for log_activity,
+            # or better, adjust log_activity to use 'user_id'.
+            # For now, let's assume self.current_user (which is user_data_from_db) will be used by log_activity directly.
+
+            self.log_activity(f"Login by {self.current_user.get('full_name', username)}")
+
+            # Load data
+            self.load_initial_data()
+
+            dialog.accept()
         else:
-            now = datetime.utcnow().isoformat() + "Z"
-            sql = """
-                INSERT INTO Templates (
-                    template_name, template_type, language_code, base_file_name,
-                    description, category_id, is_default_for_type_lang,
-                    created_at, updated_at
-                    -- created_by_user_id could be NULL or a system user ID
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            params = (
-                name,
-                ttype,
-                lang,
-                filename,
-                template_data.get('description', f"Default {name} template"),
-                category_id, # Use the fetched/created category_id
-                template_data.get('is_default_for_type_lang', True),
-                now,
-                now
-            )
-            cursor.execute(sql, params)
-            conn.commit()
-            new_id = cursor.lastrowid
-            print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
-            return new_id
+            QMessageBox.warning(self, "Error", "Incorrect username or password, or user is inactive.")
 
-    except sqlite3.Error as e:
-        print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
-        if conn:
-            conn.rollback() # Rollback on error
-        return None
-    finally:
-        if conn:
-            conn.close()
+    def logout(self):
+        if self.current_user:
+            self.log_activity(f"Logout by {self.current_user.get('full_name', 'Unknown user')}")
 
-# CRUD functions for Projects
-def add_project(project_data: dict) -> str | None:
-    """
-    Adds a new project to the database.
-    Returns the new project_id if successful, otherwise None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        new_project_id = uuid.uuid4().hex
-        now = datetime.utcnow().isoformat() + "Z"
+        self.current_user = None
+        self.user_name.setText("Guest")
+        self.user_role.setText("Not logged in")
+        self.show_login_dialog()
 
-        sql = """
-            INSERT INTO Projects (
-                project_id, client_id, project_name, description, start_date, 
-                deadline_date, budget, status_id, progress_percentage, 
-                manager_team_member_id, priority, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_project_id,
-            project_data.get('client_id'),
-            project_data.get('project_name'),
-            project_data.get('description'),
-            project_data.get('start_date'),
-            project_data.get('deadline_date'),
-            project_data.get('budget'),
-            project_data.get('status_id'),
-            project_data.get('progress_percentage', 0),
-            project_data.get('manager_team_member_id'),
-            project_data.get('priority', 0),
-            now,  # created_at
-            now   # updated_at
-        )
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_project_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_project: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+    def log_activity(self, action, details=None):
+        user_id_for_log = None
+        if self.current_user and self.current_user.get('user_id'):
+            user_id_for_log = self.current_user.get('user_id')
 
-def get_project_by_id(project_id: str) -> dict | None:
-    """Retrieves a project by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Projects WHERE project_id = ?", (project_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_project_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+        db_manager.add_activity_log({ # Changed main_db_manager to db_manager
+            'user_id': user_id_for_log,
+            'action_type': action,
+            'details': details
+            # Other fields like 'related_entity_type', 'related_entity_id' can be added if available
+        })
 
-def get_projects_by_client_id(client_id: str) -> list[dict]:
-    """Retrieves all projects for a given client_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Projects WHERE client_id = ?", (client_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_projects_by_client_id: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
 
-def get_all_projects(filters: dict = None) -> list[dict]:
-    """
-    Retrieves all projects, optionally applying filters.
-    Allowed filters: client_id, status_id, manager_team_member_id, priority.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM Projects"
-        params = []
-        
-        if filters:
-            where_clauses = []
-            allowed_filters = ['client_id', 'status_id', 'manager_team_member_id', 'priority']
-            for key, value in filters.items():
-                if key in allowed_filters:
-                    where_clauses.append(f"{key} = ?")
-                    params.append(value)
-            if where_clauses:
-                sql += " WHERE " + " AND ".join(where_clauses)
-                
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_projects: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
+    def load_initial_data(self):
+        self.load_kpis()
+        self.load_team_members()
+        self.load_projects()
+        self.load_tasks()
+        self.load_activities()
+        self.load_access_table()
+        self.update_project_filter()
 
-def update_project(project_id: str, project_data: dict) -> bool:
-    """
-    Updates an existing project. Sets updated_at.
-    Returns True if update was successful, False otherwise.
-    """
-    conn = None
-    if not project_data:
-        return False
+        # Set user preferences if logged in
+        if self.current_user:
+            self.load_user_preferences()
 
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        now = datetime.utcnow().isoformat() + "Z"
-        project_data['updated_at'] = now
-        
-        set_clauses = []
-        params = []
-        
-        # Ensure only valid columns are updated
-        valid_columns = [
-            'client_id', 'project_name', 'description', 'start_date', 'deadline_date', 
-            'budget', 'status_id', 'progress_percentage', 'manager_team_member_id', 
-            'priority', 'updated_at'
-        ]
-        for key, value in project_data.items():
-            if key in valid_columns:
-                 set_clauses.append(f"{key} = ?")
-                 params.append(value)
-        
-        if not set_clauses:
-            return False 
-            
-        sql = f"UPDATE Projects SET {', '.join(set_clauses)} WHERE project_id = ?"
-        params.append(project_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_project: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
+    def load_kpis(self):
+        # Clear old KPIs
+        for i in reversed(range(self.kpi_layout.count())):
+            widget = self.kpi_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
 
-def delete_project(project_id: str) -> bool:
-    """Deletes a project. Returns True if deletion was successful."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # ON DELETE CASCADE for Tasks related to this project will be handled by SQLite
-        cursor.execute("DELETE FROM Projects WHERE project_id = ?", (project_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_project: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
+        kpis_to_display = []
+        # Attempt to load KPIs for the first project found
+        # In a more advanced dashboard, this would come from a selected project context
+        all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
+        if all_projects and len(all_projects) > 0:
+            # For simplicity, let's try to find the first project that is not archived or completed
+            first_active_project_id = None
+            for proj in all_projects:
+                status_id = proj.get('status_id')
+                if status_id:
+                    status_setting = db_manager.get_status_setting_by_id(status_id)
+                    if status_setting and not status_setting.get('is_completion_status') and not status_setting.get('is_archival_status'):
+                        first_active_project_id = proj.get('project_id')
+                        break
+                else: # If no status, assume it's active for KPI display
+                    first_active_project_id = proj.get('project_id')
+                    break
 
-# CRUD functions for Tasks
-def add_task(task_data: dict) -> int | None:
-    """
-    Adds a new task to the database. Returns the task_id if successful.
-    Sets created_at and updated_at.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-
-        sql = """
-            INSERT INTO Tasks (
-                project_id, task_name, description, status_id, assignee_team_member_id,
-                reporter_team_member_id, due_date, priority, estimated_hours,
-                actual_hours_spent, parent_task_id, created_at, updated_at, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            task_data.get('project_id'),
-            task_data.get('task_name'),
-            task_data.get('description'),
-            task_data.get('status_id'),
-            task_data.get('assignee_team_member_id'),
-            task_data.get('reporter_team_member_id'),
-            task_data.get('due_date'),
-            task_data.get('priority', 0),
-            task_data.get('estimated_hours'),
-            task_data.get('actual_hours_spent'),
-            task_data.get('parent_task_id'),
-            now,  # created_at
-            now,  # updated_at
-            task_data.get('completed_at') # Explicitly set if provided
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_task: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_task_by_id(task_id: int) -> dict | None:
-    """Retrieves a task by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Tasks WHERE task_id = ?", (task_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_task_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_tasks_by_project_id(project_id: str, filters: dict = None) -> list[dict]:
-    """
-    Retrieves tasks for a given project_id, optionally applying filters.
-    Allowed filters: assignee_team_member_id, status_id, priority.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM Tasks WHERE project_id = ?"
-        params = [project_id]
-        
-        if filters:
-            where_clauses = []
-            allowed_filters = ['assignee_team_member_id', 'status_id', 'priority']
-            for key, value in filters.items():
-                if key in allowed_filters:
-                    where_clauses.append(f"{key} = ?")
-                    params.append(value)
-            if where_clauses:
-                sql += " AND " + " AND ".join(where_clauses)
-                
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_tasks_by_project_id: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_task(task_id: int, task_data: dict) -> bool:
-    """
-    Updates an existing task. Sets updated_at.
-    If 'completed_at' is in task_data, it will be updated.
-    (Logic for setting 'completed_at' based on status change should ideally be handled by calling code).
-    Returns True on success.
-    """
-    conn = None
-    if not task_data:
-        return False
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        task_data['updated_at'] = now
-        
-        set_clauses = []
-        params = []
-        
-        valid_columns = [
-            'project_id', 'task_name', 'description', 'status_id', 'assignee_team_member_id',
-            'reporter_team_member_id', 'due_date', 'priority', 'estimated_hours',
-            'actual_hours_spent', 'parent_task_id', 'updated_at', 'completed_at'
-        ]
-        for key, value in task_data.items():
-            if key in valid_columns: # Ensure key is a valid column
-                set_clauses.append(f"{key} = ?")
-                params.append(value)
-        
-        if not set_clauses:
-            return False
-            
-        sql = f"UPDATE Tasks SET {', '.join(set_clauses)} WHERE task_id = ?"
-        params.append(task_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_task: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_task(task_id: int) -> bool:
-    """Deletes a task. Returns True on success."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Tasks WHERE task_id = ?", (task_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_task: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# CRUD functions for Users
-def add_user(user_data: dict) -> str | None:
-    """
-    Adds a new user to the database.
-    Generates user_id (UUID), hashes password.
-    Returns the new user_id if successful, otherwise None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        new_user_id = uuid.uuid4().hex
-        now = datetime.utcnow().isoformat() + "Z"
-        
-        if 'password' not in user_data or not user_data['password']:
-            print("Password is required to create a user.")
-            return None
-        if 'username' not in user_data or not user_data['username']:
-            print("Username is required to create a user.")
-            return None
-        if 'email' not in user_data or not user_data['email']:
-            print("Email is required to create a user.")
-            return None
-        if 'role' not in user_data or not user_data['role']:
-            print("Role is required to create a user.")
-            return None
-
-        password_hash = hashlib.sha256(user_data['password'].encode('utf-8')).hexdigest()
-
-        sql = """
-            INSERT INTO Users (
-                user_id, username, password_hash, full_name, email, role, 
-                is_active, created_at, updated_at, last_login_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_user_id,
-            user_data.get('username'),
-            password_hash,
-            user_data.get('full_name'),
-            user_data.get('email'),
-            user_data.get('role'),
-            user_data.get('is_active', True),
-            now,  # created_at
-            now,  # updated_at
-            user_data.get('last_login_at') 
-        )
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_user_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_user: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_user_by_id(user_id: str) -> dict | None:
-    """Retrieves a user by their ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Users WHERE user_id = ?", (user_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_user_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_user_by_username(username: str) -> dict | None:
-    """Retrieves a user by their username."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Users WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_user_by_username: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def update_user(user_id: str, user_data: dict) -> bool:
-    """
-    Updates an existing user's information.
-    If 'password' is in user_data, it will be hashed and updated.
-    Sets updated_at. Returns True on success.
-    """
-    conn = None
-    if not user_data:
-        return False
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        now = datetime.utcnow().isoformat() + "Z"
-        user_data['updated_at'] = now
-        
-        if 'password' in user_data:
-            if user_data['password']: # Ensure password is not empty
-                user_data['password_hash'] = hashlib.sha256(user_data.pop('password').encode('utf-8')).hexdigest()
-            else:
-                user_data.pop('password') # Remove empty password from update data
-        
-        set_clauses = []
-        params = []
-        
-        valid_columns = ['username', 'password_hash', 'full_name', 'email', 'role', 'is_active', 'updated_at', 'last_login_at']
-        for key, value in user_data.items():
-            if key in valid_columns:
-                 set_clauses.append(f"{key} = ?")
-                 params.append(value)
-        
-        if not set_clauses: # No valid fields to update (e.g. only empty password was provided)
-            return False 
-            
-        sql = f"UPDATE Users SET {', '.join(set_clauses)} WHERE user_id = ?"
-        params.append(user_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_user: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def verify_user_password(username: str, password: str) -> dict | None:
-    """
-    Verifies a user's password.
-    Returns user data (dict) if verification is successful, otherwise None.
-    """
-    user = get_user_by_username(username)
-    if user and user['is_active']: # Check if user exists and is active
-        password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        if password_hash == user['password_hash']:
-            # Optionally update last_login_at here if desired
-            # update_user(user['user_id'], {'last_login_at': datetime.utcnow().isoformat() + "Z"})
-            return user
-    return None
-
-def delete_user(user_id: str) -> bool:
-    """
-    Deletes a user (hard delete).
-    Returns True if deletion was successful.
-    Note: TeamMembers.user_id will be set to NULL due to ON DELETE SET NULL.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Users WHERE user_id = ?", (user_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_user: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# CRUD functions for TeamMembers
-def add_team_member(member_data: dict) -> int | None:
-    """
-    Adds a new team member. Returns team_member_id (AUTOINCREMENT) or None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-
-        sql = """
-            INSERT INTO TeamMembers (
-                user_id, full_name, email, role_or_title, department, 
-                phone_number, profile_picture_url, is_active, notes, 
-                hire_date, performance, skills,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            member_data.get('user_id'), # Can be None
-            member_data.get('full_name'),
-            member_data.get('email'),
-            member_data.get('role_or_title'),
-            member_data.get('department'),
-            member_data.get('phone_number'),
-            member_data.get('profile_picture_url'),
-            member_data.get('is_active', True),
-            member_data.get('notes'),
-            member_data.get('hire_date'),
-            member_data.get('performance', 0),
-            member_data.get('skills'),
-            now, # created_at
-            now  # updated_at
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_team_member: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_team_member_by_id(team_member_id: int) -> dict | None:
-    """Retrieves a team member by their ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM TeamMembers WHERE team_member_id = ?", (team_member_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_team_member_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_team_members(filters: dict = None) -> list[dict]:
-    """
-    Retrieves all team members, optionally applying filters.
-    Allowed filters: is_active (boolean), department (string).
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = "SELECT * FROM TeamMembers"
-        params = []
-        
-        if filters:
-            where_clauses = []
-            allowed_filters = ['is_active', 'department', 'user_id'] 
-            for key, value in filters.items():
-                if key in allowed_filters:
-                    if key == 'is_active' and isinstance(value, bool):
-                         where_clauses.append(f"{key} = ?")
-                         params.append(1 if value else 0)
-                    else:
-                        where_clauses.append(f"{key} = ?")
-                        params.append(value)
-            if where_clauses:
-                sql += " WHERE " + " AND ".join(where_clauses)
-                
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_team_members: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_team_member(team_member_id: int, member_data: dict) -> bool:
-    """
-    Updates an existing team member. Sets updated_at.
-    Returns True on success.
-    """
-    conn = None
-    if not member_data:
-        return False
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        member_data['updated_at'] = now
-        
-        set_clauses = []
-        params = []
-        
-        valid_columns = [
-            'user_id', 'full_name', 'email', 'role_or_title', 'department', 
-            'phone_number', 'profile_picture_url', 'is_active', 'notes',
-            'hire_date', 'performance', 'skills', 'updated_at'
-        ]
-        for key, value in member_data.items():
-            if key in valid_columns:
-                set_clauses.append(f"{key} = ?")
-                params.append(value)
-        
-        if not set_clauses:
-            return False
-            
-        sql = f"UPDATE TeamMembers SET {', '.join(set_clauses)} WHERE team_member_id = ?"
-        params.append(team_member_id)
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_team_member: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_team_member(team_member_id: int) -> bool:
-    """Deletes a team member (hard delete). Returns True on success."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM TeamMembers WHERE team_member_id = ?", (team_member_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_team_member: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# CRUD functions for Contacts
-def add_contact(contact_data: dict) -> int | None:
-    """Adds a new contact. Returns contact_id (AUTOINCREMENT) or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """
-            INSERT INTO Contacts (
-                name, email, phone, position, company_name, notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            contact_data.get('name'),
-            contact_data.get('email'),
-            contact_data.get('phone'),
-            contact_data.get('position'),
-            contact_data.get('company_name'),
-            contact_data.get('notes'),
-            now, now
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_contact: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_contact_by_id(contact_id: int) -> dict | None:
-    """Retrieves a contact by their ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Contacts WHERE contact_id = ?", (contact_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_contact_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_contact_by_email(email: str) -> dict | None:
-    """Retrieves a contact by their email."""
-    conn = None
-    if not email: return None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Contacts WHERE email = ?", (email,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_contact_by_email: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_all_contacts(filters: dict = None) -> list[dict]:
-    """
-    Retrieves all contacts. Filters by 'company_name' (exact) or 'name' (partial LIKE).
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM Contacts"
-        params = []
-        where_clauses = []
-        if filters:
-            if 'company_name' in filters:
-                where_clauses.append("company_name = ?")
-                params.append(filters['company_name'])
-            if 'name' in filters:
-                where_clauses.append("name LIKE ?")
-                params.append(f"%{filters['name']}%")
-        
-        if where_clauses:
-            sql += " WHERE " + " AND ".join(where_clauses)
-            
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_contacts: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_contact(contact_id: int, contact_data: dict) -> bool:
-    """Updates an existing contact. Sets updated_at."""
-    conn = None
-    if not contact_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        contact_data['updated_at'] = now
-        
-        set_clauses = [f"{key} = ?" for key in contact_data.keys()]
-        params = list(contact_data.values())
-        params.append(contact_id)
-        
-        sql = f"UPDATE Contacts SET {', '.join(set_clauses)} WHERE contact_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_contact: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_contact(contact_id: int) -> bool:
-    """Deletes a contact. Associated ClientContacts are handled by ON DELETE CASCADE."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Contacts WHERE contact_id = ?", (contact_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_contact: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# Functions for ClientContacts association
-def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = False, can_receive_documents: bool = True) -> int | None:
-    """Links a contact to a client."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """
-            INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents)
-            VALUES (?, ?, ?, ?)
-        """
-        params = (client_id, contact_id, is_primary, can_receive_documents)
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e: # Handles UNIQUE constraint violation if link already exists
-        print(f"Database error in link_contact_to_client: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def unlink_contact_from_client(client_id: str, contact_id: int) -> bool:
-    """Unlinks a contact from a client."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "DELETE FROM ClientContacts WHERE client_id = ? AND contact_id = ?"
-        cursor.execute(sql, (client_id, contact_id))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in unlink_contact_from_client: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def get_contacts_for_client(client_id: str) -> list[dict]:
-    """Retrieves all contacts for a given client, including link details."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """
-            SELECT c.*, cc.is_primary_for_client, cc.can_receive_documents, cc.client_contact_id
-            FROM Contacts c
-            JOIN ClientContacts cc ON c.contact_id = cc.contact_id
-            WHERE cc.client_id = ?
-        """
-        cursor.execute(sql, (client_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_contacts_for_client: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_clients_for_contact(contact_id: int) -> list[dict]:
-    """Retrieves all clients associated with a contact."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """
-            SELECT cl.*, cc.is_primary_for_client, cc.can_receive_documents, cc.client_contact_id
-            FROM Clients cl
-            JOIN ClientContacts cc ON cl.client_id = cc.client_id
-            WHERE cc.contact_id = ?
-        """
-        cursor.execute(sql, (contact_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_clients_for_contact: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_client_contact_link(client_contact_id: int, details: dict) -> bool:
-    """Updates details of a client-contact link (is_primary, can_receive_documents)."""
-    conn = None
-    if not details or not any(key in details for key in ['is_primary_for_client', 'can_receive_documents']):
-        return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        set_clauses = []
-        params = []
-        if 'is_primary_for_client' in details:
-            set_clauses.append("is_primary_for_client = ?")
-            params.append(details['is_primary_for_client'])
-        if 'can_receive_documents' in details:
-            set_clauses.append("can_receive_documents = ?")
-            params.append(details['can_receive_documents'])
-        
-        if not set_clauses: return False # Should not happen due to check above
-
-        params.append(client_contact_id)
-        sql = f"UPDATE ClientContacts SET {', '.join(set_clauses)} WHERE client_contact_id = ?"
-        
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_client_contact_link: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# CRUD functions for Products
-def add_product(product_data: dict) -> int | None:
-    """Adds a new product. Returns product_id or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """
-            INSERT INTO Products (
-                product_name, description, category, base_unit_price, unit_of_measure, 
-                is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            product_data.get('product_name'), product_data.get('description'),
-            product_data.get('category'), product_data.get('base_unit_price'),
-            product_data.get('unit_of_measure'), product_data.get('is_active', True),
-            now, now
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_product: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_product_by_id(product_id: int) -> dict | None:
-    """Retrieves a product by ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Products WHERE product_id = ?", (product_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_product_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_product_by_name(product_name: str) -> dict | None:
-    """Retrieves a product by its exact name. Returns a dict or None if not found."""
-    conn = None
-    if not product_name:
-        return None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_product_by_name: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_products(filters: dict = None) -> list[dict]:
-    """Retrieves all products. Filters by category (exact) or product_name (partial LIKE)."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM Products"
-        params = []
-        where_clauses = []
-        if filters:
-            if 'category' in filters:
-                where_clauses.append("category = ?")
-                params.append(filters['category'])
-            if 'product_name' in filters:
-                where_clauses.append("product_name LIKE ?")
-                params.append(f"%{filters['product_name']}%")
-        
-        if where_clauses:
-            sql += " WHERE " + " AND ".join(where_clauses)
-            
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_products: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_product(product_id: int, product_data: dict) -> bool:
-    """Updates an existing product. Sets updated_at."""
-    conn = None
-    if not product_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        product_data['updated_at'] = now
-        
-        set_clauses = [f"{key} = ?" for key in product_data.keys()]
-        params = list(product_data.values())
-        params.append(product_id)
-        
-        sql = f"UPDATE Products SET {', '.join(set_clauses)} WHERE product_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_product: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_product(product_id: int) -> bool:
-    """Deletes a product. Associated ClientProjectProducts are handled by ON DELETE CASCADE."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Products WHERE product_id = ?", (product_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_product: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# Functions for ClientProjectProducts association
-def add_product_to_client_or_project(link_data: dict) -> int | None:
-    """Links a product to a client or project, calculating total price."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        product_id = link_data.get('product_id')
-        product_info = get_product_by_id(product_id) # Need this for base price
-        if not product_info:
-            print(f"Product with ID {product_id} not found.")
-            return None
-
-        quantity = link_data.get('quantity', 1)
-        unit_price = link_data.get('unit_price_override', product_info['base_unit_price'])
-        total_price_calculated = quantity * unit_price
-
-        sql = """
-            INSERT INTO ClientProjectProducts (
-                client_id, project_id, product_id, quantity, unit_price_override, total_price_calculated, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            link_data.get('client_id'),
-            link_data.get('project_id'), # Can be NULL
-            product_id,
-            quantity,
-            link_data.get('unit_price_override'), # Store override, or NULL if base used
-            total_price_calculated,
-            datetime.utcnow().isoformat() + "Z"
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_product_to_client_or_project: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_products_for_client_or_project(client_id: str, project_id: str = None) -> list[dict]:
-    """Fetches products for a client, optionally filtered by project_id. Joins with Products."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = """
-            SELECT cpp.*, p.product_name, p.description as product_description, p.category as product_category, 
-                   p.base_unit_price, p.unit_of_measure
-            FROM ClientProjectProducts cpp
-            JOIN Products p ON cpp.product_id = p.product_id
-            WHERE cpp.client_id = ?
-        """
-        params = [client_id]
-        
-        if project_id:
-            sql += " AND cpp.project_id = ?"
-            params.append(project_id)
-        else: # Explicitly handle case where we want products not tied to any project for this client
-            sql += " AND cpp.project_id IS NULL"
-            
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_products_for_client_or_project: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_client_project_product(link_id: int, update_data: dict) -> bool:
-    """Updates a ClientProjectProduct link. Recalculates total_price if needed."""
-    conn = None
-    if not update_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Fetch current link data to get product_id and existing values for price calculation
-        cursor.execute("SELECT * FROM ClientProjectProducts WHERE client_project_product_id = ?", (link_id,))
-        current_link = cursor.fetchone()
-        if not current_link:
-            print(f"ClientProjectProduct link with ID {link_id} not found.")
-            return False
-        
-        current_link_dict = dict(current_link)
-        new_quantity = update_data.get('quantity', current_link_dict['quantity'])
-        new_unit_price_override = update_data.get('unit_price_override', current_link_dict['unit_price_override'])
-
-        final_unit_price = new_unit_price_override
-        if final_unit_price is None: # If override is removed or was never there, use base price
-            product_info = get_product_by_id(current_link_dict['product_id'])
-            if not product_info: return False # Should not happen if data is consistent
-            final_unit_price = product_info['base_unit_price']
-        
-        update_data['total_price_calculated'] = new_quantity * final_unit_price
-        
-        set_clauses = [f"{key} = ?" for key in update_data.keys()]
-        params_list = list(update_data.values())
-        params_list.append(link_id)
-        
-        sql = f"UPDATE ClientProjectProducts SET {', '.join(set_clauses)} WHERE client_project_product_id = ?"
-        cursor.execute(sql, params_list)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_client_project_product: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def remove_product_from_client_or_project(link_id: int) -> bool:
-    """Removes a product link from a client/project."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "DELETE FROM ClientProjectProducts WHERE client_project_product_id = ?"
-        cursor.execute(sql, (link_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in remove_product_from_client_or_project: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# CRUD functions for ClientDocuments
-def add_client_document(doc_data: dict) -> str | None:
-    """Adds a new client document. Returns document_id (UUID) or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        doc_id = uuid.uuid4().hex
-
-        sql = """
-            INSERT INTO ClientDocuments (
-                document_id, client_id, project_id, document_name, file_name_on_disk,
-                file_path_relative, document_type_generated, source_template_id,
-                version_tag, notes, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            doc_id, doc_data.get('client_id'), doc_data.get('project_id'),
-            doc_data.get('document_name'), doc_data.get('file_name_on_disk'),
-            doc_data.get('file_path_relative'), doc_data.get('document_type_generated'),
-            doc_data.get('source_template_id'), doc_data.get('version_tag'),
-            doc_data.get('notes'), now, now, doc_data.get('created_by_user_id')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return doc_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_client_document: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_document_by_id(document_id: str) -> dict | None:
-    """Retrieves a document by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ClientDocuments WHERE document_id = ?", (document_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_document_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]:
-    """
-    Retrieves documents for a client. 
-    Filters by 'document_type_generated' (exact) or 'project_id' (exact).
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM ClientDocuments WHERE client_id = ?"
-        params = [client_id]
-        
-        if filters:
-            if 'document_type_generated' in filters:
-                sql += " AND document_type_generated = ?"
-                params.append(filters['document_type_generated'])
-            if 'project_id' in filters: # Can be None to filter for client-general docs
-                if filters['project_id'] is None:
-                    sql += " AND project_id IS NULL"
+            if first_active_project_id:
+                kpis_to_display = db_manager.get_kpis_for_project(first_active_project_id) # Changed main_db_manager
+                if kpis_to_display:
+                     print(f"Displaying KPIs for project ID: {first_active_project_id}")
                 else:
-                    sql += " AND project_id = ?"
-                    params.append(filters['project_id'])
-            
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_documents_for_client: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_documents_for_project(project_id: str, filters: dict = None) -> list[dict]:
-    """
-    Retrieves documents for a project. 
-    Filters by 'document_type_generated' (exact).
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM ClientDocuments WHERE project_id = ?"
-        params = [project_id]
-        
-        if filters and 'document_type_generated' in filters:
-            sql += " AND document_type_generated = ?"
-            params.append(filters['document_type_generated'])
-            
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_documents_for_project: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_client_document(document_id: str, doc_data: dict) -> bool:
-    """Updates an existing client document. Sets updated_at."""
-    conn = None
-    if not doc_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        doc_data['updated_at'] = now
-        
-        # Exclude primary key from update set
-        valid_columns = [
-            'client_id', 'project_id', 'document_name', 'file_name_on_disk', 
-            'file_path_relative', 'document_type_generated', 'source_template_id', 
-            'version_tag', 'notes', 'updated_at', 'created_by_user_id'
-        ]
-        current_doc_data = {k: v for k, v in doc_data.items() if k in valid_columns}
-
-        if not current_doc_data: return False
-
-        set_clauses = [f"{key} = ?" for key in current_doc_data.keys()]
-        params = list(current_doc_data.values())
-        params.append(document_id)
-        
-        sql = f"UPDATE ClientDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_client_document: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_client_document(document_id: str) -> bool:
-    """Deletes a client document."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM ClientDocuments WHERE document_id = ?", (document_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_client_document: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# CRUD functions for SmtpConfigs
-def _ensure_single_default_smtp(cursor: sqlite3.Cursor, exclude_id: int | None = None):
-    """Internal helper to ensure only one SMTP config is default."""
-    sql = "UPDATE SmtpConfigs SET is_default = FALSE WHERE is_default = TRUE"
-    if exclude_id is not None:
-        sql += " AND smtp_config_id != ?"
-        cursor.execute(sql, (exclude_id,))
-    else:
-        cursor.execute(sql)
-
-def add_smtp_config(config_data: dict) -> int | None:
-    """
-    Adds a new SMTP config. Returns smtp_config_id or None.
-    Expects 'password_encrypted'. Handles 'is_default' logic.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        # Use a transaction for default handling
-        conn.isolation_level = None # Explicitly start transaction for some Python versions / DB drivers
-        cursor = conn.cursor()
-        cursor.execute("BEGIN")
-
-        if config_data.get('is_default'):
-            _ensure_single_default_smtp(cursor)
-
-        now = datetime.utcnow().isoformat() + "Z" # Not in schema, but good practice if it were
-        sql = """
-            INSERT INTO SmtpConfigs (
-                config_name, smtp_server, smtp_port, username, password_encrypted,
-                use_tls, is_default, sender_email_address, sender_display_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            config_data.get('config_name'), config_data.get('smtp_server'),
-            config_data.get('smtp_port'), config_data.get('username'),
-            config_data.get('password_encrypted'), # Assumed pre-encrypted
-            config_data.get('use_tls', True),
-            config_data.get('is_default', False),
-            config_data.get('sender_email_address'),
-            config_data.get('sender_display_name')
-        )
-        cursor.execute(sql, params)
-        new_id = cursor.lastrowid
-        conn.commit()
-        return new_id
-    except sqlite3.Error as e:
-        if conn: conn.rollback()
-        print(f"Database error in add_smtp_config: {e}")
-        return None
-    finally:
-        if conn: 
-            conn.isolation_level = '' # Reset to default
-            conn.close()
-
-
-def get_smtp_config_by_id(smtp_config_id: int) -> dict | None:
-    """Retrieves an SMTP config by ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM SmtpConfigs WHERE smtp_config_id = ?", (smtp_config_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_smtp_config_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_default_smtp_config() -> dict | None:
-    """Retrieves the default SMTP config."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM SmtpConfigs WHERE is_default = TRUE")
-        row = cursor.fetchone()
-        return dict(row) if row else None # Could be multiple if DB constraint not present, returns first
-    except sqlite3.Error as e:
-        print(f"Database error in get_default_smtp_config: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_all_smtp_configs() -> list[dict]:
-    """Retrieves all SMTP configs."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM SmtpConfigs ORDER BY config_name")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_smtp_configs: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_smtp_config(smtp_config_id: int, config_data: dict) -> bool:
-    """
-    Updates an SMTP config. Handles 'is_default' logic.
-    Expects 'password_encrypted' if password is to be changed.
-    """
-    conn = None
-    if not config_data: return False
-    try:
-        conn = get_db_connection()
-        conn.isolation_level = None
-        cursor = conn.cursor()
-        cursor.execute("BEGIN")
-
-        if config_data.get('is_default'):
-            _ensure_single_default_smtp(cursor, exclude_id=smtp_config_id)
-        
-        # Ensure password_encrypted is handled if present, otherwise original remains
-        # This assumes if 'password_encrypted' is not in config_data, it's not being updated.
-        valid_columns = [
-            'config_name', 'smtp_server', 'smtp_port', 'username', 
-            'password_encrypted', 'use_tls', 'is_default', 
-            'sender_email_address', 'sender_display_name'
-        ]
-        current_config_data = {k: v for k,v in config_data.items() if k in valid_columns}
-        if not current_config_data:
-            conn.rollback() # No valid fields to update
-            return False
-
-        set_clauses = [f"{key} = ?" for key in current_config_data.keys()]
-        params = list(current_config_data.values())
-        params.append(smtp_config_id)
-        
-        sql = f"UPDATE SmtpConfigs SET {', '.join(set_clauses)} WHERE smtp_config_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        if conn: conn.rollback()
-        print(f"Database error in update_smtp_config: {e}")
-        return False
-    finally:
-        if conn: 
-            conn.isolation_level = ''
-            conn.close()
-
-def delete_smtp_config(smtp_config_id: int) -> bool:
-    """Deletes an SMTP config."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Consider logic if deleting the default config (e.g., pick another or ensure none is default)
-        # For now, direct delete.
-        cursor.execute("DELETE FROM SmtpConfigs WHERE smtp_config_id = ?", (smtp_config_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_smtp_config: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def set_default_smtp_config(smtp_config_id: int) -> bool:
-    """Sets a specific SMTP config as default and unsets others."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        conn.isolation_level = None
-        cursor = conn.cursor()
-        cursor.execute("BEGIN")
-        
-        _ensure_single_default_smtp(cursor, exclude_id=smtp_config_id)
-        cursor.execute("UPDATE SmtpConfigs SET is_default = TRUE WHERE smtp_config_id = ?", (smtp_config_id,))
-        updated_rows = cursor.rowcount
-        
-        conn.commit()
-        return updated_rows > 0
-    except sqlite3.Error as e:
-        if conn: conn.rollback()
-        print(f"Database error in set_default_smtp_config: {e}")
-        return False
-    finally:
-        if conn: 
-            conn.isolation_level = ''
-            conn.close()
-
-# --- ScheduledEmails Functions ---
-def add_scheduled_email(email_data: dict) -> int | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """INSERT INTO ScheduledEmails (recipient_email, subject, body_html, body_text, 
-                                           scheduled_send_at, status, related_client_id, 
-                                           related_project_id, created_by_user_id, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-        params = (
-            email_data.get('recipient_email'), email_data.get('subject'),
-            email_data.get('body_html'), email_data.get('body_text'),
-            email_data.get('scheduled_send_at'), email_data.get('status', 'pending'),
-            email_data.get('related_client_id'), email_data.get('related_project_id'),
-            email_data.get('created_by_user_id'), now
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"DB error in add_scheduled_email: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_scheduled_email_by_id(scheduled_email_id: int) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ScheduledEmails WHERE scheduled_email_id = ?", (scheduled_email_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_scheduled_email_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_pending_scheduled_emails(before_time: str = None) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM ScheduledEmails WHERE status = 'pending'"
-        params = []
-        if before_time:
-            sql += " AND scheduled_send_at <= ?"
-            params.append(before_time)
-        sql += " ORDER BY scheduled_send_at ASC"
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_pending_scheduled_emails: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_scheduled_email_status(scheduled_email_id: int, status: str, sent_at: str = None, error_message: str = None) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "UPDATE ScheduledEmails SET status = ?, sent_at = ?, error_message = ? WHERE scheduled_email_id = ?"
-        params = (status, sent_at, error_message, scheduled_email_id)
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in update_scheduled_email_status: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_scheduled_email(scheduled_email_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # ON DELETE CASCADE handles EmailReminders
-        cursor.execute("DELETE FROM ScheduledEmails WHERE scheduled_email_id = ?", (scheduled_email_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in delete_scheduled_email: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# --- EmailReminders Functions ---
-def add_email_reminder(reminder_data: dict) -> int | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """INSERT INTO EmailReminders (scheduled_email_id, reminder_type, reminder_send_at, status)
-                 VALUES (?, ?, ?, ?)"""
-        params = (
-            reminder_data.get('scheduled_email_id'), reminder_data.get('reminder_type'),
-            reminder_data.get('reminder_send_at'), reminder_data.get('status', 'pending')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"DB error in add_email_reminder: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_pending_reminders(before_time: str = None) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM EmailReminders WHERE status = 'pending'"
-        params = []
-        if before_time:
-            sql += " AND reminder_send_at <= ?"
-            params.append(before_time)
-        sql += " ORDER BY reminder_send_at ASC"
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows] # Consider joining with ScheduledEmails for context
-    except sqlite3.Error as e:
-        print(f"DB error in get_pending_reminders: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_reminder_status(reminder_id: int, status: str) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "UPDATE EmailReminders SET status = ? WHERE reminder_id = ?"
-        cursor.execute(sql, (status, reminder_id))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in update_reminder_status: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_email_reminder(reminder_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM EmailReminders WHERE reminder_id = ?", (reminder_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in delete_email_reminder: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# --- ContactLists & ContactListMembers Functions ---
-def add_contact_list(list_data: dict) -> int | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """INSERT INTO ContactLists (list_name, description, created_by_user_id, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?)"""
-        params = (
-            list_data.get('list_name'), list_data.get('description'),
-            list_data.get('created_by_user_id'), now, now
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"DB error in add_contact_list: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_contact_list_by_id(list_id: int) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ContactLists WHERE list_id = ?", (list_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_contact_list_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_all_contact_lists() -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ContactLists ORDER BY list_name")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_all_contact_lists: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_contact_list(list_id: int, list_data: dict) -> bool:
-    conn = None
-    if not list_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        list_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
-        set_clauses = [f"{key} = ?" for key in list_data.keys()]
-        params = list(list_data.values())
-        params.append(list_id)
-        sql = f"UPDATE ContactLists SET {', '.join(set_clauses)} WHERE list_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in update_contact_list: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_contact_list(list_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # ON DELETE CASCADE handles ContactListMembers
-        cursor.execute("DELETE FROM ContactLists WHERE list_id = ?", (list_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in delete_contact_list: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def add_contact_to_list(list_id: int, contact_id: int) -> int | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "INSERT INTO ContactListMembers (list_id, contact_id) VALUES (?, ?)"
-        cursor.execute(sql, (list_id, contact_id))
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e: # Handles unique constraint violation
-        print(f"DB error in add_contact_to_list: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def remove_contact_from_list(list_id: int, contact_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "DELETE FROM ContactListMembers WHERE list_id = ? AND contact_id = ?"
-        cursor.execute(sql, (list_id, contact_id))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in remove_contact_from_list: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def get_contacts_in_list(list_id: int) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """SELECT c.*, clm.added_at 
-                 FROM Contacts c 
-                 JOIN ContactListMembers clm ON c.contact_id = clm.contact_id 
-                 WHERE clm.list_id = ?"""
-        cursor.execute(sql, (list_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_contacts_in_list: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-# CRUD functions for KPIs
-def add_kpi(kpi_data: dict) -> int | None:
-    """Adds a new KPI. Returns kpi_id or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        sql = """
-            INSERT INTO KPIs (
-                project_id, name, value, target, trend, unit, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            kpi_data.get('project_id'),
-            kpi_data.get('name'),
-            kpi_data.get('value'),
-            kpi_data.get('target'),
-            kpi_data.get('trend'),
-            kpi_data.get('unit'),
-            now,  # created_at
-            now   # updated_at
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_kpi: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_kpi_by_id(kpi_id: int) -> dict | None:
-    """Retrieves a KPI by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM KPIs WHERE kpi_id = ?", (kpi_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_kpi_by_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_kpis_for_project(project_id: str) -> list[dict]:
-    """Retrieves all KPIs for a given project_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM KPIs WHERE project_id = ?", (project_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_kpis_for_project: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def update_kpi(kpi_id: int, kpi_data: dict) -> bool:
-    """Updates an existing KPI. Sets updated_at. Returns True on success."""
-    conn = None
-    if not kpi_data:
-        return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-        kpi_data['updated_at'] = now
-
-        set_clauses = []
-        params = []
-
-        valid_columns = ['project_id', 'name', 'value', 'target', 'trend', 'unit', 'updated_at']
-        for key, value in kpi_data.items():
-            if key in valid_columns:
-                set_clauses.append(f"{key} = ?")
-                params.append(value)
-
-        if not set_clauses:
-            return False
-
-        sql = f"UPDATE KPIs SET {', '.join(set_clauses)} WHERE kpi_id = ?"
-        params.append(kpi_id)
-
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_kpi: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def delete_kpi(kpi_id: int) -> bool:
-    """Deletes a KPI. Returns True on success."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM KPIs WHERE kpi_id = ?", (kpi_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_kpi: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-# --- ApplicationSettings Functions ---
-def get_setting(key: str) -> str | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT setting_value FROM ApplicationSettings WHERE setting_key = ?", (key,))
-        row = cursor.fetchone()
-        return row['setting_value'] if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_setting: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def set_setting(key: str, value: str) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Using INSERT OR REPLACE (UPSERT)
-        sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
-        cursor.execute(sql, (key, value))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"DB error in set_setting: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# --- ActivityLog Functions ---
-def add_activity_log(log_data: dict) -> int | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = """INSERT INTO ActivityLog (user_id, action_type, details, related_entity_type, 
-                                        related_entity_id, related_client_id, ip_address, user_agent)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
-        params = (
-            log_data.get('user_id'), log_data.get('action_type'), log_data.get('details'),
-            log_data.get('related_entity_type'), log_data.get('related_entity_id'),
-            log_data.get('related_client_id'), log_data.get('ip_address'), log_data.get('user_agent')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"DB error in add_activity_log: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_activity_logs(limit: int = 50, filters: dict = None) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM ActivityLog"
-        params = []
-        where_clauses = []
-        if filters:
-            allowed = ['user_id', 'action_type', 'related_entity_type', 'related_entity_id', 'related_client_id']
-            for key, value in filters.items():
-                if key in allowed and value is not None:
-                    where_clauses.append(f"{key} = ?")
-                    params.append(value)
-        
-        if where_clauses:
-            sql += " WHERE " + " AND ".join(where_clauses)
-        
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_activity_logs: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-# --- Default Templates Population ---
-DEFAULT_COVER_PAGE_TEMPLATES = [
-    {
-        'template_name': 'Standard Report Cover',
-        'description': 'A standard cover page for general reports.',
-        'default_title': 'Report Title',
-        'default_subtitle': 'Company Subdivision',
-        'default_author': 'Automated Report Generator',
-        'style_config_json': {'font': 'Helvetica', 'primary_color': '#2a2a2a', 'secondary_color': '#5cb85c'},
-        'is_default_template': 1 # Mark as default
-    },
-    {
-        'template_name': 'Financial Statement Cover',
-        'description': 'Cover page for official financial statements.',
-        'default_title': 'Financial Statement',
-        'default_subtitle': 'Fiscal Year Ending YYYY',
-        'default_author': 'Finance Department',
-        'style_config_json': {'font': 'Times New Roman', 'primary_color': '#003366', 'secondary_color': '#e0a800'},
-        'is_default_template': 1 # Mark as default
-    },
-    {
-        'template_name': 'Creative Project Brief',
-        'description': 'A vibrant cover for creative project briefs and proposals.',
-        'default_title': 'Creative Brief: [Project Name]',
-        'default_subtitle': 'Client: [Client Name]',
-        'default_author': 'Creative Team',
-        'style_config_json': {'font': 'Montserrat', 'primary_color': '#ff6347', 'secondary_color': '#4682b4', 'layout_hint': 'two-column'},
-        'is_default_template': 1 # Mark as default
-    },
-    {
-        'template_name': 'Technical Document Cover',
-        'description': 'A clean and formal cover for technical documentation.',
-        'default_title': 'Technical Specification Document',
-        'default_subtitle': 'Version [VersionNumber]',
-        'default_author': 'Engineering Team',
-        'style_config_json': {'font': 'Roboto', 'primary_color': '#191970', 'secondary_color': '#cccccc'},
-        'is_default_template': 1 # Mark as default
-    }
-]
-
-def _populate_default_cover_page_templates():
-    """
-    Populates the CoverPageTemplates table with predefined default templates
-    if they do not already exist by name.
-    """
-    print("Attempting to populate default cover page templates...")
-    # Optionally, fetch a system user ID if you want to set created_by_user_id
-    # system_user = get_user_by_username('system_user') # Define or fetch a system user
-    # system_user_id = system_user['user_id'] if system_user else None
-
-    for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
-        existing_template = get_cover_page_template_by_name(template_def['template_name'])
-        if existing_template:
-            print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
+                    print(f"No KPIs found for project ID: {first_active_project_id}")
+            else:
+                print("No active projects found to display KPIs for.")
         else:
-            # template_def_with_user = {**template_def, 'created_by_user_id': system_user_id}
-            # new_id = add_cover_page_template(template_def_with_user)
-            new_id = add_cover_page_template(template_def) # Simpler: no user_id for defaults for now
+            print("No projects found in the database.")
+
+
+        if not kpis_to_display:
+            # Do not create example KPIs. Just display a message.
+            no_kpi_label = QLabel("No KPIs to display for the current project context.")
+            no_kpi_label.setAlignment(Qt.AlignCenter)
+            self.kpi_layout.addWidget(no_kpi_label)
+            return
+
+        for kpi_dict in kpis_to_display: # kpi_dict is a dictionary from db.py
+            name = kpi_dict.get('name', 'N/A')
+            value = kpi_dict.get('value', 0)
+            target = kpi_dict.get('target', 0)
+            trend = kpi_dict.get('trend', 'stable')
+            unit = kpi_dict.get('unit', '')
+
+            frame = QFrame()
+            frame.setStyleSheet("""
+                QFrame {
+                    background-color: white;
+                    border-radius: 5px;
+                    padding: 15px;
+                    border: 1px solid #e0e0e0;
+                }
+                QLabel {
+                    font-size: 14px;
+                    color: #555555;
+                }
+                QLabel#kpi_title {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #2c3e50;
+                }
+                QLabel#kpi_value {
+                    font-size: 28px;
+                    font-weight: bold;
+                    color: #007bff; /* Updated to new primary accent blue */
+                }
+            """)
+            frame.setFixedWidth(220)
+
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.setSpacing(5)
+
+            title_label = QLabel(name.capitalize())
+            title_label.setObjectName("kpi_title")
+
+            value_label = QLabel(f"{value}{unit}") # Use value and unit from dict
+            value_label.setObjectName("kpi_value")
+
+            target_label = QLabel(f"Target: {target}{unit}") # Use target and unit
+
+            trend_icon_label = QLabel()
+            if trend == "up":
+                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
+            elif trend == "down":
+                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
+            else: # "stable" or other
+                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
+
+            trend_layout = QHBoxLayout()
+            trend_layout.addWidget(QLabel("Trend:"))
+            trend_layout.addWidget(trend_icon_label)
+            trend_layout.addStretch()
+
+            frame_layout.addWidget(title_label)
+            frame_layout.addWidget(value_label)
+            frame_layout.addWidget(target_label)
+            frame_layout.addLayout(trend_layout)
+
+            self.kpi_layout.addWidget(frame)
+
+        # Ensure layout has stretch if few KPIs
+        if self.kpi_layout.count() > 0 and self.kpi_layout.count() < 4: # Arbitrary number for adding stretch
+            self.kpi_layout.addStretch()
+
+
+    def load_team_members(self):
+        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
+        # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
+        # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
+
+        members_data = db_manager.get_all_team_members() # Changed main_db_manager
+        if members_data is None: members_data = []
+
+        self.team_table.setRowCount(len(members_data))
+
+        for row_idx, member in enumerate(members_data): # member is a dict
+            self.team_table.setItem(row_idx, 0, QTableWidgetItem(member.get('full_name', 'N/A')))
+            self.team_table.setItem(row_idx, 1, QTableWidgetItem(member.get('email', 'N/A')))
+            self.team_table.setItem(row_idx, 2, QTableWidgetItem(member.get('role_or_title', 'N/A')))
+            self.team_table.setItem(row_idx, 3, QTableWidgetItem(member.get('department', 'N/A')))
+            self.team_table.setItem(row_idx, 4, QTableWidgetItem(member.get('hire_date', 'N/A')))
+
+            performance_val = member.get('performance', 0)
+            perf_item = QTableWidgetItem(f"{performance_val}%")
+            if performance_val >= 90: perf_item.setForeground(QColor('#27ae60'))
+            elif performance_val >= 80: perf_item.setForeground(QColor('#f39c12'))
+            else: perf_item.setForeground(QColor('#e74c3c'))
+            self.team_table.setItem(row_idx, 5, perf_item)
+
+            self.team_table.setItem(row_idx, 6, QTableWidgetItem(member.get('skills', 'N/A')))
+
+            is_active_val = member.get('is_active', False) # In db.py, is_active is BOOLEAN (0 or 1)
+            active_item = QTableWidgetItem()
+            if bool(is_active_val): # Ensure it's treated as boolean
+                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setText("Active")
+            else:
+                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setText("Inactive")
+            self.team_table.setItem(row_idx, 7, active_item)
+
+            task_count = 0
+            member_id_for_tasks = member.get('team_member_id')
+            if member_id_for_tasks is not None:
+                # Use the new helper function, fetching only active tasks
+                tasks_for_member = db_manager.get_tasks_by_assignee_id(member_id_for_tasks, active_only=True)
+                if tasks_for_member:
+                    task_count = len(tasks_for_member)
+            self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            current_member_id = member['team_member_id']
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
+
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.team_table.setCellWidget(row_idx, 9, action_widget)
+
+        self.team_table.resizeColumnsToContents()
+
+    def load_projects(self):
+        # db.py fields: project_id (TEXT PK), client_id, project_name, description, start_date, deadline_date,
+        # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
+        # priority (INTEGER), created_at, updated_at
+
+        projects_data = db_manager.get_all_projects() # Changed main_db_manager
+        if projects_data is None:
+            projects_data = []
+
+        self.projects_table.setRowCount(len(projects_data))
+
+        for row_idx, project_dict in enumerate(projects_data): # project_dict is a dict
+            project_id_str = project_dict.get('project_id')
+            name_item = QTableWidgetItem(project_dict.get('project_name', 'N/A'))
+            name_item.setData(Qt.UserRole, project_id_str) # Store project_id in UserRole
+            self.projects_table.setItem(row_idx, 0, name_item)
+
+            # Status
+            status_id = project_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default color
+            if status_id is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id) # Changed main_db_manager
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db:
+                        status_color_hex = color_from_db
+                    else: # Fallback colors based on name if hex not in DB
+                        if "completed" in status_name_display.lower(): status_color_hex = '#2ecc71' # Green
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db' # Blue
+                        elif "planning" in status_name_display.lower(): status_color_hex = '#f1c40f' # Yellow
+                        elif "late" in status_name_display.lower() or "overdue" in status_name_display.lower(): status_color_hex = '#e74c3c' # Red
+                        elif "archived" in status_name_display.lower(): status_color_hex = '#95a5a6' # Grey
+
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.projects_table.setItem(row_idx, 1, status_item)
+
+            # Progress bar
+            progress = project_dict.get('progress_percentage', 0)
+            progress_widget = QWidget()
+            progress_layout = QHBoxLayout(progress_widget)
+            progress_layout.setContentsMargins(5, 5, 5, 5)
+            progress_bar = QProgressBar()
+            progress_bar.setValue(progress if progress is not None else 0)
+            progress_bar.setAlignment(Qt.AlignCenter)
+            progress_bar.setFormat(f"{progress if progress is not None else 0}%")
+            progress_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #bdc3c7; border-radius: 5px; text-align: center; height: 20px; }
+                QProgressBar::chunk { background-color: #3498db; border-radius: 4px; }
+            """)
+            progress_layout.addWidget(progress_bar)
+            self.projects_table.setCellWidget(row_idx, 2, progress_widget)
+
+            # Priority
+            priority_val = project_dict.get('priority', 0)
+            priority_item = QTableWidgetItem()
+            if priority_val == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # 0 or other = Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.projects_table.setItem(row_idx, 3, priority_item)
+
+            self.projects_table.setItem(row_idx, 4, QTableWidgetItem(project_dict.get('deadline_date', 'N/A')))
+            budget_val = project_dict.get('budget', 0.0)
+            self.projects_table.setItem(row_idx, 5, QTableWidgetItem(f"€{budget_val:,.2f}" if budget_val is not None else "€0.00"))
+
+            manager_user_id = project_dict.get('manager_team_member_id') # This is a user_id (TEXT from Users table)
+            manager_display_name = "Unassigned"
+            if manager_user_id:
+                # First, try to find a TeamMember linked to this user_id
+                team_members_list = db_manager.get_all_team_members(filters={'user_id': manager_user_id})
+                if team_members_list and len(team_members_list) > 0:
+                    manager_display_name = team_members_list[0].get('full_name', manager_user_id)
+                else:
+                    # If no direct TeamMember link, fall back to User's full_name
+                    user_as_manager = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
+                    if user_as_manager:
+                        manager_display_name = user_as_manager.get('full_name', manager_user_id) # Use user_id as last resort
+            self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            details_btn = QPushButton("ℹ️")
+            details_btn.setToolTip("Details")
+            details_btn.setFixedSize(30,30)
+            details_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
+
+            action_layout.addWidget(details_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.projects_table.setCellWidget(row_idx, 7, action_widget)
+
+        self.projects_table.resizeColumnsToContents()
+
+    def load_tasks(self):
+        # Fetch all tasks (or active ones as per new helper)
+        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
+        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
+
+        # Using the new helper to get only active tasks by default
+        all_tasks_data = db_manager.get_all_tasks(active_only=True)
+        if all_tasks_data is None: all_tasks_data = []
+
+        self.tasks_table.setRowCount(len(all_tasks_data))
+
+        for row_idx, task_dict in enumerate(all_tasks_data):
+            task_id_val = task_dict.get('task_id') # This is INT
+            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
+
+            # Project Name
+            project_name_display = "N/A"
+            project_id_for_task = task_dict.get('project_id')
+            if project_id_for_task:
+                project_info = db_manager.get_project_by_id(project_id_for_task)
+                if project_info:
+                    project_name_display = project_info.get('project_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
+
+            # Status
+            status_id_for_task = task_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default
+            if status_id_for_task is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+                    else: # Fallback colors
+                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
+                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
+                        # Add more specific fallbacks if needed
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.tasks_table.setItem(row_idx, 2, status_item)
+
+            # Priority
+            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
+            priority_item = QTableWidgetItem()
+            if priority_val_for_task == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val_for_task == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.tasks_table.setItem(row_idx, 3, priority_item)
+
+            # Assignee Name
+            assignee_name_display = "Unassigned"
+            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
+            if assignee_tm_id is not None:
+                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
+                if assignee_member_info:
+                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
+
+            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
+
+            # Action buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(5)
+
+            # Dependency Check
+            unmet_dependency = False
+            predecessors = db_manager.get_predecessor_tasks(task_id_val) # Conceptual
+            if predecessors:
+                for pred_task_dict in predecessors:
+                    pred_status_id = pred_task_dict.get('status_id')
+                    if pred_status_id:
+                        status_info = db_manager.get_status_setting_by_id(pred_status_id)
+                        if status_info and not status_info.get('is_completion_status'):
+                            unmet_dependency = True
+                            # Visual cue for task name item
+                            name_item = self.tasks_table.item(row_idx, 0) # Get the name item
+                            if name_item: # Ensure item exists
+                                name_item.setForeground(QColor("gray"))
+                                name_item.setToolTip(self.tr("Blocked by predecessor task(s)"))
+                            break
+
+            complete_btn = QPushButton("✅")
+            complete_btn.setToolTip("Mark as Completed")
+            complete_btn.setFixedSize(30, 30)
+            complete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
+
+            if unmet_dependency:
+                complete_btn.setEnabled(False)
+                complete_btn.setToolTip(self.tr("Blocked by predecessor task(s)"))
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30, 30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30, 30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
+
+            action_layout.addWidget(complete_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+
+            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
+
+        self.tasks_table.resizeColumnsToContents()
+
+    def load_activities(self):
+        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
+        # For now, preventing crash
+        # with self.db.get_connection() as conn:
+        #     cursor = conn.cursor()
+        #     cursor.execute('''
+        #         SELECT a.timestamp, u.full_name, a.action, a.details
+        #         FROM activities a
+        #         LEFT JOIN users u ON a.user_id = u.id
+        #         ORDER BY a.timestamp DESC
+        #         LIMIT 50
+        #     ''')
+        #     activities = cursor.fetchall()
+        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
+        if activities_data is None: activities_data = []
+
+        self.activities_table.setRowCount(len(activities_data))
+
+        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
+            # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
+            # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
+
+            user_name_display = "System" # Default if user_id is None or user not found
+            user_id_for_log = log_entry.get('user_id')
+            if user_id_for_log:
+                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
+                if user_info:
+                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
+
+            self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
+            self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
+            self.activities_table.setItem(row_idx, 2, QTableWidgetItem(log_entry.get('action_type', 'N/A')))
+            self.activities_table.setItem(row_idx, 3, QTableWidgetItem(log_entry.get('details', '')))
+
+        self.activities_table.resizeColumnsToContents()
+
+    def load_team_members(self):
+        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
+        # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
+        # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
+
+        members_data = db_manager.get_all_team_members()
+        if members_data is None: members_data = []
+
+        self.team_table.setRowCount(len(members_data))
+
+        for row_idx, member in enumerate(members_data):
+            self.team_table.setItem(row_idx, 0, QTableWidgetItem(member.get('full_name', 'N/A')))
+            self.team_table.setItem(row_idx, 1, QTableWidgetItem(member.get('email', 'N/A')))
+            self.team_table.setItem(row_idx, 2, QTableWidgetItem(member.get('role_or_title', 'N/A')))
+            self.team_table.setItem(row_idx, 3, QTableWidgetItem(member.get('department', 'N/A')))
+            self.team_table.setItem(row_idx, 4, QTableWidgetItem(member.get('hire_date', 'N/A')))
+
+            performance_val = member.get('performance', 0)
+            perf_item = QTableWidgetItem(f"{performance_val}%")
+            if performance_val >= 90: perf_item.setForeground(QColor('#27ae60'))
+            elif performance_val >= 80: perf_item.setForeground(QColor('#f39c12'))
+            else: perf_item.setForeground(QColor('#e74c3c'))
+            self.team_table.setItem(row_idx, 5, perf_item)
+
+            self.team_table.setItem(row_idx, 6, QTableWidgetItem(member.get('skills', 'N/A')))
+
+            is_active_val = member.get('is_active', False)
+            active_item = QTableWidgetItem()
+            if is_active_val: # Ensure it's treated as boolean
+                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setText("Active")
+            else:
+                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setText("Inactive")
+            self.team_table.setItem(row_idx, 7, active_item)
+
+            task_count = 0
+            member_id_for_tasks = member.get('team_member_id')
+            if member_id_for_tasks is not None:
+                # Use the new helper function, fetching only active tasks
+                tasks_for_member = db_manager.get_tasks_by_assignee_id(member_id_for_tasks, active_only=True)
+                if tasks_for_member:
+                    task_count = len(tasks_for_member)
+            self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            current_member_id = member['team_member_id']
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
+
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.team_table.setCellWidget(row_idx, 9, action_widget)
+
+        self.team_table.resizeColumnsToContents()
+
+    def load_projects(self):
+        # db.py fields: project_id (TEXT PK), client_id, project_name, description, start_date, deadline_date,
+        # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
+        # priority (INTEGER), created_at, updated_at
+
+        projects_data = db_manager.get_all_projects()
+        if projects_data is None:
+            projects_data = []
+
+        self.projects_table.setRowCount(len(projects_data))
+
+        for row_idx, project_dict in enumerate(projects_data):
+            project_id_str = project_dict.get('project_id')
+            self.projects_table.setItem(row_idx, 0, QTableWidgetItem(project_dict.get('project_name', 'N/A')))
+
+            status_id = project_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d"
+            if status_id is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db:
+                        status_color_hex = color_from_db
+                    else:
+                        if "completed" in status_name_display.lower(): status_color_hex = '#2ecc71'
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
+                        elif "planning" in status_name_display.lower(): status_color_hex = '#f1c40f'
+                        elif "late" in status_name_display.lower() or "overdue" in status_name_display.lower(): status_color_hex = '#e74c3c'
+                        elif "archived" in status_name_display.lower(): status_color_hex = '#95a5a6'
+
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.projects_table.setItem(row_idx, 1, status_item)
+
+            progress = project_dict.get('progress_percentage', 0)
+            progress_widget = QWidget()
+            progress_layout = QHBoxLayout(progress_widget)
+            progress_layout.setContentsMargins(5, 5, 5, 5)
+            progress_bar = QProgressBar()
+            progress_bar.setValue(progress if progress is not None else 0)
+            progress_bar.setAlignment(Qt.AlignCenter)
+            progress_bar.setFormat(f"{progress if progress is not None else 0}%")
+            progress_bar.setStyleSheet("""
+                QProgressBar { border: 1px solid #bdc3c7; border-radius: 5px; text-align: center; height: 20px; }
+                QProgressBar::chunk { background-color: #3498db; border-radius: 4px; }
+            """)
+            progress_layout.addWidget(progress_bar)
+            self.projects_table.setCellWidget(row_idx, 2, progress_widget)
+
+            priority_val = project_dict.get('priority', 0)
+            priority_item = QTableWidgetItem()
+            if priority_val == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # 0 or other = Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.projects_table.setItem(row_idx, 3, priority_item)
+
+            self.projects_table.setItem(row_idx, 4, QTableWidgetItem(project_dict.get('deadline_date', 'N/A')))
+            budget_val = project_dict.get('budget', 0.0)
+            self.projects_table.setItem(row_idx, 5, QTableWidgetItem(f"€{budget_val:,.2f}" if budget_val is not None else "€0.00"))
+
+            manager_user_id = project_dict.get('manager_team_member_id') # This is a user_id (TEXT from Users table)
+            manager_display_name = "Unassigned"
+            if manager_user_id:
+                # First, try to find a TeamMember linked to this user_id
+                team_members_list = db_manager.get_all_team_members(filters={'user_id': manager_user_id})
+                if team_members_list and len(team_members_list) > 0:
+                    manager_display_name = team_members_list[0].get('full_name', manager_user_id)
+                else:
+                    # If no direct TeamMember link, fall back to User's full_name
+                    user_as_manager = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
+                    if user_as_manager:
+                        manager_display_name = user_as_manager.get('full_name', manager_user_id) # Use user_id as last resort
+            self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            details_btn = QPushButton("ℹ️")
+            details_btn.setToolTip("Details")
+            details_btn.setFixedSize(30,30)
+            details_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30,30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
+
+            action_layout.addWidget(details_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            self.projects_table.setCellWidget(row_idx, 7, action_widget)
+
+        self.projects_table.resizeColumnsToContents()
+
+    def load_tasks(self):
+        # Fetch all tasks (or active ones as per new helper)
+        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
+        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
+
+        # Using the new helper to get only active tasks by default
+        all_tasks_data = db_manager.get_all_tasks(active_only=True)
+        if all_tasks_data is None: all_tasks_data = []
+
+        self.tasks_table.setRowCount(len(all_tasks_data))
+
+        for row_idx, task_dict in enumerate(all_tasks_data):
+            task_id_val = task_dict.get('task_id') # This is INT
+            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
+
+            # Project Name
+            project_name_display = "N/A"
+            project_id_for_task = task_dict.get('project_id')
+            if project_id_for_task:
+                project_info = db_manager.get_project_by_id(project_id_for_task)
+                if project_info:
+                    project_name_display = project_info.get('project_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
+
+            # Status
+            status_id_for_task = task_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d" # Default
+            if status_id_for_task is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+                    else: # Fallback colors
+                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
+                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
+                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
+                        # Add more specific fallbacks if needed
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.tasks_table.setItem(row_idx, 2, status_item)
+
+            # Priority
+            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
+            priority_item = QTableWidgetItem()
+            if priority_val_for_task == 2: # High
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setText("High")
+            elif priority_val_for_task == 1: # Medium
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setText("Medium")
+            else: # Low
+                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setText("Low")
+            self.tasks_table.setItem(row_idx, 3, priority_item)
+
+            # Assignee Name
+            assignee_name_display = "Unassigned"
+            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
+            if assignee_tm_id is not None:
+                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
+                if assignee_member_info:
+                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
+            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
+
+            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
+
+            # Action buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(5)
+
+            complete_btn = QPushButton("✅")
+            complete_btn.setToolTip("Mark as Completed")
+            complete_btn.setFixedSize(30, 30)
+            complete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
+
+            edit_btn = QPushButton("✏️")
+            edit_btn.setToolTip("Edit")
+            edit_btn.setFixedSize(30, 30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
+
+            delete_btn = QPushButton("🗑️")
+            delete_btn.setToolTip("Delete")
+            delete_btn.setFixedSize(30, 30)
+            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
+
+            action_layout.addWidget(complete_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+
+            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
+
+        self.tasks_table.resizeColumnsToContents()
+
+
+    def load_activities(self):
+        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
+        # For now, preventing crash
+        # with self.db.get_connection() as conn:
+        #     cursor = conn.cursor()
+        #     cursor.execute('''
+        #         SELECT a.timestamp, u.full_name, a.action, a.details
+        #         FROM activities a
+        #         LEFT JOIN users u ON a.user_id = u.id
+        #         ORDER BY a.timestamp DESC
+        #         LIMIT 50
+        #     ''')
+        #     activities = cursor.fetchall()
+        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
+        if activities_data is None: activities_data = []
+
+        self.activities_table.setRowCount(len(activities_data))
+
+        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
+            # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
+            # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
+
+            user_name_display = "System" # Default if user_id is None or user not found
+            user_id_for_log = log_entry.get('user_id')
+            if user_id_for_log:
+                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
+                if user_info:
+                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
+
+            self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
+            self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
+            self.activities_table.setItem(row_idx, 2, QTableWidgetItem(log_entry.get('action_type', 'N/A')))
+            self.activities_table.setItem(row_idx, 3, QTableWidgetItem(log_entry.get('details', '')))
+
+        self.activities_table.resizeColumnsToContents()
+
+    def load_access_table(self):
+        users_data = db_manager.get_all_users() # Already changed to db_manager, this is just a confirmation
+        if users_data is None: users_data = []
+
+        self.access_table.setRowCount(len(users_data))
+
+        for row_idx, user_dict in enumerate(users_data): # user_dict is a dict
+            user_id_str = user_dict.get('user_id')
+            full_name = user_dict.get('full_name', 'N/A')
+            role = user_dict.get('role', 'member')
+
+            self.access_table.setItem(row_idx, 0, QTableWidgetItem(full_name))
+
+            role_display_name = role.capitalize()
+            access_text = "User"
+            access_color = QColor('#2ecc71')
+
+            if role == "admin":
+                role_display_name = "Administrator"
+                access_text = "Administrator"
+                access_color = QColor('#e74c3c')
+            elif role == "manager":
+                role_display_name = "Manager"
+                access_text = "Manager"
+                access_color = QColor('#3498db')
+
+            self.access_table.setItem(row_idx, 1, QTableWidgetItem(role_display_name))
+
+            access_item = QTableWidgetItem(access_text)
+            access_item.setForeground(access_color)
+            self.access_table.setItem(row_idx, 2, access_item)
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            edit_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
+            edit_btn.setToolTip("Edit User Access")
+            edit_btn.setFixedSize(30,30)
+            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.clicked.connect(lambda _, u_id=user_id_str: self.edit_user_access(u_id))
+
+            action_layout.addWidget(edit_btn)
+            self.access_table.setCellWidget(row_idx, 3, action_widget)
+
+        self.access_table.resizeColumnsToContents()
+
+    def load_user_preferences(self):
+        # Load user preferences from database using db_manager (changed from main_db_manager)
+        if not self.current_user or not self.current_user.get('user_id'): # check for user_id specifically
+            return
+
+        user_data = db_manager.get_user_by_id(self.current_user['user_id']) # use user_id
+
+        if user_data: # user_data is a dict
+            self.name_edit.setText(user_data.get('full_name', ''))
+            self.email_edit.setText(user_data.get('email', ''))
+            # 'phone' is not a standard field in Users table in db.py, it's in TeamMembers.
+            # If phone is needed here, logic to fetch from TeamMembers based on user_id would be required.
+            # For now, remove direct phone access from user_data for Users table.
+            # self.phone_edit.setText(user_data.get('phone', ''))
+
+    def update_project_filter(self):
+        # Confirmed: Uses db_manager.get_all_projects()
+        projects = db_manager.get_all_projects()
+
+        current_selection_text = self.task_project_filter.currentText()
+        current_selection_data = self.task_project_filter.currentData()
+
+        self.task_project_filter.clear()
+        self.task_project_filter.addItem("All Projects", None) # UserData for "All Projects" is None
+
+        if projects:
+            for project in projects:
+                self.task_project_filter.addItem(project['project_name'], project['project_id'])
+
+        # Try to restore previous selection
+        if current_selection_data is not None:
+            index = self.task_project_filter.findData(current_selection_data)
+            if index != -1:
+                self.task_project_filter.setCurrentIndex(index)
+            else: # Fallback to text if data (id) changed or not found
+                index = self.task_project_filter.findText(current_selection_text)
+                if index != -1: self.task_project_filter.setCurrentIndex(index)
+        elif current_selection_text: # if previous selection was "All Projects" by text
+            index = self.task_project_filter.findText(current_selection_text)
+            if index != -1: self.task_project_filter.setCurrentIndex(index)
+
+
+    def filter_team_members(self):
+        search_text = self.team_search.text().lower()
+        role_filter = self.role_filter.currentText()
+        status_filter = self.status_filter.currentText()
+
+        for row in range(self.team_table.rowCount()):
+            name = self.team_table.item(row, 0).text().lower()
+            role = self.team_table.item(row, 1).text()
+            status = self.team_table.item(row, 5).text()
+
+            name_match = search_text in name
+            role_match = role_filter == "All Roles" or role == role_filter
+            status_match = status_filter == "All Statuses" or status == status_filter
+
+            self.team_table.setRowHidden(row, not (name_match and role_match and status_match))
+
+    def filter_projects(self):
+        search_text = self.project_search.text().lower()
+        status_filter = self.status_filter_proj.currentText()
+        priority_filter = self.priority_filter.currentText()
+
+        for row in range(self.projects_table.rowCount()):
+            name_item = self.projects_table.item(row, 0)
+            status_item = self.projects_table.item(row, 1)
+            priority_item = self.projects_table.item(row, 3)
+
+            name = name_item.text().lower() if name_item else ""
+            status = status_item.text() if status_item else ""
+            priority = priority_item.text() if priority_item else ""
+
+            name_match = search_text in name
+            status_match = status_filter == "All Statuses" or status == status_filter
+            priority_match = priority_filter == "All Priorities" or priority == priority_filter
+
+            self.projects_table.setRowHidden(row, not (name_match and status_match and priority_match))
+
+    def filter_tasks(self):
+        search_text = self.task_search.text().lower()
+        status_filter = self.task_status_filter.currentText()
+        priority_filter = self.task_priority_filter.currentText()
+        project_filter = self.task_project_filter.currentText()
+
+        for row in range(self.tasks_table.rowCount()):
+            name = self.tasks_table.item(row, 0).text().lower()
+            project = self.tasks_table.item(row, 1).text()
+            status = self.tasks_table.item(row, 2).text()
+            priority = self.tasks_table.item(row, 3).text()
+
+            name_match = search_text in name
+            project_match = project_filter == "All Projects" or project == project_filter
+            status_match = status_filter == "All Statuses" or status == status_filter
+            priority_match = priority_filter == "All Priorities" or priority == priority_filter
+
+            self.tasks_table.setRowHidden(row, not (name_match and project_match and status_match and priority_match))
+
+    def update_dashboard(self):
+        self.load_kpis()
+        self.load_activities()
+        self.update_charts()
+        print("Dashboard updated")
+
+    def update_charts(self):
+        # Team performance
+        self.performance_graph.clear()
+        active_members = db_manager.get_all_team_members({'is_active': True})
+        if active_members is None: active_members = []
+
+        # Sort by performance for chart
+        active_members.sort(key=lambda x: x.get('performance', 0), reverse=True)
+
+        member_names = [m.get('full_name', 'N/A') for m in active_members]
+        member_performance = [m.get('performance', 0) for m in active_members]
+
+        if member_names:
+            bg1 = pg.BarGraphItem(x=range(len(member_names)), height=member_performance, width=0.6, brush='#3498db')
+            self.performance_graph.addItem(bg1)
+            self.performance_graph.getAxis('bottom').setTicks([[(i, name) for i, name in enumerate(member_names)]])
+        else: # Handle case with no active members
+             self.performance_graph.getAxis('bottom').setTicks([[]]) # Clear old ticks
+
+        self.performance_graph.setYRange(0, 100)
+        self.performance_graph.setLabel('left', 'Performance (%)')
+        self.performance_graph.setTitle("Team Performance (Active Members)")
+
+        # Project progress
+        self.project_progress_graph.clear()
+        all_projects = db_manager.get_all_projects()
+        if all_projects is None: all_projects = []
+
+        projects_for_chart = []
+        for p_dict in all_projects:
+            status_id = p_dict.get('status_id')
+            if status_id:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting and \
+                   not status_setting.get('is_completion_status', False) and \
+                   not status_setting.get('is_archival_status', False):
+                    projects_for_chart.append(p_dict)
+            else: # Include projects with no status if that's desired, or filter out
+                projects_for_chart.append(p_dict) # Assuming projects with no status are ongoing
+
+        projects_for_chart.sort(key=lambda x: x.get('progress_percentage', 0), reverse=True)
+
+        project_names = [p.get('project_name', 'N/A') for p in projects_for_chart]
+        project_progress = [p.get('progress_percentage', 0) for p in projects_for_chart]
+
+        if project_names:
+            bg2 = pg.BarGraphItem(x=range(len(project_names)), height=project_progress, width=0.6, brush='#2ecc71')
+            self.project_progress_graph.addItem(bg2)
+            self.project_progress_graph.getAxis('bottom').setTicks([[(i, name) for i, name in enumerate(project_names)]])
+        else: # Handle case with no projects for chart
+            self.project_progress_graph.getAxis('bottom').setTicks([[]]) # Clear old ticks
+
+        self.project_progress_graph.setYRange(0, 100)
+        self.project_progress_graph.setLabel('left', 'Progress (%)')
+        self.project_progress_graph.setTitle("Project Progress (Ongoing)")
+
+    def generate_report(self):
+        report_type = self.report_type.currentText()
+        period = self.report_period.currentText()
+
+        # Clear previous tabs
+        for i in reversed(range(self.graph_layout.count())):
+            self.graph_layout.itemAt(i).widget().deleteLater()
+
+        # Clear data table
+        self.report_data_table.clear()
+
+        if report_type == "Team Performance":
+            self.generate_team_performance_report(period)
+        elif report_type == "Project Progress":
+            self.generate_project_progress_report(period)
+        elif report_type == "Workload":
+            self.generate_workload_report(period)
+        elif report_type == "Key Indicators":
+            self.generate_kpi_report(period)
+        elif report_type == "Budget Analysis":
+            self.generate_budget_report(period)
+
+        print(f"Report '{report_type}' generated for period '{period}'")
+
+    def generate_team_performance_report(self, period):
+        # Chart
+        fig = plt.figure(figsize=(10, 5))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        # Fetch data using db_manager
+        active_members_data = db_manager.get_all_team_members({'is_active': True})
+        if active_members_data is None: active_members_data = []
+
+        # Sort by performance for consistent chart display (optional, but good for reports)
+        active_members_data.sort(key=lambda x: x.get('performance', 0), reverse=True)
+
+        names = [member.get('full_name', 'N/A') for member in active_members_data]
+        performance = [member.get('performance', 0) for member in active_members_data]
+
+        bars = ax.bar(names, performance, color='#3498db')
+        ax.set_title("Team Performance (Active Members)")
+        ax.set_ylabel("Performance (%)")
+        ax.set_ylim(0, 100)
+
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height}%', ha='center', va='bottom')
+
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        self.graph_layout.addWidget(canvas)
+
+        # Data for the table view
+        self.report_data_table.setColumnCount(2)
+        self.report_data_table.setHorizontalHeaderLabels(["Member", "Performance (%)"])
+        self.report_data_table.setRowCount(len(active_members_data))
+
+        for row_idx, member_dict in enumerate(active_members_data):
+            self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(member_dict.get('full_name', 'N/A')))
+            self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(str(member_dict.get('performance', 0))))
+
+        self.report_data_table.resizeColumnsToContents()
+
+    def generate_project_progress_report(self, period):
+        # Chart
+        fig = plt.figure(figsize=(10, 5))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        projects_data = db_manager.get_all_projects()
+        if projects_data is None: projects_data = []
+
+        # Filter out projects that might be considered "deleted" or "archived" based on status type
+        # This assumes StatusSettings has 'is_archival_status'
+        valid_projects_for_report = []
+        for p_dict in projects_data:
+            status_id = p_dict.get('status_id')
+            if status_id:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting and not status_setting.get('is_archival_status'): # Only include non-archival
+                    valid_projects_for_report.append(p_dict)
+            else: # Include projects with no status_id for now, or decide to filter them
+                valid_projects_for_report.append(p_dict)
+
+        valid_projects_for_report.sort(key=lambda x: x.get('progress_percentage', 0), reverse=True)
+
+
+        names = [p.get('project_name', 'N/A') for p in valid_projects_for_report]
+        progress_values = [p.get('progress_percentage', 0) for p in valid_projects_for_report]
+
+        colors = []
+        status_names_for_table = []
+
+        for p_dict in valid_projects_for_report:
+            status_id = p_dict.get('status_id')
+            status_name = "Unknown"
+            color = '#3498db' # Default blue
+            if status_id:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting:
+                    status_name = status_setting.get('status_name', 'Unknown')
+                    hex_color = status_setting.get('color_hex')
+                    if hex_color: color = hex_color
+                    elif "completed" in status_name.lower(): color = '#2ecc71'
+                    elif "late" in status_name.lower(): color = '#e74c3c'
+            colors.append(color)
+            status_names_for_table.append(status_name)
+
+
+        bars = ax.bar(names, progress_values, color=colors)
+        ax.set_title("Project Progress")
+        ax.set_ylabel("Progress (%)")
+        ax.set_ylim(0, 100)
+
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height}%', ha='center', va='bottom')
+
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        self.graph_layout.addWidget(canvas)
+
+        # Data
+        self.report_data_table.setColumnCount(4)
+        self.report_data_table.setHorizontalHeaderLabels(["Project", "Progress (%)", "Status", "Budget"])
+        self.report_data_table.setRowCount(len(valid_projects_for_report))
+
+        for row_idx, p_dict in enumerate(valid_projects_for_report):
+            self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(p_dict.get('project_name', 'N/A')))
+            self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(str(p_dict.get('progress_percentage', 0))))
+
+            status_text_for_table = status_names_for_table[row_idx] # Get resolved status name
+            self.report_data_table.setItem(row_idx, 2, QTableWidgetItem(status_text_for_table))
+
+            budget = p_dict.get('budget', 0.0)
+            self.report_data_table.setItem(row_idx, 3, QTableWidgetItem(f"€{budget:,.2f}"))
+
+        self.report_data_table.resizeColumnsToContents()
+
+    def generate_workload_report(self, period):
+        # Chart
+        fig = plt.figure(figsize=(10, 5))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        active_team_members = db_manager.get_all_team_members({'is_active': True})
+        if not active_team_members: active_team_members = []
+
+        member_task_counts = {} # Store as team_member_id: count
+
+        # Aggregate tasks: Iterate through projects, then tasks
+        all_projects = db_manager.get_all_projects()
+        if all_projects:
+            for project in all_projects:
+                tasks_in_project = db_manager.get_tasks_by_project_id(project['project_id'])
+                if tasks_in_project:
+                    for task in tasks_in_project:
+                        assignee_id = task.get('assignee_team_member_id')
+                        status_id = task.get('status_id')
+                        if assignee_id is not None and status_id is not None:
+                            status_setting = db_manager.get_status_setting_by_id(status_id)
+                            if status_setting and \
+                               not status_setting.get('is_completion_status') and \
+                               not status_setting.get('is_archival_status'):
+                                member_task_counts[assignee_id] = member_task_counts.get(assignee_id, 0) + 1
+
+        report_data_list = []
+        for member in active_team_members:
+            tm_id = member['team_member_id']
+            report_data_list.append({
+                'name': member.get('full_name', 'N/A'),
+                'task_count': member_task_counts.get(tm_id, 0),
+                'performance': member.get('performance', 0)
+            })
+
+        # Sort by task_count for the chart
+        report_data_list.sort(key=lambda x: x['task_count'], reverse=True)
+
+        names = [item['name'] for item in report_data_list]
+        task_counts_values = [item['task_count'] for item in report_data_list]
+
+        bars = ax.bar(names, task_counts_values, color='#9b59b6')
+        ax.set_title("Workload by Member (Active Tasks)")
+        ax.set_ylabel("Number of Tasks")
+
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height}', ha='center', va='bottom')
+
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+
+        self.graph_layout.addWidget(canvas)
+
+        # Data for the table view
+        self.report_data_table.setColumnCount(3)
+        self.report_data_table.setHorizontalHeaderLabels(["Member", "Ongoing Tasks", "Performance"])
+        self.report_data_table.setRowCount(len(report_data_list))
+
+        for row_idx, item_data in enumerate(report_data_list):
+            self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(item_data['name']))
+            self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(str(item_data['task_count'])))
+
+            perf = item_data['performance']
+            perf_item = QTableWidgetItem(f"{perf}%")
+            if perf >= 90: perf_item.setForeground(QColor('#27ae60'))
+            elif perf >= 80: perf_item.setForeground(QColor('#f39c12'))
+            else: perf_item.setForeground(QColor('#e74c3c'))
+            self.report_data_table.setItem(row_idx, 2, perf_item)
+
+        self.report_data_table.resizeColumnsToContents()
+
+    def generate_kpi_report(self, period):
+        # Chart
+        fig = plt.figure(figsize=(10, 5))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        kpis_data = []
+        # Fetch KPIs for the first project, similar to load_kpis logic
+        all_projects = db_manager.get_all_projects()
+        if all_projects and len(all_projects) > 0:
+            first_project_id = all_projects[0].get('project_id')
+            if first_project_id:
+                kpis_data = db_manager.get_kpis_for_project(first_project_id)
+        if not kpis_data: kpis_data = []
+
+
+        names = [kpi.get('name', 'N/A') for kpi in kpis_data]
+        values = [kpi.get('value', 0) for kpi in kpis_data]
+        targets = [kpi.get('target', 0) for kpi in kpis_data]
+
+        if not names: # If no KPIs, display a message on the chart
+            ax.text(0.5, 0.5, "No KPI data available for selected period/project.",
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax.transAxes, fontsize=12, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+        else:
+            x = range(len(names))
+            width = 0.35
+
+            bars1 = ax.bar(x, values, width, label='Current Value', color='#3498db')
+            bars2 = ax.bar([p + width for p in x], targets, width, label='Target', color='#e74c3c')
+
+            ax.set_title("Key Performance Indicators")
+            ax.set_ylabel("Value")
+            ax.set_xticks([p + width/2 for p in x])
+            ax.set_xticklabels(names, rotation=45, ha='right')
+            ax.legend()
+
+            for bar in bars1:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{height}', ha='center', va='bottom')
+
+            for bar in bars2:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{height}', ha='center', va='bottom')
+            plt.tight_layout()
+
+        self.graph_layout.addWidget(canvas)
+
+        # Data
+        self.report_data_table.setColumnCount(4)
+        self.report_data_table.setHorizontalHeaderLabels(["KPI", "Value", "Target", "Difference"])
+        self.report_data_table.setRowCount(len(kpis_data))
+
+        for row_idx, kpi_dict in enumerate(kpis_data):
+            kpi_name = kpi_dict.get('name', 'N/A')
+            kpi_value = kpi_dict.get('value', 0)
+            kpi_target = kpi_dict.get('target', 0)
+
+            self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(kpi_name.capitalize()))
+            self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(str(kpi_value)))
+            self.report_data_table.setItem(row_idx, 2, QTableWidgetItem(str(kpi_target)))
+
+            diff = kpi_value - kpi_target
+            diff_item = QTableWidgetItem(f"{diff:+.2f}" if isinstance(diff, (int,float)) else str(diff)) # format if number
+
+            if diff >= 0:
+                diff_item.setForeground(QColor('#27ae60'))
+            else:
+                diff_item.setForeground(QColor('#e74c3c'))
+            self.report_data_table.setItem(row_idx, 3, diff_item)
+
+        self.report_data_table.resizeColumnsToContents()
+
+    def generate_budget_report(self, period):
+        # Chart
+        fig = plt.figure(figsize=(10, 5))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(111)
+
+        projects_data = db_manager.get_all_projects()
+        if projects_data is None: projects_data = []
+
+        # Filter out projects that are archived for budget report
+        reportable_projects = []
+        status_names_for_budget_table = []
+
+        for p_dict in projects_data:
+            status_id = p_dict.get('status_id')
+            status_name = "Unknown"
+            is_archival = False
+            if status_id:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting:
+                    status_name = status_setting.get('status_name', 'Unknown')
+                    if status_setting.get('is_archival_status'):
+                        is_archival = True
+
+            if not is_archival:
+                reportable_projects.append(p_dict)
+                status_names_for_budget_table.append(status_name)
+
+        reportable_projects.sort(key=lambda x: x.get('budget', 0), reverse=True)
+
+        names = [p.get('project_name', 'N/A') for p in reportable_projects]
+        budgets = [p.get('budget', 0.0) for p in reportable_projects]
+
+        if not names:
+             ax.text(0.5, 0.5, "No project budget data available.",
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax.transAxes, fontsize=12, color='gray')
+             ax.set_xticks([])
+             ax.set_yticks([])
+        else:
+            bars = ax.bar(names, budgets, color='#f39c12')
+            ax.set_title("Budget Distribution by Project (Active/Ongoing)")
+            ax.set_ylabel("Budget (€)")
+
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        f'€{height:,.2f}', ha='center', va='bottom')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+
+        self.graph_layout.addWidget(canvas)
+
+        # Data
+        self.report_data_table.setColumnCount(3)
+        self.report_data_table.setHorizontalHeaderLabels(["Project", "Budget", "Status"])
+        self.report_data_table.setRowCount(len(reportable_projects))
+
+        for row_idx, p_dict in enumerate(reportable_projects):
+            self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(p_dict.get('project_name', 'N/A')))
+            budget_val = p_dict.get('budget', 0.0)
+            self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(f"€{budget_val:,.2f}"))
+
+            # Display the resolved status name
+            self.report_data_table.setItem(row_idx, 2, QTableWidgetItem(status_names_for_budget_table[row_idx]))
+
+        self.report_data_table.resizeColumnsToContents()
+
+    def export_report(self):
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export Report", "", "PDF Files (*.pdf);;Excel Files (*.xlsx)", options=options)
+
+        if file_name:
+            try:
+                if file_name.endswith('.pdf'):
+                    # Export to PDF (simplified implementation)
+                    QMessageBox.information(self, "PDF Export", "PDF functionality under development")
+                elif file_name.endswith('.xlsx'):
+                    # Export to Excel
+                    data = []
+                    headers = []
+
+                    for col in range(self.report_data_table.columnCount()):
+                        headers.append(self.report_data_table.horizontalHeaderItem(col).text())
+
+                    for row in range(self.report_data_table.rowCount()):
+                        row_data = []
+                        for col in range(self.report_data_table.columnCount()):
+                            item = self.report_data_table.item(row, col)
+                            row_data.append(item.text() if item else "")
+                        data.append(row_data)
+
+                    df = pd.DataFrame(data, columns=headers)
+                    df.to_excel(file_name, index=False)
+
+                    print(f"Report exported to {file_name}")
+                    QMessageBox.information(self, "Export Successful", f"The report has been successfully exported to {file_name}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred during export: {str(e)}")
+
+    def show_add_member_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Team Member")
+        dialog.setFixedSize(400, 500)
+
+        layout = QFormLayout(dialog)
+
+        name_edit = QLineEdit()
+        email_edit = QLineEdit() # Added Email field
+        role_combo = QComboBox()
+        # These roles should ideally come from a configurable source or db.py if they become dynamic
+        role_combo.addItems(["Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance", "Other"])
+
+        department_combo = QComboBox()
+        department_combo.addItems(["IT", "HR", "Marketing", "Finance", "Management", "Operations", "Sales", "Other"])
+
+        performance_spin = QSpinBox()
+        performance_spin.setRange(0, 100) # Assuming performance is 0-100
+        performance_spin.setValue(75) # Default value
+
+        hire_date_edit = QDateEdit(QDate.currentDate()) # Renamed for clarity
+        hire_date_edit.setCalendarPopup(True)
+        hire_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        active_checkbox = QCheckBox("Active Member") # Changed from status_combo to is_active (boolean)
+        active_checkbox.setChecked(True)
+
+        skills_edit = QLineEdit()
+        skills_edit.setPlaceholderText("Skills separated by commas (e.g., Python, SQL)")
+
+        notes_edit = QTextEdit()
+        notes_edit.setPlaceholderText("Additional notes about the team member...")
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        layout.addRow("Full Name:", name_edit)
+        layout.addRow("Email:", email_edit) # Added Email field
+        layout.addRow("Role/Title:", role_combo)
+        layout.addRow("Department:", department_combo)
+        layout.addRow("Performance (%):", performance_spin)
+        layout.addRow("Hire Date:", hire_date_edit)
+        layout.addRow("Active:", active_checkbox) # Changed from status_combo
+        layout.addRow("Skills:", skills_edit)
+        layout.addRow("Notes:", notes_edit)
+        layout.addRow(button_box)
+
+        if dialog.exec_() == QDialog.Accepted:
+            member_data = {
+                'full_name': name_edit.text(),
+                'email': email_edit.text(),
+                'role_or_title': role_combo.currentText(),
+                'department': department_combo.currentText(),
+                'performance': performance_spin.value(),
+                'hire_date': hire_date_edit.date().toString("yyyy-MM-dd"),
+                'is_active': active_checkbox.isChecked(),
+                'skills': skills_edit.text(),
+                'notes': notes_edit.toPlainText()
+                # user_id can be added here if linking to a User account, e.g. member_data['user_id'] = selected_user_id
+            }
+
+            if member_data['full_name'] and member_data['email']:
+                new_member_id = db_manager.add_team_member(member_data) # Changed main_db_manager
+                if new_member_id:
+                    self.load_team_members()
+                    self.log_activity(f"Added team member: {member_data['full_name']}")
+                    # self.statusBar().showMessage(f"Team member {member_data['full_name']} added successfully (ID: {new_member_id})", 3000) # statusBar not available on QWidget
+                    print(f"Team member {member_data['full_name']} added successfully (ID: {new_member_id})")
+                else:
+                    QMessageBox.warning(self, "Error", f"Failed to add team member. Check logs. Email might be in use.")
+            else:
+                QMessageBox.warning(self, "Error", "Full name and email are required.")
+
+    def edit_member(self, member_id_int): # member_id is int from db.py (team_member_id)
+        member_data_from_db = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
+
+        if member_data_from_db: # This is a dict
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Edit Team Member")
+            dialog.setFixedSize(400, 500)
+
+            layout = QFormLayout(dialog)
+
+            name_edit = QLineEdit(member_data_from_db.get('full_name', ''))
+            email_edit = QLineEdit(member_data_from_db.get('email', ''))
+
+            role_combo = QComboBox()
+            role_combo.addItems(["Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance", "Other"])
+            role_combo.setCurrentText(member_data_from_db.get('role_or_title', 'Other'))
+
+            department_combo = QComboBox()
+            department_combo.addItems(["IT", "HR", "Marketing", "Finance", "Management", "Operations", "Sales", "Other"])
+            department_combo.setCurrentText(member_data_from_db.get('department', 'Other'))
+
+            performance_spin = QSpinBox()
+            performance_spin.setRange(0, 100)
+            performance_spin.setValue(member_data_from_db.get('performance', 0))
+
+            hire_date_str = member_data_from_db.get('hire_date', QDate.currentDate().toString("yyyy-MM-dd"))
+            hire_date_edit = QDateEdit(QDate.fromString(hire_date_str, "yyyy-MM-dd"))
+            hire_date_edit.setCalendarPopup(True)
+            hire_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+            active_checkbox = QCheckBox("Active Member")
+            active_checkbox.setChecked(bool(member_data_from_db.get('is_active', True))) # Ensure boolean
+
+            skills_edit = QLineEdit(member_data_from_db.get('skills', ''))
+            skills_edit.setPlaceholderText("Skills separated by commas")
+
+            notes_edit = QTextEdit(member_data_from_db.get('notes', ''))
+            notes_edit.setPlaceholderText("Additional notes...")
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+
+            layout.addRow("Full Name:", name_edit)
+            layout.addRow("Email:", email_edit)
+            layout.addRow("Role/Title:", role_combo)
+            layout.addRow("Department:", department_combo)
+            layout.addRow("Performance (%):", performance_spin)
+            layout.addRow("Hire Date:", hire_date_edit)
+            layout.addRow("Active:", active_checkbox)
+            layout.addRow("Skills:", skills_edit)
+            layout.addRow("Notes:", notes_edit)
+            layout.addRow(button_box)
+
+            if dialog.exec_() == QDialog.Accepted:
+                updated_member_data = {
+                    'full_name': name_edit.text(),
+                    'email': email_edit.text(),
+                    'role_or_title': role_combo.currentText(),
+                    'department': department_combo.currentText(),
+                    'performance': performance_spin.value(),
+                    'hire_date': hire_date_edit.date().toString("yyyy-MM-dd"),
+                    'is_active': active_checkbox.isChecked(),
+                    'skills': skills_edit.text(),
+                    'notes': notes_edit.toPlainText()
+                }
+
+                if updated_member_data['full_name'] and updated_member_data['email']:
+                    success = db_manager.update_team_member(member_id_int, updated_member_data) # Changed main_db_manager
+                    if success:
+                        self.load_team_members()
+                        self.log_activity(f"Updated team member: {updated_member_data['full_name']}")
+                        # self.statusBar().showMessage(f"Team member {updated_member_data['full_name']} updated successfully", 3000)
+                        print(f"Team member {updated_member_data['full_name']} updated successfully")
+                    else:
+                        QMessageBox.warning(self, "Error", f"Failed to update team member. Check logs. Email might be in use by another member.")
+                else:
+                    QMessageBox.warning(self, "Error", "Full name and email are required.")
+        else:
+            QMessageBox.warning(self, "Error", f"Could not find team member with ID {member_id_int} to edit.")
+
+    def delete_member(self, member_id_int): # member_id is int
+        member_to_delete = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
+
+        if not member_to_delete:
+            QMessageBox.warning(self, "Error", f"Team member with ID {member_id_int} not found.")
+            return
+
+        member_name = member_to_delete.get('full_name', 'Unknown')
+
+        reply = QMessageBox.question(
+            self,
+            "Confirmation",
+            f"Are you sure you want to delete the member '{member_name}' (ID: {member_id_int})?\nThis action is permanent.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            success = db_manager.delete_team_member(member_id_int) # Changed main_db_manager
+            if success:
+                self.load_team_members()
+                self.log_activity(f"Deleted team member: {member_name} (ID: {member_id_int})")
+                # self.statusBar().showMessage(f"Team member {member_name} deleted", 3000)
+                print(f"Team member {member_name} deleted")
+            else:
+                QMessageBox.warning(self, "Error", f"Failed to delete team member {member_name}.")
+
+    def show_add_project_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("New Project")
+        dialog.setFixedSize(500, 550)
+
+        layout = QFormLayout(dialog)
+
+        name_edit = QLineEdit()
+        desc_edit = QTextEdit()
+        desc_edit.setPlaceholderText("Project description, including notes on key documents or links...")
+        desc_edit.setMinimumHeight(100)
+
+        start_date_edit = QDateEdit(QDate.currentDate())
+        start_date_edit.setCalendarPopup(True)
+        start_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        deadline_edit = QDateEdit(QDate.currentDate().addMonths(1))
+        deadline_edit.setCalendarPopup(True)
+        deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+        budget_spin = QDoubleSpinBox()
+        budget_spin.setRange(0, 10000000)
+        budget_spin.setPrefix("€ ")
+        budget_spin.setValue(10000)
+
+        status_combo = QComboBox()
+        project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
+        if project_statuses:
+            for ps in project_statuses:
+                status_combo.addItem(ps['status_name'], ps['status_id'])
+        else:
+            status_combo.addItem("Default Project Status", None)
+
+        priority_combo = QComboBox()
+        priority_combo.addItems(["Low", "Medium", "High"])
+        priority_combo.setCurrentIndex(1)
+
+        manager_combo = QComboBox()
+        manager_combo.addItem("Unassigned", None)
+        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+        if active_team_members:
+            for tm in active_team_members:
+                manager_combo.addItem(tm['full_name'], tm['team_member_id'])
+
+        client_combo = QComboBox()
+        all_clients = db_manager.get_all_clients() # Changed main_db_manager
+        if all_clients:
+            for client_item in all_clients:
+                client_combo.addItem(client_item['client_name'], client_item['client_id'])
+        else:
+            client_combo.addItem("No Clients Available - Add one first!", None)
+            client_combo.setEnabled(False)
+
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        layout.addRow("Project Name:", name_edit)
+        layout.addRow("Client:", client_combo)
+        layout.addRow("Description:", desc_edit)
+        layout.addRow("Start Date:", start_date_edit)
+        layout.addRow("Deadline:", deadline_edit)
+        layout.addRow("Budget:", budget_spin)
+        layout.addRow("Status:", status_combo)
+        layout.addRow("Priority:", priority_combo)
+        layout.addRow("Manager (Team Member):", manager_combo)
+
+        layout.addRow(QLabel("--- Optional: Start from Template ---")) # Visually separate
+        template_combo = QComboBox()
+        template_combo.addItem("None (Blank Project)", None)
+        available_templates = self.template_manager.get_templates()
+        for tpl in available_templates:
+            template_combo.addItem(tpl.name, tpl.name) # Store template name as data
+        layout.addRow(self.tr("Project Template:"), template_combo)
+
+        layout.addRow(button_box)
+
+        if dialog.exec_() == QDialog.Accepted:
+            project_name = name_edit.text()
+            client_id_selected = client_combo.currentData()
+
+            if not project_name:
+                QMessageBox.warning(self, "Error", "Project name is required.")
+                return
+            if not client_id_selected and client_combo.isEnabled():
+                QMessageBox.warning(self, "Error", "A client must be selected for the project.")
+                return
+            if not client_id_selected and not client_combo.isEnabled():
+                 QMessageBox.warning(self, "Error", "Cannot add project: No clients available in the database. Please add a client first.")
+                 return
+
+
+            selected_manager_tm_id = manager_combo.currentData()
+            manager_user_id_for_db = None
+            if selected_manager_tm_id is not None:
+                team_member_manager = db_manager.get_team_member_by_id(selected_manager_tm_id) # Changed main_db_manager
+                if team_member_manager:
+                    manager_user_id_for_db = team_member_manager.get('user_id')
+
+            priority_text = priority_combo.currentText()
+            priority_for_db = 0
+            if priority_text == "Medium": priority_for_db = 1
+            elif priority_text == "High": priority_for_db = 2
+
+            project_data_to_save = {
+                'client_id': client_id_selected,
+                'project_name': project_name,
+                'description': desc_edit.toPlainText(),
+                'start_date': start_date_edit.date().toString("yyyy-MM-dd"),
+                'deadline_date': deadline_edit.date().toString("yyyy-MM-dd"),
+                'budget': budget_spin.value(),
+                'status_id': status_combo.currentData(),
+                'progress_percentage': 0,
+                'manager_team_member_id': manager_user_id_for_db,
+                'priority': priority_for_db
+            }
+
+            new_project_id = db_manager.add_project(project_data_to_save) # Changed main_db_manager
+
+            if new_project_id:
+                self.load_projects()
+                self.update_project_filter()
+                self.log_activity(f"Added project: {project_name}")
+                # self.statusBar().showMessage(f"Project {project_name} added successfully (ID: {new_project_id})", 3000)
+                print(f"Project {project_name} added successfully (ID: {new_project_id})")
+
+                # Add tasks from template if selected
+                selected_template_name = template_combo.currentData()
+                if selected_template_name:
+                    template = self.template_manager.get_template_by_name(selected_template_name)
+                    if template:
+                        task_status_todo_obj = db_manager.get_status_setting_by_name("To Do", "Task")
+                        default_task_status_id = task_status_todo_obj['status_id'] if task_status_todo_obj else None
+                        if not default_task_status_id:
+                            QMessageBox.warning(self, self.tr("Configuration Error"), self.tr("Default 'To Do' status for tasks not found. Template tasks will not have a status."))
+
+                        for task_def in template.tasks:
+                            task_data_for_db = {
+                                'project_id': new_project_id,
+                                'task_name': task_def['name'],
+                                'description': task_def.get('description', ''),
+                                'status_id': default_task_status_id,
+                                'priority': task_def.get('priority', 0),
+                            }
+                            if self.current_user and self.current_user.get('user_id'):
+                                current_user_as_tm_list = db_manager.get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                                if current_user_as_tm_list:
+                                    task_data_for_db['reporter_team_member_id'] = current_user_as_tm_list[0].get('team_member_id')
+
+                            db_manager.add_task(task_data_for_db)
+                        print(f"Added {len(template.tasks)} tasks from template '{template.name}' to project {new_project_id}")
+                        self.load_tasks() # Refresh task list if it's visible or might become visible
+            else:
+                QMessageBox.warning(self, "Error", "Failed to add project. Check logs.")
+
+    def edit_project(self, project_id_str):
+        project_data_dict = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
+
+        if project_data_dict:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Edit Project: {project_data_dict.get('project_name', '')}")
+            dialog.setFixedSize(500, 550)
+
+            layout = QFormLayout(dialog)
+
+            name_edit = QLineEdit(project_data_dict.get('project_name', ''))
+            desc_edit = QTextEdit(project_data_dict.get('description', ''))
+            desc_edit.setPlaceholderText("Project description...")
+            desc_edit.setMinimumHeight(100)
+
+            start_date_edit = QDateEdit(QDate.fromString(project_data_dict.get('start_date', ''), "yyyy-MM-dd"))
+            start_date_edit.setCalendarPopup(True)
+            start_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+            deadline_edit = QDateEdit(QDate.fromString(project_data_dict.get('deadline_date', ''), "yyyy-MM-dd"))
+            deadline_edit.setCalendarPopup(True)
+            deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+            budget_spin = QDoubleSpinBox()
+            budget_spin.setRange(0, 10000000)
+            budget_spin.setPrefix("€ ")
+            budget_spin.setValue(project_data_dict.get('budget', 0.0))
+
+            status_combo = QComboBox()
+            project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
+            current_status_id = project_data_dict.get('status_id')
+            if project_statuses:
+                for idx, ps in enumerate(project_statuses):
+                    status_combo.addItem(ps['status_name'], ps['status_id'])
+                    if ps['status_id'] == current_status_id:
+                        status_combo.setCurrentIndex(idx)
+            else:
+                status_combo.addItem("No Statuses Defined", None)
+                status_setting = db_manager.get_status_setting_by_id(current_status_id) # Changed main_db_manager
+                if status_setting : status_combo.addItem(status_setting['status_name'], current_status_id)
+
+
+            priority_combo = QComboBox()
+            priority_combo.addItems(["Low", "Medium", "High"])
+            db_priority = project_data_dict.get('priority', 0)
+            if db_priority == 1: priority_combo.setCurrentText("Medium")
+            elif db_priority == 2: priority_combo.setCurrentText("High")
+            else: priority_combo.setCurrentText("Low")
+
+
+            manager_combo = QComboBox()
+            manager_combo.addItem("Unassigned", None)
+            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+            project_manager_user_id = project_data_dict.get('manager_team_member_id')
+            current_manager_tm_id_to_select = None
+
+            if project_manager_user_id and active_team_members:
+                for tm in active_team_members:
+                    if tm['user_id'] == project_manager_user_id:
+                        current_manager_tm_id_to_select = tm['team_member_id']
+                        break
+
+            if active_team_members:
+                for idx, tm in enumerate(active_team_members):
+                    manager_combo.addItem(tm['full_name'], tm['team_member_id'])
+                    if tm['team_member_id'] == current_manager_tm_id_to_select:
+                        manager_combo.setCurrentIndex(idx + 1)
+
+            client_combo = QComboBox()
+            all_clients = db_manager.get_all_clients() # Changed main_db_manager
+            current_client_id = project_data_dict.get('client_id')
+            if all_clients:
+                for idx, client_item in enumerate(all_clients):
+                    client_combo.addItem(client_item['client_name'], client_item['client_id'])
+                    if client_item['client_id'] == current_client_id:
+                        client_combo.setCurrentIndex(idx)
+            else:
+                client_combo.addItem("Error: Client not found or No Clients", None)
+                client_combo.setEnabled(False)
+
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+
+            layout.addRow("Project Name:", name_edit)
+            layout.addRow("Client:", client_combo)
+            layout.addRow("Description:", desc_edit)
+            layout.addRow("Start Date:", start_date_edit)
+            layout.addRow("Deadline:", deadline_edit)
+            layout.addRow("Budget:", budget_spin)
+            layout.addRow("Status:", status_combo)
+            layout.addRow("Priority:", priority_combo)
+            layout.addRow("Manager (Team Member):", manager_combo)
+            layout.addRow(button_box)
+
+            if dialog.exec_() == QDialog.Accepted:
+                project_name_updated = name_edit.text()
+                client_id_updated = client_combo.currentData()
+
+                if not project_name_updated:
+                    QMessageBox.warning(self, "Error", "Project name is required.")
+                    return
+                if not client_id_updated:
+                     QMessageBox.warning(self, "Error", "Client is required for the project.")
+                     return
+
+                selected_manager_tm_id_updated = manager_combo.currentData()
+                manager_user_id_for_db_updated = None
+                if selected_manager_tm_id_updated is not None:
+                    tm_manager_updated = db_manager.get_team_member_by_id(selected_manager_tm_id_updated) # Changed main_db_manager
+                    if tm_manager_updated:
+                        manager_user_id_for_db_updated = tm_manager_updated.get('user_id')
+
+                priority_text_updated = priority_combo.currentText()
+                priority_for_db_updated = 0
+                if priority_text_updated == "Medium": priority_for_db_updated = 1
+                elif priority_text_updated == "High": priority_for_db_updated = 2
+
+                updated_project_data_to_save = {
+                    'client_id': client_id_updated,
+                    'project_name': project_name_updated,
+                    'description': desc_edit.toPlainText(),
+                    'start_date': start_date_edit.date().toString("yyyy-MM-dd"),
+                    'deadline_date': deadline_edit.date().toString("yyyy-MM-dd"),
+                    'budget': budget_spin.value(),
+                    'status_id': status_combo.currentData(),
+                    'progress_percentage': project_data_dict.get('progress_percentage', 0),
+                    'manager_team_member_id': manager_user_id_for_db_updated,
+                    'priority': priority_for_db_updated
+                }
+
+                success = db_manager.update_project(project_id_str, updated_project_data_to_save) # Changed main_db_manager
+
+                if success:
+                    self.load_projects()
+                    self.update_project_filter()
+                    self.log_activity(f"Updated project: {project_name_updated}")
+                    # self.statusBar().showMessage(f"Project {project_name_updated} updated successfully", 3000)
+                    print(f"Project {project_name_updated} updated successfully")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to update project. Check logs.")
+        else:
+            QMessageBox.warning(self, "Error", f"Could not find project with ID {project_id_str} to edit.")
+
+    def show_project_details(self, project_id_str):
+        project_dict = db_manager.get_project_by_id(project_id_str)
+
+        if project_dict:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(self.tr("Project Details: {0}").format(project_dict.get('project_name', 'N/A')))
+            dialog.setMinimumSize(700, 600) # Adjusted size for tabs
+
+            dialog_main_layout = QVBoxLayout(dialog)
+            details_tab_widget = QTabWidget()
+            dialog_main_layout.addWidget(details_tab_widget)
+
+            # --- Tab 1: Details & Tasks (Existing Content Adaptation) ---
+            details_tasks_page = QWidget()
+            details_tasks_layout = QVBoxLayout(details_tasks_page)
+
+            info_group = QGroupBox(self.tr("Project Information"))
+            info_layout = QFormLayout(info_group)
+            # ... (Populate info_layout as before, using project_dict) ...
+            name_label = QLabel(project_dict.get('project_name', 'N/A'))
+            name_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+            desc_label = QLabel(project_dict.get('description', "No description"))
+            desc_label.setWordWrap(True)
+            start_date_label = QLabel(project_dict.get('start_date', 'N/A'))
+            deadline_label = QLabel(project_dict.get('deadline_date', 'N/A'))
+            budget_label = QLabel(f"€{project_dict.get('budget', 0.0):,.2f}")
+            status_id = project_dict.get('status_id')
+            status_name_display = "Unknown"; status_color_hex = "#7f8c8d"
+            if status_id is not None:
+                status_setting = db_manager.get_status_setting_by_id(status_id)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+            status_display_label = QLabel(status_name_display)
+            status_display_label.setStyleSheet(f"color: {status_color_hex}; font-weight: bold;")
+            priority_val = project_dict.get('priority', 0)
+            priority_display_label = QLabel("Low" if priority_val == 0 else "Medium" if priority_val == 1 else "High")
+            progress_label = QLabel(f"{project_dict.get('progress_percentage', 0)}%")
+            manager_user_id = project_dict.get('manager_team_member_id')
+            manager_display_name = "Unassigned"
+            if manager_user_id:
+                tm_list = db_manager.get_all_team_members({'user_id': manager_user_id})
+                if tm_list: manager_display_name = tm_list[0].get('full_name', manager_user_id)
+                else:
+                    user = db_manager.get_user_by_id(manager_user_id)
+                    if user: manager_display_name = user.get('full_name', manager_user_id)
+            manager_label = QLabel(manager_display_name)
+
+            info_layout.addRow(self.tr("Name:"), name_label)
+            info_layout.addRow(self.tr("Description:"), desc_label)
+            info_layout.addRow(self.tr("Start Date:"), start_date_label)
+            info_layout.addRow(self.tr("Deadline:"), deadline_label)
+            info_layout.addRow(self.tr("Budget:"), budget_label)
+            info_layout.addRow(self.tr("Status:"), status_display_label)
+            info_layout.addRow(self.tr("Priority:"), priority_display_label)
+            info_layout.addRow(self.tr("Progress:"), progress_label)
+            info_layout.addRow(self.tr("Manager:"), manager_label)
+            details_tasks_layout.addWidget(info_group)
+
+            tasks_group = QGroupBox(self.tr("Associated Tasks"))
+            tasks_layout_inner = QVBoxLayout(tasks_group) # Renamed to avoid conflict
+            tasks_table_details = QTableWidget() # Renamed to avoid conflict
+            tasks_table_details.setColumnCount(4)
+            tasks_table_details.setHorizontalHeaderLabels([self.tr("Task Name"), self.tr("Assigned To"), self.tr("Status"), self.tr("Deadline")])
+            project_tasks = db_manager.get_tasks_by_project_id(project_id_str)
+            if project_tasks:
+                tasks_table_details.setRowCount(len(project_tasks))
+                for r_idx, task_item in enumerate(project_tasks):
+                    tasks_table_details.setItem(r_idx, 0, QTableWidgetItem(task_item.get('task_name')))
+                    assignee_tm_id_detail = task_item.get('assignee_team_member_id')
+                    assignee_name_detail = "Unassigned"
+                    if assignee_tm_id_detail:
+                        assignee_tm = db_manager.get_team_member_by_id(assignee_tm_id_detail)
+                        if assignee_tm: assignee_name_detail = assignee_tm.get('full_name')
+                    tasks_table_details.setItem(r_idx, 1, QTableWidgetItem(assignee_name_detail))
+                    status_id_detail = task_item.get('status_id')
+                    status_name_detail = "N/A"
+                    if status_id_detail:
+                        status_obj_detail = db_manager.get_status_setting_by_id(status_id_detail)
+                        if status_obj_detail: status_name_detail = status_obj_detail.get('status_name')
+                    tasks_table_details.setItem(r_idx, 2, QTableWidgetItem(status_name_detail))
+                    tasks_table_details.setItem(r_idx, 3, QTableWidgetItem(task_item.get('due_date')))
+            else:
+                tasks_table_details.setRowCount(1)
+                tasks_table_details.setItem(0,0, QTableWidgetItem(self.tr("No tasks found for this project.")))
+                tasks_table_details.setSpan(0,0,1,4)
+            tasks_table_details.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            tasks_layout_inner.addWidget(tasks_table_details)
+            details_tasks_layout.addWidget(tasks_group)
+            details_tab_widget.addTab(details_tasks_page, self.tr("Details & Tasks"))
+
+            # --- Tab 2: Milestones ---
+            milestones_page = QWidget()
+            milestones_layout = QVBoxLayout(milestones_page)
+
+            self.milestones_table_details_dialog = QTableWidget()
+            self.milestones_table_details_dialog.setColumnCount(5)
+            self.milestones_table_details_dialog.setHorizontalHeaderLabels([
+                self.tr("Name"), self.tr("Description"), self.tr("Due Date"), self.tr("Status"), self.tr("Actions")
+            ])
+            self.milestones_table_details_dialog.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.milestones_table_details_dialog.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.milestones_table_details_dialog.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.milestones_table_details_dialog.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            milestones_layout.addWidget(self.milestones_table_details_dialog)
+
+            milestone_btn_layout = QHBoxLayout()
+            add_milestone_btn = QPushButton(self.tr("Add Milestone"))
+            add_milestone_btn.clicked.connect(lambda: self._handle_add_milestone(project_id_str, dialog))
+            edit_milestone_btn = QPushButton(self.tr("Edit Milestone"))
+            edit_milestone_btn.clicked.connect(lambda: self._handle_edit_milestone(project_id_str, dialog))
+            delete_milestone_btn = QPushButton(self.tr("Delete Milestone"))
+            delete_milestone_btn.clicked.connect(lambda: self._handle_delete_milestone(project_id_str, dialog))
+
+            add_milestone_btn.setStyleSheet(self.get_primary_button_style())
+            edit_milestone_btn.setStyleSheet(self.get_secondary_button_style())
+            delete_milestone_btn.setStyleSheet(self.get_danger_button_style())
+
+            milestone_btn_layout.addWidget(add_milestone_btn)
+            milestone_btn_layout.addWidget(edit_milestone_btn)
+            milestone_btn_layout.addWidget(delete_milestone_btn)
+            milestones_layout.addLayout(milestone_btn_layout)
+
+            details_tab_widget.addTab(milestones_page, self.tr("Milestones"))
+
+            self._load_milestones_into_table(project_id_str, self.milestones_table_details_dialog)
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Close)
+            button_box.rejected.connect(dialog.reject)
+            dialog_main_layout.addWidget(button_box)
+
+            dialog.exec_()
+        else:
+            QMessageBox.warning(self, "Error", f"Could not retrieve details for project ID {project_id_str}.")
+
+    def delete_project(self, project_id_str): # project_id is TEXT
+        project_to_delete = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
+
+        if not project_to_delete:
+            QMessageBox.warning(self, "Error", f"Project with ID {project_id_str} not found.")
+            return
+
+        project_name = project_to_delete.get('project_name', 'Unknown Project')
+
+        reply = QMessageBox.question(
+            self,
+            "Confirmation",
+            f"Are you sure you want to delete the project '{project_name}' (ID: {project_id_str})?\nThis will also delete all associated tasks and KPIs.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            success = db_manager.delete_project(project_id_str) # Changed main_db_manager
+            if success:
+                self.load_projects()
+                self.update_project_filter()
+                self.log_activity(f"Deleted project: {project_name} (ID: {project_id_str})")
+                # self.statusBar().showMessage(f"Project {project_name} deleted", 3000)
+                print(f"Project {project_name} deleted")
+            else:
+                QMessageBox.warning(self, "Error", f"Failed to delete project {project_name}. Check logs.")
+
+    def show_add_task_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("New Task")
+        dialog.setFixedSize(450, 450)
+
+        layout = QFormLayout(dialog)
+
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("Enter task name...")
+
+        project_combo = QComboBox()
+        all_projects = db_manager.get_all_projects() # Changed main_db_manager
+        if all_projects:
+            for p in all_projects:
+                status_of_project_id = p.get('status_id')
+                is_completion = False
+                is_archival = False
+                if status_of_project_id:
+                    status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                    is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
+                    is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
+
+                if not is_completion and not is_archival :
+                     project_combo.addItem(p['project_name'], p['project_id'])
+        if project_combo.count() == 0:
+            project_combo.addItem("No Active Projects Available", None)
+            project_combo.setEnabled(False)
+
+
+        desc_edit = QTextEdit()
+        desc_edit.setPlaceholderText("Detailed task description...")
+        desc_edit.setMinimumHeight(80)
+
+        status_combo = QComboBox()
+        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
+        if task_statuses:
+            for ts in task_statuses:
+                if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
+                    status_combo.addItem(ts['status_name'], ts['status_id'])
+        if status_combo.count() == 0:
+             status_combo.addItem("No Task Statuses Defined", None)
+             status_combo.setEnabled(False)
+
+
+        priority_combo = QComboBox()
+        priority_combo.addItems(["Low", "Medium", "High"])
+        priority_combo.setCurrentIndex(1)
+
+        assignee_combo = QComboBox()
+        assignee_combo.addItem("Unassigned", None)
+        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+        if active_team_members:
+            for tm in active_team_members:
+                assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
+
+        # Predecessor Task ComboBox
+        predecessor_task_combo = QComboBox()
+        predecessor_task_combo.addItem("None", None)
+        # Predecessor tasks will be populated when a project is selected or if editing.
+        # For new tasks, project_combo.currentIndexChanged can trigger populating this.
+
+        deadline_edit = QDateEdit(QDate.currentDate().addDays(7))
+        deadline_edit.setCalendarPopup(True)
+        deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+        # Function to populate predecessors based on selected project
+        def populate_predecessors_for_add_dialog():
+            predecessor_task_combo.clear()
+            predecessor_task_combo.addItem("None", None)
+            selected_project_id_for_pred = project_combo.currentData()
+            if selected_project_id_for_pred:
+                project_tasks = db_manager.get_tasks_by_project_id(selected_project_id_for_pred)
+                if project_tasks:
+                    for pt in project_tasks:
+                        predecessor_task_combo.addItem(pt['task_name'], pt['task_id'])
+
+        project_combo.currentIndexChanged.connect(populate_predecessors_for_add_dialog)
+        if project_combo.count() > 0 : populate_predecessors_for_add_dialog() # Initial population if project already selected
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        layout.addRow("Task Name:", name_edit)
+        layout.addRow("Project:", project_combo)
+        layout.addRow("Description:", desc_edit)
+        layout.addRow("Status:", status_combo)
+        layout.addRow("Priority:", priority_combo)
+        layout.addRow("Assigned To:", assignee_combo)
+        layout.addRow(self.tr("Predecessor Task:"), predecessor_task_combo) # Add to layout
+        layout.addRow("Deadline:", deadline_edit)
+        layout.addRow(button_box)
+
+        if dialog.exec_() == QDialog.Accepted:
+            task_name = name_edit.text()
+            selected_project_id = project_combo.currentData()
+            selected_predecessor_id = predecessor_task_combo.currentData()
+
+            if not task_name:
+                QMessageBox.warning(self, "Input Error", "Task name is required.")
+                return
+            if selected_project_id is None and project_combo.isEnabled():
+                QMessageBox.warning(self, "Input Error", "A project must be selected.")
+                return
+            if not project_combo.isEnabled():
+                 QMessageBox.warning(self, "Input Error", "Cannot add task: No active projects available.")
+                 return
+            if status_combo.currentData() is None and status_combo.isEnabled():
+                 QMessageBox.warning(self, "Input Error", "A task status must be selected.")
+                 return
+            if not status_combo.isEnabled():
+                 QMessageBox.warning(self, "Input Error", "Cannot add task: No task statuses defined.")
+                 return
+
+
+            priority_text = priority_combo.currentText()
+            priority_for_db = 0
+            if priority_text == "Medium": priority_for_db = 1
+            elif priority_text == "High": priority_for_db = 2
+
+            task_data_to_save = {
+                'project_id': selected_project_id,
+                'task_name': task_name,
+                'description': desc_edit.toPlainText(),
+                'status_id': status_combo.currentData(),
+                'priority': priority_for_db,
+                'assignee_team_member_id': assignee_combo.currentData(),
+                'due_date': deadline_edit.date().toString("yyyy-MM-dd"),
+            }
+
+            # Set reporter_team_member_id if current_user is a team member
+            if self.current_user and self.current_user.get('user_id'):
+                # Find team_member_id for the current user_id
+                current_user_as_tm_list = db_manager.get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                if current_user_as_tm_list:
+                    task_data_to_save['reporter_team_member_id'] = current_user_as_tm_list[0].get('team_member_id')
+
+
+            new_task_id = db_manager.add_task(task_data_to_save) # Changed main_db_manager
+
+            if new_task_id:
+                if selected_predecessor_id:
+                    db_manager.add_task_dependency({'task_id': new_task_id, 'predecessor_task_id': selected_predecessor_id})
+                self.load_tasks()
+                self.log_activity(f"Added task: {task_name} (Project ID: {selected_project_id})")
+                # self.statusBar().showMessage(f"Task '{task_name}' added successfully (ID: {new_task_id})", 3000)
+                print(f"Task '{task_name}' added successfully (ID: {new_task_id})")
+            else:
+                QMessageBox.warning(self, "Database Error", "Failed to add task. Check logs.")
+
+    def edit_task(self, task_id_int):
+        task_data_dict = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+
+        if task_data_dict:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Edit Task: {task_data_dict.get('task_name', '')}")
+            dialog.setFixedSize(450, 450)
+
+            layout = QFormLayout(dialog)
+
+            name_edit = QLineEdit(task_data_dict.get('task_name', ''))
+
+            project_combo = QComboBox()
+            all_projects = db_manager.get_all_projects() # Changed main_db_manager
+            current_project_id_for_task = task_data_dict.get('project_id')
+            if all_projects:
+                for idx, p in enumerate(all_projects):
+                    status_of_project_id = p.get('status_id')
+                    is_completion = False
+                    is_archival = False
+                    if status_of_project_id:
+                        status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                        is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
+                        is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
+                    if (not is_completion and not is_archival) or p['project_id'] == current_project_id_for_task:
+                        project_combo.addItem(p['project_name'], p['project_id'])
+                        if p['project_id'] == current_project_id_for_task:
+                            project_combo.setCurrentIndex(project_combo.count() -1)
+            if project_combo.count() == 0:
+                 project_info = db_manager.get_project_by_id(current_project_id_for_task) # Changed main_db_manager
+                 if project_info : project_combo.addItem(project_info['project_name'], project_info['project_id'])
+                 project_combo.setEnabled(False)
+
+
+            desc_edit = QTextEdit(task_data_dict.get('description', ''))
+            desc_edit.setPlaceholderText("Detailed task description...")
+            desc_edit.setMinimumHeight(80)
+
+            status_combo = QComboBox()
+            task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
+            current_status_id_for_task = task_data_dict.get('status_id')
+            if task_statuses:
+                for idx, ts in enumerate(task_statuses):
+                    status_combo.addItem(ts['status_name'], ts['status_id'])
+                    if ts['status_id'] == current_status_id_for_task:
+                        status_combo.setCurrentIndex(idx)
+            if status_combo.count() == 0: status_combo.setEnabled(False)
+
+
+            priority_combo = QComboBox()
+            priority_combo.addItems(["Low", "Medium", "High"])
+            db_task_priority = task_data_dict.get('priority', 0)
+            if db_task_priority == 1: priority_combo.setCurrentText("Medium")
+            elif db_task_priority == 2: priority_combo.setCurrentText("High")
+            else: priority_combo.setCurrentText("Low")
+
+            assignee_combo = QComboBox()
+            assignee_combo.addItem("Unassigned", None)
+            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+            current_assignee_tm_id = task_data_dict.get('assignee_team_member_id')
+            if active_team_members:
+                for idx, tm in enumerate(active_team_members):
+                    assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
+                    if tm['team_member_id'] == current_assignee_tm_id:
+                        assignee_combo.setCurrentIndex(idx + 1)
+
+            # Predecessor Task ComboBox for Edit Dialog
+            predecessor_task_combo_edit = QComboBox()
+            predecessor_task_combo_edit.addItem("None", None)
+            current_project_id_for_task_edit = task_data_dict.get('project_id')
+            if current_project_id_for_task_edit:
+                project_tasks_edit = db_manager.get_tasks_by_project_id(current_project_id_for_task_edit)
+                if project_tasks_edit:
+                    for pt_edit in project_tasks_edit:
+                        if pt_edit['task_id'] != task_id_int: # Exclude self
+                            predecessor_task_combo_edit.addItem(pt_edit['task_name'], pt_edit['task_id'])
+
+            # Load existing dependency for edit
+            predecessors_edit = db_manager.get_predecessor_tasks(task_id_int) # Conceptual
+            if predecessors_edit: # Assuming returns a list, take the first for Phase 1
+                index_edit = predecessor_task_combo_edit.findData(predecessors_edit[0]['task_id'])
+                if index_edit != -1:
+                    predecessor_task_combo_edit.setCurrentIndex(index_edit)
+
+
+            due_date_str = task_data_dict.get('due_date', QDate.currentDate().toString("yyyy-MM-dd"))
+            deadline_edit = QDateEdit(QDate.fromString(due_date_str, "yyyy-MM-dd"))
+            deadline_edit.setCalendarPopup(True)
+            deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+
+            layout.addRow("Task Name:", name_edit)
+            layout.addRow("Project:", project_combo)
+            layout.addRow("Description:", desc_edit)
+            layout.addRow("Status:", status_combo)
+            layout.addRow("Priority:", priority_combo)
+            layout.addRow("Assigned To:", assignee_combo)
+            layout.addRow(self.tr("Predecessor Task:"), predecessor_task_combo_edit) # Add to layout
+            layout.addRow("Deadline:", deadline_edit)
+            layout.addRow(button_box)
+
+            if dialog.exec_() == QDialog.Accepted:
+                updated_task_name = name_edit.text()
+                updated_project_id = project_combo.currentData()
+                selected_predecessor_id_edit = predecessor_task_combo_edit.currentData()
+
+                if not updated_task_name:
+                    QMessageBox.warning(self, "Input Error", "Task name is required.")
+                    return
+                if updated_project_id is None and project_combo.isEnabled():
+                     QMessageBox.warning(self, "Input Error", "A project must be selected.")
+                     return
+                if status_combo.currentData() is None and status_combo.isEnabled():
+                     QMessageBox.warning(self, "Input Error", "A task status must be selected.")
+                     return
+
+                updated_priority_text = priority_combo.currentText()
+                updated_priority_for_db = 0
+                if updated_priority_text == "Medium": updated_priority_for_db = 1
+                elif updated_priority_text == "High": updated_priority_for_db = 2
+
+                task_data_to_update = {
+                    'project_id': updated_project_id,
+                    'task_name': updated_task_name,
+                    'description': desc_edit.toPlainText(),
+                    'status_id': status_combo.currentData(),
+                    'priority': updated_priority_for_db,
+                    'assignee_team_member_id': assignee_combo.currentData(),
+                    'due_date': deadline_edit.date().toString("yyyy-MM-dd"),
+                }
+                selected_status_id = status_combo.currentData()
+                if selected_status_id:
+                    status_details = db_manager.get_status_setting_by_id(selected_status_id) # Changed main_db_manager
+                    if status_details and status_details.get('is_completion_status'):
+                        task_data_to_update['completed_at'] = datetime.utcnow().isoformat() + "Z"
+                    else:
+                        task_data_to_update['completed_at'] = None
+
+
+                success = db_manager.update_task(task_id_int, task_data_to_update) # Changed main_db_manager
+
+                if success:
+                    # Update dependencies: Remove old (if any, for Phase 1 simplicity) and add new
+                    existing_predecessors = db_manager.get_predecessor_tasks(task_id_int) # Conceptual
+                    if existing_predecessors:
+                        for pred in existing_predecessors: # Remove all old ones
+                            db_manager.remove_task_dependency(task_id_int, pred['task_id']) # Conceptual
+
+                    if selected_predecessor_id_edit:
+                        db_manager.add_task_dependency({'task_id': task_id_int, 'predecessor_task_id': selected_predecessor_id_edit}) # Conceptual
+
+                    self.load_tasks() # Refresh to show changes and dependency states
+                    self.log_activity(f"Updated task: {updated_task_name} (ID: {task_id_int})")
+                    # self.statusBar().showMessage(f"Task '{updated_task_name}' updated successfully", 3000)
+                    print(f"Task '{updated_task_name}' updated successfully")
+                else:
+                    QMessageBox.warning(self, "Database Error", f"Failed to update task ID {task_id_int}. Check logs.")
+        else:
+            QMessageBox.warning(self, "Error", f"Could not find task with ID {task_id_int} to edit.")
+
+    def complete_task(self, task_id_int): # task_id is INT
+        task_to_complete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+        if not task_to_complete:
+            QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
+            return
+
+        task_name = task_to_complete.get('task_name', 'Unknown Task')
+
+        completed_status_id = None
+        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
+        if task_statuses:
+            for ts in task_statuses:
+                if ts.get('is_completion_status'):
+                    completed_status_id = ts['status_id']
+                    break
+
+        if completed_status_id is None:
+            for common_completion_name in ["Completed", "Done"]:
+                status_obj = db_manager.get_status_setting_by_name(common_completion_name, 'Task') # Changed main_db_manager
+                if status_obj:
+                    completed_status_id = status_obj['status_id']
+                    break
+            if completed_status_id is None:
+                QMessageBox.warning(self, "Configuration Error", "No 'completion' status defined for tasks in StatusSettings.")
+                return
+
+        update_data = {
+            'status_id': completed_status_id,
+            'completed_at': datetime.utcnow().isoformat() + "Z"
+        }
+        success = db_manager.update_task(task_id_int, update_data) # Changed main_db_manager
+
+        if success:
+            self.load_tasks() # Refresh to update UI of dependent tasks
+            self.log_activity(f"Task marked as completed: {task_name} (ID: {task_id_int})")
+            # self.statusBar().showMessage(f"Task '{task_name}' marked as completed", 3000)
+            print(f"Task '{task_name}' marked as completed")
+        else:
+            QMessageBox.warning(self, "Database Error", f"Failed to complete task '{task_name}'. Check logs.")
+
+
+    def delete_task(self, task_id_int): # task_id is INT
+        task_to_delete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+        if not task_to_delete:
+            QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
+            return
+
+        task_name = task_to_delete.get('task_name', 'Unknown Task')
+
+        reply = QMessageBox.question(
+            self,
+            "Confirmation",
+            f"Are you sure you want to delete the task '{task_name}' (ID: {task_id_int})?\nThis action is permanent.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            success = db_manager.delete_task(task_id_int) # Changed main_db_manager
+            if success:
+                self.load_tasks()
+                self.log_activity(f"Deleted task: {task_name} (ID: {task_id_int})")
+                # self.statusBar().showMessage(f"Task '{task_name}' deleted", 3000)
+                print(f"Task '{task_name}' deleted")
+            else:
+                QMessageBox.warning(self, "Database Error", f"Failed to delete task '{task_name}'. Check logs.")
+
+    def edit_user_access(self, user_id_str): # user_id is now a string (UUID) from db.py
+        user_data = db_manager.get_user_by_id(user_id_str) # Changed main_db_manager
+
+        if user_data: # user_data is a dict
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"Edit Access for {user_data.get('full_name', 'N/A')}")
+            dialog.setFixedSize(300, 200) # Indentation fixed
+
+            layout = QFormLayout(dialog)
+
+            username_label = QLabel(user_data.get('username', 'N/A'))
+            name_label = QLabel(user_data.get('full_name', 'N/A'))
+
+            role_combo = QComboBox()
+            role_combo.addItems(["Administrator", "Manager", "User"]) # These should match roles in db.py
+                                                                    # Consider fetching roles if they become dynamic
+            role_map = { # Assuming roles in db.py are 'admin', 'manager', 'member' or similar
+                "admin": "Administrator",
+                "manager": "Manager",
+                "member": "User", # Adjust if db.py uses 'user'
+                # Add other roles from db.py if necessary
+            }
+            # db.py stores roles like 'admin', 'manager', 'member'
+            # Need to map them to display names if different, or use db.py roles directly in combo
+            current_role_in_db = user_data.get('role', 'member') # Default to 'member' or a base role
+
+            # Find the display name for the current role from db
+            display_role = "User" # Default display
+            for db_role_val, display_name_val in role_map.items():
+                if db_role_val == current_role_in_db:
+                    display_role = display_name_val
+                    break
+            role_combo.setCurrentText(display_role)
+
+
+            button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            button_box.accepted.connect(dialog.accept)
+            button_box.rejected.connect(dialog.reject)
+
+            layout.addRow("Username:", username_label)
+            layout.addRow("Full Name:", name_label)
+            layout.addRow("Role:", role_combo)
+            layout.addRow(button_box)
+
+            if dialog.exec_() == QDialog.Accepted:
+                    selected_display_role = role_combo.currentText()
+                    # Convert display role back to db.py role value
+                    new_role_for_db = 'member' # default
+                    for db_r, disp_r in role_map.items():
+                        if disp_r == selected_display_role:
+                            new_role_for_db = db_r
+                            break
+
+                    update_success = db_manager.update_user(user_id_str, {'role': new_role_for_db}) # Changed main_db_manager
+
+                    if update_success:
+                        self.load_access_table() # This will also need refactoring
+                        self.log_activity(f"Updated role of {user_data.get('full_name')} to {new_role_for_db}")
+                        self.statusBar().showMessage(f"Role of {user_data.get('full_name')} updated", 3000)
+                    else:
+                        QMessageBox.warning(self, "Error", f"Failed to update role for {user_data.get('full_name')}")
+
+
+    def save_account_settings(self):
+        if not self.current_user or 'id' not in self.current_user:
+            QMessageBox.warning(self, "Error", "You must be logged in to modify your settings.")
+            return
+
+        user_id_to_update = self.current_user['id']
+        current_username = self.current_user['username'] # Needed for password verification
+
+        full_name = self.name_edit.text()
+        email = self.email_edit.text()
+        phone = self.phone_edit.text()
+        current_pwd = self.current_pwd_edit.text()
+        new_pwd = self.new_pwd_edit.text()
+        confirm_pwd = self.confirm_pwd_edit.text()
+
+        if not full_name or not email:
+            QMessageBox.warning(self, "Error", "Full name and email are required.")
+            return
+
+        if new_pwd and (new_pwd != confirm_pwd):
+            QMessageBox.warning(self, "Error", "New passwords do not match.")
+            return
+
+        update_data = {
+            'full_name': full_name,
+            'email': email,
+            'phone': phone if phone else None # Pass None if empty, db.py should handle it
+        }
+
+        # Verify current password if a new one is provided
+        if new_pwd:
+            if not current_pwd:
+                QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
+                return
+
+            verified_user = db_manager.verify_user_password(current_username, current_pwd)
+            if not verified_user or verified_user['user_id'] != user_id_to_update:
+                QMessageBox.warning(self, "Error", "Current password is incorrect.")
+                return
+            # If password is correct, add new password to update_data.
+            # db_manager.update_user will handle hashing.
+            update_data['password'] = new_pwd
+
+        # Update user information via db_manager
+        success = db_manager.update_user(user_id_to_update, update_data)
+
+        if success:
+            # Update current user information in the session
+            self.current_user['full_name'] = full_name
+            self.current_user['email'] = email
+            # self.current_user['phone'] = phone # If you store it in self.current_user
+            self.user_name.setText(full_name) # Update UI
+
+            self.log_activity("Updated account information")
+            QMessageBox.information(self, "Success", "Changes have been saved.")
+
+            # Clear password fields
+            self.current_pwd_edit.clear()
+            self.new_pwd_edit.clear()
+            self.confirm_pwd_edit.clear()
+        else:
+            QMessageBox.warning(self, "Error", "Failed to update account information.")
+
+    def save_preferences(self):
+        if not self.current_user or 'id' not in self.current_user: # Check for id too
+            QMessageBox.warning(self, "Error", "You must be logged in to modify your preferences.")
+            return
+
+        theme = self.theme_combo.currentText()
+        density = self.density_combo.currentText()
+        language = self.language_combo.currentText()
+        email_notif = self.email_notif.isChecked()
+        app_notif = self.app_notif.isChecked()
+        sms_notif = self.sms_notif.isChecked()
+
+        # Here you could save these preferences to the database
+        # For this example, we will just display a message
+
+        QMessageBox.information(
+            self,
+            "Preferences Saved",
+            f"Your preferences have been saved:\n"
+            f"Theme: {theme}\n"
+            f"Density: {density}\n"
+            f"Language: {language}\n"
+            f"Notifications: Email {'enabled' if email_notif else 'disabled'}, "
+            f"App {'enabled' if app_notif else 'disabled'}, "
+            f"SMS {'enabled' if sms_notif else 'disabled'}"
+        )
+
+        self.log_activity("Updated user preferences")
+
+    def add_on_page(self):
+        from Installsweb.installmodules import InstallerDialog
+        installer = InstallerDialog(self)
+        installer.exec_()
+
+    def open_facebook(self):
+        #self.hide()  # Hide the login module
+        tab_name = "FB Robot"  # Name of the tab (matches the label used in add_custom_tab)
+
+        # Check if a tab with this name already exists
+        existing_tab_index = self.find_tab_by_name(tab_name)
+        if existing_tab_index != -1:
+            # If the tab already exists, select it
+            self.main_app.tab_widget.setCurrentIndex(existing_tab_index)
+            return
+
+        # Otherwise, create a single instance of Nova360ProApp and add a new tab
+        if not hasattr(self, 'nova360pro') or self.nova360pro is None:
+           # self.nova360pro = Nova360ProApp(main_app=self)  # Create the instance once
+            self.face_main = FaceMainWindow()  # Replace this with your home page class
+
+        self.open_new_tab(tab_name,"cool.ico",self.face_main)
+
+        # subprocess.Popen([sys.executable, "main_fb_robot.py"])
+
+    def change_page(self, index):
+        self.main_content.setCurrentIndex(index)
+
+        # Update navigation button styles
+        for btn in self.nav_buttons:
+            btn.setObjectName("")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+        # Determine which top-level button to highlight
+        # self.nav_buttons indices:
+        # 0: Dashboard
+        # 1: Management (Team, Settings, Notifications, Client Support, Prospect, Documents, Contacts)
+        # 2: Activities (Projects, Tasks, Reports, Cover Pages)
+        # 3: Add-on
+
+        button_to_select_index = -1
+        if index == 0: # Dashboard
+            button_to_select_index = 0
+        elif index == 1: # Team (under Management)
+            button_to_select_index = 1
+        elif index == 2: # Projects (under Activities)
+            button_to_select_index = 2
+        elif index == 3: # Tasks (under Activities)
+            button_to_select_index = 2
+        elif index == 4: # Reports (under Activities)
+            button_to_select_index = 2
+        elif index == 5: # Settings (under Management)
+            button_to_select_index = 1
+        elif index == 6: # Cover Page Management (under Activities)
+            button_to_select_index = 2
+        # Add other mappings if new pages/buttons are added.
+        # The "Add-on" button (self.nav_buttons[3]) calls a different function,
+        # so it's not handled by change_page's index logic directly.
+
+        if 0 <= button_to_select_index < len(self.nav_buttons):
+            selected_button = self.nav_buttons[button_to_select_index]
+            selected_button.setObjectName("selected")
+            selected_button.style().unpolish(selected_button)
+            selected_button.style().polish(selected_button)
+        else:
+            # This case should ideally not be reached if all page indices are mapped.
+            # If it is, it means an unmapped page index was called.
+            print(f"Warning: change_page called with index {index}, but no corresponding top-level button found to highlight.")
+
+
+        # Update data if necessary
+        if index == 0:  # Dashboard
+            self.update_dashboard()
+        elif index == 1:  # Team
+            self.load_team_members()
+        elif index == 2:  # Projects
+            self.load_projects()
+        elif index == 3:  # Tasks
+            self.load_tasks()
+        elif index == 4:  # Reports
+            # Reports are generated on demand
+            pass
+        elif index == 5:  # Settings
+            self.load_access_table()
+            if self.current_user: # Also load user preferences if a user is logged in
+                self.load_user_preferences()
+        elif index == 6: # Cover Page Management
+            self.load_clients_into_cp_combo() # Load/refresh clients
+            self.load_cover_pages_for_selected_client() # Load cover pages for current selection
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event) # Call parent's resizeEvent
+        if hasattr(self, 'notification_manager') and self.notification_manager.notification_banner.isVisible():
+            # Recalculate and move the banner to keep it in the top-right
+            banner = self.notification_manager.notification_banner
+            x = self.width() - banner.width() - 10
+            y = 10 # 10px margin from top
+            banner.move(x, y)
+
+    # closeEvent is typically for QMainWindow. If this widget is embedded,
+    # the main application's closeEvent will handle application closure.
+    # def closeEvent(self, event):
+    #     if self.current_user:
+    #         self.log_activity(f"Application closed by {self.current_user['full_name']}")
+    #     event.accept()
+
+    def setup_cover_page_management_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Header
+        title_label = QLabel("Cover Page Management")
+        # title_label.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") # Old direct style
+        title_label.setStyleSheet(self.get_page_title_style()) # Use helper method
+        layout.addWidget(title_label)
+
+        # Client Selection Area
+        client_selection_layout = QHBoxLayout()
+        client_selection_layout.addWidget(QLabel("Select Client:"))
+        self.cp_client_combo = QComboBox()
+        self.cp_client_combo.setStyleSheet(self.get_generic_input_style()) # Use general style
+        self.cp_client_combo.setMinimumWidth(250)
+        self.cp_client_combo.currentIndexChanged.connect(self.load_cover_pages_for_selected_client)
+        client_selection_layout.addWidget(self.cp_client_combo)
+        client_selection_layout.addStretch()
+        layout.addLayout(client_selection_layout)
+
+        # Action Buttons Bar
+        action_buttons_layout = QHBoxLayout()
+        action_buttons_layout.setSpacing(10)
+
+        self.cp_create_new_btn = QPushButton("Create New Cover Page")
+        self.cp_create_new_btn.setStyleSheet(self.get_primary_button_style())
+        self.cp_create_new_btn.clicked.connect(self.create_new_cover_page_dialog)
+        action_buttons_layout.addWidget(self.cp_create_new_btn)
+
+        self.cp_edit_selected_btn = QPushButton("View/Edit Selected")
+        self.cp_edit_selected_btn.setStyleSheet(self.get_secondary_button_style())
+        self.cp_edit_selected_btn.clicked.connect(self.edit_selected_cover_page_dialog)
+        self.cp_edit_selected_btn.setEnabled(False) # Initially disabled
+        action_buttons_layout.addWidget(self.cp_edit_selected_btn)
+
+        self.cp_delete_selected_btn = QPushButton("Delete Selected")
+        self.cp_delete_selected_btn.setStyleSheet(self.get_danger_button_style())
+        self.cp_delete_selected_btn.clicked.connect(self.delete_selected_cover_page)
+        self.cp_delete_selected_btn.setEnabled(False) # Initially disabled
+        action_buttons_layout.addWidget(self.cp_delete_selected_btn)
+        action_buttons_layout.addStretch()
+        layout.addLayout(action_buttons_layout)
+
+        # Cover Page List Table
+        self.cp_table = QTableWidget()
+        self.cp_table.setColumnCount(4) # Name, Title, Last Modified, Actions
+        self.cp_table.setHorizontalHeaderLabels(["Name", "Title", "Last Modified", "Actions"])
+        self.cp_table.setStyleSheet(self.get_table_style()) # Use general table style
+        self.cp_table.verticalHeader().setVisible(False)
+        self.cp_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.cp_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.cp_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.cp_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.cp_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.cp_table.itemSelectionChanged.connect(self.update_cover_page_action_buttons_state)
+        layout.addWidget(self.cp_table)
+
+        self.main_content.addWidget(page)
+
+    def get_generic_input_style(self): # Helper for consistent input styling
+        return """
+            QComboBox {
+                padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; background-color: white;
+            }
+            QComboBox:focus { border-color: #80bdff; }
+            QComboBox::drop-down {
+                subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+                border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+            }
+            QLineEdit, QTextEdit { padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; background-color: white; }
+            QLineEdit:focus, QTextEdit:focus { border-color: #80bdff; }
+        """
+    def get_primary_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #28a745; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #218838; } QPushButton:pressed { background-color: #1e7e34; }
+        """
+    def get_secondary_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #007bff; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #0069d9; } QPushButton:pressed { background-color: #005cbf; }
+        """
+    def get_danger_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #dc3545; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #c82333; } QPushButton:pressed { background-color: #bd2130; }
+        """
+    def get_table_style(self):
+        return """
+            QTableWidget { background-color: white; border: 1px solid #dee2e6; border-radius: 5px; gridline-color: #e9ecef; }
+            QHeaderView::section { background-color: #e9ecef; color: #495057; padding: 10px; font-weight: bold; border: none; border-bottom: 2px solid #dee2e6; }
+            QTableWidget::item { padding: 8px; }
+            QTableWidget::item:selected { background-color: #007bff; color: white; }
+        """
+
+    def get_page_title_style(self): # Helper for consistent page titles
+        return "font-size: 22pt; font-weight: bold; color: #343a40; padding-bottom: 10px;"
+
+    def load_clients_into_cp_combo(self):
+        current_client_id = self.cp_client_combo.currentData()
+        self.cp_client_combo.clear()
+        self.cp_client_combo.addItem("Select a Client...", None)
+        clients = db_manager.get_all_clients()
+        if clients:
+            for client in clients:
+                self.cp_client_combo.addItem(f"{client['client_name']} ({client['client_id']})", client['client_id'])
+
+        if current_client_id:
+            index = self.cp_client_combo.findData(current_client_id)
+            if index != -1:
+                self.cp_client_combo.setCurrentIndex(index)
+            else: # If previously selected client is gone, select "Select a Client..."
+                 self.cp_client_combo.setCurrentIndex(0)
+
+
+    def load_cover_pages_for_selected_client(self):
+        client_id = self.cp_client_combo.currentData()
+        self.cp_table.setRowCount(0) # Clear table
+        self.update_cover_page_action_buttons_state() # Disable buttons if no client
+
+        if client_id:
+            cover_pages = db_manager.get_cover_pages_for_client(client_id)
+            if cover_pages:
+                self.cp_table.setRowCount(len(cover_pages))
+                for row, cp_data in enumerate(cover_pages):
+                    self.cp_table.setItem(row, 0, QTableWidgetItem(cp_data.get('cover_page_name', 'N/A')))
+                    self.cp_table.setItem(row, 1, QTableWidgetItem(cp_data.get('title', 'N/A')))
+                    self.cp_table.setItem(row, 2, QTableWidgetItem(cp_data.get('updated_at', 'N/A')))
+
+                    # Actions column
+                    edit_action_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
+                    edit_action_btn.setToolTip("Edit Cover Page")
+                    edit_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    # Use a partial or a helper to capture current cp_data for the lambda
+                    edit_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.edit_selected_cover_page_dialog(row_data=r_data))
+
+                    delete_action_btn = QPushButton("🗑️") # Already an emoji, ensure it's just text
+                    delete_action_btn.setToolTip("Delete Cover Page")
+                    delete_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    delete_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.delete_selected_cover_page(row_data=r_data))
+
+                    action_widget = QWidget()
+                    action_layout = QHBoxLayout(action_widget)
+                    action_layout.addWidget(edit_action_btn)
+                    action_layout.addWidget(delete_action_btn)
+                    action_layout.setContentsMargins(0,0,0,0)
+                    action_layout.addStretch() # Optional: to push buttons to left if desired
+                    self.cp_table.setCellWidget(row, 3, action_widget)
+
+                    # Store cover_page_id in the first item for easy retrieval (if needed, or directly use from row_data)
+                    self.cp_table.item(row, 0).setData(Qt.UserRole, cp_data['cover_page_id'])
+            self.cp_table.resizeColumnsToContents()
+
+
+    def update_cover_page_action_buttons_state(self):
+        selected_items = self.cp_table.selectedItems()
+        has_selection = bool(selected_items)
+        self.cp_edit_selected_btn.setEnabled(has_selection)
+        self.cp_delete_selected_btn.setEnabled(has_selection)
+
+    def create_new_cover_page_dialog(self):
+        client_id = self.cp_client_combo.currentData()
+        if not client_id:
+            QMessageBox.warning(self, "No Client Selected", "Please select a client before creating a new cover page.")
+            return
+
+        if not self.current_user or not self.current_user.get('user_id'):
+            QMessageBox.warning(self, "User Error", "No logged-in user found. Cannot create cover page.")
+            return
+        user_id = self.current_user['user_id']
+
+        dialog = CoverPageEditorDialog(mode="create", client_id=client_id, user_id=user_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_cover_pages_for_selected_client()
+            self.log_activity(f"Created new cover page for client {client_id}")
+
+    def edit_selected_cover_page_dialog(self, row_data=None): # row_data can be passed from action button click
+        if not row_data:
+            selected_items = self.cp_table.selectedItems()
+            if not selected_items:
+                QMessageBox.warning(self, "No Selection", "Please select a cover page to edit.")
+                return
+            cover_page_id = selected_items[0].data(Qt.UserRole) # Assuming ID is in UserRole of first item
+        else:
+            cover_page_id = row_data.get('cover_page_id')
+
+        if not cover_page_id:
+            QMessageBox.warning(self, "Error", "Could not determine cover page ID for editing.")
+            return
+
+        cover_page_full_data = db_manager.get_cover_page_by_id(cover_page_id)
+        if not cover_page_full_data:
+            QMessageBox.critical(self, "Error", f"Could not retrieve cover page data for ID: {cover_page_id}")
+            return
+
+        dialog = CoverPageEditorDialog(mode="edit", cover_page_data=cover_page_full_data, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_cover_pages_for_selected_client()
+            self.log_activity(f"Edited cover page ID: {cover_page_id}")
+
+    # --- Milestone Management Helper Methods ---
+    def _load_milestones_into_table(self, project_id, table_widget):
+        table_widget.setRowCount(0)
+        milestones = db_manager.get_milestones_for_project(project_id)
+        if not milestones:
+            return
+
+        for row_idx, milestone in enumerate(milestones):
+            table_widget.insertRow(row_idx)
+            table_widget.setItem(row_idx, 0, QTableWidgetItem(milestone.get('milestone_name', 'N/A')))
+
+            desc_item = QTableWidgetItem(milestone.get('description', ''))
+            # desc_item.setTextAlignment(Qt.AlignTop | Qt.AlignLeft) # Optional: if you want multi-line text to align top
+            table_widget.setItem(row_idx, 1, desc_item)
+
+            table_widget.setItem(row_idx, 2, QTableWidgetItem(milestone.get('due_date', 'N/A')))
+
+            status_name = milestone.get('status_name', self.tr('N/A'))
+            status_color_hex = milestone.get('color_hex', '#000000') # Default to black if no color
+            status_item = QTableWidgetItem(status_name)
+            status_item.setForeground(QColor(status_color_hex))
+            table_widget.setItem(row_idx, 3, status_item)
+
+            # Store milestone_id in the first item of the row for easy access
+            table_widget.item(row_idx, 0).setData(Qt.UserRole, milestone.get('milestone_id'))
+
+            # Actions - For Phase 1, main buttons below table are used. In-row actions can be added later.
+            # For now, this column can be empty or show a placeholder / be hidden.
+            # If hidden: table_widget.setColumnCount(4) and remove "Actions" header.
+            # For now, let it be, can be enhanced.
+            # Example placeholder:
+            # edit_action_btn_placeholder = QPushButton("...")
+            # edit_action_btn_placeholder.setEnabled(False)
+            # action_widget_placeholder = QWidget()
+            # action_layout_placeholder = QHBoxLayout(action_widget_placeholder)
+            # action_layout_placeholder.addWidget(edit_action_btn_placeholder)
+            # action_layout_placeholder.setContentsMargins(0,0,0,0)
+            # table_widget.setCellWidget(row_idx, 4, action_widget_placeholder)
+
+
+        table_widget.resizeColumnsToContents()
+        table_widget.resizeRowsToContents() # For multi-line descriptions
+
+    def _handle_add_milestone(self, project_id, parent_dialog_ref): # parent_dialog_ref can be used to keep dialog on top
+        dialog = AddEditMilestoneDialog(project_id, parent=parent_dialog_ref if parent_dialog_ref else self)
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            if data:
+                milestone_id = db_manager.add_milestone(data)
+                if milestone_id:
+                    self.log_activity(f"Added milestone '{data['milestone_name']}' to project {project_id}")
+                    self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add milestone."))
+
+    def _handle_edit_milestone(self, project_id, parent_dialog_ref):
+        selected_items = self.milestones_table_details_dialog.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, self.tr("No Selection"), self.tr("Please select a milestone to edit."))
+            return
+
+        milestone_id_to_edit = selected_items[0].data(Qt.UserRole) # Assumes ID is in UserRole of first item of selected row
+        if milestone_id_to_edit is None: # Fallback if UserRole not set on first item, check other items in row.
+            for item in selected_items: # Check all items in the selected row
+                 if item.data(Qt.UserRole) is not None:
+                      milestone_id_to_edit = item.data(Qt.UserRole)
+                      break
+        if milestone_id_to_edit is None:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve milestone ID for editing."))
+            return
+
+        milestone_data_to_edit = db_manager.get_milestone_by_id(milestone_id_to_edit)
+        if not milestone_data_to_edit:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not fetch milestone data for editing."))
+            return
+
+        dialog = AddEditMilestoneDialog(project_id, milestone_data=milestone_data_to_edit, parent=parent_dialog_ref if parent_dialog_ref else self)
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            if data:
+                success = db_manager.update_milestone(milestone_id_to_edit, data)
+                if success:
+                    self.log_activity(f"Updated milestone ID {milestone_id_to_edit} for project {project_id}")
+                    self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update milestone."))
+
+    def _handle_delete_milestone(self, project_id, parent_dialog_ref):
+        selected_items = self.milestones_table_details_dialog.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, self.tr("No Selection"), self.tr("Please select a milestone to delete."))
+            return
+
+        milestone_id_to_delete = selected_items[0].data(Qt.UserRole)
+        if milestone_id_to_delete is None:
+             for item in selected_items:
+                 if item.data(Qt.UserRole) is not None:
+                      milestone_id_to_delete = item.data(Qt.UserRole)
+                      break
+        if milestone_id_to_delete is None:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve milestone ID for deletion."))
+            return
+
+        milestone_name_to_delete = self.milestones_table_details_dialog.item(selected_items[0].row(), 0).text()
+
+        reply = QMessageBox.question(self, self.tr("Confirm Deletion"),
+                                     self.tr("Are you sure you want to delete milestone '{0}'?").format(milestone_name_to_delete),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            success = db_manager.delete_milestone(milestone_id_to_delete)
+            if success:
+                self.log_activity(f"Deleted milestone ID {milestone_id_to_delete} from project {project_id}")
+                self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to delete milestone."))
+
+    def delete_selected_cover_page(self, row_data=None):
+        if not row_data:
+            selected_items = self.cp_table.selectedItems()
+            if not selected_items:
+                QMessageBox.warning(self, "No Selection", "Please select a cover page to delete.")
+                return
+            cover_page_id = selected_items[0].data(Qt.UserRole)
+            cover_page_name = selected_items[0].text()
+        else:
+            cover_page_id = row_data.get('cover_page_id')
+            cover_page_name = row_data.get('cover_page_name', 'this item')
+
+        if not cover_page_id:
+            QMessageBox.warning(self, "Error", "Could not determine cover page ID for deletion.")
+            return
+
+        reply = QMessageBox.question(self, "Confirm Deletion",
+                                     f"Are you sure you want to delete the cover page '{cover_page_name}'?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.delete_cover_page(cover_page_id):
+                self.load_cover_pages_for_selected_client()
+                self.log_activity(f"Deleted cover page ID: {cover_page_id}")
+                QMessageBox.information(self, "Success", f"Cover page '{cover_page_name}' deleted.")
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to delete cover page '{cover_page_name}'.")
+
+
+# Cover Page Editor Dialog
+class CoverPageEditorDialog(QDialog):
+    def __init__(self, mode, client_id=None, user_id=None, cover_page_data=None, parent=None):
+        super().__init__(parent)
+        self.mode = mode
+        self.client_id = client_id
+        self.user_id = user_id
+        self.cover_page_data = cover_page_data or {} # Ensure it's a dict
+        self.current_logo_bytes = self.cover_page_data.get('logo_data')
+        self.current_logo_name = self.cover_page_data.get('logo_name')
+
+
+        self.setWindowTitle(f"{'Edit' if mode == 'edit' else 'Create New'} Cover Page")
+        self.setMinimumSize(600, 750) # Increased size for more fields & placeholder
+
+        main_layout = QVBoxLayout(self)
+
+        # Consistent styling for inputs within the dialog
+        dialog_input_style = """
+            QLineEdit, QComboBox, QDateEdit, QTextEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {
+                border-color: #80bdff; /* Highlight focus */
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+                border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+            }
+            /* QComboBox::down-arrow styling might be needed if default is not good */
+        """
+        self.setStyleSheet(dialog_input_style) # Apply to the whole dialog
+
+        form_layout = QFormLayout()
+        form_layout.setLabelAlignment(Qt.AlignRight)
+        form_layout.setSpacing(10)
+
+        # Cover Page Instance Name
+        self.cp_name_edit = QLineEdit(self.cover_page_data.get('cover_page_name', ''))
+        form_layout.addRow("Cover Page Name:", self.cp_name_edit)
+
+        # Template Selection
+        self.cp_template_combo = QComboBox()
+        self.populate_templates_combo()
+        self.cp_template_combo.currentIndexChanged.connect(self.on_template_selected)
+        form_layout.addRow("Use Template (Optional):", self.cp_template_combo)
+
+        # Document Info Group
+        doc_info_group = QGroupBox("Document Information")
+        doc_info_form_layout = QFormLayout(doc_info_group)
+
+        self.title_edit = QLineEdit(self.cover_page_data.get('title', ''))
+        self.subtitle_edit = QLineEdit(self.cover_page_data.get('subtitle', ''))
+        self.author_text_edit = QLineEdit(self.cover_page_data.get('author_text', '')) # Consider renaming to 'author' in db if this is main author field
+        self.institution_text_edit = QLineEdit(self.cover_page_data.get('institution_text', ''))
+        self.department_text_edit = QLineEdit(self.cover_page_data.get('department_text', ''))
+        self.document_type_text_edit = QLineEdit(self.cover_page_data.get('document_type_text', ''))
+        self.document_date_edit = QDateEdit(QDate.fromString(self.cover_page_data.get('document_date', QDate.currentDate().toString(Qt.ISODate)), Qt.ISODate))
+        self.document_date_edit.setCalendarPopup(True)
+        self.document_date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.document_version_edit = QLineEdit(self.cover_page_data.get('document_version', ''))
+
+        doc_info_form_layout.addRow("Title:", self.title_edit)
+        doc_info_form_layout.addRow("Subtitle:", self.subtitle_edit)
+        doc_info_form_layout.addRow("Author:", self.author_text_edit) # Changed label for clarity
+        doc_info_form_layout.addRow("Institution:", self.institution_text_edit) # Changed label
+        doc_info_form_layout.addRow("Department:", self.department_text_edit) # Changed label
+        doc_info_form_layout.addRow("Document Type:", self.document_type_text_edit) # Changed label
+        doc_info_form_layout.addRow("Document Date:", self.document_date_edit)
+        doc_info_form_layout.addRow("Version:", self.document_version_edit) # Changed label
+        form_layout.addRow(doc_info_group)
+
+        # Logo Section
+        logo_group = QGroupBox("Logo")
+        logo_layout = QHBoxLayout(logo_group)
+        self.logo_preview_label = QLabel("No logo selected.")
+        self.logo_preview_label.setFixedSize(150,150) # Slightly larger preview
+        self.logo_preview_label.setAlignment(Qt.AlignCenter)
+        self.logo_preview_label.setStyleSheet("border: 1px dashed #ccc;")
+        self.update_logo_preview()
+
+        browse_logo_btn = QPushButton("Browse...")
+        browse_logo_btn.setStyleSheet(parent.get_secondary_button_style() if parent else "") # Apply style
+        browse_logo_btn.clicked.connect(self.browse_logo)
+
+        clear_logo_btn = QPushButton("Clear Logo")
+        clear_logo_btn.setStyleSheet(parent.get_danger_button_style() if parent else "") # Apply style
+        clear_logo_btn.clicked.connect(self.clear_logo)
+
+        logo_btn_layout = QVBoxLayout()
+        logo_btn_layout.addWidget(browse_logo_btn)
+        logo_btn_layout.addWidget(clear_logo_btn)
+        logo_btn_layout.addStretch()
+
+        logo_layout.addWidget(self.logo_preview_label)
+        logo_layout.addLayout(logo_btn_layout)
+        form_layout.addRow(logo_group)
+
+        # Style Configuration
+        style_group = QGroupBox("Advanced Style Configuration (JSON)")
+        style_layout = QVBoxLayout(style_group)
+
+        style_info_label = QLabel("Edit advanced style properties (e.g., fonts, colors, positions). Refer to documentation for available keys.")
+        style_info_label.setWordWrap(True)
+        style_layout.addWidget(style_info_label)
+
+        self.style_config_json_edit = QTextEdit()
+        detailed_placeholder = """{
+    "title_font_family": "Arial", "title_font_size": 30, "title_color": "#000000",
+    "subtitle_font_family": "Arial", "subtitle_font_size": 20, "subtitle_color": "#555555",
+    "author_font_family": "Arial", "author_font_size": 12, "author_color": "#555555",
+    "logo_width_mm": 50, "logo_height_mm": 50, "logo_x_mm": 80, "logo_y_mm": 200,
+    "show_page_border": true, "page_border_color": "#000000", "page_border_width_pt": 1,
+    "show_horizontal_line": true, "horizontal_line_y_mm": 140, "horizontal_line_color": "#000000",
+    "text_alignment_title": "center", "text_alignment_subtitle": "center", "text_alignment_author": "center"
+}"""
+        self.style_config_json_edit.setPlaceholderText(detailed_placeholder)
+        self.style_config_json_edit.setMinimumHeight(200) # Increased height
+
+        style_json_str = self.cover_page_data.get('style_config_json', '{}')
+        if isinstance(style_json_str, dict):
+            style_json_str = json.dumps(style_json_str, indent=4) # Use 4 spaces for placeholder consistency
+        elif isinstance(style_json_str, str):
+            try:
+                parsed_json = json.loads(style_json_str)
+                style_json_str = json.dumps(parsed_json, indent=4)
+            except json.JSONDecodeError:
+                style_json_str = json.dumps({}, indent=4) # Default to empty formatted JSON
+        self.style_config_json_edit.setText(style_json_str)
+
+        style_layout.addWidget(self.style_config_json_edit)
+        form_layout.addRow(style_group)
+
+        main_layout.addLayout(form_layout)
+
+        # Dialog Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.on_save)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+
+        if self.mode == 'edit' and self.cover_page_data.get('template_id'):
+            template_id_to_select = self.cover_page_data['template_id']
+            index = self.cp_template_combo.findData(template_id_to_select)
+            if index != -1:
+                self.cp_template_combo.setCurrentIndex(index)
+            # Field values are already set from cover_page_data, template only pre-fills on change
+        elif self.mode == 'create': # If creating, and a default template exists, select it
+            default_template_index = self.cp_template_combo.findData("DEFAULT_TEMPLATE_PLACEHOLDER", Qt.UserRole + 1) # Check if a default was marked
+            if default_template_index != -1:
+                self.cp_template_combo.setCurrentIndex(default_template_index)
+                self.on_template_selected(default_template_index) # Trigger pre-fill
+
+
+    def populate_templates_combo(self):
+        self.cp_template_combo.addItem("None (Custom)", None)
+        templates = db_manager.get_all_cover_page_templates()
+        if templates:
+            for tpl in templates:
+                self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])
+                if tpl.get('is_default_template'):
+                    # Mark this item specially if needed, e.g. by setting a special UserRole
+                    # For now, just pre-select if mode is 'create'
+                    self.cp_template_combo.setItemData(self.cp_template_combo.count() -1, "DEFAULT_TEMPLATE_PLACEHOLDER", Qt.UserRole + 1)
+
+
+    def on_template_selected(self, index):
+        template_id = self.cp_template_combo.itemData(index)
+        if not template_id: # "None" selected
+            # Optionally clear fields or revert to initial_data if that's desired
+            # For now, user changes are kept unless a specific template is chosen
+            if self.mode == 'create': # For create mode, "None" means truly blank slate
+                self.title_edit.setText("")
+                self.subtitle_edit.setText("")
+                self.author_text_edit.setText("")
+                self.institution_text_edit.setText("")
+                self.department_text_edit.setText("")
+                self.document_type_text_edit.setText("")
+                self.document_date_edit.setDate(QDate.currentDate())
+                self.document_version_edit.setText("")
+                self.style_config_json_edit.setText("{\n  \n}")
+                self.current_logo_bytes = None
+                self.current_logo_name = None
+                self.update_logo_preview()
+            return
+
+        template_data = db_manager.get_cover_page_template_by_id(template_id)
+        if template_data:
+            self.title_edit.setText(template_data.get('default_title', ''))
+            self.subtitle_edit.setText(template_data.get('default_subtitle', ''))
+            self.author_text_edit.setText(template_data.get('default_author_text', ''))
+            self.institution_text_edit.setText(template_data.get('default_institution_text', ''))
+            self.department_text_edit.setText(template_data.get('default_department_text', ''))
+            self.document_type_text_edit.setText(template_data.get('default_document_type_text', ''))
+
+            doc_date_str = template_data.get('default_document_date', '')
+            if doc_date_str:
+                 self.document_date_edit.setDate(QDate.fromString(doc_date_str, Qt.ISODate))
+            else: # If template has no date, use current
+                 self.document_date_edit.setDate(QDate.currentDate())
+
+            self.document_version_edit.setText(template_data.get('default_document_version', ''))
+
+            style_json = template_data.get('style_config_json', '{}')
+            try: # Ensure it's nicely formatted
+                parsed = json.loads(style_json)
+                self.style_config_json_edit.setText(json.dumps(parsed, indent=2))
+            except json.JSONDecodeError:
+                self.style_config_json_edit.setText(style_json) # Show as is if not valid JSON for some reason
+
+            self.current_logo_bytes = template_data.get('default_logo_data')
+            self.current_logo_name = template_data.get('default_logo_name')
+            self.update_logo_preview()
+
+
+    def browse_logo(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Logo Image", "", "Images (*.png *.jpg *.jpeg)")
+        if file_path:
+            try:
+                with open(file_path, 'rb') as f:
+                    self.current_logo_bytes = f.read()
+                self.current_logo_name = os.path.basename(file_path)
+                self.update_logo_preview()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not load logo: {e}")
+                self.current_logo_bytes = None
+                self.current_logo_name = None
+                self.update_logo_preview()
+
+    def clear_logo(self):
+        self.current_logo_bytes = None
+        self.current_logo_name = None
+        self.update_logo_preview()
+
+    def update_logo_preview(self):
+        if self.current_logo_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(self.current_logo_bytes)
+            self.logo_preview_label.setPixmap(pixmap.scaled(self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.logo_preview_label.setText("No logo")
+
+
+    def on_save(self):
+        cp_name = self.cp_name_edit.text().strip()
+        if not cp_name:
+            QMessageBox.warning(self, "Validation Error", "Cover Page Name is required.")
+            return
+
+        style_config_str = self.style_config_json_edit.toPlainText()
+        try:
+            json.loads(style_config_str) # Validate JSON
+        except json.JSONDecodeError as e:
+            QMessageBox.warning(self, "Invalid JSON", f"Style Configuration is not valid JSON: {e}")
+            return
+
+        data_to_save = {
+            'cover_page_name': cp_name,
+            'client_id': self.client_id if self.mode == 'create' else self.cover_page_data.get('client_id'),
+            'created_by_user_id': self.user_id if self.mode == 'create' else self.cover_page_data.get('created_by_user_id', self.user_id), # Align with db.py
+            'template_id': self.cp_template_combo.currentData(),
+            'title': self.title_edit.text(),
+            'subtitle': self.subtitle_edit.text(),
+            'author_text': self.author_text_edit.text(),
+            'institution_text': self.institution_text_edit.text(),
+            'department_text': self.department_text_edit.text(),
+            'document_type_text': self.document_type_text_edit.text(),
+            'creation_date': self.document_date_edit.date().toString(Qt.ISODate), # Align with db.py
+            'document_version': self.document_version_edit.text(),
+            'logo_data': self.current_logo_bytes,
+            'logo_name': self.current_logo_name,
+            'style_config_json': style_config_str
+        }
+
+        # Ensure created_by_user_id is present for edit mode if it was missing from original data
+        if self.mode == 'edit' and not data_to_save.get('created_by_user_id') and self.user_id:
+             data_to_save['created_by_user_id'] = self.user_id
+
+
+        if self.mode == 'create':
+            if not data_to_save.get('created_by_user_id'): # Final check for creator ID in create mode
+                QMessageBox.critical(self, "Error", "User ID for creation is missing.")
+                return
+
+            new_id = db_manager.add_cover_page(data_to_save)
             if new_id:
-                print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
+                self.cover_page_data['cover_page_id'] = new_id
+                QMessageBox.information(self, "Success", "Cover page created successfully.")
+                self.accept()
             else:
-                print(f"Failed to add default cover page template: '{template_def['template_name']}'")
-    print("Default cover page templates population attempt finished.")
-
-# --- CoverPageTemplates CRUD ---
-def add_cover_page_template(template_data: dict) -> str | None:
-    """Adds a new cover page template. Returns template_id or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        new_template_id = uuid.uuid4().hex
-        now = datetime.utcnow().isoformat() + "Z"
-
-        style_config = template_data.get('style_config_json')
-        if isinstance(style_config, dict): # Ensure it's a JSON string
-            style_config = json.dumps(style_config)
-
-        sql = """
-            INSERT INTO CoverPageTemplates (
-                template_id, template_name, description, default_title, default_subtitle,
-                default_author, style_config_json, is_default_template,
-                created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_template_id,
-            template_data.get('template_name'),
-            template_data.get('description'),
-            template_data.get('default_title'),
-            template_data.get('default_subtitle'),
-            template_data.get('default_author'),
-            style_config,
-            template_data.get('is_default_template', 0), # Handle new field, default to 0
-            now, now,
-            template_data.get('created_by_user_id')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_template_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_cover_page_template: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_cover_page_template_by_id(template_id: str) -> dict | None:
-    """Retrieves a cover page template by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_id = ?", (template_id,))
-        row = cursor.fetchone()
-        if row:
-            data = dict(row)
-            if data.get('style_config_json'):
-                try:
-                    data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template {template_id}")
-                    # Keep as string or set to default dict? For now, keep as is.
-            return data
-        return None
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_template_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_cover_page_template_by_name(template_name: str) -> dict | None:
-    """Retrieves a cover page template by its unique name."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
-        row = cursor.fetchone()
-        if row:
-            data = dict(row)
-            if data.get('style_config_json'):
-                try:
-                    data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template {template_name}")
-            return data
-        return None
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_template_by_name: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offset: int = 0) -> list[dict]:
-    """
-    Retrieves all cover page templates, optionally filtered by is_default.
-    Includes pagination.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        sql = "SELECT * FROM CoverPageTemplates"
-        params = []
-
-        if is_default is not None:
-            sql += " WHERE is_default_template = ?"
-            params.append(1 if is_default else 0)
-
-        sql += " ORDER BY template_name LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        templates = []
-        for row in rows:
-            data = dict(row)
-            if data.get('style_config_json'):
-                try:
-                    data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template ID {data['template_id']}")
-            templates.append(data)
-        return templates
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_cover_page_templates: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_cover_page_template(template_id: str, update_data: dict) -> bool:
-    """Updates an existing cover page template."""
-    conn = None
-    if not update_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
-
-        if 'style_config_json' in update_data and isinstance(update_data['style_config_json'], dict):
-            update_data['style_config_json'] = json.dumps(update_data['style_config_json'])
-
-        # Ensure boolean/integer fields are correctly formatted for SQL if needed
-        if 'is_default_template' in update_data:
-            update_data['is_default_template'] = 1 if update_data['is_default_template'] else 0
-
-        valid_columns = [
-            'template_name', 'description', 'default_title', 'default_subtitle',
-            'default_author', 'style_config_json', 'is_default_template', 'updated_at'
-            # created_by_user_id is typically not updated this way
-        ]
-
-        set_clauses = []
-        sql_params = []
-
-        for key, value in update_data.items():
-            if key in valid_columns:
-                set_clauses.append(f"{key} = ?")
-                sql_params.append(value)
-
-        if not set_clauses:
-            return False # Nothing valid to update
-
-        sql_params.append(template_id)
-        sql = f"UPDATE CoverPageTemplates SET {', '.join(set_clauses)} WHERE template_id = ?"
-
-        cursor.execute(sql, sql_params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_cover_page_template: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_cover_page_template(template_id: str) -> bool:
-    """Deletes a cover page template."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Consider impact on CoverPages using this template (ON DELETE SET NULL)
-        cursor.execute("DELETE FROM CoverPageTemplates WHERE template_id = ?", (template_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_cover_page_template: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-# --- CoverPages CRUD ---
-def add_cover_page(cover_data: dict) -> str | None:
-    """Adds a new cover page instance. Returns cover_page_id or None."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        new_cover_id = uuid.uuid4().hex
-        now = datetime.utcnow().isoformat() + "Z"
-
-        custom_style_config = cover_data.get('custom_style_config_json')
-        if isinstance(custom_style_config, dict):
-            custom_style_config = json.dumps(custom_style_config)
-
-        sql = """
-            INSERT INTO CoverPages (
-                cover_page_id, cover_page_name, client_id, project_id, template_id,
-                title, subtitle, author_text, institution_text, department_text,
-                document_type_text, document_version, creation_date,
-                logo_name, logo_data, custom_style_config_json,
-                created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            new_cover_id,
-            cover_data.get('cover_page_name'),
-            cover_data.get('client_id'),
-            cover_data.get('project_id'),
-            cover_data.get('template_id'),
-            cover_data.get('title'),
-            cover_data.get('subtitle'),
-            cover_data.get('author_text'),
-            cover_data.get('institution_text'),
-            cover_data.get('department_text'),
-            cover_data.get('document_type_text'),
-            cover_data.get('document_version'),
-            cover_data.get('creation_date'),
-            cover_data.get('logo_name'),
-            cover_data.get('logo_data'),
-            custom_style_config,
-            now, now,
-            cover_data.get('created_by_user_id')
-        )
-        cursor.execute(sql, params)
-        conn.commit()
-        return new_cover_id
-    except sqlite3.Error as e:
-        print(f"Database error in add_cover_page: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_cover_page_by_id(cover_page_id: str) -> dict | None:
-    """Retrieves a cover page instance by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPages WHERE cover_page_id = ?", (cover_page_id,))
-        row = cursor.fetchone()
-        if row:
-            data = dict(row)
-            if data.get('custom_style_config_json'):
-                try:
-                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse custom_style_config_json for cover page {cover_page_id}")
-            return data
-        return None
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_cover_pages_for_client(client_id: str) -> list[dict]:
-    """Retrieves all cover pages for a specific client."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPages WHERE client_id = ? ORDER BY created_at DESC", (client_id,))
-        rows = cursor.fetchall()
-        cover_pages = []
-        for row in rows:
-            data = dict(row)
-            # JSON parsing similar to get_cover_page_by_id if needed
-            cover_pages.append(data)
-        return cover_pages
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_client: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_cover_pages_for_project(project_id: str) -> list[dict]:
-    """Retrieves all cover pages for a specific project."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPages WHERE project_id = ? ORDER BY created_at DESC", (project_id,))
-        rows = cursor.fetchall()
-        cover_pages = []
-        for row in rows:
-            data = dict(row)
-            # JSON parsing similar to get_cover_page_by_id if needed
-            cover_pages.append(data)
-        return cover_pages
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_project: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def update_cover_page(cover_page_id: str, update_data: dict) -> bool:
-    """Updates an existing cover page instance."""
-    conn = None
-    if not update_data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
-
-        if 'custom_style_config_json' in update_data and isinstance(update_data['custom_style_config_json'], dict):
-            update_data['custom_style_config_json'] = json.dumps(update_data['custom_style_config_json'])
-
-        set_clauses = [f"{key} = ?" for key in update_data.keys() if key != 'cover_page_id']
-        params = [update_data[key] for key in update_data.keys() if key != 'cover_page_id']
-        params.append(cover_page_id)
-
-        sql = f"UPDATE CoverPages SET {', '.join(set_clauses)} WHERE cover_page_id = ?"
-        cursor.execute(sql, params)
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in update_cover_page: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_cover_page(cover_page_id: str) -> bool:
-    """Deletes a cover page instance."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM CoverPages WHERE cover_page_id = ?", (cover_page_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_cover_page: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def get_cover_pages_for_user(user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
-    """Retrieves cover pages created by a specific user, with pagination."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Querying by 'created_by_user_id' as per the CoverPages table schema
-        sql = "SELECT * FROM CoverPages WHERE created_by_user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"
-        params = (user_id, limit, offset)
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        # It's good practice to parse JSON fields here if any, similar to other get functions
-        cover_pages = []
-        for row in rows:
-            data = dict(row)
-            if data.get('custom_style_config_json'):
-                try:
-                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse custom_style_config_json for cover page {data['cover_page_id']}")
-            cover_pages.append(data)
-        return cover_pages
-    except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_user: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-# --- Lookup Table GET Functions ---
-def get_all_countries() -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Countries ORDER BY country_name")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_all_countries: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_country_by_id(country_id: int) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Countries WHERE country_id = ?", (country_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_country_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_country_by_name(country_name: str) -> dict | None:
-    """Retrieves a country by its name. Returns a dict or None if not found."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_country_by_name: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def add_country(country_data: dict) -> int | None:
-    """
-    Adds a new country to the Countries table.
-    Expects country_data to contain 'country_name'.
-    Returns the country_id of the newly added or existing country.
-    Returns None if an unexpected error occurs.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        country_name = country_data.get('country_name')
-        if not country_name:
-            print("Error: 'country_name' is required to add a country.")
-            return None
-
-        try:
-            cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
-            conn.commit()
-            return cursor.lastrowid
-        except sqlite3.IntegrityError:
-            # Country name already exists, fetch its ID
-            print(f"Country '{country_name}' already exists. Fetching its ID.")
-            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
-            row = cursor.fetchone()
-            return row['country_id'] if row else None
-
-    except sqlite3.Error as e:
-        print(f"Database error in add_country: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_cities(country_id: int = None) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM Cities"
-        params = []
-        if country_id is not None:
-            sql += " WHERE country_id = ?"
-            params.append(country_id)
-        sql += " ORDER BY city_name"
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_all_cities: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def add_city(city_data: dict) -> int | None:
-    """
-    Adds a new city to the Cities table.
-    Expects city_data to contain 'country_id' and 'city_name'.
-    Returns the city_id of the newly added or existing city.
-    Returns None if an unexpected error occurs or if country_id or city_name is missing.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        country_id = city_data.get('country_id')
-        city_name = city_data.get('city_name')
-
-        if not country_id or not city_name:
-            print("Error: 'country_id' and 'city_name' are required to add a city.")
-            return None
-
-        try:
-            # Check if city already exists for this country to avoid IntegrityError for composite uniqueness if not explicitly handled by schema (though schema doesn't show composite unique constraint for city_name+country_id, it's good practice)
-            # However, the current schema for Cities does not have a UNIQUE constraint on (country_id, city_name).
-            # It only has city_id as PK and country_id as FK.
-            # So, we will just insert. If a stricter uniqueness is needed, the table schema should be updated.
-            cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
-            conn.commit()
-            return cursor.lastrowid
-        except sqlite3.IntegrityError:
-            # This part would be relevant if there was a UNIQUE constraint on (country_id, city_name)
-            # For now, this block might not be hit unless city_name itself becomes unique across all countries (which is not typical)
-            print(f"IntegrityError likely means city '{city_name}' under country_id '{country_id}' already exists or other constraint failed.")
-            # If it were unique and we wanted to return existing:
-            # cursor.execute("SELECT city_id FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
-            # row = cursor.fetchone()
-            # return row['city_id'] if row else None
-            return None # For now, any IntegrityError is treated as a failure to add as new.
-
-    except sqlite3.Error as e:
-        print(f"Database error in add_city: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_city_by_name_and_country_id(city_name: str, country_id: int) -> dict | None:
-    """Retrieves a specific city by name for a given country_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_city_by_name_and_country_id: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def get_city_by_id(city_id: int) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Cities WHERE city_id = ?", (city_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_city_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_all_templates(template_type_filter: str = None, language_code_filter: str = None) -> list[dict]:
-    """
-    Retrieves all templates, optionally filtered by template_type and/or language_code.
-    If template_type_filter is None, retrieves all templates regardless of type.
-    If language_code_filter is None, retrieves for all languages.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM Templates"
-        params = []
-        where_clauses = []
-
-        if template_type_filter:
-            where_clauses.append("template_type = ?")
-            params.append(template_type_filter)
-        if language_code_filter:
-            where_clauses.append("language_code = ?")
-            params.append(language_code_filter)
-
-        if where_clauses:
-            sql += " WHERE " + " AND ".join(where_clauses)
-
-        sql += " ORDER BY template_name, language_code"
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_templates: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_all_file_based_templates() -> list[dict]:
-    """Retrieves all templates that have a base_file_name, suitable for document creation."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Selects templates that are likely file-based documents
-        # Changed 'category' to 'category_id'.
-        # If category_name is needed here, a JOIN with TemplateCategories would be required.
-        sql = "SELECT template_id, template_name, language_code, base_file_name, description, category_id FROM Templates WHERE base_file_name IS NOT NULL AND base_file_name != '' ORDER BY template_name, language_code"
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_file_based_templates: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_templates_by_category_id(category_id: int) -> list[dict]:
-    """Retrieves all templates for a given category_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Templates WHERE category_id = ? ORDER BY template_name, language_code", (category_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_templates_by_category_id: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def get_all_tasks(active_only: bool = False, project_id_filter: str = None) -> list[dict]:
-    """
-    Retrieves all tasks, optionally filtering for active tasks only and/or by project_id.
-    Active tasks are those not linked to a status marked as completion or archival.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT t.* FROM Tasks t"
-        params = []
-        where_clauses = []
-
-        if active_only:
-            sql += """
-                LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id
-            """
-            where_clauses.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-
-        if project_id_filter:
-            where_clauses.append("t.project_id = ?")
-            params.append(project_id_filter)
-
-        if where_clauses:
-            sql += " WHERE " + " AND ".join(where_clauses)
-
-        sql += " ORDER BY t.created_at DESC" # Or some other meaningful order
-
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_all_tasks: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_tasks_by_assignee_id(assignee_team_member_id: int, active_only: bool = False) -> list[dict]:
-    """
-    Retrieves tasks assigned to a specific team member, optionally filtering for active tasks.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT t.* FROM Tasks t"
-        params = []
-        where_clauses = ["t.assignee_team_member_id = ?"]
-        params.append(assignee_team_member_id)
-
-        if active_only:
-            sql += """
-                LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id
-            """
-            where_clauses.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-
-        if where_clauses: # Will always be true because of assignee_team_member_id
-            sql += " WHERE " + " AND ".join(where_clauses)
-
-        sql += " ORDER BY t.due_date ASC, t.priority DESC"
-
-        cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_tasks_by_assignee_id: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_all_status_settings(status_type: str = None) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "SELECT * FROM StatusSettings"
-        params = []
-        if status_type:
-            sql += " WHERE status_type = ?"
-            params.append(status_type)
-        sql += " ORDER BY status_type, status_name"
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"DB error in get_all_status_settings: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_status_setting_by_id(status_id: int) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM StatusSettings WHERE status_id = ?", (status_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_status_setting_by_id: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_status_setting_by_name(status_name: str, status_type: str) -> dict | None:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?", (status_name, status_type))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"DB error in get_status_setting_by_name: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-# --- Milestone Functions ---
-def add_milestone(data: dict) -> int | None:
-    """
-    Adds a new milestone. Returns milestone_id or None.
-    Expected data keys: 'project_id', 'milestone_name', 'description', 'due_date', 'status_id'.
-    'created_at' and 'updated_at' are handled automatically.
-    """
-    # data = {'project_id': ..., 'milestone_name': ..., 'description': ..., 'due_date': ..., 'status_id': ...}
-    fields = ['project_id', 'milestone_name', 'description', 'due_date', 'status_id']
-    query = f"INSERT INTO Milestones ({', '.join(fields)}) VALUES ({', '.join(['?'] * len(fields))})"
-    values = [data.get(f) for f in fields]
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, values)
-        conn.commit()
-        return cursor.lastrowid
-    except Exception as e:
-        print(f"Error adding milestone: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_milestones_for_project(project_id: str) -> list[dict]:
-    """Retrieves all milestones for a project, ordered by due_date and creation."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT M.*, SS.status_name, SS.color_hex
-            FROM Milestones M
-            LEFT JOIN StatusSettings SS ON M.status_id = SS.status_id
-            WHERE M.project_id = ?
-            ORDER BY M.due_date ASC, M.created_at ASC
-        ''', (project_id,))
-        return [dict(row) for row in cursor.fetchall()]
-    except Exception as e:
-        print(f"Error fetching milestones for project {project_id}: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_milestone_by_id(milestone_id: int) -> dict | None:
-    """Retrieves a milestone by its ID."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Milestones WHERE milestone_id = ?", (milestone_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except Exception as e:
-        print(f"Error fetching milestone {milestone_id}: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def update_milestone(milestone_id: int, data: dict) -> bool:
-    """
-    Updates an existing milestone. Returns True on success.
-    Expected data keys can include: 'milestone_name', 'description', 'due_date', 'status_id'.
-    The 'updated_at' field is automatically updated by a database trigger.
-    """
-    # data = {'milestone_name': ..., 'description': ..., 'due_date': ..., 'status_id': ...}
-    # updated_at is handled by trigger
-    conn = None
-    if not data: return False
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        fields = [f"{field} = ?" for field in data.keys()]
-        values = list(data.values())
-        values.append(milestone_id)
-        query = f"UPDATE Milestones SET {', '.join(fields)} WHERE milestone_id = ?"
-
-        cursor.execute(query, values)
-        conn.commit()
-        return cursor.rowcount > 0
-    except Exception as e:
-        print(f"Error updating milestone {milestone_id}: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def delete_milestone(milestone_id: int) -> bool:
-    """Deletes a milestone. Returns True on success."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Milestones WHERE milestone_id = ?", (milestone_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except Exception as e:
-        print(f"Error deleting milestone {milestone_id}: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def get_project_by_client_id(client_id_str: str) -> dict | None:
-    """Retrieves the first project associated with a given client_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Assuming only one project per client is typical for this function's purpose,
-        # or that the first one found is sufficient.
-        cursor.execute("SELECT * FROM Projects WHERE client_id = ? LIMIT 1", (client_id_str,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_project_by_client_id for client_id {client_id_str}: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-# --- Task Dependency Functions ---
-def add_task_dependency(data: dict) -> int | None:
-    """
-    Adds a task dependency.
-    data = {'task_id': ..., 'predecessor_task_id': ...}
-    Returns the new dependency_id if successful, otherwise None.
-    """
-    if not data.get('task_id') or not data.get('predecessor_task_id'):
-        print("Error: task_id and predecessor_task_id are required for dependency.")
-        return None
-    if data['task_id'] == data['predecessor_task_id']:
-        print("Error: Task cannot depend on itself.")
-        return None
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO TaskDependencies (task_id, predecessor_task_id) VALUES (?, ?)",
-            (data['task_id'], data['predecessor_task_id'])
-        )
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.IntegrityError as e:
-        print(f"Failed to add task dependency (task_id={data['task_id']}, pred_id={data['predecessor_task_id']}): {e}. Might be a duplicate.")
-        return None
-    except Exception as e:
-        print(f"Error adding task dependency: {e}")
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_predecessor_tasks(task_id: int) -> list[dict]:
-    """Returns full task details of predecessor tasks for a given task_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT T.* FROM Tasks T
-            JOIN TaskDependencies TD ON T.task_id = TD.predecessor_task_id
-            WHERE TD.task_id = ?
-        ''', (task_id,))
-        return [dict(row) for row in cursor.fetchall()]
-    except Exception as e:
-        print(f"Error fetching predecessor tasks for task_id {task_id}: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def get_dependent_tasks(task_id: int) -> list[dict]:
-    """Returns full task details of tasks that depend on the given task_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT T.* FROM Tasks T
-            JOIN TaskDependencies TD ON T.task_id = TD.task_id
-            WHERE TD.predecessor_task_id = ?
-        ''', (task_id,))
-        return [dict(row) for row in cursor.fetchall()]
-    except Exception as e:
-        print(f"Error fetching dependent tasks for task_id {task_id}: {e}")
-        return []
-    finally:
-        if conn: conn.close()
-
-def remove_task_dependency(task_id: int, predecessor_task_id: int) -> bool:
-    """Removes a specific task dependency."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM TaskDependencies WHERE task_id = ? AND predecessor_task_id = ?",
-            (task_id, predecessor_task_id)
-        )
-        conn.commit()
-        return cursor.rowcount > 0
-    except Exception as e:
-        print(f"Error removing task dependency (task_id={task_id}, pred_id={predecessor_task_id}): {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-def remove_all_dependencies_for_task(task_id: int) -> bool:
-    """Removes all dependencies where the task is either the dependent or the predecessor."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Remove where it's the dependent task
-        cursor.execute("DELETE FROM TaskDependencies WHERE task_id = ?", (task_id,))
-        # Remove where it's the predecessor task
-        cursor.execute("DELETE FROM TaskDependencies WHERE predecessor_task_id = ?", (task_id,))
-        conn.commit()
-        return True # Returns true if execution succeeded, rows affected could be 0.
-    except Exception as e:
-        print(f"Error removing all dependencies for task_id {task_id}: {e}")
-        return False
-    finally:
-        if conn: conn.close()
-
-if __name__ == '__main__':
-    initialize_database() # Ensure tables are created with new schema
-    print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
-
-    # Example Usage (Illustrative - uncomment and adapt to test)
-
-    # --- Test Companies and CompanyPersonnel ---
-    print("\n--- Testing Companies and CompanyPersonnel ---")
-    comp1_id = add_company({'company_name': 'Default Corp', 'address': '123 Main St', 'is_default': True})
-    if comp1_id:
-        print(f"Added company 'Default Corp' with ID: {comp1_id}")
-        set_default_company(comp1_id) # Ensure it's default
-        ret_comp1 = get_company_by_id(comp1_id)
-        print(f"Retrieved company: {ret_comp1['company_name']}, Default: {ret_comp1['is_default']}")
-
-        pers1_id = add_company_personnel({'company_id': comp1_id, 'name': 'John Doe', 'role': 'seller'})
-        if pers1_id:
-            print(f"Added personnel 'John Doe' with ID: {pers1_id} to {comp1_id}")
-
-        pers2_id = add_company_personnel({'company_id': comp1_id, 'name': 'Jane Smith', 'role': 'technical_manager'})
-        if pers2_id:
-            print(f"Added personnel 'Jane Smith' with ID: {pers2_id} to {comp1_id}")
-
-        all_personnel = get_personnel_for_company(comp1_id)
-        print(f"All personnel for Default Corp: {len(all_personnel)}")
-        sellers = get_personnel_for_company(comp1_id, role='seller')
-        print(f"Sellers for Default Corp: {len(sellers)}")
-
-        if pers1_id:
-            update_company_personnel(pers1_id, {'name': 'Johnathan Doe', 'role': 'senior_seller'})
-            updated_pers1 = get_personnel_for_company(comp1_id, role='senior_seller') # Check if update worked
-            if updated_pers1: print(f"Updated personnel: {updated_pers1[0]['name']}")
-
-    comp2_id = add_company({'company_name': 'Second Ent.', 'address': '456 Side Ave'})
-    if comp2_id:
-        print(f"Added company 'Second Ent.' with ID: {comp2_id}")
-        set_default_company(comp1_id) # Try setting first one as default again
-        ret_comp2 = get_company_by_id(comp2_id)
-        if ret_comp2: print(f"Company 'Second Ent.' is_default: {ret_comp2['is_default']}")
-        ret_comp1_after = get_company_by_id(comp1_id)
-        if ret_comp1_after: print(f"Company 'Default Corp' is_default after re-set: {ret_comp1_after['is_default']}")
-
-
-    all_companies = get_all_companies()
-    print(f"Total companies: {len(all_companies)}")
-
-    # Cleanup (optional, for testing)
-    # if pers1_id: delete_company_personnel(pers1_id)
-    # if pers2_id: delete_company_personnel(pers2_id)
-    # if comp1_id: delete_company(comp1_id) # This would cascade delete personnel
-    # if comp2_id: delete_company(comp2_id)
-
-
-    # --- Pre-populate base data for FK constraints (Countries, Cities, StatusSettings) ---
-    # (This setup code is largely the same as the previous step, ensuring essential lookup data)
-    conn_main_setup = get_db_connection()
-    try:
-        cursor_main_setup = conn_main_setup.cursor()
-        # ... (Country, City, StatusSettings insertions as before) ...
-        cursor_main_setup.execute("INSERT OR IGNORE INTO Countries (country_id, country_name) VALUES (1, 'Default Country')")
-        cursor_main_setup.execute("INSERT OR IGNORE INTO Cities (city_id, country_id, city_name) VALUES (1, 1, 'Default City')")
-        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type) VALUES (1, 'Active Client', 'Client')")
-        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type, is_completion_status) VALUES (10, 'Project Planning', 'Project', FALSE)")
-        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type, is_completion_status) VALUES (22, 'Task Done', 'Task', TRUE)")
-
-        conn_main_setup.commit()
-        print("Default data for Countries, Cities, StatusSettings ensured for testing.")
-    except sqlite3.Error as e_setup:
-        print(f"Error ensuring default lookup data in __main__: {e_setup}")
-    finally:
-        if conn_main_setup:
-            conn_main_setup.close()
-
-    # --- Setup common entities for tests: User, Client, Project, Template ---
-    test_user_id = add_user({'username': 'docuser', 'password': 'password', 'full_name': 'Doc User', 'email': 'doc@example.com', 'role': 'editor'})
-    if test_user_id: print(f"Created user 'docuser' (ID: {test_user_id}) for document tests.")
-
-    test_client_id_for_docs = None
-    existing_doc_clients = get_all_clients({'client_name': 'Doc Test Client'})
-    if not existing_doc_clients:
-        test_client_id_for_docs = add_client({'client_name': 'Doc Test Client', 'created_by_user_id': test_user_id})
-        if test_client_id_for_docs: print(f"Added 'Doc Test Client' (ID: {test_client_id_for_docs})")
-    else:
-        test_client_id_for_docs = existing_doc_clients[0]['client_id']
-        print(f"Using existing 'Doc Test Client' (ID: {test_client_id_for_docs})")
-    
-    test_project_id_for_docs = None
-    if test_client_id_for_docs and test_user_id:
-        client_projects_for_docs = get_projects_by_client_id(test_client_id_for_docs)
-        if not client_projects_for_docs:
-            test_project_id_for_docs = add_project({
-                'client_id': test_client_id_for_docs, 
-                'project_name': 'Doc Test Project', 
-                'manager_team_member_id': test_user_id, 
-                'status_id': 10
-            })
-            if test_project_id_for_docs: print(f"Added 'Doc Test Project' (ID: {test_project_id_for_docs})")
-        else:
-            test_project_id_for_docs = client_projects_for_docs[0]['project_id']
-            print(f"Using existing 'Doc Test Project' (ID: {test_project_id_for_docs})")
-
-    test_template_id = None
-    # Assuming a template might be needed for source_template_id
-    templates = get_templates_by_type('general_document') # or some relevant type
-    if not templates:
-        test_template_id = add_template({
-            'template_name': 'General Document Template for Docs', 
-            'template_type': 'general_document', 
-            'language_code': 'en_US',
-            'created_by_user_id': test_user_id
-        })
-        if test_template_id: print(f"Added a test template (ID: {test_template_id}) for documents.")
-    else:
-        test_template_id = templates[0]['template_id']
-        print(f"Using existing test template (ID: {test_template_id}) for documents.")
-
-
-    print("\n--- ClientDocuments CRUD Examples ---")
-    doc1_id = None
-    if test_client_id_for_docs and test_user_id:
-        doc1_id = add_client_document({
-            'client_id': test_client_id_for_docs,
-            'project_id': test_project_id_for_docs, # Optional
-            'document_name': 'Initial Proposal.pdf',
-            'file_name_on_disk': 'proposal_v1_final.pdf',
-            'file_path_relative': f"{test_client_id_for_docs}/{test_project_id_for_docs if test_project_id_for_docs else '_client'}/proposal_v1_final.pdf",
-            'document_type_generated': 'Proposal',
-            'source_template_id': test_template_id, # Optional
-            'created_by_user_id': test_user_id
-        })
-        if doc1_id:
-            print(f"Added client document 'Initial Proposal.pdf' with ID: {doc1_id}")
-            ret_doc = get_document_by_id(doc1_id)
-            print(f"Retrieved document by ID: {ret_doc['document_name'] if ret_doc else 'Not found'}")
-
-            update_doc_success = update_client_document(doc1_id, {'notes': 'Client approved.', 'version_tag': 'v1.1'})
-            print(f"Client document update successful: {update_doc_success}")
-        else:
-            print("Failed to add client document.")
-
-    if test_client_id_for_docs:
-        client_docs = get_documents_for_client(test_client_id_for_docs, filters={'document_type_generated': 'Proposal'})
-        print(f"Proposal documents for client {test_client_id_for_docs}: {len(client_docs)}")
-        
-        # Test fetching client-general documents (project_id IS NULL)
-        client_general_doc_id = add_client_document({
-            'client_id': test_client_id_for_docs,
-            'document_name': 'Client Onboarding Checklist.docx',
-            'file_name_on_disk': 'client_onboarding.docx',
-            'file_path_relative': f"{test_client_id_for_docs}/client_onboarding.docx",
-            'document_type_generated': 'Checklist',
-            'created_by_user_id': test_user_id
-        })
-        if client_general_doc_id: print(f"Added client-general document ID: {client_general_doc_id}")
-        
-        client_general_docs = get_documents_for_client(test_client_id_for_docs, filters={'project_id': None})
-        print(f"Client-general documents for client {test_client_id_for_docs}: {len(client_general_docs)}")
-
-
-    if test_project_id_for_docs:
-        project_docs = get_documents_for_project(test_project_id_for_docs)
-        print(f"Documents for project {test_project_id_for_docs}: {len(project_docs)}")
-
-
-    print("\n--- SmtpConfigs CRUD Examples ---")
-    # Assuming password is encrypted elsewhere before calling add/update
-    encrypted_pass = "dummy_encrypted_password_string" 
-    
-    smtp1_id = add_smtp_config({
-        'config_name': 'Primary Gmail', 'smtp_server': 'smtp.gmail.com', 'smtp_port': 587,
-        'username': 'user@gmail.com', 'password_encrypted': encrypted_pass, 
-        'use_tls': True, 'is_default': True, 
-        'sender_email_address': 'user@gmail.com', 'sender_display_name': 'My Gmail Account'
-    })
-    if smtp1_id:
-        print(f"Added SMTP config 'Primary Gmail' with ID: {smtp1_id}")
-        ret_smtp = get_smtp_config_by_id(smtp1_id)
-        print(f"Retrieved SMTP by ID: {ret_smtp['config_name'] if ret_smtp else 'Not found'}, Default: {ret_smtp.get('is_default') if ret_smtp else ''}")
-    else:
-        print("Failed to add 'Primary Gmail' SMTP config.")
-
-    smtp2_id = add_smtp_config({
-        'config_name': 'Secondary Outlook', 'smtp_server': 'smtp.office365.com', 'smtp_port': 587,
-        'username': 'user@outlook.com', 'password_encrypted': encrypted_pass, 
-        'is_default': False, # Explicitly false
-        'sender_email_address': 'user@outlook.com', 'sender_display_name': 'My Outlook Account'
-    })
-    if smtp2_id:
-        print(f"Added SMTP config 'Secondary Outlook' with ID: {smtp2_id}")
-        default_conf = get_default_smtp_config()
-        print(f"Current default SMTP config: {default_conf['config_name'] if default_conf else 'None'}") # Should still be Gmail
-    else:
-        print("Failed to add 'Secondary Outlook' SMTP config.")
-
-    if smtp2_id: # Set Outlook as default
-        set_default_success = set_default_smtp_config(smtp2_id)
-        print(f"Set 'Secondary Outlook' as default successful: {set_default_success}")
-        default_conf_after_set = get_default_smtp_config()
-        print(f"New default SMTP config: {default_conf_after_set['config_name'] if default_conf_after_set else 'None'}")
-        
-        # Verify Gmail is no longer default
-        gmail_conf_after_set = get_smtp_config_by_id(smtp1_id)
-        if gmail_conf_after_set:
-            print(f"'Primary Gmail' is_default status: {gmail_conf_after_set['is_default']}")
-
-
-    all_smtps = get_all_smtp_configs()
-    print(f"Total SMTP configs: {len(all_smtps)}")
-
-    if smtp1_id:
-        update_smtp_success = update_smtp_config(smtp1_id, {'sender_display_name': 'Updated Gmail Name', 'is_default': True})
-        print(f"SMTP config update for Gmail (set default again) successful: {update_smtp_success}")
-        updated_smtp1 = get_smtp_config_by_id(smtp1_id)
-        print(f"Updated Gmail display name: {updated_smtp1['sender_display_name'] if updated_smtp1 else ''}, Default: {updated_smtp1.get('is_default') if updated_smtp1 else ''}")
-        
-        # Verify Outlook is no longer default
-        outlook_conf_after_gmail_default = get_smtp_config_by_id(smtp2_id)
-        if outlook_conf_after_gmail_default:
-            print(f"'Secondary Outlook' is_default status: {outlook_conf_after_gmail_default['is_default']}")
-
-
-    # Cleanup examples (use with caution)
-    # if doc1_id: delete_client_document(doc1_id)
-    # if client_general_doc_id: delete_client_document(client_general_doc_id)
-    # if smtp1_id: delete_smtp_config(smtp1_id)
-    # if smtp2_id: delete_smtp_config(smtp2_id)
-    # # test_project_id_for_docs, test_client_id_for_docs, test_user_id, test_template_id might be deleted by previous test block's commented out deletions
-    # # Consider re-fetching or ensuring they exist before these deletions if running sequentially multiple times
-    # if test_project_id_for_docs and get_project_by_id(test_project_id_for_docs): delete_project(test_project_id_for_docs)
-    # if test_client_id_for_docs and get_client_by_id(test_client_id_for_docs): delete_client(test_client_id_for_docs)
-    # if test_template_id and get_template_by_id(test_template_id): delete_template(test_template_id)
-    # if test_user_id and get_user_by_id(test_user_id): delete_user(test_user_id)
-
-    print("\n--- TeamMembers Extended Fields and KPIs CRUD Examples ---")
-
-    # --- Cover Page Templates and Cover Pages Test ---
-    print("\n--- Testing Cover Page Templates and Cover Pages ---")
-    cpt_user_id = add_user({'username': 'cpt_user', 'password': 'password123', 'full_name': 'Cover Template User', 'email': 'cpt@example.com', 'role': 'designer'})
-    if not cpt_user_id: cpt_user_id = get_user_by_username('cpt_user')['user_id']
-
-    cpt_custom_id = add_cover_page_template({ # Renamed to avoid confusion with defaults
-        'template_name': 'My Custom Report',
-        'description': 'A custom template for special reports.',
-        'default_title': 'Custom Report Title',
-        'style_config_json': {'font': 'Georgia', 'primary_color': '#AA00AA'},
-        'created_by_user_id': cpt_user_id,
-        'is_default_template': 0 # Explicitly not default
-    })
-    if cpt_custom_id: print(f"Added Custom Cover Page Template 'My Custom Report' ID: {cpt_custom_id}, IsDefault: 0")
-
-    if cpt_custom_id:
-        ret_cpt_custom = get_cover_page_template_by_id(cpt_custom_id)
-        print(f"Retrieved Custom CPT by ID: {ret_cpt_custom['template_name'] if ret_cpt_custom else 'Not found'}, IsDefault: {ret_cpt_custom.get('is_default_template') if ret_cpt_custom else 'N/A'}")
-
-        # Test update: make it a default template (then change back for other tests)
-        update_cpt_success = update_cover_page_template(cpt_custom_id, {'description': 'Updated custom description.', 'is_default_template': 1})
-        print(f"Update Custom CPT 'My Custom Report' to be default success: {update_cpt_success}")
-        ret_cpt_custom_updated = get_cover_page_template_by_id(cpt_custom_id)
-        print(f"Retrieved updated Custom CPT: {ret_cpt_custom_updated['template_name'] if ret_cpt_custom_updated else 'N/A'}, IsDefault: {ret_cpt_custom_updated.get('is_default_template') if ret_cpt_custom_updated else 'N/A'}")
-        assert ret_cpt_custom_updated.get('is_default_template') == 1
-
-        # Change it back to not default
-        update_cpt_success_back = update_cover_page_template(cpt_custom_id, {'is_default_template': 0})
-        print(f"Update Custom CPT 'My Custom Report' back to NOT default success: {update_cpt_success_back}")
-        ret_cpt_custom_final = get_cover_page_template_by_id(cpt_custom_id)
-        print(f"Retrieved final Custom CPT: {ret_cpt_custom_final['template_name'] if ret_cpt_custom_final else 'N/A'}, IsDefault: {ret_cpt_custom_final.get('is_default_template') if ret_cpt_custom_final else 'N/A'}")
-        assert ret_cpt_custom_final.get('is_default_template') == 0
-
-
-    print(f"\n--- Testing get_all_cover_page_templates with is_default filter ---")
-    all_tmpls = get_all_cover_page_templates() # No filter
-    print(f"Total templates (no filter): {len(all_tmpls)}")
-
-    default_tmpls = get_all_cover_page_templates(is_default=True)
-    print(f"Default templates (is_default=True): {len(default_tmpls)}")
-    for t in default_tmpls:
-        print(f"  - Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
-        assert t['is_default_template'] == 1, f"Template '{t['template_name']}' should be default!"
-
-    non_default_tmpls = get_all_cover_page_templates(is_default=False)
-    print(f"Non-default templates (is_default=False): {len(non_default_tmpls)}")
-    if cpt_custom_id and ret_cpt_custom_final and ret_cpt_custom_final.get('is_default_template') == 0:
-        found_in_non_default = any(t['template_id'] == cpt_custom_id for t in non_default_tmpls)
-        assert found_in_non_default, "'My Custom Report' was set to non-default but NOT found in non-defaults."
-        print(f"'My Custom Report' correctly found in non-default list.")
-    for t in non_default_tmpls:
-         print(f"  - Non-Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
-         assert t['is_default_template'] == 0, f"Template '{t['template_name']}' should be non-default!"
-
-    # Test get_cover_page_template_by_name for a default template
-    standard_report_template = get_cover_page_template_by_name('Standard Report Cover')
-    if standard_report_template:
-        print(f"Retrieved 'Standard Report Cover' by name. IsDefault: {standard_report_template.get('is_default_template')}")
-        assert standard_report_template.get('is_default_template') == 1, "'Standard Report Cover' should be default by name."
-    else:
-        print("Could not retrieve 'Standard Report Cover' by name for is_default check.")
-
-    # Cover Page instance
-    cp_client_id = add_client({'client_name': 'CoverPage Client', 'project_identifier': 'CP_Test_001'})
-    if not cp_client_id: cp_client_id = get_all_clients({'client_name': 'CoverPage Client'})[0]['client_id']
-
-    cp1_id = None
-    if cp_client_id and cpt1_id and cpt_user_id:
-        cp1_id = add_cover_page({
-            'cover_page_name': 'Client X - Proposal Cover V1',
-            'client_id': cp_client_id,
-            'template_id': cpt1_id,
-            'title': 'Specific Project Proposal',
-            'subtitle': 'For CoverPage Client',
-            'author_text': 'Sales Team', # Updated field name
-            'institution_text': 'Our Company LLC',
-            'department_text': 'Sales Department',
-            'document_type_text': 'Proposal',
-            'document_version': '1.0',
-            'creation_date': datetime.utcnow().date().isoformat(),
-            'logo_name': 'specific_logo.png', # Updated field name
-            'logo_data': b'somedummyimagedata',   # Added field
-            'custom_style_config_json': {'secondary_color': '#FF0000'},
-            'created_by_user_id': cpt_user_id
-        })
-        if cp1_id: print(f"Added Cover Page instance ID: {cp1_id}")
-
-    if cp1_id:
-        ret_cp1 = get_cover_page_by_id(cp1_id)
-        print(f"Retrieved Cover Page by ID: {ret_cp1['title'] if ret_cp1 else 'Not found'}")
-        print(f"  Custom Style: {ret_cp1.get('custom_style_config_json') if ret_cp1 else ''}")
-
-    if cp_client_id:
-        client_cover_pages = get_cover_pages_for_client(cp_client_id)
-        print(f"Cover pages for client {cp_client_id}: {len(client_cover_pages)}")
-
-    # Clean up Cover Page related test data
-    if cp1_id and get_cover_page_by_id(cp1_id): delete_cover_page(cp1_id) # cp1_id is a cover page instance
-    if cpt_custom_id and get_cover_page_template_by_id(cpt_custom_id): # cpt_custom_id is a template
-        delete_cover_page_template(cpt_custom_id)
-        print(f"Cleaned up custom template ID {cpt_custom_id}")
-    # Default templates (like 'Classic Formal' referenced by cpt2_id) should not be deleted here by tests.
-
-    # Test get_cover_pages_for_user (using cpt_user_id for whom defaults were made)
-    if cpt_user_id:
-        # Add a cover page specifically for this user to test retrieval
-        # Ensure cp_client_id is still valid or re-fetch/re-create.
-        # For simplicity, assume cp_client_id created earlier is still usable for this test.
-        # If cp_client_id was deleted, this part needs adjustment or ensure it's created before this block.
-
-        # Let's ensure a client exists for this test section
-        test_get_user_pages_client_id = cp_client_id # Try to reuse if available
-        if not test_get_user_pages_client_id or not get_client_by_id(test_get_user_pages_client_id):
-            test_get_user_pages_client_id = add_client({'client_name': 'ClientForUserPageTest', 'project_identifier': 'CPUPT_001', 'created_by_user_id': cpt_user_id})
-
-        temp_cp_for_user_test_id = None
-        if test_get_user_pages_client_id and cpt_user_id:
-             temp_cp_for_user_test_id = add_cover_page({
-                'cover_page_name': 'User Specific Cover Test for Get',
-                'client_id': test_get_user_pages_client_id,
-                'title': 'User Test Document - Get Test',
-                'created_by_user_id': cpt_user_id
-            })
-
-        if temp_cp_for_user_test_id:
-            print(f"\n--- Testing get_cover_pages_for_user for user: {cpt_user_id} ---")
-            user_cover_pages = get_cover_pages_for_user(cpt_user_id)
-            print(f"Found {len(user_cover_pages)} cover page(s) for user {cpt_user_id}.")
-            if user_cover_pages:
-                print(f"First cover page found: '{user_cover_pages[0]['cover_page_name']}' with title '{user_cover_pages[0]['title']}'")
-            delete_cover_page(temp_cp_for_user_test_id) # Cleanup
-            print(f"Cleaned up temporary cover page ID: {temp_cp_for_user_test_id}")
-        else:
-            print(f"\nCould not create a temporary cover page for user {cpt_user_id} for get_cover_pages_for_user test.")
-
-        if test_get_user_pages_client_id and test_get_user_pages_client_id != cp_client_id: # If we created a new one for this test
-             delete_client(test_get_user_pages_client_id)
-
-
-    if cp_client_id and get_client_by_id(cp_client_id): delete_client(cp_client_id)
-    if cpt_user_id and get_user_by_id(cpt_user_id): delete_user(cpt_user_id)
-    print("--- Cover Page testing completed and cleaned up. ---")
-
-    initialize_database() # Ensure tables are created with new schema
-
-    # --- Populate Default Cover Page Templates ---
-    # This should be called AFTER initialize_database() to ensure tables exist.
-    _populate_default_cover_page_templates()
-
-    # Test TeamMembers
-    print("\nTesting TeamMembers...")
-    tm_email = "new.teammember@example.com"
-    # Clean up if exists from previous failed run
-    existing_tm_list = get_all_team_members()
-    for tm in existing_tm_list:
-        if tm['email'] == tm_email:
-            delete_team_member(tm['team_member_id'])
-            print(f"Deleted existing test team member with email {tm_email}")
-
-    team_member_id = add_team_member({
-        'full_name': 'New Member',
-        'email': tm_email,
-        'role_or_title': 'Developer',
-        'department': 'Engineering',
-        'hire_date': '2024-01-15',
-        'performance': 8,
-        'skills': 'Python, SQL, FastAPI'
-    })
-    if team_member_id:
-        print(f"Added team member 'New Member' with ID: {team_member_id}")
-        member = get_team_member_by_id(team_member_id)
-        print(f"Retrieved member: {member}")
-
-        updated = update_team_member(team_member_id, {
-            'performance': 9,
-            'skills': 'Python, SQL, FastAPI, Docker'
-        })
-        print(f"Team member update successful: {updated}")
-        member = get_team_member_by_id(team_member_id)
-        print(f"Updated member: {member}")
-    else:
-        print("Failed to add team member.")
-
-    # Test KPIs - Requires a project
-    print("\nTesting KPIs...")
-    # Need a client and user for project
-    kpi_test_user_id = add_user({'username': 'kpi_user', 'password': 'password', 'full_name': 'KPI User', 'email': 'kpi@example.com', 'role': 'manager'})
-    if not kpi_test_user_id:
-        # Attempt to get existing user if add failed due to uniqueness
-        kpi_user_existing = get_user_by_username('kpi_user')
-        if kpi_user_existing:
-            kpi_test_user_id = kpi_user_existing['user_id']
-            print(f"Using existing user 'kpi_user' (ID: {kpi_test_user_id})")
-        else:
-            print("Failed to create or find user 'kpi_user' for KPI tests. Aborting KPI tests.")
-            kpi_test_user_id = None
-
-    kpi_test_client_id = None
-    if kpi_test_user_id:
-        kpi_test_client_id = add_client({'client_name': 'KPI Test Client', 'created_by_user_id': kpi_test_user_id})
-        if not kpi_test_client_id:
-            existing_kpi_client = get_all_clients({'client_name': 'KPI Test Client'})
-            if existing_kpi_client:
-                kpi_test_client_id = existing_kpi_client[0]['client_id']
-                print(f"Using existing client 'KPI Test Client' (ID: {kpi_test_client_id})")
+                QMessageBox.critical(self, "Error", "Failed to create cover page.")
+        elif self.mode == 'edit':
+            if db_manager.update_cover_page(self.cover_page_data['cover_page_id'], data_to_save):
+                QMessageBox.information(self, "Success", "Cover page updated successfully.")
+                self.accept()
             else:
-                print("Failed to create or find client 'KPI Test Client'. Aborting KPI tests.")
-                kpi_test_client_id = None
+                QMessageBox.critical(self, "Error", "Failed to update cover page.")
 
-    test_project_for_kpi_id = None
-    if kpi_test_client_id and kpi_test_user_id:
-        # Clean up existing project if any
-        existing_projects = get_projects_by_client_id(kpi_test_client_id)
-        for p in existing_projects:
-            if p['project_name'] == 'KPI Test Project':
-                # Need to delete KPIs associated with this project first
-                kpis_to_delete = get_kpis_for_project(p['project_id'])
-                for kpi_del in kpis_to_delete:
-                    delete_kpi(kpi_del['kpi_id'])
-                delete_project(p['project_id'])
-                print(f"Deleted existing 'KPI Test Project' and its KPIs.")
 
-        test_project_for_kpi_id = add_project({
-            'client_id': kpi_test_client_id,
-            'project_name': 'KPI Test Project',
-            'manager_team_member_id': kpi_test_user_id, # Assuming user_id can be used here as per schema
-            'status_id': 10 # Assuming status_id 10 exists ('Project Planning')
-        })
-        if test_project_for_kpi_id:
-            print(f"Added 'KPI Test Project' with ID: {test_project_for_kpi_id} for KPI tests.")
-        else:
-            print("Failed to add project for KPI tests.")
+if __name__ == "__main__":
+    # This block is for standalone testing of MainDashboard
+    app = QApplication(sys.argv)
 
-    if test_project_for_kpi_id:
-        kpi_id = add_kpi({
-            'project_id': test_project_for_kpi_id,
-            'name': 'Customer Satisfaction',
-            'value': 85.5,
-            'target': 90.0,
-            'trend': 'up',
-            'unit': '%'
-        })
-        if kpi_id:
-            print(f"Added KPI 'Customer Satisfaction' with ID: {kpi_id}")
+    # Global style
+    app.setStyle("Fusion")
 
-            ret_kpi = get_kpi_by_id(kpi_id)
-            print(f"Retrieved KPI by ID: {ret_kpi}")
+    # Default font
+    font = QFont()
+    font.setFamily("Segoe UI")
+    font.setPointSize(10)
+    app.setFont(font)
 
-            kpis_for_proj = get_kpis_for_project(test_project_for_kpi_id)
-            print(f"KPIs for project {test_project_for_kpi_id}: {kpis_for_proj}")
+    # For standalone testing, create a dummy current_user or trigger login
+    # Example: No user passed, MainDashboard might trigger its own login
+    # window = MainDashboard()
 
-            updated_kpi = update_kpi(kpi_id, {'value': 87.0, 'trend': 'stable'})
-            print(f"KPI update successful: {updated_kpi}")
-            ret_kpi_updated = get_kpi_by_id(kpi_id)
-            print(f"Updated KPI: {ret_kpi_updated}")
+    # Example: With a dummy user
+    dummy_user = {
+        'id': 'test_user_uuid',
+        'user_id': 'test_user_uuid', # Ensure this matches what db.py expects
+        'username': 'testuser',
+        'full_name': 'Test User Standalone',
+        'email': 'test@example.com',
+        'role': 'admin'
+    }
+    # Initialize db (important for standalone test if db.py relies on it being called)
+    db_manager.initialize_database()
 
-            deleted_kpi = delete_kpi(kpi_id)
-            print(f"KPI delete successful: {deleted_kpi}")
-        else:
-            print("Failed to add KPI.")
-    else:
-        print("Skipping KPI tests as project setup failed.")
+    # Create a dummy QMainWindow to host the QWidget for testing
+    test_host_window = QMainWindow()
+    test_host_window.setWindowTitle("Standalone Project Dashboard Test")
 
-    # Clean up test data
-    print("\nCleaning up test data...")
-    if team_member_id and get_team_member_by_id(team_member_id):
-        delete_team_member(team_member_id)
-        print(f"Deleted team member ID: {team_member_id}")
+    # Pass the dummy user to the dashboard
+    dashboard_widget = MainDashboard(parent=test_host_window, current_user=dummy_user)
 
-    if test_project_for_kpi_id and get_project_by_id(test_project_for_kpi_id):
-        # Ensure KPIs are deleted if any test failed mid-way
-        kpis_left = get_kpis_for_project(test_project_for_kpi_id)
-        for kpi_left_obj in kpis_left:
-            delete_kpi(kpi_left_obj['kpi_id'])
-            print(f"Cleaned up leftover KPI ID: {kpi_left_obj['kpi_id']}")
-        delete_project(test_project_for_kpi_id)
-        print(f"Deleted project ID: {test_project_for_kpi_id}")
+    test_host_window.setCentralWidget(dashboard_widget) # Host it in a QMainWindow for testing
+    test_host_window.setGeometry(100, 100, 1400, 900) # Set geometry on the host window
+    test_host_window.show()
 
-    if kpi_test_client_id and get_client_by_id(kpi_test_client_id):
-        delete_client(kpi_test_client_id)
-        print(f"Deleted client ID: {kpi_test_client_id}")
+    sys.exit(app.exec_())
 
-    if kpi_test_user_id and get_user_by_id(kpi_test_user_id):
-        delete_user(kpi_test_user_id)
-        print(f"Deleted user ID: {kpi_test_user_id}")
+    def focus_on_project(self, project_id_to_focus):
+        # Switch to the projects page/tab
+        self.change_page(2) # Assuming index 2 is 'Projects' page
 
-    print("\n--- Schema changes and basic tests completed. ---")
+        # Find the row for the project_id in self.projects_table
+        for row in range(self.projects_table.rowCount()):
+            item = self.projects_table.item(row, 0) # Name item where project_id is stored
+            if item and item.data(Qt.UserRole) == project_id_to_focus:
+                self.projects_table.selectRow(row)
+                self.projects_table.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+                # Optional: directly open project details dialog
+                # self.show_project_details(project_id_to_focus)
+                break
+        else: # Project not found in table
+            print(f"Project ID {project_id_to_focus} not found in projects table for focusing.")
+            # Optionally, show a message to the user
+            if hasattr(self, 'show_notification'): # Check if notification system exists
+                 self.show_notification(self.tr("Project Not Found"),
+                                        self.tr("Could not find project {0} in the list.").format(project_id_to_focus),
+                                        duration=7000)
+            elif hasattr(self, 'notification_manager'): # Check if legacy notification manager exists
+                 self.notification_manager.show_notification(self.tr("Project Not Found"),
+                                        self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
+            else: # Fallback
+                QMessageBox.information(self, self.tr("Project Not Found"), self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
+
+
+
+                
