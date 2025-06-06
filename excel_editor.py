@@ -33,6 +33,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from reportlab.platypus.flowables import Flowable
+import io # Added for BytesIO
+from reportlab.lib.utils import ImageReader # Added for header/footer images
 
 # Qt GUI
 from PyQt5.QtWidgets import (
@@ -62,7 +64,7 @@ class PageOrientation(Enum):
     PORTRAIT = 1
     LANDSCAPE = 2
 
-DEFAULT_FONT_NAME = "Arial"
+DEFAULT_FONT_NAME = "Arial" # This is for Excel cell style, not PDF
 MAX_ROWS_PREVIEW = 5000
 MAX_COLS_PREVIEW = 100
 PDF_DPI = 300
@@ -122,19 +124,20 @@ class ExcelTableModel:
         self.client_data: ClientData = ClientData()
         self.is_modified: bool = False
         self.load_error_message: Optional[str] = None
+        self.sheet_images: Dict[str, List] = {}  # To store images per sheet
+        self.sheet_headers_footers: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]] = {} # To store headers/footers
     
     def load_workbook(self, file_path: str):
         """Load workbook from file with maximum compatibility"""
         self.load_error_message = None
         self.workbook = None
         try:
-            # Primary attempt: load with data_only=False to preserve styles
             logger.info(f"Attempting to load workbook (styles preserved): {file_path}")
             self.workbook = load_workbook(
                 file_path,
-                read_only=False,  # Try to open in read-write mode first
+                read_only=False,
                 keep_vba=True,
-                data_only=False, # Crucial for style preservation
+                data_only=False,
                 keep_links=True
             )
             logger.info(f"Successfully loaded {file_path} with styles (read-write).")
@@ -142,13 +145,12 @@ class ExcelTableModel:
         except (InvalidFileException, ReadOnlyWorkbookException, IOError, zipfile.BadZipFile) as e_rw:
             logger.warning(f"Read-write load attempt failed for {file_path} with {type(e_rw).__name__}: {e_rw}. Trying read-only.")
             try:
-                # Fallback attempt: load with read_only=True if read-write fails
                 logger.info(f"Attempting to load workbook (styles preserved, read-only): {file_path}")
                 self.workbook = load_workbook(
                     file_path,
-                    read_only=True,   # Fallback to read-only
+                    read_only=True,
                     keep_vba=True,
-                    data_only=False, # Crucial for style preservation
+                    data_only=False,
                     keep_links=True
                 )
                 logger.info(f"Successfully loaded {file_path} with styles (read-only).")
@@ -158,86 +160,117 @@ class ExcelTableModel:
                 self.load_error_message = error_msg
                 self.workbook = None
                 return False
-            except Exception as e_generic_ro: # Catch any other unexpected errors during read-only attempt
+            except Exception as e_generic_ro:
                 error_msg = f"Unexpected error loading workbook '{file_path}' (read-only attempt): {type(e_generic_ro).__name__} - {str(e_generic_ro)}"
                 logger.error(error_msg)
                 self.load_error_message = error_msg
                 self.workbook = None
                 return False
-        except Exception as e_generic_rw: # Catch any other unexpected errors during initial read-write attempt
+        except Exception as e_generic_rw:
             error_msg = f"Unexpected error loading workbook '{file_path}': {type(e_generic_rw).__name__} - {str(e_generic_rw)}"
             logger.error(error_msg)
             self.load_error_message = error_msg
             self.workbook = None
             return False
 
-        # If workbook is loaded successfully by either method
         if self.workbook:
             self.file_path = file_path
             self.sheets = self.workbook.sheetnames
             self.current_sheet = self.workbook.active
             self.is_modified = False
-            
-            # Extract potential client data from sheet
+            self.sheet_images.clear()
+            self.sheet_headers_footers.clear()
+
+            for sheet in self.workbook.worksheets:
+                if sheet._images: # Corrected attribute
+                    self.sheet_images[sheet.title] = list(sheet._images)
+                    logger.info(f"Found {len(self.sheet_images[sheet.title])} image(s) in sheet '{sheet.title}'.")
+                else:
+                    logger.info(f"No images found in sheet '{sheet.title}'.")
+
+                hf_data = {}
+                if sheet.HeaderFooter: # Corrected attribute
+                    hf_obj_main = sheet.HeaderFooter
+                    hf_types = {
+                        "odd_header": hf_obj_main.oddHeader,
+                        "even_header": hf_obj_main.evenHeader,
+                        "first_header": hf_obj_main.firstHeader,
+                        "odd_footer": hf_obj_main.oddFooter,
+                        "even_footer": hf_obj_main.evenFooter,
+                        "first_footer": hf_obj_main.firstFooter,
+                    }
+                    for hf_type, hf_member_obj in hf_types.items():
+                        if hf_member_obj:
+                            left_text = hf_member_obj.left.text if hf_member_obj.left else None
+                            center_text = hf_member_obj.center.text if hf_member_obj.center else None
+                            right_text = hf_member_obj.right.text if hf_member_obj.right else None
+
+                            hf_data[hf_type] = {
+                                "left": {"text": left_text},
+                                "center": {"text": center_text},
+                                "right": {"text": right_text},
+                            }
+                            log_msg = f"Extracted {hf_type} for sheet '{sheet.title}':"
+                            if left_text: log_msg += f" L='{left_text}'"
+                            if center_text: log_msg += f" C='{center_text}'"
+                            if right_text: log_msg += f" R='{right_text}'"
+                            logger.info(log_msg)
+
+                            if left_text and "&G" in left_text:
+                                logger.info(f"  Found image reference mark (&G) in {hf_type} left for sheet '{sheet.title}'.")
+                            if center_text and "&G" in center_text:
+                                logger.info(f"  Found image reference mark (&G) in {hf_type} center for sheet '{sheet.title}'.")
+                            if right_text and "&G" in right_text:
+                                logger.info(f"  Found image reference mark (&G) in {hf_type} right for sheet '{sheet.title}'.")
+
+                if hf_data:
+                    self.sheet_headers_footers[sheet.title] = hf_data
+                else:
+                    logger.info(f"No header/footer data found for sheet '{sheet.title}'.")
+
             self.extract_client_data()
-            
             return True
 
-        # This part should ideally not be reached if logic is correct,
-        # but as a safeguard:
         if not self.workbook:
-            if not self.load_error_message: # Ensure an error message is set
+            if not self.load_error_message:
                  self.load_error_message = f"Failed to load workbook '{file_path}' after multiple attempts."
             logger.error(self.load_error_message)
             return False
-
-        return False # Should not be reached
+        return False
     
     def extract_client_data(self):
-        """Try to extract client data from common cell positions"""
         if not self.current_sheet:
             return
-            
-        # Common patterns for client data in templates
         patterns = {
             "name": ["client", "customer", "nom", "name"],
             "company": ["company", "société", "entreprise"],
             "project": ["project", "projet", "description"],
             "price": ["price", "prix", "cost", "montant"]
         }
-        
-        # Scan first row and column for potential matches
-        for row in self.current_sheet.iter_rows(max_row=20):
+        for row_idx, row in enumerate(self.current_sheet.iter_rows(max_row=20)): # Added row_idx for clarity
             for cell in row:
                 if cell.value and isinstance(cell.value, str):
                     lower_val = cell.value.lower()
-                    # Check for name
                     if any(p in lower_val for p in patterns["name"]):
                         try:
                             self.client_data.name = str(self.current_sheet.cell(row=cell.row, column=cell.column+1).value)
-                        except:
-                            pass
-                    # Check for company
+                        except: pass
                     elif any(p in lower_val for p in patterns["company"]):
                         try:
                             self.client_data.company = str(self.current_sheet.cell(row=cell.row, column=cell.column+1).value)
-                        except:
-                            pass
-                    # Check for project
+                        except: pass
                     elif any(p in lower_val for p in patterns["project"]):
                         try:
                             self.client_data.project = str(self.current_sheet.cell(row=cell.row, column=cell.column+1).value)
-                        except:
-                            pass
-                    # Check for price
+                        except: pass
                     elif any(p in lower_val for p in patterns["price"]):
                         try:
                             val = self.current_sheet.cell(row=cell.row, column=cell.column+1).value
                             if isinstance(val, (int, float)):
                                 self.client_data.price = float(val)
-                        except:
-                            pass
+                        except: pass
 
+# --- Start of StyleConverter ---
 class StyleConverter:
     """Handles conversion between Excel, Qt and PDF styles"""
     
@@ -311,7 +344,7 @@ class StyleConverter:
         hex_color = hex_color.lstrip('#')
         if len(hex_color) == 3:
             hex_color = ''.join([c * 2 for c in hex_color])
-        return f"00{hex_color[4:6]}{hex_color[2:4]}{hex_color[0:2]}"
+        return f"00{hex_color[4:6]}{hex_color[2:4]}{hex_color[0:2]}" # Corrected order for ARGB
     
     @staticmethod
     def qt_to_excel_alignment(qt_alignment: int) -> str:
@@ -325,7 +358,9 @@ class StyleConverter:
         elif qt_alignment & Qt.AlignJustify:
             return "justify"
         return "left"
+# --- End of StyleConverter ---
 
+# --- Start of ExcelTableWidget ---
 class ExcelTableWidget(QTableWidget):
     """Enhanced QTableWidget with Excel-like features and style preservation"""
     
@@ -360,7 +395,7 @@ class ExcelTableWidget(QTableWidget):
         """)
         self.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.verticalHeader().setDefaultSectionSize(24)
-        self.verticalHeader().setVisible(False)
+        self.verticalHeader().setVisible(False) # Usually row numbers are not shown like this
     
     def load_excel_sheet(self, worksheet: Worksheet):
         """Load Excel worksheet into the table while preserving all styles"""
@@ -369,24 +404,24 @@ class ExcelTableWidget(QTableWidget):
             self.setRowCount(min(worksheet.max_row, MAX_ROWS_PREVIEW))
             self.setColumnCount(min(worksheet.max_column, MAX_COLS_PREVIEW))
             
-            # Load headers
             headers = []
-            for col in range(1, self.columnCount() + 1):
-                cell = worksheet.cell(row=1, column=col)
-                headers.append(str(cell.value) if cell.value else f"Column {col}")
+            for col_idx in range(1, self.columnCount() + 1):
+                cell = worksheet.cell(row=1, column=col_idx)
+                headers.append(str(cell.value) if cell.value else f"Column {col_idx}")
             self.setHorizontalHeaderLabels(headers)
             
-            # Load data and styles
-            for row in range(1, self.rowCount() + 1):
-                for col in range(1, self.columnCount() + 1):
-                    cell = worksheet.cell(row=row, column=col)
+            for row_idx_table in range(self.rowCount()): # 0-indexed for table widget
+                for col_idx_table in range(self.columnCount()): # 0-indexed for table widget
+                    excel_row = row_idx_table + 1
+                    excel_col = col_idx_table + 1
+
+                    cell = worksheet.cell(row=excel_row, column=excel_col)
                     value = self.format_cell_value(cell.value)
                     
                     item = QTableWidgetItem(value)
                     self.apply_excel_style(cell, item)
-                    self.setItem(row - 1, col - 1, item)
+                    self.setItem(row_idx_table, col_idx_table, item)
             
-            # Handle merged cells
             self.merged_cells = []
             for merge_range in worksheet.merged_cells.ranges:
                 self.setSpan(
@@ -406,454 +441,313 @@ class ExcelTableWidget(QTableWidget):
             return True
             
         except Exception as e:
-            logger.error(f"Error loading Excel sheet: {str(e)}")
+            logger.error(f"Error loading Excel sheet into table: {str(e)}")
             return False
     
     def apply_excel_style(self, excel_cell, qt_item):
-        """Apply Excel cell style to QTableWidgetItem"""
         style = StyleConverter.excel_to_qt(excel_cell)
-        
-        # Font
         font = QFont(style.font_name, style.font_size)
-        font.setBold(style.bold)
-        font.setItalic(style.italic)
-        font.setUnderline(style.underline)
+        font.setBold(style.bold); font.setItalic(style.italic); font.setUnderline(style.underline)
         qt_item.setFont(font)
-        
-        # Colors
-        qt_item.setForeground(QColor(style.text_color))
-        qt_item.setBackground(QColor(style.bg_color))
-        
-        # Alignment
+        qt_item.setForeground(QColor(style.text_color)); qt_item.setBackground(QColor(style.bg_color))
         alignment = 0
-        if style.h_align == "left":
-            alignment |= Qt.AlignLeft
-        elif style.h_align == "right":
-            alignment |= Qt.AlignRight
-        elif style.h_align == "center":
-            alignment |= Qt.AlignHCenter
-        elif style.h_align == "justify":
-            alignment |= Qt.AlignJustify
-            
-        if style.v_align == "top":
-            alignment |= Qt.AlignTop
-        elif style.v_align == "center":
-            alignment |= Qt.AlignVCenter
-        elif style.v_align == "bottom":
-            alignment |= Qt.AlignBottom
-            
+        if style.h_align == "left": alignment |= Qt.AlignLeft
+        elif style.h_align == "right": alignment |= Qt.AlignRight
+        elif style.h_align == "center": alignment |= Qt.AlignHCenter
+        elif style.h_align == "justify": alignment |= Qt.AlignJustify
+        if style.v_align == "top": alignment |= Qt.AlignTop
+        elif style.v_align == "center": alignment |= Qt.AlignVCenter
+        elif style.v_align == "bottom": alignment |= Qt.AlignBottom
+        else: alignment |= Qt.AlignVCenter
         qt_item.setTextAlignment(alignment)
     
     def format_cell_value(self, value) -> str:
-        """Format cell value for display"""
-        if value is None:
-            return ""
-            
-        if isinstance(value, datetime):
-            return value.strftime("%d/%m/%Y %H:%M")
-        if isinstance(value, (int, float)):
-            return f"{value:,}"
-            
+        if value is None: return ""
+        if isinstance(value, datetime): return value.strftime("%d/%m/%Y %H:%M")
+        if isinstance(value, (int, float)): return f"{value:,}"
         return str(value)
 
     def add_row(self):
-        current_row_count = self.rowCount()
-        self.insertRow(current_row_count)
-        if self.columnCount() == 0: # Ensure there's at least one column to see the row
-            self.insertColumn(0)
-            self.setHorizontalHeaderItem(0, QTableWidgetItem("Column 1"))
-
+        rc = self.rowCount(); self.insertRow(rc)
+        if self.columnCount() == 0: self.insertColumn(0); self.setHorizontalHeaderItem(0, QTableWidgetItem("Column 1"))
     def add_column(self):
-        current_column_count = self.columnCount()
-        self.insertColumn(current_column_count)
-        # Set a default header for the new column
-        header_item = QTableWidgetItem(f"Column {current_column_count + 1}")
-        self.setHorizontalHeaderItem(current_column_count, header_item)
-        if self.rowCount() == 0: # Ensure there's at least one row
-             self.insertRow(0)
-
+        cc = self.columnCount(); self.insertColumn(cc)
+        self.setHorizontalHeaderItem(cc, QTableWidgetItem(f"Column {cc + 1}"))
+        if self.rowCount() == 0: self.insertRow(0)
     def delete_selected_rows(self):
-        selected_rows = sorted(list(set(index.row() for index in self.selectedIndexes())), reverse=True)
-        if not selected_rows:
-            # Optional: show a message or just do nothing
-            # print("No rows selected for deletion.")
-            return
-        for row_index in selected_rows:
-            self.removeRow(row_index)
-
+        sr = sorted(list(set(i.row() for i in self.selectedIndexes())), reverse=True)
+        for r_idx in sr: self.removeRow(r_idx)
     def delete_selected_columns(self):
-        selected_cols = sorted(list(set(index.column() for index in self.selectedIndexes())), reverse=True)
-        if not selected_cols:
-            # Optional: show a message or just do nothing
-            # print("No columns selected for deletion.")
-            return
-        for col_index in selected_cols:
-            self.removeColumn(col_index)
+        sc = sorted(list(set(i.column() for i in self.selectedIndexes())), reverse=True)
+        for c_idx in sc: self.removeColumn(c_idx)
+# --- End of ExcelTableWidget ---
 
 class PDFGenerator:
     """Handles high-quality PDF export with modern styling"""
     
-    def __init__(self, table: ExcelTableWidget, client_data: ClientData, settings: PDFExportSettings):
+    def __init__(self, table: ExcelTableWidget, client_data: ClientData, settings: PDFExportSettings,
+                 current_sheet_title: str, sheet_images_data: Dict[str, List],
+                 sheet_headers_footers_data: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]]):
         self.table = table
         self.client_data = client_data
         self.settings = settings
+        self.current_sheet_title = current_sheet_title
+        self.sheet_images_data = sheet_images_data
+        self.sheet_hf_data = sheet_headers_footers_data
         self.styles = getSampleStyleSheet()
         
-        # Register fonts
         self.register_fonts()
-        
-        # Create custom styles
         self.create_styles()
     
     def register_fonts(self):
-        """Register fonts for PDF generation"""
         try:
-            # Try to register Arial
             pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
             pdfmetrics.registerFont(TTFont('Arial-Bold', 'arialbd.ttf'))
             pdfmetrics.registerFont(TTFont('Arial-Italic', 'ariali.ttf'))
             pdfmetrics.registerFont(TTFont('Arial-BoldItalic', 'arialbi.ttf'))
-        except:
-            # Fallback to default fonts
-            pass
+        except: pass
     
     def create_styles(self):
-        """Create custom PDF styles"""
-        # Title style
-        self.title_style = ParagraphStyle(
-            'Title',
-            parent=self.styles['Heading1'],
-            fontName='Arial-Bold',
-            fontSize=16,
-            leading=18,
-            spaceAfter=12,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#2c3e50')
-        )
-        
-        # Client info style
-        self.client_style = ParagraphStyle(
-            'Client',
-            parent=self.styles['BodyText'],
-            fontName='Arial',
-            fontSize=10,
-            leading=12,
-            spaceAfter=6,
-            textColor=colors.HexColor('#34495e')
-        )
-        
-        # Table header style
-        self.table_header_style = ParagraphStyle(
-            'TableHeader',
-            parent=self.styles['BodyText'],
-            fontName='Arial-Bold',
-            fontSize=9,
-            leading=10,
-            alignment=TA_CENTER,
-            textColor=colors.white,
-            backColor=colors.HexColor('#3498db')
-        )
-        
-        # Table cell style
-        self.table_cell_style = ParagraphStyle(
-            'TableCell',
-            parent=self.styles['BodyText'],
-            fontName='Arial',
-            fontSize=8,
-            leading=9,
-            textColor=colors.black
-        )
-        
-        # Footer style
-        self.footer_style = ParagraphStyle(
-            'Footer',
-            parent=self.styles['BodyText'],
-            fontName='Arial',
-            fontSize=8,
-            leading=9,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#7f8c8d')
-        )
+        self.title_style = ParagraphStyle('Title', parent=self.styles['Heading1'], fontName='Helvetica-Bold', fontSize=16, leading=18, spaceAfter=12, alignment=TA_CENTER, textColor=colors.HexColor('#2c3e50'))
+        self.client_style = ParagraphStyle('Client', parent=self.styles['BodyText'], fontName='Helvetica', fontSize=10, leading=12, spaceAfter=6, textColor=colors.HexColor('#34495e'))
+        self.table_header_style = ParagraphStyle('TableHeader', parent=self.styles['BodyText'], fontName='Helvetica-Bold', fontSize=9, leading=10, alignment=TA_CENTER, textColor=colors.white, backColor=colors.HexColor('#3498db'))
+        self.table_cell_style = ParagraphStyle('TableCell', parent=self.styles['BodyText'], fontName='Helvetica', fontSize=8, leading=9, textColor=colors.black)
+        self.footer_style = ParagraphStyle('Footer', parent=self.styles['BodyText'], fontName='Helvetica', fontSize=8, leading=9, alignment=TA_CENTER, textColor=colors.HexColor('#7f8c8d'))
     
     def generate(self, file_path: str) -> Tuple[bool, str]:
-        """Generate PDF document"""
         try:
-            # Create document
-            doc = SimpleDocTemplate(
-                file_path,
-                pagesize=self.settings.page_size,
-                leftMargin=self.settings.margins[0],
-                rightMargin=self.settings.margins[1],
-                topMargin=self.settings.margins[2],
-                bottomMargin=self.settings.margins[3]
-            )
-            
+            doc = SimpleDocTemplate(file_path, pagesize=self.settings.page_size, leftMargin=self.settings.margins[0], rightMargin=self.settings.margins[1], topMargin=self.settings.margins[2], bottomMargin=self.settings.margins[3])
             elements = []
+            has_excel_header, has_excel_footer = False, False
+            if self.current_sheet_title and self.current_sheet_title in self.sheet_hf_data:
+                sheet_hf = self.sheet_hf_data[self.current_sheet_title]
+                if any(k in sheet_hf for k in ['odd_header', 'even_header', 'first_header']): has_excel_header = True
+                if any(k in sheet_hf for k in ['odd_footer', 'even_footer', 'first_footer']): has_excel_footer = True
             
-            # Add header
-            if self.settings.header:
-                elements.extend(self.create_header())
-            
-            # Add title
-            elements.append(Paragraph(
-                f"<u>Devis {self.client_data.project_id}</u>" if self.client_data.project_id else "<u>Devis</u>",
-                self.title_style
-            ))
+            if self.settings.header and not has_excel_header: elements.extend(self.create_header())
+            elements.append(Paragraph(f"<u>Devis {self.client_data.project_id}</u>" if self.client_data.project_id else "<u>Devis</u>", self.title_style))
             elements.append(Spacer(1, 12))
-            
-            # Add client info
             elements.extend(self.create_client_info())
             elements.append(Spacer(1, 15))
+
+            if self.current_sheet_title and self.current_sheet_title in self.sheet_images_data:
+                images_on_sheet = self.sheet_images_data[self.current_sheet_title]
+                if images_on_sheet:
+                    heading_style_name = 'Heading3' if 'Heading3' in self.styles else 'h3'
+                    elements.append(Paragraph("<u>Sheet Images:</u>", self.styles[heading_style_name]))
+                    elements.append(Spacer(1, 0.1*inch))
+                    for i, img_obj in enumerate(images_on_sheet):
+                        try:
+                            img_data = img_obj._data() # Corrected from .data()
+                            img_flowable = Image(io.BytesIO(img_data))
+                            img_flowable.drawWidth = 2 * inch
+                            img_flowable.drawHeight = (img_flowable.imageHeight / img_flowable.imageWidth) * (2 * inch) if img_flowable.imageWidth else 1 * inch
+                            img_flowable.preserveAspectRatio = True
+                            elements.append(img_flowable)
+                            elements.append(Spacer(1, 0.1*inch))
+                            logger.info(f"Added image {i+1} (Type: {type(img_obj)}) from sheet '{self.current_sheet_title}' to PDF.")
+                        except Exception as e: logger.error(f"Could not process image from sheet '{self.current_sheet_title}': {e}")
+                    elements.append(Spacer(1, 0.2*inch))
             
-            # Add main table
             table_data, col_widths = self.prepare_table_data()
             if table_data:
-                main_table = Table(
-                    table_data,
-                    colWidths=col_widths,
-                    repeatRows=1 if self.settings.repeat_headers else 0
-                )
+                main_table = Table(table_data, colWidths=col_widths, repeatRows=1 if self.settings.repeat_headers else 0)
                 main_table.setStyle(self.create_table_style(len(table_data), len(table_data[0])))
                 elements.append(main_table)
             else:
-                return False, "No table data to export"
+                logger.warning(f"No table data for sheet '{self.current_sheet_title}'.")
+                if not elements: return False, f"No content for sheet '{self.current_sheet_title}'"
             
-            # Add footer
-            if self.settings.footer:
+            if self.settings.footer and not has_excel_footer:
                 elements.append(Spacer(1, 10))
                 elements.extend(self.create_footer())
             
-            # Build document
-            doc.build(
-                elements,
-                onFirstPage=self.add_page_decorations,
-                onLaterPages=self.add_page_decorations
-            )
-            
+            doc.build(elements, onFirstPage=self.add_page_decorations, onLaterPages=self.add_page_decorations)
             return True, "PDF generated successfully"
-            
         except Exception as e:
-            logger.error(f"PDF generation failed: {str(e)}")
+            logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
             return False, str(e)
     
     def create_header(self) -> List[Flowable]:
-        """Create document header with logo and info"""
         header_elements = []
-        
-        # Create table for header
-        header_table = Table([
-            [
-                self.create_company_info(),
-                self.create_document_info()
-            ]
-        ], colWidths=['70%', '30%'])
-        
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            ('LEFTPADDING', (0, 0), (0, 0), 0),
-            ('RIGHTPADDING', (1, 0), (1, 0), 0)
-        ]))
-        
+        header_table = Table([[self.create_company_info(),self.create_document_info()]], colWidths=['70%', '30%'])
+        header_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('BOTTOMPADDING', (0,0), (-1,-1), 10), ('LEFTPADDING', (0,0), (0,0), 0), ('RIGHTPADDING', (1,0), (1,0), 0)]))
         header_elements.append(header_table)
         header_elements.append(Spacer(1, 10))
-        
         return header_elements
     
     def create_company_info(self) -> Paragraph:
-        """Create company info paragraph"""
-        company_info = [
-            f"<b>{self.client_data.company or 'Société'}</b>",
-            self.client_data.address or "Adresse",
-            f"Tél: {self.client_data.phone or 'N/A'}",
-            f"Email: {self.client_data.email or 'N/A'}"
-        ]
+        company_info = [f"<b>{self.client_data.company or 'Société'}</b>", self.client_data.address or "Adresse", f"Tél: {self.client_data.phone or 'N/A'}", f"Email: {self.client_data.email or 'N/A'}"]
         return Paragraph("<br/>".join(company_info), self.client_style)
     
     def create_document_info(self) -> Paragraph:
-        """Create document info paragraph"""
-        doc_info = [
-            f"<b>Devis N° {self.client_data.project_id or 'XXXX'}</b>",
-            f"Date: {datetime.now().strftime('%d/%m/%Y')}",
-            f"Client: {self.client_data.name or 'N/A'}"
-        ]
+        doc_info = [f"<b>Devis N° {self.client_data.project_id or 'XXXX'}</b>", f"Date: {datetime.now().strftime('%d/%m/%Y')}", f"Client: {self.client_data.name or 'N/A'}"]
         return Paragraph("<br/>".join(doc_info), self.client_style)
     
     def create_client_info(self) -> List[Flowable]:
-        """Create client info section"""
         client_elements = []
-        
-        client_table = Table([
-            ["Client:", self.client_data.name or "N/A"],
-            ["Société:", self.client_data.company or "N/A"],
-            ["Projet:", self.client_data.project or "N/A"],
-            ["Date:", datetime.now().strftime("%d/%m/%Y")],
-            ["Prix Total:", f"{self.client_data.price:,.2f} {self.client_data.currency}"]
-        ], colWidths=[3*cm, 10*cm])
-        
-        client_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor("#f8f9fa")),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Arial-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('LEFTPADDING', (0, 0), (-1, -1), 4),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 4)
-        ]))
-        
+        client_table = Table([["Client:", self.client_data.name or "N/A"],["Société:", self.client_data.company or "N/A"],["Projet:", self.client_data.project or "N/A"],["Date:", datetime.now().strftime("%d/%m/%Y")],["Prix Total:", f"{self.client_data.price:,.2f} {self.client_data.currency}"]], colWidths=[3*cm, 10*cm])
+        client_table.setStyle(TableStyle([('BACKGROUND', (0,0), (0,-1), colors.HexColor("#f8f9fa")),('TEXTCOLOR', (0,0), (-1,-1), colors.black),('ALIGN', (0,0), (0,-1), 'RIGHT'),('ALIGN', (1,0), (1,-1), 'LEFT'),('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('FONTSIZE', (0,0),(-1,-1), 9),('GRID', (0,0),(-1,-1), 0.5, colors.HexColor("#e0e0e0")),('VALIGN', (0,0),(-1,-1), 'MIDDLE'),('BOTTOMPADDING', (0,0),(-1,-1), 6), ('LEFTPADDING', (0,0),(-1,-1), 4), ('RIGHTPADDING', (0,0),(-1,-1), 4)]))
         client_elements.append(client_table)
         return client_elements
     
     def prepare_table_data(self) -> Tuple[List[List[Union[str, Paragraph]]], List[float]]:
-        """Prepare table data for PDF export"""
+        if not self.table: return [],[]
         rows = min(self.table.rowCount(), MAX_ROWS_PREVIEW)
         cols = min(self.table.columnCount(), MAX_COLS_PREVIEW)
-        
-        # Prepare data matrix
+        if rows == 0 or cols == 0: return [], []
+
         data = []
         col_widths = []
-        
-        # Add headers
         headers = []
         for col in range(cols):
             header = self.table.horizontalHeaderItem(col)
-            header_text = header.text() if header else f"Colonne {col+1}"
+            header_text = header.text() if header else f"Col {col+1}"
             headers.append(Paragraph(header_text, self.table_header_style))
-            col_widths.append(self.table.columnWidth(col) / 10)  # Convert to mm
-        
+            col_widths.append(self.table.columnWidth(col) / 10.0 if self.table.columnWidth(col) > 0 else 1.5*inch)
         data.append(headers)
         
-        # Add table data
         for row in range(rows):
             row_data = []
             for col in range(cols):
                 item = self.table.item(row, col)
                 if item:
-                    # Create paragraph with cell style
-                    cell_style = self.table_cell_style.clone('TableCell')
-                    
-                    # Apply text color
+                    cell_style = self.table_cell_style.clone('TableCell_Specific')
                     text_color = item.foreground().color().name()
-                    if text_color != "#000000":
-                        cell_style.textColor = colors.HexColor(text_color)
-                    
-                    # Apply alignment
+                    if text_color != "#000000": cell_style.textColor = colors.HexColor(text_color)
                     align = item.textAlignment()
-                    if align & Qt.AlignLeft:
-                        cell_style.alignment = TA_LEFT
-                    elif align & Qt.AlignRight:
-                        cell_style.alignment = TA_RIGHT
-                    elif align & Qt.AlignHCenter:
-                        cell_style.alignment = TA_CENTER
-                    elif align & Qt.AlignJustify:
-                        cell_style.alignment = TA_JUSTIFY
-                    
+                    if align & Qt.AlignLeft: cell_style.alignment = TA_LEFT
+                    elif align & Qt.AlignRight: cell_style.alignment = TA_RIGHT
+                    elif align & Qt.AlignHCenter: cell_style.alignment = TA_CENTER
+                    elif align & Qt.AlignJustify: cell_style.alignment = TA_JUSTIFY
                     row_data.append(Paragraph(item.text(), cell_style))
-                else:
-                    row_data.append("")
+                else: row_data.append("")
             data.append(row_data)
-        
         return data, col_widths
     
-    def create_table_style(self, rows: int, cols: int) -> TableStyle:
-        """Create table style with modern look"""
+    def create_table_style(self, num_rows: int, num_cols: int) -> TableStyle:
+        if num_rows == 0 or num_cols == 0: return TableStyle([])
         style = TableStyle([
-            # Basic table styling
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#3498db")),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Arial-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            
-            # Grid lines
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
-            
-            # Alternating row colors
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), 
-             [colors.white, colors.HexColor("#f8f9fa")]),
-            
-            # Cell padding
-            ('LEFTPADDING', (0, 0), (-1, -1), 4),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#3498db")), ('TEXTCOLOR',(0,0),(-1,0),colors.white),
+            ('ALIGN', (0,0), (-1,0), 'CENTER'), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9), ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#e0e0e0")),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor("#f8f9fa")]),
+            ('LEFTPADDING', (0,0), (-1,-1), 4), ('RIGHTPADDING', (0,0), (-1,-1), 4), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ])
-        
-        # Add cell-specific styles
-        for row in range(rows):
-            for col in range(cols):
-                if row >= self.table.rowCount() or col >= self.table.columnCount():
-                    continue
-                    
-                item = self.table.item(row, col)
-                if item:
-                    # Background color
-                    bg_color = item.background().color().name()
-                    if bg_color != "#ffffff":
-                        style.add('BACKGROUND', (col, row), (col, row), colors.HexColor(bg_color))
-                    
-                    # Handle merged cells
-                    row_span = self.table.rowSpan(row, col)
-                    col_span = self.table.columnSpan(row, col)
-                    if row_span > 1 or col_span > 1:
-                        style.add('SPAN', (col, row), (col + col_span - 1, row + row_span - 1))
-        
+        if self.table:
+            for r in range(1, num_rows):
+                 for c in range(num_cols):
+                    if r >= self.table.rowCount() or c >= self.table.columnCount(): continue
+                    item = self.table.item(r-1, c)
+                    if item:
+                        bg_color_name = item.background().color().name()
+                        if bg_color_name != "#ffffff":
+                            style.add('BACKGROUND', (c,r), (c,r), colors.HexColor(bg_color_name))
+                        row_span = self.table.rowSpan(r-1, c)
+                        col_span = self.table.columnSpan(r-1, c)
+                        if row_span > 1 or col_span > 1:
+                            style.add('SPAN', (c,r), (c+col_span-1, r+row_span-1))
         return style
     
     def create_footer(self) -> List[Flowable]:
-        """Create document footer"""
         footer_elements = []
-        
-        # Add notes if available
         if self.client_data.notes:
-            notes = Paragraph(
-                f"<b>Notes:</b><br/>{self.client_data.notes}",
-                ParagraphStyle(
-                    'Notes',
-                    parent=self.styles['BodyText'],
-                    fontName='Arial',
-                    fontSize=8,
-                    leading=9,
-                    textColor=colors.HexColor("#7f8c8d")
-                )
-            )
+            notes = Paragraph(f"<b>Notes:</b><br/>{self.client_data.notes}", ParagraphStyle('Notes',parent=self.styles['BodyText'],fontName='Helvetica',fontSize=8,leading=9,textColor=colors.HexColor("#7f8c8d")))
             footer_elements.append(notes)
             footer_elements.append(Spacer(1, 10))
-        
-        # Add footer text
-        footer_text = Paragraph(
-            f"Document généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} | {self.client_data.company or 'Société'}",
-            self.footer_style
-        )
+        footer_text = Paragraph(f"Document généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')} | {self.client_data.company or 'Société'}", self.footer_style)
         footer_elements.append(footer_text)
-        
         return footer_elements
+
+    def _draw_hf_section(self, canvas: canvas.Canvas, doc, section_content: Dict, is_header: bool, default_hf_height: float, font_name: str, font_size: int):
+        canvas.setFont(font_name, font_size)
+        y_position = 0
+        font_ascent_approx = font_size * 0.8
+        if is_header:
+            y_position = doc.height + doc.topMargin - default_hf_height + font_ascent_approx * 0.5
+        else:
+            y_position = doc.bottomMargin + font_ascent_approx * 0.5
+
+        positions = {
+            "left": doc.leftMargin + 0.1*inch,
+            "center": doc.width / 2 + doc.leftMargin,
+            "right": doc.width + doc.leftMargin - 0.1*inch
+        }
+
+        for part_key in ["left", "center", "right"]:
+            part_data = section_content.get(part_key)
+            if not part_data: continue
+            text_content = part_data.get("text")
+            if text_content:
+                text_to_draw = text_content
+                if "&G" in text_to_draw:
+                    logger.info(f"Header/Footer image reference mark (&G) found in {part_key} of {'header' if is_header else 'footer'}: '{text_to_draw}'. Actual display requires rID/&G parsing and image data resolution.")
+
+                page_number_str = str(canvas.getPageNumber())
+                total_pages_str = str(getattr(doc, '_pageNumber', canvas.getPageNumber()))
+                text_to_draw = text_to_draw.replace("&[Page]", page_number_str).replace("&P", page_number_str)
+                text_to_draw = text_to_draw.replace("&[Pages]", total_pages_str).replace("&N", total_pages_str)
+                text_to_draw = text_to_draw.replace("&[Date]", datetime.now().strftime("%Y-%m-%d")).replace("&D", datetime.now().strftime("%Y-%m-%d"))
+                text_to_draw = text_to_draw.replace("&[Time]", datetime.now().strftime("%H:%M:%S")).replace("&T", datetime.now().strftime("%H:%M:%S"))
+                text_to_draw = text_to_draw.replace("&[File]", Path(doc.filename).name if doc.filename else "Document").replace("&F", Path(doc.filename).name if doc.filename else "Document")
+                text_to_draw = text_to_draw.replace("&[Tab]", self.current_sheet_title or "Sheet").replace("&A", self.current_sheet_title or "Sheet")
+                text_to_draw = text_to_draw.replace("&B", "").replace("&I", "")
+                text_to_draw = text_to_draw.replace("&G", "").strip()
+
+                canvas.setFillColor(colors.black)
+                if part_key == "left": canvas.drawString(positions[part_key], y_position, text_to_draw)
+                elif part_key == "center": canvas.drawCentredString(positions[part_key], y_position, text_to_draw)
+                elif part_key == "right": canvas.drawRightString(positions[part_key], y_position, text_to_draw)
     
     def add_page_decorations(self, canvas: canvas.Canvas, doc):
-        """Add page decorations (watermark, page numbers, etc.)"""
-        # Add watermark if specified
+        canvas.saveState()
         if self.settings.watermark:
-            canvas.saveState()
-            canvas.setFont('Arial', 60)
+            canvas.setFont('Helvetica', 60) # Changed from Arial
             canvas.setFillColor(colors.HexColor("#f0f0f0"))
             canvas.rotate(45)
-            canvas.drawString(10 * cm, -2 * cm, self.settings.watermark)
-            canvas.restoreState()
-        
-        # Add page number
-        page_num = canvas.getPageNumber()
-        canvas.setFont('Arial', 8)
-        canvas.setFillColor(colors.HexColor("#7f8c8d"))
-        canvas.drawRightString(
-            doc.width + doc.leftMargin,
-            doc.bottomMargin / 2,
-            f"Page {page_num}"
-        )
+            page_width, page_height = doc.pagesize
+            canvas.drawString(page_width * 0.25, page_height * 0.25, self.settings.watermark)
+            canvas.rotate(-45)
 
+        default_page_num_text = f"Page {canvas.getPageNumber()}"
+        excel_hf_applied_for_page = False
+        hf_font_name = "Helvetica"
+        hf_font_size = 8
+
+        if self.current_sheet_title and self.current_sheet_title in self.sheet_hf_data:
+            sheet_hf_content = self.sheet_hf_data[self.current_sheet_title]
+            page_num = canvas.getPageNumber()
+            header_type_to_use, footer_type_to_use = None, None
+
+            if page_num == 1 and sheet_hf_content.get("first_header"): header_type_to_use = "first_header"
+            elif page_num % 2 == 0 and sheet_hf_content.get("even_header"): header_type_to_use = "even_header"
+            elif sheet_hf_content.get("odd_header"): header_type_to_use = "odd_header"
+
+            if page_num == 1 and sheet_hf_content.get("first_footer"): footer_type_to_use = "first_footer"
+            elif page_num % 2 == 0 and sheet_hf_content.get("even_footer"): footer_type_to_use = "even_footer"
+            elif sheet_hf_content.get("odd_footer"): footer_type_to_use = "odd_footer"
+
+            if header_type_to_use and header_type_to_use in sheet_hf_content:
+                header_data = sheet_hf_content[header_type_to_use]
+                self._draw_hf_section(canvas, doc, header_data, True, PDF_HEADER_HEIGHT, hf_font_name, hf_font_size)
+                if any(header_data.get(part, {}).get('text') for part in ["left", "center", "right"]):
+                    excel_hf_applied_for_page = True
+
+            if footer_type_to_use and footer_type_to_use in sheet_hf_content:
+                footer_data = sheet_hf_content[footer_type_to_use]
+                self._draw_hf_section(canvas, doc, footer_data, False, PDF_FOOTER_HEIGHT, hf_font_name, hf_font_size)
+                if any(footer_data.get(part, {}).get('text') for part in ["left", "center", "right"]):
+                    excel_hf_applied_for_page = True
+
+        if self.settings.footer and not excel_hf_applied_for_page:
+            canvas.setFont(hf_font_name, hf_font_size)
+            canvas.setFillColor(colors.HexColor("#7f8c8d"))
+            page_num_y_pos = doc.bottomMargin + (PDF_FOOTER_HEIGHT - hf_font_size * 0.8) / 2
+            canvas.drawRightString(doc.width + doc.leftMargin - 0.1*inch, page_num_y_pos, default_page_num_text)
+        canvas.restoreState()
+
+# --- Start of ExcelEditor ---
 class ExcelEditor(QDialog):
     """Main Excel editor application with modern UI"""
     
@@ -1112,55 +1006,39 @@ class ExcelEditor(QDialog):
         self.set_progress(True, f"Loading file: {QFileInfo(file_path).fileName()}...")
 
         if self.excel_model.load_workbook(file_path):
-            # Success case
-            self.file_path = file_path # Update editor's current file_path
+            self.file_path = file_path
             self.file_label.setText(QFileInfo(file_path).fileName())
-            
             self.sheet_combo.clear()
             self.sheet_combo.addItems(self.excel_model.sheets)
-            
-            self.load_client_data() # Populates UI from self.excel_model.client_data
-            
+            self.load_client_data()
             if self.excel_model.current_sheet:
                 self.table.load_excel_sheet(self.excel_model.current_sheet)
             else:
-                self.table.clearContents() # Clear table if no sheet is active
+                self.table.clearContents()
                 self.table.setRowCount(0)
                 self.table.setColumnCount(0)
-
             self.set_progress(False)
             self.update_status("File loaded successfully")
             logger.info(f"Successfully loaded and UI updated for: {file_path}")
             return True
         else:
-            # Failure case
             error_msg = self.excel_model.load_error_message or f"Unknown error loading file: {file_path}"
             QMessageBox.critical(self, "Error Loading File", error_msg)
-            
-            self.file_path = None # Clear current file path
+            self.file_path = None
             self.file_label.setText("No file loaded")
             self.sheet_combo.clear()
             self.table.clearContents()
             self.table.setRowCount(0)
             self.table.setColumnCount(0)
-            # Clear client data fields in UI as well
-            self.client_name.clear()
-            self.client_company.clear()
-            self.client_address.clear()
-            self.client_phone.clear()
-            self.client_email.clear()
-            self.project_name.clear()
-            self.project_id.clear()
-            self.project_price.setValue(0)
-            self.notes.clear()
-
+            self.client_name.clear(); self.client_company.clear(); self.client_address.clear()
+            self.client_phone.clear(); self.client_email.clear(); self.project_name.clear()
+            self.project_id.clear(); self.project_price.setValue(0); self.notes.clear()
             self.set_progress(False)
             self.update_status("Failed to load file", "red")
             logger.error(f"Failed to load and update UI for: {file_path}")
             return False
     
     def load_client_data(self):
-        """Load client data into UI"""
         client = self.excel_model.client_data
         self.client_name.setText(client.name)
         self.client_company.setText(client.company)
@@ -1174,87 +1052,52 @@ class ExcelEditor(QDialog):
         self.notes.setPlainText(client.notes)
     
     def update_client_data(self):
-        """Update client data model from UI"""
         self.excel_model.client_data = ClientData(
-            name=self.client_name.text(),
-            company=self.client_company.text(),
-            address=self.client_address.toPlainText(),
-            phone=self.client_phone.text(),
-            email=self.client_email.text(),
-            project=self.project_name.text(),
-            project_id=self.project_id.text(),
-            price=self.project_price.value(),
-            currency=self.currency_combo.currentText(),
-            notes=self.notes.toPlainText(),
+            name=self.client_name.text(), company=self.client_company.text(),
+            address=self.client_address.toPlainText(), phone=self.client_phone.text(),
+            email=self.client_email.text(), project=self.project_name.text(),
+            project_id=self.project_id.text(), price=self.project_price.value(),
+            currency=self.currency_combo.currentText(), notes=self.notes.toPlainText(),
             logo_path=self.excel_model.client_data.logo_path
         )
         self.mark_as_modified()
     
     def mark_as_modified(self):
-        """Mark document as modified"""
         self.excel_model.is_modified = True
         self.update_status("Modified", "orange")
     
     def update_status(self, message: str, color: str = "green"):
-        """Update status bar message"""
         self.status_label.setText(message)
         self.status_label.setStyleSheet(f"color: {color};")
     
     def set_progress(self, visible: bool, message: str = ""):
-        """Show/hide progress bar"""
         self.progress_bar.setVisible(visible)
         if visible:
-            self.progress_bar.setRange(0, 0)
+            self.progress_bar.setRange(0, 0) # Indeterminate
             self.update_status(message, "blue")
         else:
-            self.progress_bar.setRange(0, 1)
+            self.progress_bar.setRange(0, 1) # Stop/hide
     
     def open_file_dialog(self):
-        """Open file dialog to select Excel file"""
         if self.excel_model.is_modified:
-            reply = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Save before opening new file?",
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
-            
+            reply = QMessageBox.question(self, "Unsaved Changes", "You have unsaved changes. Save before opening new file?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
             if reply == QMessageBox.Save:
-                if not self.save_file():
-                    return
-            elif reply == QMessageBox.Cancel:
-                return
+                if not self.save_file(): return
+            elif reply == QMessageBox.Cancel: return
         
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open Excel File",
-            "",
-            "Excel Files (*.xlsx *.xls *.xlsm);;All Files (*)"
-        )
-        
-        if file_path:
-            self.load_file(file_path)
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Excel File", "", "Excel Files (*.xlsx *.xls *.xlsm);;All Files (*)")
+        if file_path: self.load_file(file_path)
     
     def save_file(self) -> bool:
-        """Save current file"""
         try:
-            if not self.file_path:
-                return self.save_file_as()
-            
+            if not self.file_path: return self.save_file_as()
             self.set_progress(True, "Saving file...")
-            
-            # Update client data
-            self.update_client_data()
-            
-            # Save workbook
+            self.update_client_data() # Ensure model is up-to-date
             self.excel_model.workbook.save(self.file_path)
             self.excel_model.is_modified = False
-            
             self.set_progress(False)
             self.update_status("File saved successfully")
             return True
-            
         except Exception as e:
             logger.error(f"Error saving file: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error saving file:\n{str(e)}")
@@ -1262,14 +1105,7 @@ class ExcelEditor(QDialog):
             return False
     
     def save_file_as(self) -> bool:
-        """Save file with new name"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Excel File",
-            "",
-            "Excel Files (*.xlsx);;All Files (*)"
-        )
-        
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Excel File", "", "Excel Files (*.xlsx);;All Files (*)")
         if file_path:
             self.file_path = file_path
             self.file_label.setText(QFileInfo(file_path).fileName())
@@ -1277,148 +1113,91 @@ class ExcelEditor(QDialog):
         return False
     
     def change_sheet(self, sheet_name: str):
-        """Change current worksheet"""
-        if not sheet_name or not self.excel_model.workbook:
-            return
+        if not sheet_name or not self.excel_model.workbook: return
+        if self.excel_model.current_sheet and sheet_name == self.excel_model.current_sheet.title: return
             
-        if self.excel_model.current_sheet and sheet_name == self.excel_model.current_sheet.title:
-            return
-            
-        # Check for unsaved changes
-        if self.excel_model.is_modified:
-            reply = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Save before switching sheets?",
-                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
-                QMessageBox.Save
-            )
-            
+        if self.excel_model.is_modified: # Check for unsaved changes
+            reply = QMessageBox.question(self, "Unsaved Changes", "You have unsaved changes. Save before switching sheets?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel, QMessageBox.Save)
             if reply == QMessageBox.Save:
-                if not self.save_file():
-                    return
+                if not self.save_file(): return
             elif reply == QMessageBox.Cancel:
-                self.sheet_combo.setCurrentText(self.excel_model.current_sheet.title)
+                self.sheet_combo.setCurrentText(self.excel_model.current_sheet.title) # Revert selection
                 return
         
-        # Load new sheet
         try:
             self.set_progress(True, f"Loading sheet: {sheet_name}")
-            
             self.excel_model.current_sheet = self.excel_model.workbook[sheet_name]
             self.table.load_excel_sheet(self.excel_model.current_sheet)
-            
             self.set_progress(False)
             self.update_status(f"Sheet '{sheet_name}' loaded")
-            
         except Exception as e:
             logger.error(f"Error changing sheet: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error loading sheet:\n{str(e)}")
             self.set_progress(False)
     
     def export_pdf(self):
-        """Export current sheet to PDF"""
         if not self.file_path:
             QMessageBox.warning(self, "Warning", "No file loaded to export")
             return
-            
-        # Update client data
         self.update_client_data()
-        
-        # Get save path
         default_name = f"{Path(self.file_path).stem}.pdf"
-        save_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export PDF",
-            default_name,
-            "PDF Files (*.pdf);;All Files (*)"
-        )
-        
-        if not save_path:
-            return
+        save_path, _ = QFileDialog.getSaveFileName(self, "Export PDF", default_name, "PDF Files (*.pdf);;All Files (*)")
+        if not save_path: return
             
         try:
             self.set_progress(True, "Exporting to PDF...")
-            
-            # Create PDF generator
-            pdf_gen = PDFGenerator(self.table, self.excel_model.client_data, self.pdf_settings)
-            
-            # Generate PDF
+            current_sheet_title = self.excel_model.current_sheet.title if self.excel_model.current_sheet else ""
+            pdf_gen = PDFGenerator(
+                self.table, self.excel_model.client_data, self.pdf_settings,
+                current_sheet_title, self.excel_model.sheet_images,
+                self.excel_model.sheet_headers_footers
+            )
             success, message = pdf_gen.generate(save_path)
-            
+            self.set_progress(False)
             if success:
-                self.set_progress(False)
                 self.update_status("PDF exported successfully")
-                
-                # Ask to open PDF
-                reply = QMessageBox.question(
-                    self,
-                    "Export Complete",
-                    f"PDF created successfully:\n{save_path}\n\nOpen now?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                
-                if reply == QMessageBox.Yes:
+                if QMessageBox.question(self, "Export Complete", f"PDF created successfully:\n{save_path}\n\nOpen now?", QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
                     self.open_file(save_path)
             else:
-                self.set_progress(False)
                 QMessageBox.critical(self, "Export Error", f"Error exporting PDF:\n{message}")
-            
         except Exception as e:
-            logger.error(f"Error exporting PDF: {str(e)}")
+            logger.error(f"Error exporting PDF: {str(e)}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Error exporting PDF:\n{str(e)}")
             self.set_progress(False)
     
     def select_logo(self):
-        """Select logo image for PDF header"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Logo Image",
-            "",
-            "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)"
-        )
-        
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Logo Image", "", "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
         if file_path:
             self.excel_model.client_data.logo_path = file_path
             self.mark_as_modified()
     
     def show_settings(self):
-        """Show PDF export settings dialog"""
-        # Implementation would go here
         QMessageBox.information(self, "Settings", "PDF export settings will be available in the next version")
     
     def open_file(self, file_path: str):
-        """Open file with default application"""
         try:
-            if sys.platform == "win32":
-                os.startfile(file_path)
-            elif sys.platform == "darwin":
-                os.system(f'open "{file_path}"')
-            else:
-                os.system(f'xdg-open "{file_path}"')
+            if sys.platform == "win32": os.startfile(file_path)
+            elif sys.platform == "darwin": os.system(f'open "{file_path}"')
+            else: os.system(f'xdg-open "{file_path}"')
         except Exception as e:
             logger.error(f"Could not open file: {str(e)}")
             QMessageBox.warning(self, "Warning", f"Could not open file:\n{str(e)}")
 
 def main():
-    """Main application entry point"""
     app = QApplication(sys.argv)
-    
-    # Set application style and properties
     app.setStyle(QStyleFactory.create("Fusion"))
     app.setApplicationName("Ultimate Excel Editor")
     app.setApplicationVersion("1.0")
-    app.setWindowIcon(QIcon.fromTheme("x-office-spreadsheet"))
+    app.setWindowIcon(QIcon.fromTheme("x-office-spreadsheet")) # Needs a valid theme or direct path
     
-    # Create and show main window
     editor = ExcelEditor()
-    editor.show()
-    
-    # Open file if specified as argument
+    # Example: Load a file if passed as a command-line argument
     if len(sys.argv) > 1:
         editor.load_file(sys.argv[1])
+    editor.show()
     
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()
+# --- End of ExcelEditor ---
