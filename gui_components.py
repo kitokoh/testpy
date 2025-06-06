@@ -13,12 +13,16 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit,
     QListWidget, QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QDialogButtonBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QHeaderView, QInputDialog, QGroupBox, QCheckBox, QListWidgetItem, QDoubleSpinBox
+    QHeaderView, QInputDialog, QGroupBox, QCheckBox, QListWidgetItem, QDoubleSpinBox,
+    QStackedWidget # Added for preview
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
 from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication
+from PyQt5.QtWebEngineWidgets import QWebEngineView # Added for HTML preview
 
 from app_config import CONFIG, APP_ROOT_DIR, load_config
+import openpyxl # Added for Excel preview
+from docx import Document # Added for Word preview (already here but good to note)
 
 # Imports from other project files
 import db as db_manager # Assuming db.py is accessible
@@ -77,51 +81,134 @@ class ContactDialog(QDialog):
 class TemplateDialog(QDialog):
     def __init__(self, parent=None): # Removed config from constructor, will use global CONFIG
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Gestion des Modèles"))
-        self.setMinimumSize(600, 400)
+        self.setWindowTitle(self.tr("Select Template"))
+        self.setMinimumSize(850, 650) # Slightly increased dialog size for comfort
+
+        # Initialize UI elements for preview
+        self.preview_stacked_widget = QStackedWidget()
+        self.default_preview_label = QLabel(self.tr("Select a template from the list to see its preview here.")) # More informative text
+        self.default_preview_label.setAlignment(Qt.AlignCenter)
+        self.default_preview_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #888;
+                border: 1px dashed #ccc;
+                border-radius: 5px;
+                padding: 20px;
+            }
+        """)
+        self.image_text_preview_label = QLabel()
+        self.image_text_preview_label.setAlignment(Qt.AlignCenter) # Default, will be overridden for text
+        self.html_preview_widget = QWebEngineView()
+
+        self.preview_stacked_widget.addWidget(self.default_preview_label)
+        self.preview_stacked_widget.addWidget(self.image_text_preview_label)
+        self.preview_stacked_widget.addWidget(self.html_preview_widget)
+
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
+        main_layout.setSpacing(10) # Add some spacing between splitter panes
+
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0,0,0,0) # No margins for the layout itself
+
+        left_layout.addWidget(QLabel(self.tr("Available Templates:")))
         self.template_list = QListWidget()
         self.template_list.itemDoubleClicked.connect(self.edit_template)
-        layout.addWidget(self.template_list)
-        btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton(self.tr("Ajouter Modèle"))
+        self.template_list.itemClicked.connect(self.display_template_preview)
+        self.template_list.setSpacing(3) # Add spacing between list items
+        left_layout.addWidget(self.template_list)
+
+        template_actions_layout = QGridLayout()
+        template_actions_layout.setSpacing(5)
+        self.add_btn = QPushButton(self.tr("Add"))
         self.add_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_btn.clicked.connect(self.add_template)
-        btn_layout.addWidget(self.add_btn)
-        self.edit_btn = QPushButton(self.tr("Modifier"))
+        template_actions_layout.addWidget(self.add_btn, 0, 0)
+
+        self.edit_btn = QPushButton(self.tr("Edit Path")) # Clarified Edit action
         self.edit_btn.setIcon(QIcon.fromTheme("document-edit"))
-        self.edit_btn.clicked.connect(self.edit_template)
-        btn_layout.addWidget(self.edit_btn)
-        self.delete_btn = QPushButton(self.tr("Supprimer"))
+        self.edit_btn.clicked.connect(self.edit_template) # This opens the file, consider renaming if behavior changes
+        template_actions_layout.addWidget(self.edit_btn, 0, 1)
+
+        self.delete_btn = QPushButton(self.tr("Delete"))
         self.delete_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.delete_btn.clicked.connect(self.delete_template)
-        btn_layout.addWidget(self.delete_btn)
-        self.default_btn = QPushButton(self.tr("Définir par Défaut"))
+        template_actions_layout.addWidget(self.delete_btn, 1, 0)
+
+        self.default_btn = QPushButton(self.tr("Set Default"))
         self.default_btn.setIcon(QIcon.fromTheme("emblem-default"))
         self.default_btn.clicked.connect(self.set_default_template)
-        btn_layout.addWidget(self.default_btn)
-        layout.addLayout(btn_layout)
+        template_actions_layout.addWidget(self.default_btn, 1, 1)
+        left_layout.addLayout(template_actions_layout)
+
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0,0,0,0)
+
+        preview_label_title = QLabel(self.tr("Preview:"))
+        preview_label_title.setFont(QFont("Arial", 10, QFont.Bold)) # Slightly bolder title for preview
+        right_layout.addWidget(preview_label_title, 0)
+        right_layout.addWidget(self.preview_stacked_widget, 1)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
+        self.button_box.button(QDialogButtonBox.Ok).setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Cancel"))
+        self.button_box.button(QDialogButtonBox.Cancel).setIcon(QIcon.fromTheme("dialog-cancel"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        right_layout.addWidget(self.button_box)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setSizes([320, 530]) # Adjusted proportions slightly
+        splitter.setStretchFactor(0, 3) # Left panel less stretchy
+        splitter.setStretchFactor(1, 7) # Right panel more stretchy
+
+
+        main_layout.addWidget(splitter)
+        self.setLayout(main_layout)
+
         self.load_templates()
+        self.preview_stacked_widget.setCurrentWidget(self.default_preview_label)
 
     def load_templates(self):
         self.template_list.clear()
         try:
-            # Using db_manager instead of direct sqlite3
-            all_templates = db_manager.get_all_templates_with_details() # Assumes this function exists and provides needed fields
+            all_templates = db_manager.get_all_templates_with_details()
             if all_templates is None: all_templates = []
             for template_data in all_templates:
-                # Adjust based on actual fields from get_all_templates_with_details
                 item_text = f"{template_data.get('template_name', 'N/A')} ({template_data.get('language_code', 'N/A')})"
-                if template_data.get('is_default'): # Field name might be 'is_default_for_category_language'
-                    item_text += f" [{self.tr('Défaut')}]"
+                if template_data.get('is_default_for_category_language'):
+                    item_text += f" [{self.tr('Default')}]"
+
                 item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, template_data.get('template_id'))
+                full_path = os.path.join(CONFIG["templates_dir"], template_data.get('language_code', ''), template_data.get('base_file_name', ''))
+
+                # Set Icon based on file type
+                file_ext = os.path.splitext(full_path)[1].lower()
+                icon_name = "text-x-generic" # Default icon
+                if file_ext == '.xlsx':
+                    icon_name = "application-vnd.ms-excel" # Common theme name for Excel
+                elif file_ext == '.docx':
+                    icon_name = "application-msword" # Common theme name for Word
+                elif file_ext in ['.html', '.htm']:
+                    icon_name = "text-html"
+                elif file_ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
+                    icon_name = "image-x-generic"
+
+                item.setIcon(QIcon.fromTheme(icon_name, QIcon.fromTheme("text-x-generic"))) # Fallback to generic text icon
+
+                item.setData(Qt.UserRole, full_path)
+                item.setData(Qt.UserRole + 1, template_data.get('template_id'))
                 self.template_list.addItem(item)
-        except Exception as e: # Catch generic db_manager errors
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error loading templates:
 {0}").format(str(e)))
 
     def add_template(self):
@@ -170,56 +257,165 @@ class TemplateDialog(QDialog):
     def edit_template(self):
         item = self.template_list.currentItem()
         if not item: return
-        template_id = item.data(Qt.UserRole)
-        try:
-            template_details = db_manager.get_template_by_id(template_id) # Assumes this function exists
-            if template_details:
-                template_file_path = os.path.join(CONFIG["templates_dir"], template_details.get('language_code'), template_details.get('base_file_name'))
-                QDesktopServices.openUrl(QUrl.fromLocalFile(template_file_path))
-        except Exception as e: # Catch generic db_manager errors
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur d'accès au modèle:
+        # Edit now refers to opening the file path, which is stored in UserRole
+        file_path = item.data(Qt.UserRole)
+        if file_path and os.path.exists(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        else:
+            # Fallback or error if path is not valid, possibly using template_id for refetch if needed
+            template_id = item.data(Qt.UserRole + 1)
+            try:
+                template_details = db_manager.get_template_by_id(template_id)
+                if template_details:
+                    correct_file_path = os.path.join(CONFIG["templates_dir"], template_details.get('language_code'), template_details.get('base_file_name'))
+                    if os.path.exists(correct_file_path):
+                         QDesktopServices.openUrl(QUrl.fromLocalFile(correct_file_path))
+                    else:
+                         QMessageBox.warning(self, self.tr("File Not Found"), self.tr("Template file not found at: {0}").format(correct_file_path))
+                else:
+                    QMessageBox.warning(self, self.tr("Error"), self.tr("Template details not found in DB."))
+            except Exception as e:
+                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error accessing template details:
 {0}").format(str(e)))
+
 
     def delete_template(self):
         item = self.template_list.currentItem()
         if not item: return
-        template_id = item.data(Qt.UserRole)
-        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"), self.tr("Êtes-vous sûr de vouloir supprimer ce modèle ?"), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        template_id = item.data(Qt.UserRole + 1) # ID is in UserRole + 1
+        reply = QMessageBox.question(self, self.tr("Confirm Deletion"), self.tr("Are you sure you want to delete this template?"), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
                 template_details = db_manager.get_template_by_id(template_id)
-                deleted_from_db = db_manager.delete_template(template_id) # Assumes this function exists
+                deleted_from_db = db_manager.delete_template(template_id)
                 if deleted_from_db and template_details:
                     file_path_to_delete = os.path.join(CONFIG["templates_dir"], template_details.get('language_code'), template_details.get('base_file_name'))
                     if os.path.exists(file_path_to_delete): os.remove(file_path_to_delete)
                     self.load_templates()
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle supprimé avec succès."))
+                    self.preview_stacked_widget.setCurrentWidget(self.default_preview_label) # Reset preview
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Template deleted successfully."))
                 elif not template_details:
-                     QMessageBox.warning(self, self.tr("Erreur"), self.tr("Modèle non trouvé dans la DB."))
-                else: # Not deleted from DB
-                     QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur de suppression du modèle de la DB."))
+                     QMessageBox.warning(self, self.tr("Error"), self.tr("Template not found in DB."))
+                else:
+                     QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template from DB."))
             except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur de suppression du modèle:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template:
 {0}").format(str(e)))
 
     def set_default_template(self):
         item = self.template_list.currentItem()
         if not item: return
-        template_id = item.data(Qt.UserRole)
+        template_id = item.data(Qt.UserRole + 1) # ID is in UserRole + 1
         try:
-            # db_manager.set_default_template should handle logic:
-            # 1. Get the template's name (category) and language.
-            # 2. Set is_default=0 for all other templates of the same name and language.
-            # 3. Set is_default=1 for the selected template_id.
-            success = db_manager.set_default_template_for_category_language(template_id) # Assumes this function exists
+            success = db_manager.set_default_template_for_category_language(template_id)
             if success:
                 self.load_templates()
-                QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle défini comme modèle par défaut pour sa catégorie et langue."))
+                QMessageBox.information(self, self.tr("Success"), self.tr("Template set as default for its category and language."))
             else:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du modèle par défaut."))
-        except Exception as e: # Catch generic db_manager errors
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du modèle:
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error setting default template."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error updating template:
 {0}").format(str(e)))
+
+    def get_selected_template_path(self):
+        selected_items = self.template_list.selectedItems()
+        if selected_items:
+            return selected_items[0].data(Qt.UserRole) # File path is in Qt.UserRole
+        return None
+
+    def display_template_preview(self, item):
+        file_path = item.data(Qt.UserRole)
+
+        # Clear previous pixmap if any, before loading new content or showing text
+        self.image_text_preview_label.setPixmap(QPixmap()) # Clear any existing image
+
+        if not file_path or not os.path.exists(file_path):
+            self.default_preview_label.setText(self.tr("File not found: {0}").format(os.path.basename(file_path) if file_path else "N/A"))
+            self.preview_stacked_widget.setCurrentWidget(self.default_preview_label)
+            return
+
+        self.image_text_preview_label.setAlignment(Qt.AlignCenter)
+        self.image_text_preview_label.setWordWrap(False)
+
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+            filename = os.path.basename(file_path)
+
+            if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
+                pixmap = QPixmap(file_path)
+                if pixmap.isNull():
+                    self.image_text_preview_label.setText(self.tr("Error: Could not load image '{0}'.").format(filename))
+                else:
+                    target_size = self.image_text_preview_label.size()
+                    if not target_size.isValid() or target_size.width() < 50 or target_size.height() < 50 :
+                        target_size = self.preview_stacked_widget.size()
+
+                    scaled_pixmap = pixmap.scaled(target_size.width() - 10 , target_size.height() - 10,
+                                                  Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    self.image_text_preview_label.setPixmap(scaled_pixmap)
+                self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
+            elif ext == '.xlsx':
+                try:
+                    workbook = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                    sheet = workbook.active
+                    preview_text = f"<b>{filename}</b>\n\n"
+                    max_rows_preview = 15
+                    max_cols_preview = 7
+                    for row_idx, row_data in enumerate(sheet.iter_rows(max_row=max_rows_preview, max_col=max_cols_preview)):
+                        preview_text += "\t".join([str(cell.value) if cell.value is not None else "" for cell in row_data]) + "\n"
+
+                    if sheet.max_row > max_rows_preview or sheet.max_column > max_cols_preview:
+                        preview_text += self.tr("\n[Preview truncated]...")
+
+                    self.image_text_preview_label.setText(preview_text.strip())
+                    self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                    self.image_text_preview_label.setWordWrap(True)
+                except Exception as e:
+                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
+            elif ext == '.docx':
+                try:
+                    doc = Document(file_path)
+                    preview_text = f"<b>{filename}</b>\n\n"
+                    max_paras_preview = 7
+                    preview_text += "\n\n".join([para.text for para in doc.paragraphs[:max_paras_preview]]).strip()
+
+                    if len(doc.paragraphs) > max_paras_preview:
+                        preview_text += self.tr("\n\n[Preview truncated]...")
+
+                    if not preview_text.strip() == f"<b>{filename}</b>": # check if any content was added
+                         self.image_text_preview_label.setText(preview_text)
+                    else: # Only filename was added, means no text in first paras
+                         self.image_text_preview_label.setText(f"<b>{filename}</b>\n\n{self.tr('[Empty Document or No Text in First {0} Paragraphs]').format(max_paras_preview)}")
+
+                    self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                    self.image_text_preview_label.setWordWrap(True)
+                except Exception as e:
+                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
+            elif ext == '.html' or ext == '.htm':
+                self.html_preview_widget.setUrl(QUrl.fromLocalFile(file_path))
+                self.preview_stacked_widget.setCurrentWidget(self.html_preview_widget)
+            elif ext in ['.txt', '.md', '.csv', '.json', '.xml', '.py', '.js', '.css']:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        file_content = f.read(4096)
+                        preview_text = f"<b>{filename}</b>\n\n{file_content}"
+                        if len(file_content) == 4096:
+                            preview_text += self.tr("\n\n[Preview truncated]...")
+                    self.image_text_preview_label.setText(preview_text.strip())
+                    self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+                    self.image_text_preview_label.setWordWrap(True)
+                except Exception as e:
+                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
+            else:
+                self.image_text_preview_label.setText(self.tr("No preview available for '{0}' ({1}).").format(filename, ext))
+                self.image_text_preview_label.setAlignment(Qt.AlignCenter)
+                self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
+        except Exception as e:
+            self.default_preview_label.setText(self.tr("Error generating preview for {0}.\nDetails: {1}").format(os.path.basename(file_path) if file_path else "N/A", str(e)))
+            self.preview_stacked_widget.setCurrentWidget(self.default_preview_label)
 
 class ProductDialog(QDialog):
     def __init__(self, client_id, product_data=None, parent=None): # client_id might not be needed if product_data is self-sufficient for editing
