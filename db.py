@@ -959,6 +959,27 @@ def set_default_company(company_id: str) -> bool:
             conn.isolation_level = '' # Reset isolation level
             conn.close()
 
+def get_default_company() -> dict | None:
+    """
+    Retrieves the company marked as default.
+    Returns company data as a dictionary if found, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Companies WHERE is_default = TRUE")
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in get_default_company: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for CompanyPersonnel
 def add_company_personnel(personnel_data: dict) -> int | None:
     """Inserts new personnel linked to a company. Returns personnel_id."""
@@ -5120,3 +5141,107 @@ if __name__ == '__main__':
         print(f"Deleted user ID: {kpi_test_user_id}")
 
     print("\n--- Schema changes and basic tests completed. ---")
+
+    print("\n--- Testing get_default_company ---")
+    initialize_database() # Ensure tables are fresh or correctly set up
+
+    company_name1 = "Test Default Co"
+    company_name2 = "New Default Co"
+    test_comp1_id = None
+    test_comp2_id = None
+
+    # Clean up any previous test companies with the same names to ensure test idempotency
+    all_comps_initial = get_all_companies()
+    for comp_init in all_comps_initial:
+        if comp_init['company_name'] == company_name1:
+            print(f"Deleting pre-existing company: {comp_init['company_name']} (ID: {comp_init['company_id']})")
+            delete_company(comp_init['company_id'])
+        if comp_init['company_name'] == company_name2:
+            print(f"Deleting pre-existing company: {comp_init['company_name']} (ID: {comp_init['company_id']})")
+            delete_company(comp_init['company_id'])
+
+    # 1. Add first company
+    test_comp1_id = add_company({'company_name': company_name1, 'address': '1 First St'})
+    if test_comp1_id:
+        print(f"Added company '{company_name1}' with ID: {test_comp1_id}")
+    else:
+        print(f"Failed to add company '{company_name1}'")
+        # Cannot proceed with test if this fails
+        exit()
+
+    # 2. Set first company as default
+    print(f"Setting '{company_name1}' as default...")
+    set_default_company(test_comp1_id)
+
+    # 3. Get default company and assert it's the first one
+    default_co = get_default_company()
+    if default_co:
+        print(f"Retrieved default company: {default_co['company_name']} (ID: {default_co['company_id']})")
+        assert default_co['company_name'] == company_name1, f"Assertion Failed: Expected default company name to be '{company_name1}', got '{default_co['company_name']}'"
+        assert default_co['company_id'] == test_comp1_id, f"Assertion Failed: Expected default company ID to be '{test_comp1_id}', got '{default_co['company_id']}'"
+        print(f"SUCCESS: '{company_name1}' is correctly set and retrieved as default.")
+    else:
+        print(f"Assertion Failed: Expected to retrieve '{company_name1}' as default, but got None.")
+        # Cannot proceed reliably if this fails
+        if test_comp1_id: delete_company(test_comp1_id)
+        exit()
+
+    # 4. Add second company
+    test_comp2_id = add_company({'company_name': company_name2, 'address': '2 Second St'})
+    if test_comp2_id:
+        print(f"Added company '{company_name2}' with ID: {test_comp2_id}")
+    else:
+        print(f"Failed to add company '{company_name2}'")
+        if test_comp1_id: delete_company(test_comp1_id) # Clean up first company
+        exit()
+
+    # 5. Set second company as default
+    print(f"Setting '{company_name2}' as default...")
+    set_default_company(test_comp2_id)
+
+    # 6. Get default company and assert it's the second one
+    default_co_new = get_default_company()
+    if default_co_new:
+        print(f"Retrieved new default company: {default_co_new['company_name']} (ID: {default_co_new['company_id']})")
+        assert default_co_new['company_name'] == company_name2, f"Assertion Failed: Expected new default company name to be '{company_name2}', got '{default_co_new['company_name']}'"
+        assert default_co_new['company_id'] == test_comp2_id, f"Assertion Failed: Expected new default company ID to be '{test_comp2_id}', got '{default_co_new['company_id']}'"
+        print(f"SUCCESS: '{company_name2}' is correctly set and retrieved as new default.")
+    else:
+        print(f"Assertion Failed: Expected to retrieve '{company_name2}' as new default, but got None.")
+        # Clean up both companies before exiting
+        if test_comp1_id: delete_company(test_comp1_id)
+        if test_comp2_id: delete_company(test_comp2_id)
+        exit()
+
+    # 7. Assert that the first company is no longer the default
+    comp1_check = get_company_by_id(test_comp1_id)
+    if comp1_check:
+        assert not comp1_check['is_default'], f"Assertion Failed: Company '{company_name1}' should no longer be default, but 'is_default' is {comp1_check['is_default']}"
+        print(f"SUCCESS: Company '{company_name1}' is_default is correctly False after '{company_name2}' became default.")
+    else:
+        print(f"Error: Could not retrieve company '{company_name1}' for final check.")
+        # Fallback check: ensure get_default_company doesn't return it
+        current_default_still_comp2 = get_default_company()
+        if current_default_still_comp2 and current_default_still_comp2['company_id'] == test_comp2_id:
+             print(f"Fallback check: Current default is still '{company_name2}', so '{company_name1}' is not default. This is acceptable.")
+        else:
+            print(f"Fallback check failed: Default company is not '{company_name2}' or is None.")
+
+
+    # 8. Clean up
+    print("Cleaning up test companies...")
+    if test_comp1_id:
+        delete_company(test_comp1_id)
+        print(f"Deleted company '{company_name1}' (ID: {test_comp1_id})")
+    if test_comp2_id:
+        delete_company(test_comp2_id)
+        print(f"Deleted company '{company_name2}' (ID: {test_comp2_id})")
+
+    final_default_check = get_default_company()
+    if final_default_check is None:
+        print("SUCCESS: Default company is None after cleanup, as expected.")
+    else:
+        print(f"Warning: A default company still exists after cleanup: {final_default_check['company_name']}. This might indicate issues in other tests or test setup.")
+
+
+    print("--- Finished testing get_default_company ---")
