@@ -45,6 +45,7 @@ from reportlab.graphics.shapes import Line, Drawing
 from reportlab.graphics.barcode import code128, qr
 from reportlab.graphics import renderPDF
 import io # Added for io.BytesIO
+from html_to_pdf_util import populate_html, convert_html_to_pdf, WeasyPrintError # Added
 
 # Define APP_ROOT_DIR for font path resolution
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -191,8 +192,18 @@ class Translator:
              "Impossible de trouver les données du modèle sélectionné.": "Impossible de trouver les données du modèle sélectionné.",
              "Supprimer Modèle": "Supprimer Modèle", # Dialog title
              "Veuillez sélectionner un modèle à supprimer.": "Veuillez sélectionner un modèle à supprimer.",
-             "Moderne": "Moderne", "Classique": "Classique", "Minimaliste": "Minimaliste", "Personnalisé": "Personnalisé", # ComboBox items
+             "Moderne": "Moderne", "Classique": "Classique", "Minimaliste": "Minimaliste", "Personnalisé": "Personnalisé", # ComboBox items for ReportLab
+             "Moderne (HTML)": "Moderne (HTML)", # New HTML template style
+             "Traditionnel (HTML)": "Traditionnel (HTML)", # New HTML template style
              "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n",
+             "Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None).": "Could not generate PDF from HTML template (conversion returned None).",
+             "Le fichier modèle HTML est introuvable:": "HTML template file not found:",
+             "Une erreur est survenue lors de la génération du PDF HTML:": "An error occurred during HTML PDF generation:",
+             "Impossible de générer le PDF en mémoire (ReportLab): {}": "Could not generate in-memory PDF (ReportLab): {}",
+             "Aucune donnée PDF à enregistrer. La génération a échoué.": "No PDF data to save. Generation failed.",
+             "Pour les modèles HTML, le logo doit être un chemin de fichier accessible (absolu ou relatif au dossier des modèles) dans le champ 'Chemin du logo'. Le logo en mémoire n'est pas utilisé directement.": "For HTML templates, the logo must be an accessible file path (absolute or relative to the templates folder) in the 'Logo Path' field. The in-memory logo is not used directly.",
+             "Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.": "The logo path '{}' is not a valid absolute path, URL, or relative to the HTML templates folder.",
+             "Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}": "Cannot use in-memory logo for HTML template. Error: {}",
         }
         # Initialize for English
         self.translations["English"] = {
@@ -303,8 +314,18 @@ class Translator:
             "Impossible de trouver les données du modèle sélectionné.": "Could not find data for selected template.",
             "Supprimer Modèle": "Delete Template",
             "Veuillez sélectionner un modèle à supprimer.": "Please select a template to delete.",
-            "Moderne": "Modern", "Classique": "Classic", "Minimaliste": "Minimalist", "Personnalisé": "Custom", # ComboBox items
+            "Moderne": "Modern", "Classique": "Classic", "Minimaliste": "Minimalist", "Personnalisé": "Custom",
+            "Moderne (HTML)": "Modern (HTML)",
+            "Traditionnel (HTML)": "Traditional (HTML)",
             "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Modern Cover Page Generator</b> v0.1 Alpha\n<p>An application to easily create custom cover pages.\n<p>Developed with PyQt5 and ReportLab.\n<p>© 2023 Your Name/Organization. All rights reserved.\n<p><a href='https://example.com'>Visit our website</a>\n",
+            "Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None).": "Could not generate PDF from HTML template (conversion returned None).",
+            "Le fichier modèle HTML est introuvable:": "HTML template file not found:",
+            "Une erreur est survenue lors de la génération du PDF HTML:": "An error occurred during HTML PDF generation:",
+            "Impossible de générer le PDF en mémoire (ReportLab): {}": "Could not generate in-memory PDF (ReportLab): {}",
+            "Aucune donnée PDF à enregistrer. La génération a échoué.": "No PDF data to save. Generation failed.",
+            "Pour les modèles HTML, le logo doit être un chemin de fichier accessible (absolu ou relatif au dossier des modèles) dans le champ 'Chemin du logo'. Le logo en mémoire n'est pas utilisé directement.": "For HTML templates, the logo must be an accessible file path (absolute or relative to the templates folder) in the 'Logo Path' field. The in-memory logo is not used directly.",
+            "Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.": "The logo path '{}' is not a valid absolute path, URL, or relative to the HTML templates folder.",
+            "Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}": "Cannot use in-memory logo for HTML template. Error: {}",
         }
         # Initialize for Spanish
         self.translations["Español"] = {
@@ -1321,7 +1342,14 @@ class CoverPageGenerator(QMainWindow):
         self.ui_labels["Style de modèle:"] = QLabel(self.translator.tr("Style de modèle:"))
         grid.addWidget(self.ui_labels["Style de modèle:"], 0, 0)
         self.template_style_combo = ModernComboBox()
-        self.template_style_combo.addItems([self.translator.tr("Moderne"), self.translator.tr("Classique"), self.translator.tr("Minimaliste"), self.translator.tr("Personnalisé")])
+        self.template_style_combo.addItems([
+            self.translator.tr("Moderne"),
+            self.translator.tr("Classique"),
+            self.translator.tr("Minimaliste"),
+            self.translator.tr("Moderne (HTML)"), # New
+            self.translator.tr("Traditionnel (HTML)"), # New
+            self.translator.tr("Personnalisé")
+        ])
         self.template_style_combo.currentTextChanged.connect(self.on_form_field_changed)
         grid.addWidget(self.template_style_combo, 0, 1)
 
@@ -1516,10 +1544,14 @@ class CoverPageGenerator(QMainWindow):
 
         # Layout Style Panel Labels & Controls
         # self.ui_labels["Style de modèle:"].setText(self.translator.tr("Style de modèle:"))
+        # Update existing items by index for retranslation
         self.template_style_combo.setItemText(0, self.translator.tr("Moderne"))
         self.template_style_combo.setItemText(1, self.translator.tr("Classique"))
         self.template_style_combo.setItemText(2, self.translator.tr("Minimaliste"))
-        self.template_style_combo.setItemText(3, self.translator.tr("Personnalisé"))
+        self.template_style_combo.setItemText(3, self.translator.tr("Moderne (HTML)"))
+        self.template_style_combo.setItemText(4, self.translator.tr("Traditionnel (HTML)"))
+        self.template_style_combo.setItemText(5, self.translator.tr("Personnalisé"))
+
 
         self.text_color_button.setText(self.translator.tr("Choisir Couleur"))
         self.show_horizontal_line_checkbox.setText(self.translator.tr("Afficher la ligne horizontale"))
@@ -1819,6 +1851,7 @@ class CoverPageGenerator(QMainWindow):
             "logo_width": 50, "logo_height": 50, # mm, make configurable
             "logo_x_position": "center", # make configurable
             "logo_y_position": "top",    # make configurable
+            "LOGO_PATH": self.logo_path_edit.text() if self.logo_path_edit.text() else None, # Added
 
             "horizontal_line": form_data.get("show_horizontal_line", True),
             "line_color": (0,0,0),
@@ -1829,12 +1862,128 @@ class CoverPageGenerator(QMainWindow):
             "font_size_footer": 8,
             # ... add all other relevant fields from form_data and APP_CONFIG ...
         }
+        # Ensure all placeholders for HTML templates are present
+        pdf_config['TITLE'] = pdf_config.get('title', '')
+        pdf_config['SUBTITLE'] = pdf_config.get('subtitle', '')
+        pdf_config['AUTHOR'] = pdf_config.get('author', '')
+        pdf_config['INSTITUTION'] = pdf_config.get('institution', '')
+        pdf_config['DEPARTMENT'] = pdf_config.get('department', '')
+        pdf_config['DOC_TYPE'] = pdf_config.get('doc_type', '')
+        pdf_config['DATE'] = pdf_config.get('date', '')
+        pdf_config['VERSION'] = pdf_config.get('version', '')
+        # LOGO_PATH is already added above.
+        # DATE_YEAR for footer if needed by HTML template
+        try:
+            pdf_config['DATE_YEAR'] = datetime.datetime.strptime(pdf_config.get('date', ''), "%Y-%m-%d").year if pdf_config.get('date') else datetime.date.today().year
+        except ValueError: # Handle cases where date might not be in YYYY-MM-DD
+            pdf_config['DATE_YEAR'] = datetime.date.today().year
+
         return pdf_config
 
     def generate_pdf_to_buffer(self) -> Optional[bytes]:
         pdf_config = self._collect_config_for_pdf()
-        buffer = QBuffer() # Use QBuffer for easier integration with QByteArray
-        buffer.open(QIODevice.ReadWrite)
+
+        # --- HTML Template Processing ---
+        selected_style = self.template_style_combo.currentText()
+        html_template_name = None
+
+        # Check against both translated and raw string in case translations aren't loaded for some reason
+        if selected_style == self.translator.tr("Moderne (HTML)") or selected_style == "Moderne (HTML)":
+            html_template_name = "modern_template.html"
+        elif selected_style == self.translator.tr("Traditionnel (HTML)") or selected_style == "Traditionnel (HTML)":
+            html_template_name = "traditional_template.html"
+
+        if html_template_name:
+            try:
+                    html_template_path = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html', html_template_name)
+
+                    template_dir = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html')
+                    # base_url must be a file URI and end with a slash if it's a directory.
+                    base_url = QUrl.fromLocalFile(template_dir).toString()
+                    if not base_url.endswith('/'):
+                        base_url += '/'
+
+                    with open(html_template_path, 'r', encoding='utf-8') as f:
+                        template_content = f.read()
+
+                    # Handle LOGO_PATH for WeasyPrint:
+                    # It needs to be an absolute file path, a file:// URI, or a resolvable relative path from base_url.
+                    current_logo_path_text = pdf_config.get('LOGO_PATH', '') # This comes from logo_path_edit.text()
+
+                    if current_logo_path_text:
+                        if not os.path.isabs(current_logo_path_text) and not current_logo_path_text.startswith(('http://', 'https://', 'file://')):
+                            # If it's a relative path (e.g., "logos/my_logo.png")
+                            # We assume it's relative to APP_ROOT_DIR or some known 'assets' folder.
+                            # For WeasyPrint, if it's not an absolute path, it will be resolved against base_url.
+                            # If base_url is '.../templates/cover_pages/html/', then "logos/my_logo.png"
+                            # would be sought at '.../templates/cover_pages/html/logos/my_logo.png'.
+                            # If logo_path_edit stores an absolute path, this is fine.
+                            # If logo_path_edit stores a relative path, user must ensure it's relative to the HTML template's folder.
+                            # For maximum robustness, convert to absolute path if it's not a URL
+                             resolved_logo_path = os.path.join(template_dir, current_logo_path_text)
+                             if os.path.exists(resolved_logo_path):
+                                 pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(resolved_logo_path).toString()
+                             elif not os.path.exists(current_logo_path_text) and not current_logo_path_text.startswith(('http', 'file:')):
+                                 # If relative path doesn't exist relative to template_dir and not absolute/URL
+                                 QMessageBox.warning(self, self.translator.tr("Erreur Logo"),
+                                                      self.translator.tr("Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.", current_logo_path_text))
+                                 pdf_config['LOGO_PATH'] = "" # Prevent broken image
+                        elif os.path.isabs(current_logo_path_text):
+                             pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(current_logo_path_text).toString()
+                        # If it's already a URL (http, https, file://), leave as is.
+
+                    elif not current_logo_path_text and self.current_logo_data:
+                        # Logo is in memory (self.current_logo_data) but not path specified for HTML.
+                        # WeasyPrint needs a path or URL. We can save it to a temporary file.
+                        temp_logo_dir = os.path.join(APP_ROOT_DIR, "temp_assets")
+                        os.makedirs(temp_logo_dir, exist_ok=True)
+                        temp_logo_filename = "temp_logo_for_html.png" # Assume PNG, or detect from data
+                        temp_logo_path = os.path.join(temp_logo_dir, temp_logo_filename)
+                        try:
+                            with open(temp_logo_path, "wb") as tmp_logo_file:
+                                tmp_logo_file.write(self.current_logo_data)
+                            pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(temp_logo_path).toString()
+                            # This temp file should be cleaned up later, e.g., after PDF generation.
+                        except Exception as e_save_logo:
+                            print(f"Error saving temporary logo: {e_save_logo}")
+                            QMessageBox.warning(self, self.translator.tr("Erreur Logo"), self.translator.tr("Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}", str(e_save_logo)))
+                            pdf_config['LOGO_PATH'] = "" # Ensure it's empty if temp saving fails
+                    else:
+                        # No logo path and no logo data.
+                        pdf_config['LOGO_PATH'] = ""
+
+
+                    populated_html = populate_html(template_content, pdf_config)
+                    pdf_bytes = convert_html_to_pdf(populated_html, base_url=base_url)
+
+                    # Clean up temporary logo if created
+                    if pdf_config.get('LOGO_PATH', '').startswith('file://') and "temp_logo_for_html" in pdf_config['LOGO_PATH']:
+                        temp_logo_to_clean = QUrl(pdf_config['LOGO_PATH']).toLocalFile()
+                        if os.path.exists(temp_logo_to_clean):
+                            try:
+                                os.remove(temp_logo_to_clean)
+                            except Exception as e_clean:
+                                print(f"Error cleaning temporary logo file {temp_logo_to_clean}: {e_clean}")
+
+                    if pdf_bytes:
+                        return pdf_bytes
+                    else:
+                        # convert_html_to_pdf raises WeasyPrintError on failure, so this path might not be hit
+                        # if it strictly returns None only on non-error empty results (unlikely for PDF).
+                        QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None)."))
+                        return None
+                except WeasyPrintError as e:
+                    QMessageBox.critical(self, self.translator.tr("Erreur WeasyPrint"), str(e))
+                    return None
+                except FileNotFoundError: # For template file itself
+                    QMessageBox.critical(self, self.translator.tr("Erreur Fichier Modèle"), f"{self.translator.tr('Le fichier modèle HTML est introuvable:')} {html_template_path}")
+                    return None
+                except Exception as e: # Catch-all for other errors during HTML path
+                    QMessageBox.critical(self, self.translator.tr("Erreur Inconnue"), f"{self.translator.tr('Une erreur est survenue lors de la génération du PDF HTML:')} {e}")
+                    return None
+
+        # --- Fallback to ReportLab Logic (Original Path) ---
+        buffer = io.BytesIO() # Use io.BytesIO for ReportLab path
 
         # --- Register Fonts ---
         registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
@@ -1860,18 +2009,7 @@ class CoverPageGenerator(QMainWindow):
         # Simplified call to a hypothetical PDF generation logic class:
         # Wrap the core PDF generation in a try-except block
         try:
-            # pdf_logic = PDFGenerator_Logic( # Instantiate the logic class
-            #     title=pdf_config.get("title"),
-            #     subtitle=pdf_config.get("subtitle"),
-            #     # ... pass all other relevant items from pdf_config ...
-            #     custom_config=pdf_config # Pass the whole dict
-            # )
-            # # The logic class's generate method should accept a file-like object
-            # pdf_logic.generate(output_filename_or_buffer=buffer) # This needs adjustment in CLI class
-            
             # Direct ReportLab usage for simplicity here, mirroring the CLI class's logic
-            # This part should be identical to the PDF generation logic from the CLI script
-            # For demonstration, a very simplified version:
             c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
             requested_font_name = pdf_config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
@@ -1924,29 +2062,21 @@ class CoverPageGenerator(QMainWindow):
 
             if pdf_config.get("logo_data"):
                 try:
-                    logo_image = ImageReader(QBuffer(QByteArray(pdf_config.get("logo_data")))) # Wrap bytes in QBuffer for ImageReader
+                    logo_image = ImageReader(io.BytesIO(pdf_config.get("logo_data"))) # Use io.BytesIO for ImageReader
                     # Example positioning, make this configurable
                     c.drawImage(logo_image, A4[0]/2 - 25*mm, A4[1] - 60*mm, width=50*mm, height=50*mm, preserveAspectRatio=True)
                 except Exception as logo_e:
                     print(f"Error drawing logo in PDF: {logo_e}", file=sys.stderr)
 
             c.save()
-            buffer.seek(0)
-            pdf_bytes = buffer.data().data() # Get bytes from QByteArray
+            pdf_bytes = buffer.getvalue() # Get bytes from io.BytesIO for ReportLab path
             buffer.close()
             return pdf_bytes
         except Exception as e: # More specific error handling for PDF generation part
-            error_msg = f"Impossible de générer le PDF en mémoire: {str(e)}"
-            print(error_msg, file=sys.stderr) # Keep console log for debugging
-            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr(error_msg)) # Use translator if key exists
-            if buffer.isOpen(): buffer.close() # Ensure buffer is closed on error
-            return None
-
-        # Fallback for any other unexpected errors, though the above should catch most PDF-gen issues.
-        except Exception as e:
-            print(f"Unexpected error in generate_pdf_to_buffer: {e}", file=sys.stderr)
-            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), f"An unexpected error occurred: {str(e)}")
-            if buffer.isOpen(): buffer.close()
+            error_msg = self.translator.tr("Impossible de générer le PDF en mémoire (ReportLab): {}", str(e))
+            print(f"ReportLab PDF generation error: {str(e)}", file=sys.stderr) # Keep console log for debugging
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), error_msg)
+            if not buffer.closed: buffer.close() # Ensure buffer is closed on error
             return None
 
 
@@ -1979,19 +2109,25 @@ class CoverPageGenerator(QMainWindow):
                 if os.path.exists(temp_pdf_path):
                     try:
                         os.remove(temp_pdf_path)
-                    except Exception as e:
+                    except Exception as e: # pylint: disable=broad-except
                         print(f"Could not remove temp preview file: {e}", file=sys.stderr)
         else:
-            self.preview_widget.display_error_message(self.translator.tr("Impossible de générer l'aperçu."))
+            # Error message already shown by generate_pdf_to_buffer if it returned None
+            # self.preview_widget.display_error_message(self.translator.tr("Impossible de générer l'aperçu."))
+            pass
 
 
     def generate_pdf_final(self):
-        pdf_bytes = self.current_pdf_data 
-        if not pdf_bytes:
-            pdf_bytes = self.generate_pdf_to_buffer()
+        # It's generally better to regenerate for the final output to ensure freshness,
+        # unless self.current_pdf_data is explicitly managed to be always the latest.
+        pdf_bytes = self.generate_pdf_to_buffer()
+        # If you want to use cached data:
+        # pdf_bytes = self.current_pdf_data
+        # if not pdf_bytes: # Fallback if cache is empty
+        #     pdf_bytes = self.generate_pdf_to_buffer()
 
         if not pdf_bytes:
-            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Aucune donnée PDF à enregistrer."))
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Aucune donnée PDF à enregistrer. La génération a échoué."))
             return
 
         default_filename = (self.title_edit.text() or self.translator.tr("PageDeGarde", "Default PDF Name Context")) + ".pdf"
