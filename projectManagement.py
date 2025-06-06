@@ -2251,7 +2251,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.load_kpis()
         self.load_activities()
         self.update_charts()
-        self.statusBar().showMessage("Dashboard updated", 3000)
+        print("Dashboard updated")
 
     def update_charts(self):
         # Team performance
@@ -2331,7 +2331,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         elif report_type == "Budget Analysis":
             self.generate_budget_report(period)
 
-        self.statusBar().showMessage(f"Report '{report_type}' generated for period '{period}'", 3000)
+        print(f"Report '{report_type}' generated for period '{period}'")
 
     def generate_team_performance_report(self, period):
         # Chart
@@ -2699,7 +2699,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     df = pd.DataFrame(data, columns=headers)
                     df.to_excel(file_name, index=False)
 
-                    self.statusBar().showMessage(f"Report exported to {file_name}", 3000)
+                    print(f"Report exported to {file_name}")
                     QMessageBox.information(self, "Export Successful", f"The report has been successfully exported to {file_name}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"An error occurred during export: {str(e)}")

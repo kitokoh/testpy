@@ -83,6 +83,45 @@ def initialize_database():
     )
     """)
 
+    # --- Pre-populate StatusSettings ---
+    default_statuses = [
+        # Client Statuses
+        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
+        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False}, # Yellow
+        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'is_completion_status': False, 'is_archival_status': False}, # Green
+        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'is_completion_status': False, 'is_archival_status': True},  # Grey
+        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'is_completion_status': True, 'is_archival_status': False}, # Darker Green
+        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True},  # Darker Grey
+        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},   # Red
+
+        # Project Statuses
+        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'is_completion_status': False, 'is_archival_status': False}, # Turquoise
+        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
+        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'is_completion_status': False, 'is_archival_status': False},# Orange
+        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},  # Green
+        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'is_completion_status': False, 'is_archival_status': True},   # Dark Red
+        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'is_completion_status': False, 'is_archival_status': False}, # Purple
+
+        # Task Statuses
+        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'is_completion_status': False, 'is_archival_status': False},      # Light Grey
+        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False},# Blue
+        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},     # Green
+        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},    # Red
+        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False},     # Yellow
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True}   # Dark Grey
+    ]
+
+    for status in default_statuses:
+        cursor.execute("""
+            INSERT OR IGNORE INTO StatusSettings (
+                status_name, status_type, color_hex, is_completion_status, is_archival_status
+            ) VALUES (?, ?, ?, ?, ?)
+        """, (
+            status['status_name'], status['status_type'], status['color_hex'],
+            status.get('is_completion_status', False),
+            status.get('is_archival_status', False)
+        ))
+
     # Create Clients table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Clients (
@@ -417,21 +456,23 @@ def add_client(client_data: dict) -> str | None:
         # Ensure all required fields are present, or provide defaults
         sql = """
             INSERT INTO Clients (
-                client_id, client_name, company_name, primary_need_description,
+                client_id, client_name, company_name, primary_need_description, project_identifier,
                 country_id, city_id, default_base_folder_path, status_id,
-                selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                selected_languages, price, notes, category, created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_client_id,
             client_data.get('client_name'),
             client_data.get('company_name'),
             client_data.get('primary_need_description'),
+            client_data.get('project_identifier'),
             client_data.get('country_id'),
             client_data.get('city_id'),
             client_data.get('default_base_folder_path'),
             client_data.get('status_id'),
             client_data.get('selected_languages'),
+            client_data.get('price', 0.0), # Added price
             client_data.get('notes'),
             client_data.get('category'),
             now,  # created_at
@@ -705,6 +746,80 @@ def delete_template(template_id: int) -> bool:
     except sqlite3.Error as e:
         print(f"Database error in delete_template: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
+
+def add_default_template_if_not_exists(template_data: dict) -> int | None:
+    """
+    Adds a template to the Templates table if it doesn't already exist
+    based on template_name, template_type, and language_code.
+    Returns the template_id of the new or existing template, or None on error.
+    Expects template_data to include:
+        'template_name' (e.g., "Proforma"),
+        'template_type' (e.g., "document_excel", "document_word"),
+        'language_code' (e.g., "fr", "en"),
+        'base_file_name' (e.g., "proforma_template.xlsx"),
+        'description' (optional),
+        'category' (optional, e.g., "Finance", "Technical"),
+        'is_default_for_type_lang' (optional, boolean, defaults to False)
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        name = template_data.get('template_name')
+        ttype = template_data.get('template_type')
+        lang = template_data.get('language_code')
+        filename = template_data.get('base_file_name')
+
+        if not all([name, ttype, lang, filename]):
+            print(f"Error: Missing required fields for default template: {template_data}")
+            return None
+
+        # Check if this specific template (name, type, lang) already exists
+        cursor.execute("""
+            SELECT template_id FROM Templates
+            WHERE template_name = ? AND template_type = ? AND language_code = ?
+        """, (name, ttype, lang))
+        existing_template = cursor.fetchone()
+
+        if existing_template:
+            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
+            return existing_template['template_id']
+        else:
+            now = datetime.utcnow().isoformat() + "Z"
+            sql = """
+                INSERT INTO Templates (
+                    template_name, template_type, language_code, base_file_name,
+                    description, category, is_default_for_type_lang,
+                    created_at, updated_at
+                    -- created_by_user_id could be NULL or a system user ID
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            params = (
+                name,
+                ttype,
+                lang,
+                filename,
+                template_data.get('description', f"Default {name} template"),
+                template_data.get('category', "Général"),
+                template_data.get('is_default_for_type_lang', True), # Make default templates the default for their type/lang
+                now,
+                now
+            )
+            cursor.execute(sql, params)
+            conn.commit()
+            new_id = cursor.lastrowid
+            print(f"Added default template '{name}' ({ttype}, {lang}) with ID: {new_id}.")
+            return new_id
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
+        if conn:
+            conn.rollback() # Rollback on error
+        return None
     finally:
         if conn:
             conn.close()
@@ -1658,6 +1773,24 @@ def get_product_by_id(product_id: int) -> dict | None:
     finally:
         if conn: conn.close()
 
+def get_product_by_name(product_name: str) -> dict | None:
+    """Retrieves a product by its exact name. Returns a dict or None if not found."""
+    conn = None
+    if not product_name:
+        return None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_product_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 def get_all_products(filters: dict = None) -> list[dict]:
     """Retrieves all products. Filters by category (exact) or product_name (partial LIKE)."""
     conn = None
@@ -1766,6 +1899,32 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         return None
     finally:
         if conn: conn.close()
+
+def get_client_project_product_by_id(link_id: int) -> dict | None:
+    """
+    Retrieves a specific linked product entry from ClientProjectProducts by its link_id,
+    joining with Products table to get product details.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cpp.*, p.product_name, p.description as product_description,
+                   p.category as product_category, p.base_unit_price, p.unit_of_measure
+            FROM ClientProjectProducts cpp
+            JOIN Products p ON cpp.product_id = p.product_id
+            WHERE cpp.client_project_product_id = ?
+        """
+        cursor.execute(sql, (link_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_project_product_by_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_products_for_client_or_project(client_id: str, project_id: str = None) -> list[dict]:
     """Fetches products for a client, optionally filtered by project_id. Joins with Products."""
@@ -2721,6 +2880,56 @@ def get_country_by_id(country_id: int) -> dict | None:
     finally:
         if conn: conn.close()
 
+def get_country_by_name(country_name: str) -> dict | None:
+    """Retrieves a country by its name. Returns a dict or None if not found."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_country_by_name: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def add_country(country_data: dict) -> int | None:
+    """
+    Adds a new country to the Countries table.
+    Expects country_data to contain 'country_name'.
+    Returns the country_id of the newly added or existing country.
+    Returns None if an unexpected error occurs.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        country_name = country_data.get('country_name')
+        if not country_name:
+            print("Error: 'country_name' is required to add a country.")
+            return None
+
+        try:
+            cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Country name already exists, fetch its ID
+            print(f"Country '{country_name}' already exists. Fetching its ID.")
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            row = cursor.fetchone()
+            return row['country_id'] if row else None
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_country: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 def get_all_cities(country_id: int = None) -> list[dict]:
     conn = None
     try:
@@ -2740,6 +2949,66 @@ def get_all_cities(country_id: int = None) -> list[dict]:
         return []
     finally:
         if conn: conn.close()
+
+def add_city(city_data: dict) -> int | None:
+    """
+    Adds a new city to the Cities table.
+    Expects city_data to contain 'country_id' and 'city_name'.
+    Returns the city_id of the newly added or existing city.
+    Returns None if an unexpected error occurs or if country_id or city_name is missing.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        country_id = city_data.get('country_id')
+        city_name = city_data.get('city_name')
+
+        if not country_id or not city_name:
+            print("Error: 'country_id' and 'city_name' are required to add a city.")
+            return None
+
+        try:
+            # Check if city already exists for this country to avoid IntegrityError for composite uniqueness if not explicitly handled by schema (though schema doesn't show composite unique constraint for city_name+country_id, it's good practice)
+            # However, the current schema for Cities does not have a UNIQUE constraint on (country_id, city_name).
+            # It only has city_id as PK and country_id as FK.
+            # So, we will just insert. If a stricter uniqueness is needed, the table schema should be updated.
+            cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # This part would be relevant if there was a UNIQUE constraint on (country_id, city_name)
+            # For now, this block might not be hit unless city_name itself becomes unique across all countries (which is not typical)
+            print(f"IntegrityError likely means city '{city_name}' under country_id '{country_id}' already exists or other constraint failed.")
+            # If it were unique and we wanted to return existing:
+            # cursor.execute("SELECT city_id FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
+            # row = cursor.fetchone()
+            # return row['city_id'] if row else None
+            return None # For now, any IntegrityError is treated as a failure to add as new.
+
+    except sqlite3.Error as e:
+        print(f"Database error in add_city: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_city_by_name_and_country_id(city_name: str, country_id: int) -> dict | None:
+    """Retrieves a specific city by name for a given country_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_city_by_name_and_country_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_city_by_id(city_id: int) -> dict | None:
     conn = None

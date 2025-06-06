@@ -201,7 +201,7 @@ class TemplateDialog(QDialog):
         try:
             conn = sqlite3.connect(DATABASE_NAME)
             cursor = conn.cursor()
-            cursor.execute("SELECT template_id, name, language, is_default FROM Templates ORDER BY name, language")
+            cursor.execute("SELECT template_id, template_name, language_code as language, is_default_for_type_lang as is_default FROM Templates ORDER BY template_name, language_code")
             for row in cursor.fetchall():
                 item_text = f"{row[1]} ({row[2]})"
                 if row[3]:
@@ -210,7 +210,7 @@ class TemplateDialog(QDialog):
                 item.setData(Qt.UserRole, row[0]) 
                 self.template_list.addItem(item)
         except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{str(e)}"))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
         finally:
             if conn: conn.close()
             
@@ -234,22 +234,73 @@ class TemplateDialog(QDialog):
         os.makedirs(target_dir, exist_ok=True)
         base_file_name = os.path.basename(file_path) 
         target_path = os.path.join(target_dir, base_file_name) 
-        conn = None
+
+        # Determine template_type based on file extension
+        file_ext = os.path.splitext(base_file_name)[1].lower()
+        template_type_for_db = "document_other" # Default
+        if file_ext == ".xlsx":
+            template_type_for_db = "document_excel"
+        elif file_ext == ".docx":
+            template_type_for_db = "document_word"
+        elif file_ext == ".html":
+            template_type_for_db = "document_html"
+
+        template_metadata = {
+            'template_name': name.strip(), # This is the user-provided name for the template
+            'template_type': template_type_for_db,
+            'language_code': lang,
+            'base_file_name': base_file_name, # The actual file name
+            'description': f"Modèle {name.strip()} en {lang} ({base_file_name})", # Basic description
+            'category': "Utilisateur", # Category for user-added templates
+            'is_default_for_type_lang': False # User-added templates are not default by default
+            # 'raw_template_file_data': None, # Not storing file content in DB for this path
+            # 'created_by_user_id': None # Add if user system is integrated here
+        }
+
         try:
+            # First, copy the file
             shutil.copy(file_path, target_path)
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO Templates (name, file_name, language, is_default) VALUES (?, ?, ?, 0)",
-                (name.strip(), base_file_name, lang) 
-            )
-            conn.commit()
-            self.load_templates()
-            QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle ajouté avec succès."))
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:\n{str(e)}"))
-        finally:
-            if conn: conn.close()
+
+            # Then, add metadata to database via db_manager
+            new_template_id = db_manager.add_template(template_metadata)
+
+            if new_template_id:
+                self.load_templates() # Refresh list
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle ajouté avec succès."))
+            else:
+                # db_manager.add_template would print its own errors or return None on failure.
+                # If new_template_id is None, it means there was an issue (e.g., unique constraint).
+                # The db.py function might need adjustment to differentiate between "already exists" and "other error".
+                # For now, assume if it's None, it's an error the user should know about.
+                # If file was copied but DB entry failed, consider removing the copied file.
+                if os.path.exists(target_path): # Check if file was copied before potential DB error
+                     is_error_because_exists = False
+                     # Check if a template with the same name, type, and language already exists
+                     # This requires a way to query templates, e.g., get_templates_by_type_lang_name
+                     # For simplicity, we'll assume add_template failing with None means either unique constraint or other DB error.
+                     # A more robust check would be:
+                     # existing_templates = db_manager.get_templates_by_type(template_type_for_db, language_code=lang)
+                     # if existing_templates:
+                     #    for tpl in existing_templates:
+                     #        if tpl.get('template_name') == name.strip(): # and other unique fields if necessary
+                     #            is_error_because_exists = True
+                     #            break
+                     # A direct check for unique constraint violation in db_manager.add_template would be better.
+                     # For now, providing a generic message or trying to infer.
+                     # A simple check: if a template with this name+type+lang exists, it's likely a unique conflict.
+
+                     # Simplified check:
+                     # This is not ideal as it re-queries. db_manager.add_template should ideally signal this.
+                     # For now, we'll assume if add_template returns None, it's an issue.
+                     # The user will get a generic DB error. A more specific "already exists" would need db.add_template to provide more info.
+                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur lors de l'enregistrement du modèle dans la base de données. Un modèle avec des attributs similaires (nom, type, langue) existe peut-être déjà, ou une autre erreur de base de données s'est produite."))
+                     # Consider removing the copied file if DB entry failed:
+                     # os.remove(target_path)
+                else: # File copy itself might have failed before DB
+                    QMessageBox.critical(self, self.tr("Erreur Fichier"), self.tr("Erreur lors de la copie du fichier modèle."))
+
+        except Exception as e: # Catch errors from shutil.copy or other unexpected issues
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
             
     def edit_template(self): 
         item = self.template_list.currentItem()
@@ -322,13 +373,22 @@ class TemplateDialog(QDialog):
         try:
             conn = sqlite3.connect(DATABASE_NAME)
             cursor = conn.cursor()
-            cursor.execute("SELECT name FROM Templates WHERE template_id = ?", (template_id,))
+            cursor.execute("SELECT template_name FROM Templates WHERE template_id = ?", (template_id,))
             name_result = cursor.fetchone()
             if not name_result: return
             base_name = name_result[0] 
             
-            cursor.execute("UPDATE Templates SET is_default = 0 WHERE name = ?", (base_name,))
-            cursor.execute("UPDATE Templates SET is_default = 1 WHERE template_id = ?", (template_id,))
+            # This logic might need to be more nuanced if "is_default" is per type AND language
+            # For now, it sets default for all templates with the same base_name, effectively making one variant (lang) default.
+            # The db.add_default_template_if_not_exists sets is_default_for_type_lang = True,
+            # so this function should probably update is_default_for_type_lang.
+            # The original table was Templates(name, file_name, language, is_default)
+            # The new table is Templates(template_name, template_type, language_code, is_default_for_type_lang, ...)
+            # The intent is likely: "For this template's name and type, set this language variant as the default."
+            # This needs refinement if we have template_type in play.
+            # For now, matching original logic on name, but using new column names.
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_name = ?", (base_name,))
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,))
             conn.commit()
             self.load_templates()
             QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle défini comme modèle par défaut pour sa catégorie et langue."))
@@ -1056,17 +1116,27 @@ class ClientWidget(QWidget):
             if conn: conn.close()
             
     def update_client_status(self, status_text): 
-        conn = None
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("UPDATE Clients SET status = ? WHERE client_id = ?", (status_text, self.client_info["client_id"]))
-            conn.commit()
-            self.client_info["status"] = status_text 
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+            status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+            if status_setting and status_setting.get('status_id') is not None:
+                status_id_to_set = status_setting['status_id']
+                client_id_to_update = self.client_info["client_id"]
+
+                if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                    self.client_info["status"] = status_text # Keep display name
+                    self.client_info["status_id"] = status_id_to_set # Update the id in the local map
+                    # Find the item in the main list and update its UserRole for the delegate
+                    # This part is tricky as ClientWidget doesn't have direct access to DocumentManager.client_list_widget
+                    # For now, we'll rely on a full refresh from DocumentManager if the list display needs immediate color change,
+                    # or accept that the color might only update on next full load/filter.
+                    # Consider emitting a signal if immediate update of list widget item is needed.
+                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
+            else:
+                QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
             
     def save_client_notes(self): 
         notes = self.notes_edit.toPlainText()
@@ -1188,7 +1258,7 @@ class ClientWidget(QWidget):
                     "city": self.client_info.get("city", ""),
                 }
                 if file_path.lower().endswith('.xlsx'):
-                    editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
+                    editor = ExcelEditor(file_path, parent=self)
                     editor.exec_()
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
@@ -1913,9 +1983,10 @@ class DocumentManager(QMainWindow):
         selected_country_id = self.country_select_combo.currentData() # Get ID from combo item's data
 
         if selected_country_id is None: # Fallback if ID not found (e.g. user typed custom country)
-            country_obj = db_manager.get_country_by_name(country_name_str)
-            if country_obj:
-                selected_country_id = country_obj['country_id']
+            # Try to get country by name if ID is not available (e.g., user typed a new country name)
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name:
+                selected_country_id = country_obj_by_name['country_id']
             else:
                 # If country_name_str is from an editable combo box and not in DB, do nothing.
                 return
@@ -1932,21 +2003,30 @@ class DocumentManager(QMainWindow):
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
         if ok and country_text.strip():
             try:
-                # db_manager.add_country should handle IntegrityError for unique names
-                new_country_obj = db_manager.add_country({'country_name': country_text.strip()})
-                if new_country_obj and new_country_obj.get('country_id'):
-                    self.load_countries_into_combo()
-                    index = self.country_select_combo.findText(country_text.strip())
+                country_name_to_add = country_text.strip()
+                # db_manager.add_country returns the country_id (int) or None
+                returned_country_id = db_manager.add_country({'country_name': country_name_to_add})
+
+                if returned_country_id is not None:
+                    # Country was successfully added or already existed and its ID was returned.
+                    self.load_countries_into_combo() # Refresh the combo box
+                    # Find the country by text to select it.
+                    # The combo box items store country_id in UserRole, but findText works on display text.
+                    index = self.country_select_combo.findText(country_name_to_add)
                     if index >= 0:
                         self.country_select_combo.setCurrentIndex(index)
-                elif db_manager.get_country_by_name(country_text.strip()): # Check if it failed because it exists
-                     QMessageBox.warning(self, self.tr("Pays Existant"), self.tr("Ce pays existe déjà."))
-                     index = self.country_select_combo.findText(country_text.strip()) # Select existing
-                     if index >=0: self.country_select_combo.setCurrentIndex(index)
+                    # Check if the country was pre-existing by trying to get it by name again
+                    # This is a bit redundant as add_country now handles the "already exists" case by returning its ID.
+                    # We can simplify the user message.
+                    # If we reach here, it means add_country gave us an ID.
+                    # We don't need to explicitly show "Pays Existant" unless add_country itself printed it.
+                    # The main goal is that the combo is updated and the correct item is selected.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:\n{0}").format(str(e)))
+                    # This case means db_manager.add_country returned None, indicating an unexpected error.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. La fonction add_country a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions during the process
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout du pays:\n{0}").format(str(e)))
                 
     def add_new_city_dialog(self):
         current_country_name = self.country_select_combo.currentText()
@@ -1958,23 +2038,27 @@ class DocumentManager(QMainWindow):
         city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
         if ok and city_text.strip():
             try:
-                city_data = {'country_id': current_country_id, 'city_name': city_text.strip()}
-                # db_manager.add_city should handle IntegrityError for unique (country_id, city_name)
-                new_city_obj = db_manager.add_city(city_data)
+                city_name_to_add = city_text.strip()
+                city_data = {'country_id': current_country_id, 'city_name': city_name_to_add}
 
-                if new_city_obj and new_city_obj.get('city_id'):
-                    self.load_cities_for_country(current_country_name)
-                    index = self.city_select_combo.findText(city_text.strip())
+                returned_city_id = db_manager.add_city(city_data)
+
+                if returned_city_id is not None:
+                    # City was successfully added or already existed and its ID was returned.
+                    self.load_cities_for_country(current_country_name) # Refresh the city combo for the current country
+                    index = self.city_select_combo.findText(city_name_to_add)
                     if index >= 0:
-                         self.city_select_combo.setCurrentIndex(index)
-                elif db_manager.get_city_by_name_and_country_id(city_text.strip(), current_country_id):
-                     QMessageBox.warning(self, self.tr("Ville Existante"), self.tr("Cette ville existe déjà pour ce pays."))
-                     index = self.city_select_combo.findText(city_text.strip()) # Select existing
-                     if index >=0: self.city_select_combo.setCurrentIndex(index)
+                        self.city_select_combo.setCurrentIndex(index)
+                    # No need for an explicit "Ville Existante" message here,
+                    # as db.add_city now handles returning the ID of an existing city or a new one.
+                    # If an ID is returned, the operation was successful from the main.py perspective.
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:\n{0}").format(str(e)))
+                    # This means db_manager.add_city returned None, indicating an issue like missing country_id/city_name or a DB error.
+                    # The db.add_city function itself prints specific errors for missing fields.
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. La fonction add_city a retourné None. Vérifiez les logs."))
+
+            except Exception as e: # Catch any other unexpected exceptions
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout de la ville:\n{0}").format(str(e)))
                 
     def generate_new_client_id(self):
         # This function is no longer used to generate primary client IDs as db_manager.add_client handles UUID generation.
@@ -2641,15 +2725,49 @@ def main():
         PACKING_LISTE_TEMPLATE_NAME: pd.DataFrame({'Colis': [1], 'Contenu': ["Marchandise X"], 'Poids': [5.0]})
     }
 
-    for lang_code in default_langs:
+    for lang_code in all_supported_template_langs:
         lang_specific_dir = os.path.join(templates_root_dir, lang_code)
         os.makedirs(lang_specific_dir, exist_ok=True)
         for template_file_name, df_content in default_templates_data.items(): 
             template_full_path = os.path.join(lang_specific_dir, template_file_name) 
+            created_file_on_disk = False
             if not os.path.exists(template_full_path):
                 try:
                     df_content.to_excel(template_full_path, index=False)
-                except Exception as e: print(f"Erreur création template {template_file_name} pour {lang_code}: {str(e)}")
+                    print(f"Created default template file: {template_full_path}")
+                    created_file_on_disk = True
+                except Exception as e:
+                    print(f"Erreur création template file {template_file_name} pour {lang_code}: {str(e)}")
+
+            # Regardless of whether it was just created or already existed, try to register in DB
+            # Determine template name and type from filename for registration
+            template_name_for_db = "Unknown Template"
+            if template_file_name == SPEC_TECH_TEMPLATE_NAME:
+                template_name_for_db = "Spécification Technique (Défaut)"
+            elif template_file_name == PROFORMA_TEMPLATE_NAME:
+                template_name_for_db = "Proforma (Défaut)"
+            elif template_file_name == CONTRAT_VENTE_TEMPLATE_NAME:
+                template_name_for_db = "Contrat de Vente (Défaut)"
+            elif template_file_name == PACKING_LISTE_TEMPLATE_NAME:
+                template_name_for_db = "Packing Liste (Défaut)"
+
+            template_metadata = {
+                'template_name': template_name_for_db,
+                'template_type': 'document_excel', # Assuming all these defaults are Excel
+                'language_code': lang_code,
+                'base_file_name': template_file_name,
+                'description': f"Modèle Excel par défaut pour {template_name_for_db} en {lang_code}.",
+                'category': "Général",
+                'is_default_for_type_lang': True
+            }
+            db_template_id = db_manager.add_default_template_if_not_exists(template_metadata)
+            if db_template_id:
+                if created_file_on_disk:
+                    print(f"Successfully registered new default template '{template_name_for_db}' ({lang_code}) in DB with ID: {db_template_id}")
+                # else: # File already existed, but ensure it's in DB
+                    # print(f"Ensured default template '{template_name_for_db}' ({lang_code}) is registered in DB with ID: {db_template_id}")
+            # else: # Error during DB registration
+                # print(f"Failed to register default template '{template_name_for_db}' ({lang_code}) in DB.")
     
     main_window = DocumentManager() 
     main_window.show()
