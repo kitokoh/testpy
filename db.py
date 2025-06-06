@@ -505,20 +505,21 @@ def add_client(client_data: dict) -> str | None:
             INSERT INTO Clients (
                 client_id, client_name, company_name, primary_need_description, project_identifier,
                 country_id, city_id, default_base_folder_path, status_id,
-                selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                selected_languages, price, notes, category, created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_client_id,
             client_data.get('client_name'),
             client_data.get('company_name'),
             client_data.get('primary_need_description'),
-            client_data.get('project_identifier'), # Added
+            client_data.get('project_identifier'),
             client_data.get('country_id'),
             client_data.get('city_id'),
             client_data.get('default_base_folder_path'),
             client_data.get('status_id'),
             client_data.get('selected_languages'),
+            client_data.get('price', 0.0), # Added price
             client_data.get('notes'),
             client_data.get('category'),
             now,  # created_at
@@ -1945,6 +1946,32 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         return None
     finally:
         if conn: conn.close()
+
+def get_client_project_product_by_id(link_id: int) -> dict | None:
+    """
+    Retrieves a specific linked product entry from ClientProjectProducts by its link_id,
+    joining with Products table to get product details.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cpp.*, p.product_name, p.description as product_description,
+                   p.category as product_category, p.base_unit_price, p.unit_of_measure
+            FROM ClientProjectProducts cpp
+            JOIN Products p ON cpp.product_id = p.product_id
+            WHERE cpp.client_project_product_id = ?
+        """
+        cursor.execute(sql, (link_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_project_product_by_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def get_products_for_client_or_project(client_id: str, project_id: str = None) -> list[dict]:
     """Fetches products for a client, optionally filtered by project_id. Joins with Products."""
