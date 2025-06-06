@@ -25,6 +25,8 @@ from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy
 import db as db_manager # Standardized to db_manager
 from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
+import json # For CoverPageEditorDialog style_config_json
+import os # For CoverPageEditorDialog logo_name
 
 
 class CustomNotificationBanner(QFrame):
@@ -302,6 +304,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.setup_tasks_page()
         self.setup_reports_page()
         self.setup_settings_page()
+        self.setup_cover_page_management_page() # New page
 
         # Add main content below the topbar
         self._main_layout.addWidget(self.main_content) # Add main_content to self._main_layout
@@ -494,6 +497,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             "Reports",
             lambda: self.change_page(4)
         )
+        projects_menu.addAction(
+            QIcon(self.resource_path('icons/document.png')), # Placeholder icon
+            "Cover Pages",
+            lambda: self.change_page(6) # Assuming this will be the 7th page (index 6)
+        )
 
         projects_btn = QPushButton("Activities")
         projects_btn.setIcon(QIcon(self.resource_path('icons/activities.png')))
@@ -632,7 +640,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") 
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") /* Updated color and size */
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
@@ -4290,6 +4298,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             self.load_access_table()
             if self.current_user: # Also load user preferences if a user is logged in
                 self.load_user_preferences()
+        elif index == 6: # Cover Page Management
+            self.load_clients_into_cp_combo() # Load/refresh clients
+            self.load_cover_pages_for_selected_client() # Load cover pages for current selection
 
     def resizeEvent(self, event):
         super().resizeEvent(event) # Call parent's resizeEvent
@@ -4306,6 +4317,540 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     #     if self.current_user:
     #         self.log_activity(f"Application closed by {self.current_user['full_name']}")
     #     event.accept()
+
+    def setup_cover_page_management_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Header
+        title_label = QLabel("Cover Page Management")
+        # title_label.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") # Old direct style
+        title_label.setStyleSheet(self.get_page_title_style()) # Use helper method
+        layout.addWidget(title_label)
+
+        # Client Selection Area
+        client_selection_layout = QHBoxLayout()
+        client_selection_layout.addWidget(QLabel("Select Client:"))
+        self.cp_client_combo = QComboBox()
+        self.cp_client_combo.setStyleSheet(self.get_generic_input_style()) # Use general style
+        self.cp_client_combo.setMinimumWidth(250)
+        self.cp_client_combo.currentIndexChanged.connect(self.load_cover_pages_for_selected_client)
+        client_selection_layout.addWidget(self.cp_client_combo)
+        client_selection_layout.addStretch()
+        layout.addLayout(client_selection_layout)
+
+        # Action Buttons Bar
+        action_buttons_layout = QHBoxLayout()
+        action_buttons_layout.setSpacing(10)
+
+        self.cp_create_new_btn = QPushButton("Create New Cover Page")
+        self.cp_create_new_btn.setStyleSheet(self.get_primary_button_style())
+        self.cp_create_new_btn.clicked.connect(self.create_new_cover_page_dialog)
+        action_buttons_layout.addWidget(self.cp_create_new_btn)
+
+        self.cp_edit_selected_btn = QPushButton("View/Edit Selected")
+        self.cp_edit_selected_btn.setStyleSheet(self.get_secondary_button_style())
+        self.cp_edit_selected_btn.clicked.connect(self.edit_selected_cover_page_dialog)
+        self.cp_edit_selected_btn.setEnabled(False) # Initially disabled
+        action_buttons_layout.addWidget(self.cp_edit_selected_btn)
+
+        self.cp_delete_selected_btn = QPushButton("Delete Selected")
+        self.cp_delete_selected_btn.setStyleSheet(self.get_danger_button_style())
+        self.cp_delete_selected_btn.clicked.connect(self.delete_selected_cover_page)
+        self.cp_delete_selected_btn.setEnabled(False) # Initially disabled
+        action_buttons_layout.addWidget(self.cp_delete_selected_btn)
+        action_buttons_layout.addStretch()
+        layout.addLayout(action_buttons_layout)
+
+        # Cover Page List Table
+        self.cp_table = QTableWidget()
+        self.cp_table.setColumnCount(4) # Name, Title, Last Modified, Actions
+        self.cp_table.setHorizontalHeaderLabels(["Name", "Title", "Last Modified", "Actions"])
+        self.cp_table.setStyleSheet(self.get_table_style()) # Use general table style
+        self.cp_table.verticalHeader().setVisible(False)
+        self.cp_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.cp_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.cp_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.cp_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.cp_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.cp_table.itemSelectionChanged.connect(self.update_cover_page_action_buttons_state)
+        layout.addWidget(self.cp_table)
+
+        self.main_content.addWidget(page)
+
+    def get_generic_input_style(self): # Helper for consistent input styling
+        return """
+            QComboBox {
+                padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; background-color: white;
+            }
+            QComboBox:focus { border-color: #80bdff; }
+            QComboBox::drop-down {
+                subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+                border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+            }
+            QLineEdit, QTextEdit { padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; background-color: white; }
+            QLineEdit:focus, QTextEdit:focus { border-color: #80bdff; }
+        """
+    def get_primary_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #28a745; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #218838; } QPushButton:pressed { background-color: #1e7e34; }
+        """
+    def get_secondary_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #007bff; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #0069d9; } QPushButton:pressed { background-color: #005cbf; }
+        """
+    def get_danger_button_style(self):
+        return """
+            QPushButton { padding: 10px 18px; background-color: #dc3545; color: white; border-radius: 5px; font-weight: bold; }
+            QPushButton:hover { background-color: #c82333; } QPushButton:pressed { background-color: #bd2130; }
+        """
+    def get_table_style(self):
+        return """
+            QTableWidget { background-color: white; border: 1px solid #dee2e6; border-radius: 5px; gridline-color: #e9ecef; }
+            QHeaderView::section { background-color: #e9ecef; color: #495057; padding: 10px; font-weight: bold; border: none; border-bottom: 2px solid #dee2e6; }
+            QTableWidget::item { padding: 8px; }
+            QTableWidget::item:selected { background-color: #007bff; color: white; }
+        """
+
+    def load_clients_into_cp_combo(self):
+        current_client_id = self.cp_client_combo.currentData()
+        self.cp_client_combo.clear()
+        self.cp_client_combo.addItem("Select a Client...", None)
+        clients = db_manager.get_all_clients()
+        if clients:
+            for client in clients:
+                self.cp_client_combo.addItem(f"{client['client_name']} ({client['client_id']})", client['client_id'])
+
+        if current_client_id:
+            index = self.cp_client_combo.findData(current_client_id)
+            if index != -1:
+                self.cp_client_combo.setCurrentIndex(index)
+            else: # If previously selected client is gone, select "Select a Client..."
+                 self.cp_client_combo.setCurrentIndex(0)
+
+
+    def load_cover_pages_for_selected_client(self):
+        client_id = self.cp_client_combo.currentData()
+        self.cp_table.setRowCount(0) # Clear table
+        self.update_cover_page_action_buttons_state() # Disable buttons if no client
+
+        if client_id:
+            cover_pages = db_manager.get_cover_pages_for_client(client_id)
+            if cover_pages:
+                self.cp_table.setRowCount(len(cover_pages))
+                for row, cp_data in enumerate(cover_pages):
+                    self.cp_table.setItem(row, 0, QTableWidgetItem(cp_data.get('cover_page_name', 'N/A')))
+                    self.cp_table.setItem(row, 1, QTableWidgetItem(cp_data.get('title', 'N/A')))
+                    self.cp_table.setItem(row, 2, QTableWidgetItem(cp_data.get('updated_at', 'N/A')))
+
+                    # Actions column
+                    edit_action_btn = QPushButton("✏️")
+                    edit_action_btn.setToolTip("Edit Cover Page")
+                    edit_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    # Use a partial or a helper to capture current cp_data for the lambda
+                    edit_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.edit_selected_cover_page_dialog(row_data=r_data))
+
+                    delete_action_btn = QPushButton("🗑️")
+                    delete_action_btn.setToolTip("Delete Cover Page")
+                    delete_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    delete_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.delete_selected_cover_page(row_data=r_data))
+
+                    action_widget = QWidget()
+                    action_layout = QHBoxLayout(action_widget)
+                    action_layout.addWidget(edit_action_btn)
+                    action_layout.addWidget(delete_action_btn)
+                    action_layout.setContentsMargins(0,0,0,0)
+                    action_layout.addStretch() # Optional: to push buttons to left if desired
+                    self.cp_table.setCellWidget(row, 3, action_widget)
+
+                    # Store cover_page_id in the first item for easy retrieval (if needed, or directly use from row_data)
+                    self.cp_table.item(row, 0).setData(Qt.UserRole, cp_data['cover_page_id'])
+            self.cp_table.resizeColumnsToContents()
+
+
+    def update_cover_page_action_buttons_state(self):
+        selected_items = self.cp_table.selectedItems()
+        has_selection = bool(selected_items)
+        self.cp_edit_selected_btn.setEnabled(has_selection)
+        self.cp_delete_selected_btn.setEnabled(has_selection)
+
+    def create_new_cover_page_dialog(self):
+        client_id = self.cp_client_combo.currentData()
+        if not client_id:
+            QMessageBox.warning(self, "No Client Selected", "Please select a client before creating a new cover page.")
+            return
+
+        if not self.current_user or not self.current_user.get('user_id'):
+            QMessageBox.warning(self, "User Error", "No logged-in user found. Cannot create cover page.")
+            return
+        user_id = self.current_user['user_id']
+
+        dialog = CoverPageEditorDialog(mode="create", client_id=client_id, user_id=user_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_cover_pages_for_selected_client()
+            self.log_activity(f"Created new cover page for client {client_id}")
+
+    def edit_selected_cover_page_dialog(self, row_data=None): # row_data can be passed from action button click
+        if not row_data:
+            selected_items = self.cp_table.selectedItems()
+            if not selected_items:
+                QMessageBox.warning(self, "No Selection", "Please select a cover page to edit.")
+                return
+            cover_page_id = selected_items[0].data(Qt.UserRole) # Assuming ID is in UserRole of first item
+        else:
+            cover_page_id = row_data.get('cover_page_id')
+
+        if not cover_page_id:
+            QMessageBox.warning(self, "Error", "Could not determine cover page ID for editing.")
+            return
+
+        cover_page_full_data = db_manager.get_cover_page_by_id(cover_page_id)
+        if not cover_page_full_data:
+            QMessageBox.critical(self, "Error", f"Could not retrieve cover page data for ID: {cover_page_id}")
+            return
+
+        dialog = CoverPageEditorDialog(mode="edit", cover_page_data=cover_page_full_data, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_cover_pages_for_selected_client()
+            self.log_activity(f"Edited cover page ID: {cover_page_id}")
+
+
+    def delete_selected_cover_page(self, row_data=None):
+        if not row_data:
+            selected_items = self.cp_table.selectedItems()
+            if not selected_items:
+                QMessageBox.warning(self, "No Selection", "Please select a cover page to delete.")
+                return
+            cover_page_id = selected_items[0].data(Qt.UserRole)
+            cover_page_name = selected_items[0].text()
+        else:
+            cover_page_id = row_data.get('cover_page_id')
+            cover_page_name = row_data.get('cover_page_name', 'this item')
+
+        if not cover_page_id:
+            QMessageBox.warning(self, "Error", "Could not determine cover page ID for deletion.")
+            return
+
+        reply = QMessageBox.question(self, "Confirm Deletion",
+                                     f"Are you sure you want to delete the cover page '{cover_page_name}'?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.delete_cover_page(cover_page_id):
+                self.load_cover_pages_for_selected_client()
+                self.log_activity(f"Deleted cover page ID: {cover_page_id}")
+                QMessageBox.information(self, "Success", f"Cover page '{cover_page_name}' deleted.")
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to delete cover page '{cover_page_name}'.")
+
+
+# Cover Page Editor Dialog
+class CoverPageEditorDialog(QDialog):
+    def __init__(self, mode, client_id=None, user_id=None, cover_page_data=None, parent=None):
+        super().__init__(parent)
+        self.mode = mode
+        self.client_id = client_id
+        self.user_id = user_id
+        self.cover_page_data = cover_page_data or {} # Ensure it's a dict
+        self.current_logo_bytes = self.cover_page_data.get('logo_data')
+        self.current_logo_name = self.cover_page_data.get('logo_name')
+
+
+        self.setWindowTitle(f"{'Edit' if mode == 'edit' else 'Create New'} Cover Page")
+        self.setMinimumSize(600, 750) # Increased size for more fields & placeholder
+
+        main_layout = QVBoxLayout(self)
+
+        # Consistent styling for inputs within the dialog
+        dialog_input_style = """
+            QLineEdit, QComboBox, QDateEdit, QTextEdit {
+                padding: 8px 10px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+                min-height: 20px;
+            }
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {
+                border-color: #80bdff; /* Highlight focus */
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
+                border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
+                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
+            }
+            /* QComboBox::down-arrow styling might be needed if default is not good */
+        """
+        self.setStyleSheet(dialog_input_style) # Apply to the whole dialog
+
+        form_layout = QFormLayout()
+        form_layout.setLabelAlignment(Qt.AlignRight)
+        form_layout.setSpacing(10)
+
+        # Cover Page Instance Name
+        self.cp_name_edit = QLineEdit(self.cover_page_data.get('cover_page_name', ''))
+        form_layout.addRow("Cover Page Name:", self.cp_name_edit)
+
+        # Template Selection
+        self.cp_template_combo = QComboBox()
+        self.populate_templates_combo()
+        self.cp_template_combo.currentIndexChanged.connect(self.on_template_selected)
+        form_layout.addRow("Use Template (Optional):", self.cp_template_combo)
+
+        # Document Info Group
+        doc_info_group = QGroupBox("Document Information")
+        doc_info_form_layout = QFormLayout(doc_info_group)
+
+        self.title_edit = QLineEdit(self.cover_page_data.get('title', ''))
+        self.subtitle_edit = QLineEdit(self.cover_page_data.get('subtitle', ''))
+        self.author_text_edit = QLineEdit(self.cover_page_data.get('author_text', '')) # Consider renaming to 'author' in db if this is main author field
+        self.institution_text_edit = QLineEdit(self.cover_page_data.get('institution_text', ''))
+        self.department_text_edit = QLineEdit(self.cover_page_data.get('department_text', ''))
+        self.document_type_text_edit = QLineEdit(self.cover_page_data.get('document_type_text', ''))
+        self.document_date_edit = QDateEdit(QDate.fromString(self.cover_page_data.get('document_date', QDate.currentDate().toString(Qt.ISODate)), Qt.ISODate))
+        self.document_date_edit.setCalendarPopup(True)
+        self.document_date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.document_version_edit = QLineEdit(self.cover_page_data.get('document_version', ''))
+
+        doc_info_form_layout.addRow("Title:", self.title_edit)
+        doc_info_form_layout.addRow("Subtitle:", self.subtitle_edit)
+        doc_info_form_layout.addRow("Author:", self.author_text_edit) # Changed label for clarity
+        doc_info_form_layout.addRow("Institution:", self.institution_text_edit) # Changed label
+        doc_info_form_layout.addRow("Department:", self.department_text_edit) # Changed label
+        doc_info_form_layout.addRow("Document Type:", self.document_type_text_edit) # Changed label
+        doc_info_form_layout.addRow("Document Date:", self.document_date_edit)
+        doc_info_form_layout.addRow("Version:", self.document_version_edit) # Changed label
+        form_layout.addRow(doc_info_group)
+
+        # Logo Section
+        logo_group = QGroupBox("Logo")
+        logo_layout = QHBoxLayout(logo_group)
+        self.logo_preview_label = QLabel("No logo selected.")
+        self.logo_preview_label.setFixedSize(150,150) # Slightly larger preview
+        self.logo_preview_label.setAlignment(Qt.AlignCenter)
+        self.logo_preview_label.setStyleSheet("border: 1px dashed #ccc;")
+        self.update_logo_preview()
+
+        browse_logo_btn = QPushButton("Browse...")
+        browse_logo_btn.setStyleSheet(parent.get_secondary_button_style() if parent else "") # Apply style
+        browse_logo_btn.clicked.connect(self.browse_logo)
+
+        clear_logo_btn = QPushButton("Clear Logo")
+        clear_logo_btn.setStyleSheet(parent.get_danger_button_style() if parent else "") # Apply style
+        clear_logo_btn.clicked.connect(self.clear_logo)
+
+        logo_btn_layout = QVBoxLayout()
+        logo_btn_layout.addWidget(browse_logo_btn)
+        logo_btn_layout.addWidget(clear_logo_btn)
+        logo_btn_layout.addStretch()
+
+        logo_layout.addWidget(self.logo_preview_label)
+        logo_layout.addLayout(logo_btn_layout)
+        form_layout.addRow(logo_group)
+
+        # Style Configuration
+        style_group = QGroupBox("Advanced Style Configuration (JSON)")
+        style_layout = QVBoxLayout(style_group)
+
+        style_info_label = QLabel("Edit advanced style properties (e.g., fonts, colors, positions). Refer to documentation for available keys.")
+        style_info_label.setWordWrap(True)
+        style_layout.addWidget(style_info_label)
+
+        self.style_config_json_edit = QTextEdit()
+        detailed_placeholder = """{
+    "title_font_family": "Arial", "title_font_size": 30, "title_color": "#000000",
+    "subtitle_font_family": "Arial", "subtitle_font_size": 20, "subtitle_color": "#555555",
+    "author_font_family": "Arial", "author_font_size": 12, "author_color": "#555555",
+    "logo_width_mm": 50, "logo_height_mm": 50, "logo_x_mm": 80, "logo_y_mm": 200,
+    "show_page_border": true, "page_border_color": "#000000", "page_border_width_pt": 1,
+    "show_horizontal_line": true, "horizontal_line_y_mm": 140, "horizontal_line_color": "#000000",
+    "text_alignment_title": "center", "text_alignment_subtitle": "center", "text_alignment_author": "center"
+}"""
+        self.style_config_json_edit.setPlaceholderText(detailed_placeholder)
+        self.style_config_json_edit.setMinimumHeight(200) # Increased height
+
+        style_json_str = self.cover_page_data.get('style_config_json', '{}')
+        if isinstance(style_json_str, dict):
+            style_json_str = json.dumps(style_json_str, indent=4) # Use 4 spaces for placeholder consistency
+        elif isinstance(style_json_str, str):
+            try:
+                parsed_json = json.loads(style_json_str)
+                style_json_str = json.dumps(parsed_json, indent=4)
+            except json.JSONDecodeError:
+                style_json_str = json.dumps({}, indent=4) # Default to empty formatted JSON
+        self.style_config_json_edit.setText(style_json_str)
+
+        style_layout.addWidget(self.style_config_json_edit)
+        form_layout.addRow(style_group)
+
+        main_layout.addLayout(form_layout)
+
+        # Dialog Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.on_save)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+
+        if self.mode == 'edit' and self.cover_page_data.get('template_id'):
+            template_id_to_select = self.cover_page_data['template_id']
+            index = self.cp_template_combo.findData(template_id_to_select)
+            if index != -1:
+                self.cp_template_combo.setCurrentIndex(index)
+            # Field values are already set from cover_page_data, template only pre-fills on change
+        elif self.mode == 'create': # If creating, and a default template exists, select it
+            default_template_index = self.cp_template_combo.findData("DEFAULT_TEMPLATE_PLACEHOLDER", Qt.UserRole + 1) # Check if a default was marked
+            if default_template_index != -1:
+                self.cp_template_combo.setCurrentIndex(default_template_index)
+                self.on_template_selected(default_template_index) # Trigger pre-fill
+
+
+    def populate_templates_combo(self):
+        self.cp_template_combo.addItem("None (Custom)", None)
+        templates = db_manager.get_all_cover_page_templates()
+        if templates:
+            for tpl in templates:
+                self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])
+                if tpl.get('is_default_template'):
+                    # Mark this item specially if needed, e.g. by setting a special UserRole
+                    # For now, just pre-select if mode is 'create'
+                    self.cp_template_combo.setItemData(self.cp_template_combo.count() -1, "DEFAULT_TEMPLATE_PLACEHOLDER", Qt.UserRole + 1)
+
+
+    def on_template_selected(self, index):
+        template_id = self.cp_template_combo.itemData(index)
+        if not template_id: # "None" selected
+            # Optionally clear fields or revert to initial_data if that's desired
+            # For now, user changes are kept unless a specific template is chosen
+            if self.mode == 'create': # For create mode, "None" means truly blank slate
+                self.title_edit.setText("")
+                self.subtitle_edit.setText("")
+                self.author_text_edit.setText("")
+                self.institution_text_edit.setText("")
+                self.department_text_edit.setText("")
+                self.document_type_text_edit.setText("")
+                self.document_date_edit.setDate(QDate.currentDate())
+                self.document_version_edit.setText("")
+                self.style_config_json_edit.setText("{\n  \n}")
+                self.current_logo_bytes = None
+                self.current_logo_name = None
+                self.update_logo_preview()
+            return
+
+        template_data = db_manager.get_cover_page_template_by_id(template_id)
+        if template_data:
+            self.title_edit.setText(template_data.get('default_title', ''))
+            self.subtitle_edit.setText(template_data.get('default_subtitle', ''))
+            self.author_text_edit.setText(template_data.get('default_author_text', ''))
+            self.institution_text_edit.setText(template_data.get('default_institution_text', ''))
+            self.department_text_edit.setText(template_data.get('default_department_text', ''))
+            self.document_type_text_edit.setText(template_data.get('default_document_type_text', ''))
+
+            doc_date_str = template_data.get('default_document_date', '')
+            if doc_date_str:
+                 self.document_date_edit.setDate(QDate.fromString(doc_date_str, Qt.ISODate))
+            else: # If template has no date, use current
+                 self.document_date_edit.setDate(QDate.currentDate())
+
+            self.document_version_edit.setText(template_data.get('default_document_version', ''))
+
+            style_json = template_data.get('style_config_json', '{}')
+            try: # Ensure it's nicely formatted
+                parsed = json.loads(style_json)
+                self.style_config_json_edit.setText(json.dumps(parsed, indent=2))
+            except json.JSONDecodeError:
+                self.style_config_json_edit.setText(style_json) # Show as is if not valid JSON for some reason
+
+            self.current_logo_bytes = template_data.get('default_logo_data')
+            self.current_logo_name = template_data.get('default_logo_name')
+            self.update_logo_preview()
+
+
+    def browse_logo(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Logo Image", "", "Images (*.png *.jpg *.jpeg)")
+        if file_path:
+            try:
+                with open(file_path, 'rb') as f:
+                    self.current_logo_bytes = f.read()
+                self.current_logo_name = os.path.basename(file_path)
+                self.update_logo_preview()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Could not load logo: {e}")
+                self.current_logo_bytes = None
+                self.current_logo_name = None
+                self.update_logo_preview()
+
+    def clear_logo(self):
+        self.current_logo_bytes = None
+        self.current_logo_name = None
+        self.update_logo_preview()
+
+    def update_logo_preview(self):
+        if self.current_logo_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(self.current_logo_bytes)
+            self.logo_preview_label.setPixmap(pixmap.scaled(self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        else:
+            self.logo_preview_label.setText("No logo")
+
+
+    def on_save(self):
+        cp_name = self.cp_name_edit.text().strip()
+        if not cp_name:
+            QMessageBox.warning(self, "Validation Error", "Cover Page Name is required.")
+            return
+
+        style_config_str = self.style_config_json_edit.toPlainText()
+        try:
+            json.loads(style_config_str) # Validate JSON
+        except json.JSONDecodeError as e:
+            QMessageBox.warning(self, "Invalid JSON", f"Style Configuration is not valid JSON: {e}")
+            return
+
+        data_to_save = {
+            'cover_page_name': cp_name,
+            'client_id': self.client_id if self.mode == 'create' else self.cover_page_data.get('client_id'),
+            'created_by_user_id': self.user_id if self.mode == 'create' else self.cover_page_data.get('created_by_user_id', self.user_id), # Align with db.py
+            'template_id': self.cp_template_combo.currentData(),
+            'title': self.title_edit.text(),
+            'subtitle': self.subtitle_edit.text(),
+            'author_text': self.author_text_edit.text(),
+            'institution_text': self.institution_text_edit.text(),
+            'department_text': self.department_text_edit.text(),
+            'document_type_text': self.document_type_text_edit.text(),
+            'creation_date': self.document_date_edit.date().toString(Qt.ISODate), # Align with db.py
+            'document_version': self.document_version_edit.text(),
+            'logo_data': self.current_logo_bytes,
+            'logo_name': self.current_logo_name,
+            'style_config_json': style_config_str
+        }
+
+        # Ensure created_by_user_id is present for edit mode if it was missing from original data
+        if self.mode == 'edit' and not data_to_save.get('created_by_user_id') and self.user_id:
+             data_to_save['created_by_user_id'] = self.user_id
+
+
+        if self.mode == 'create':
+            if not data_to_save.get('created_by_user_id'): # Final check for creator ID in create mode
+                QMessageBox.critical(self, "Error", "User ID for creation is missing.")
+                return
+
+            new_id = db_manager.add_cover_page(data_to_save)
+            if new_id:
+                self.cover_page_data['cover_page_id'] = new_id
+                QMessageBox.information(self, "Success", "Cover page created successfully.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to create cover page.")
+        elif self.mode == 'edit':
+            if db_manager.update_cover_page(self.cover_page_data['cover_page_id'], data_to_save):
+                QMessageBox.information(self, "Success", "Cover page updated successfully.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to update cover page.")
+
 
 if __name__ == "__main__":
     # This block is for standalone testing of MainDashboard
