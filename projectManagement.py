@@ -640,7 +640,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") 
+        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") /* Updated color and size */
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
