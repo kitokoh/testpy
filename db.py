@@ -4450,106 +4450,149 @@ def get_document_context_data(
     Gathers and structures data from various database sources to provide a comprehensive
     context dictionary for document generation.
     """
+    # Initialize main context structure
     context = {
         "doc": {},
-        "client": {},
-        "seller": {},
-        "seller_personnel": {},
-        "project": {}, # Added project key
+        "client": {}, # Represents the client of our user (the "buyer" or "consignee")
+        "seller": {}, # Represents our user's company (the "seller" or "exporter")
+        "project": {},
         "products": [],
-        "additional": {}
+        "additional": additional_context if isinstance(additional_context, dict) else {}
     }
 
-    # 1. Populate context["doc"]
+    # --- Populate context["doc"] ---
     now_dt = datetime.now()
     context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
     context["doc"]["current_year"] = str(now_dt.year)
-    context["doc"]["currency_symbol"] = "€" # Default, can be made dynamic
-
-    # 2. Fetch Client Information
-    client_data = get_client_by_id(client_id)
-    if client_data:
-        context["client"]["name"] = client_data.get('client_name')
-        context["client"]["company_name_raw"] = client_data.get('company_name')
-        context["client"]["id"] = client_data.get('client_id')
-        context["client"]["project_identifier"] = client_data.get('project_identifier')
-        context["client"]["primary_need"] = client_data.get('primary_need_description')
-        context["client"]["raw_address_country_id"] = client_data.get('country_id')
-        context["client"]["raw_address_city_id"] = client_data.get('city_id')
-        context["client"]["notes"] = client_data.get('notes')
-        context["client"]["price_formatted"] = format_currency(client_data.get('price'))
-        context["client"]["raw_price"] = client_data.get('price')
+    # Default currency, can be overridden by additional_context or seller settings later
+    context["doc"]["currency_symbol"] = context["additional"].get("currency_symbol", "€")
 
 
-        client_country_name = "N/A"
-        if client_data.get('country_id'):
-            country = get_country_by_id(client_data['country_id'])
-            if country:
-                client_country_name = country.get('country_name', "N/A")
-        context["client"]["country_name"] = client_country_name
+    # --- Fetch Seller (Our User's Company) Information ---
+    # This is 'company_id' passed to the function
+    seller_company_data = get_company_by_id(company_id)
+    if seller_company_data:
+        context["seller"]["name"] = seller_company_data.get('company_name')
+        context["seller"]["company_name"] = seller_company_data.get('company_name') # Alias for clarity
+        context["seller"]["address"] = seller_company_data.get('address') # Raw, may need parsing or structured fields
+        context["seller"]["payment_info"] = seller_company_data.get('payment_info') # Raw, for bank details
+        context["seller"]["other_info"] = seller_company_data.get('other_info')
 
-        client_city_name = "N/A"
-        if client_data.get('city_id'):
-            city = get_city_by_id(client_data['city_id'])
-            if city:
-                client_city_name = city.get('city_name', "N/A")
-        context["client"]["city_name"] = client_city_name
-
-        # Construct full_address (simplified for now)
-        # A more robust version would check for None or empty strings for each part
-        address_parts = []
-        # Assuming a hypothetical 'street_address' field in Clients table for a more complete address
-        # if client_data.get('street_address'): address_parts.append(client_data.get('street_address'))
-        if client_city_name != "N/A": address_parts.append(client_city_name)
-        if client_country_name != "N/A": address_parts.append(client_country_name)
-        context["client"]["full_address"] = ", ".join(address_parts) if address_parts else "N/A"
-
-        # Attempt to fetch primary contact details
-        client_contacts = get_contacts_for_client(client_id)
-        primary_contact = next((c for c in client_contacts if c.get('is_primary_for_client')), None)
-        if not primary_contact and client_contacts: # Fallback to first contact if no primary
-            primary_contact = client_contacts[0]
-
-        if primary_contact:
-            context["client"]["contact_name"] = primary_contact.get('name')
-            context["client"]["contact_email"] = primary_contact.get('email')
-            context["client"]["contact_phone"] = primary_contact.get('phone')
-            context["client"]["contact_position"] = primary_contact.get('position')
-
-
-    # 3. Fetch Seller/Company Information
-    company_data = get_company_by_id(company_id)
-    if company_data:
-        context["seller"]["name"] = company_data.get('company_name')
-        context["seller"]["address_raw"] = company_data.get('address') # Could be structured further
-        context["seller"]["payment_info_raw"] = company_data.get('payment_info')
-        context["seller"]["other_info"] = company_data.get('other_info')
-
-        logo_path_relative = company_data.get('logo_path')
+        logo_path_relative = seller_company_data.get('logo_path')
         context["seller"]["logo_path_relative"] = logo_path_relative
         if logo_path_relative:
-            # Check if APP_ROOT_DIR_CONTEXT and LOGO_SUBDIR_CONTEXT are correctly defined and accessible
-            # This path construction assumes db.py is in a location relative to app root as defined
-            # e.g. if db.py is in /app/core, APP_ROOT_DIR_CONTEXT becomes /app
-            # and logo_path_absolute becomes /app/company_logos/your_logo.png
             context["seller"]["logo_path_absolute"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
+            context["seller"]["company_logo_path"] = context["seller"]["logo_path_absolute"] # Common placeholder
         else:
             context["seller"]["logo_path_absolute"] = None
+            context["seller"]["company_logo_path"] = None
 
-    # 4. Fetch Seller Personnel
-    sellers = get_personnel_for_company(company_id, role='seller')
-    if sellers:
-        context["seller_personnel"]["sales_person_name"] = sellers[0].get('name')
-    else:
-        context["seller_personnel"]["sales_person_name"] = "N/A"
+        # Placeholders for fields not directly in Companies schema (require schema change or parsing)
+        context["seller"]["phone"] = "N/A (Champ 'phone' manquant dans la table Companies)"
+        context["seller"]["email"] = "N/A (Champ 'email' manquant dans la table Companies)"
+        context["seller"]["vat_number"] = "N/A (Champ 'vat_number' manquant dans la table Companies)"
+        context["seller"]["registration_number"] = "N/A (Champ 'registration_number' manquant dans la table Companies)"
+        context["seller"]["city_zip_country"] = "N/A (Adresse structurée manquante)" # From seller_company_address
 
-    tech_managers = get_personnel_for_company(company_id, role='technical_manager')
-    if tech_managers:
-        context["seller_personnel"]["technical_manager_name"] = tech_managers[0].get('name')
-    else:
-        context["seller_personnel"]["technical_manager_name"] = "N/A"
+        # Bank details from payment_info (needs parsing or schema change)
+        # For now, providing the raw field for templates that might want to display it as is.
+        # Specific bank fields will be marked as needing schema change.
+        context["seller"]["bank_details_raw"] = seller_company_data.get('payment_info')
+        context["seller"]["bank_name"] = "N/A (Champ 'payment_info' non structuré)"
+        context["seller"]["bank_address"] = "N/A (Champ 'payment_info' non structuré)"
+        context["seller"]["bank_iban"] = "N/A (Champ 'payment_info' non structuré)"
+        context["seller"]["bank_swift"] = "N/A (Champ 'payment_info' non structuré)"
+        context["seller"]["bank_account_holder_name"] = "N/A (Champ 'payment_info' non structuré)"
 
-    # 5. Fetch Project Information (if project_id is provided)
+        # Footer information often comes from seller
+        context["seller"]["footer_company_name"] = seller_company_data.get('company_name')
+        context["seller"]["footer_contact_info"] = f"{context['seller']['phone']} | {context['seller']['email']}" # Will show N/A for now
+        context["seller"]["footer_additional_info"] = seller_company_data.get('other_info')
+
+
+    # --- Fetch Seller Personnel (from CompanyPersonnel) ---
+    # Using a general personnel dictionary within seller context
+    context["seller"]["personnel"] = {}
+    seller_personnel_list = get_personnel_for_company(company_id) # Get all personnel
+    if seller_personnel_list:
+        # Example: find first person with role 'seller' or default to first person
+        main_seller_contact = next((p for p in seller_personnel_list if p.get('role') == 'seller'), seller_personnel_list[0])
+        context["seller"]["personnel"]["representative_name"] = main_seller_contact.get('name')
+        context["seller"]["personnel"]["representative_title"] = main_seller_contact.get('role') # Or a more specific title if available
+
+        # For specific roles mentioned in templates
+        context["seller"]["personnel"]["sales_person_name"] = next((p.get('name') for p in seller_personnel_list if p.get('role') == 'seller'), "N/A")
+        context["seller"]["personnel"]["technical_manager_name"] = next((p.get('name') for p in seller_personnel_list if p.get('role') == 'technical_manager'), "N/A")
+        # Generic authorized signatory for some docs (can be overridden by additional_context)
+        context["seller"]["personnel"]["authorized_signature_name"] = context["seller"]["personnel"]["sales_person_name"]
+        context["seller"]["personnel"]["authorized_signature_title"] = next((p.get('role') for p in seller_personnel_list if p.get('name') == context["seller"]["personnel"]["authorized_signature_name"]), "N/A")
+
+    else: # No personnel found
+        context["seller"]["personnel"]["representative_name"] = "N/A"
+        context["seller"]["personnel"]["representative_title"] = "N/A"
+        context["seller"]["personnel"]["sales_person_name"] = "N/A"
+        context["seller"]["personnel"]["technical_manager_name"] = "N/A"
+        context["seller"]["personnel"]["authorized_signature_name"] = "N/A"
+        context["seller"]["personnel"]["authorized_signature_title"] = "N/A"
+
+    # --- Fetch Client Information (The Buyer/Consignee) ---
+    # This is 'client_id' passed to the function
+    client_data = get_client_by_id(client_id)
+    if client_data:
+        context["client"]["id"] = client_data.get('client_id')
+        # Distinguish between contact person name and company name
+        context["client"]["contact_person_name"] = client_data.get('client_name') # client_name from Clients table is often a person
+        context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name')) # Fallback to client_name if company_name is empty
+
+        context["client"]["project_identifier"] = client_data.get('project_identifier')
+        context["client"]["primary_need"] = client_data.get('primary_need_description')
+        context["client"]["notes"] = client_data.get('notes')
+        context["client"]["price_formatted"] = format_currency(client_data.get('price'), context["doc"]["currency_symbol"])
+        context["client"]["raw_price"] = client_data.get('price')
+
+        client_country_name, client_city_name = "N/A", "N/A"
+        if client_data.get('country_id'):
+            country = get_country_by_id(client_data['country_id'])
+            if country: client_country_name = country.get('country_name', "N/A")
+        if client_data.get('city_id'):
+            city = get_city_by_id(client_data['city_id'])
+            if city: client_city_name = city.get('city_name', "N/A")
+
+        context["client"]["country_name"] = client_country_name
+        context["client"]["city_name"] = client_city_name
+        # Construct full_address (assuming 'address' field in Clients table is missing, using city/country)
+        # This would be improved if Clients table had a full 'address' field or structured address.
+        address_parts = [part for part in [client_city_name, client_country_name] if part != "N/A"]
+        context["client"]["address"] = ", ".join(address_parts) if address_parts else "N/A (Adresse manquante)"
+        context["client"]["city_zip_country"] = context["client"]["address"] # Simplified
+
+        # Client contact details (primary contact from Contacts table)
+        client_contacts = get_contacts_for_client(client_id)
+        primary_client_contact = next((c for c in client_contacts if c.get('is_primary_for_client')), None)
+        if not primary_client_contact and client_contacts: primary_client_contact = client_contacts[0]
+
+        if primary_client_contact:
+            # Override client.contact_person_name if a more specific primary contact exists
+            context["client"]["contact_person_name"] = primary_client_contact.get('name', context["client"]["contact_person_name"])
+            context["client"]["contact_email"] = primary_client_contact.get('email')
+            context["client"]["contact_phone"] = primary_client_contact.get('phone')
+            context["client"]["contact_position"] = primary_client_contact.get('position')
+            # If buyer_address should come from contact's company if different from client's main company
+            # context["client"]["address"] = primary_client_contact.get('company_address') or context["client"]["address"]
+        else: # No contacts found, use defaults or N/A
+            context["client"]["contact_email"] = "N/A"
+            context["client"]["contact_phone"] = "N/A"
+            context["client"]["contact_position"] = "N/A"
+
+        # Placeholders for fields not directly in Clients schema
+        context["client"]["vat_number"] = "N/A (Champ 'vat_number' manquant dans la table Clients)"
+        context["client"]["registration_number"] = "N/A (Champ 'registration_number' manquant dans la table Clients)"
+
+        # Buyer representative details (often the primary contact)
+        context["client"]["representative_name"] = context["client"]["contact_person_name"]
+        context["client"]["representative_title"] = context["client"]["contact_position"]
+
+    # --- Fetch Project Information (if project_id is provided) ---
     if project_id:
         project_data = get_project_by_id(project_id)
         if project_data:
@@ -4558,63 +4601,135 @@ def get_document_context_data(
             context["project"]["description"] = project_data.get('description')
             context["project"]["start_date"] = project_data.get('start_date')
             context["project"]["deadline_date"] = project_data.get('deadline_date')
-            context["project"]["budget_formatted"] = format_currency(project_data.get('budget'))
+            context["project"]["budget_formatted"] = format_currency(project_data.get('budget'), context["doc"]["currency_symbol"])
             context["project"]["raw_budget"] = project_data.get('budget')
             context["project"]["progress_percentage"] = project_data.get('progress_percentage')
-            # manager_team_member_id would need another fetch to get name, simplified for now
-            context["project"]["manager_id"] = project_data.get('manager_team_member_id')
+            context["project"]["manager_id"] = project_data.get('manager_team_member_id') # Needs fetch for name
 
             status_id = project_data.get('status_id')
-            if status_id:
-                status_info = get_status_setting_by_id(status_id)
-                context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
-            else:
-                context["project"]["status_name"] = "N/A"
+            status_info = get_status_setting_by_id(status_id) if status_id else None
+            context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
+    else: # No project_id, provide defaults for project fields
+        context["project"]["name"] = context["additional"].get("project_name", "N/A")
+        context["project"]["description"] = context["additional"].get("project_description", "")
 
 
-    # 6. Fetch Products
+    # --- Fetch Products ---
+    # (Logic for fetching products based on project_id, product_ids, or client_id remains similar)
     fetched_products_data = []
-    if project_id: # Products associated with a project take precedence
+    if project_id:
         fetched_products_data = get_products_for_client_or_project(client_id, project_id)
-    elif product_ids: # Explicit list of product_ids
+    elif product_ids:
         for pid in product_ids:
             prod = get_product_by_id(pid)
             if prod:
-                # Mimic structure from get_products_for_client_or_project if necessary
-                # This path might need quantity/override price from somewhere else or defaults
                 fetched_products_data.append({
-                    **prod, # Contains base_unit_price
-                    'quantity': 1, # Default quantity
-                    'unit_price_override': None # No override when fetching by ID directly like this
+                    **prod, 'quantity': 1, 'unit_price_override': None,
+                    'product_name': prod.get('product_name'), # Ensure these keys exist
+                    'product_description': prod.get('description'),
+                    'unit_of_measure': prod.get('unit_of_measure'),
+                    'base_unit_price': prod.get('base_unit_price')
                 })
-    elif client_id: # Fallback to general client products (not tied to a specific project)
+    elif client_id:
          fetched_products_data = get_products_for_client_or_project(client_id, project_id=None)
-
 
     for prod_data in fetched_products_data:
         quantity = prod_data.get('quantity', 1)
-
-        # Determine unit price: override, then base_unit_price from Products table via join
-        unit_price = prod_data.get('unit_price_override')
-        if unit_price is None: # No override for this specific client/project link
-            unit_price = prod_data.get('base_unit_price') # Base price from Products table
-
+        unit_price = prod_data.get('unit_price_override', prod_data.get('base_unit_price'))
         total_price = (quantity * unit_price) if unit_price is not None else None
-
         context["products"].append({
+            "id": prod_data.get('product_id'),
             "name": prod_data.get('product_name'),
-            "description": prod_data.get('product_description'), # or 'description' if directly from Products
+            "description": prod_data.get('product_description', prod_data.get('description')),
             "quantity": quantity,
-            "unit_price_formatted": format_currency(unit_price),
-            "total_price_formatted": format_currency(total_price),
+            "unit_price_formatted": format_currency(unit_price, context["doc"]["currency_symbol"]),
+            "total_price_formatted": format_currency(total_price, context["doc"]["currency_symbol"]),
             "raw_unit_price": unit_price,
             "raw_total_price": total_price,
-            "unit_of_measure": prod_data.get('unit_of_measure')
+            "unit_of_measure": prod_data.get('unit_of_measure'),
+            # Placeholders for packing list / warranty, require schema change or additional_context
+            "item_number_or_code": prod_data.get('product_id'), # Default to product_id, can be overridden
+            "serial_number": "N/A (Champ 'serial_number' manquant)",
+            "other_identifier": "N/A",
+            "specifications": prod_data.get('product_description', prod_data.get('description')), # Default to description
         })
 
-    # 7. Handle additional_context
-    if isinstance(additional_context, dict):
-        context["additional"].update(additional_context)
+    # --- Map to common template placeholder patterns ---
+    # Proforma Invoice / Sales Contract
+    context["buyer_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
+    context["buyer_address"] = context["client"].get("address")
+    context["buyer_city_zip_country"] = context["client"].get("city_zip_country")
+    context["buyer_phone"] = context["client"].get("contact_phone")
+    context["buyer_email"] = context["client"].get("contact_email")
+    context["buyer_vat_number"] = context["client"].get("vat_number") # Will be N/A
+    context["buyer_company_name"] = context["client"].get("company_name")
+    context["buyer_company_address"] = context["client"].get("address")
+    context["buyer_company_registration_number"] = context["client"].get("registration_number") # N/A
+    context["buyer_representative_name"] = context["client"].get("representative_name")
+    context["buyer_representative_title"] = context["client"].get("representative_title")
+
+    context["seller_company_logo_path"] = context["seller"].get("company_logo_path")
+    context["seller_company_name"] = context["seller"].get("name")
+    context["seller_company_address"] = context["seller"].get("address")
+    context["seller_company_city_zip_country"] = context["seller"].get("city_zip_country") # N/A
+    context["seller_company_phone"] = context["seller"].get("phone") # N/A
+    context["seller_company_email"] = context["seller"].get("email") # N/A
+    context["seller_vat_number"] = context["seller"].get("vat_number") # N/A
+    context["seller_company_registration_number"] = context["seller"].get("registration_number") # N/A
+    context["seller_representative_name"] = context["seller"].get("personnel", {}).get("representative_name")
+    context["seller_representative_title"] = context["seller"].get("personnel", {}).get("representative_title")
+    context["seller_bank_name"] = context["seller"].get("bank_name") # N/A
+    context["seller_bank_address"] = context["seller"].get("bank_address") # N/A
+    context["seller_bank_iban"] = context["seller"].get("bank_iban") # N/A
+    context["seller_bank_swift"] = context["seller"].get("bank_swift") # N/A
+    context["seller_bank_account_holder_name"] = context["seller"].get("bank_account_holder_name") # N/A
+
+    context["project_description"] = context["project"].get("description")
+
+    # Packing List
+    context["company_logo_path_for_stamp"] = context["seller"].get("company_logo_path")
+    context["exporter_company_name"] = context["seller"].get("name")
+    context["exporter_address"] = context["seller"].get("address")
+    context["exporter_contact_person"] = context["seller"].get("personnel",{}).get("sales_person_name")
+    context["exporter_phone"] = context["seller"].get("phone") # N/A
+    context["exporter_email"] = context["seller"].get("email") # N/A
+
+    context["consignee_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
+    context["consignee_address"] = context["client"].get("address")
+    context["consignee_contact_person"] = context["client"].get("contact_person_name")
+    context["consignee_phone"] = context["client"].get("contact_phone")
+    context["consignee_email"] = context["client"].get("contact_email")
+
+    context["authorized_signature_name"] = context["seller"].get("personnel",{}).get("authorized_signature_name")
+    context["authorized_signature_title"] = context["seller"].get("personnel",{}).get("authorized_signature_title")
+
+    # Warranty Document
+    context["beneficiary_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
+    context["beneficiary_address"] = context["client"].get("address")
+    context["beneficiary_contact_person"] = context["client"].get("contact_person_name")
+    context["beneficiary_phone"] = context["client"].get("contact_phone")
+    context["beneficiary_email"] = context["client"].get("contact_email")
+
+    context["warrantor_company_name"] = context["seller"].get("name")
+    context["warrantor_address"] = context["seller"].get("address")
+    context["warrantor_contact_person"] = context["seller"].get("personnel",{}).get("technical_manager_name", context["seller"].get("personnel",{}).get("sales_person_name"))
+    context["warrantor_phone"] = context["seller"].get("phone") # N/A
+    context["warrantor_email"] = context["seller"].get("email") # N/A
+
+    # Cover Page
+    context["company_logo_path"] = context["seller"].get("company_logo_path")
+    context["client_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
+    context["project_name"] = context["project"].get("name")
+    context["author_name"] = context["seller"].get("personnel",{}).get("sales_person_name", context["seller"].get("name"))
+
+    # Fill from additional_context, providing defaults for some common ones
+    context["document_title"] = context["additional"].get("document_title", "Document")
+    context["document_subtitle"] = context["additional"].get("document_subtitle", "")
+    context["document_date"] = context["additional"].get("document_date", context["doc"]["current_date"])
+    context["document_version"] = context["additional"].get("document_version", "1.0")
+
+    # All other placeholders from the list that are not directly mapped above
+    # will rely on being present in `additional_context` or will be schema change requirements.
 
     return context
 

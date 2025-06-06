@@ -94,7 +94,8 @@ class HtmlEditor(QDialog):
         # Options Layout (for checkbox)
         options_layout = QHBoxLayout()
         self.toggle_code_view_checkbox = QCheckBox(self.tr("Show HTML Code Editor"))
-        self.toggle_code_view_checkbox.setChecked(True) # Editor is visible by default
+        self.toggle_code_view_checkbox.setChecked(False) # Editor is visible by default
+        self.html_edit.setVisible(False)
         self.toggle_code_view_checkbox.toggled.connect(self.toggle_code_editor_visibility)
         options_layout.addWidget(self.toggle_code_view_checkbox)
         options_layout.addStretch() # To push checkbox to the left
