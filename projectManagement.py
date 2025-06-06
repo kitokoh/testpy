@@ -4417,6 +4417,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QTableWidget::item:selected { background-color: #007bff; color: white; }
         """
 
+    def get_page_title_style(self): # Helper for consistent page titles
+        return "font-size: 22pt; font-weight: bold; color: #343a40; padding-bottom: 10px;"
+
     def load_clients_into_cp_combo(self):
         current_client_id = self.cp_client_combo.currentData()
         self.cp_client_combo.clear()
