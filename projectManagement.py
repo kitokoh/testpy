@@ -4278,9 +4278,42 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
-        self.nav_buttons[index].setObjectName("selected")
-        self.nav_buttons[index].style().unpolish(self.nav_buttons[index])
-        self.nav_buttons[index].style().polish(self.nav_buttons[index])
+        # Determine which top-level button to highlight
+        # self.nav_buttons indices:
+        # 0: Dashboard
+        # 1: Management (Team, Settings, Notifications, Client Support, Prospect, Documents, Contacts)
+        # 2: Activities (Projects, Tasks, Reports, Cover Pages)
+        # 3: Add-on
+
+        button_to_select_index = -1
+        if index == 0: # Dashboard
+            button_to_select_index = 0
+        elif index == 1: # Team (under Management)
+            button_to_select_index = 1
+        elif index == 2: # Projects (under Activities)
+            button_to_select_index = 2
+        elif index == 3: # Tasks (under Activities)
+            button_to_select_index = 2
+        elif index == 4: # Reports (under Activities)
+            button_to_select_index = 2
+        elif index == 5: # Settings (under Management)
+            button_to_select_index = 1
+        elif index == 6: # Cover Page Management (under Activities)
+            button_to_select_index = 2
+        # Add other mappings if new pages/buttons are added.
+        # The "Add-on" button (self.nav_buttons[3]) calls a different function,
+        # so it's not handled by change_page's index logic directly.
+
+        if 0 <= button_to_select_index < len(self.nav_buttons):
+            selected_button = self.nav_buttons[button_to_select_index]
+            selected_button.setObjectName("selected")
+            selected_button.style().unpolish(selected_button)
+            selected_button.style().polish(selected_button)
+        else:
+            # This case should ideally not be reached if all page indices are mapped.
+            # If it is, it means an unmapped page index was called.
+            print(f"Warning: change_page called with index {index}, but no corresponding top-level button found to highlight.")
+
 
         # Update data if necessary
         if index == 0:  # Dashboard

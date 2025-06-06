@@ -53,6 +53,7 @@ class HtmlEditor(QDialog):
         super().__init__(parent)
         self.file_path = file_path
         self.client_data = client_data
+        self._current_pdf_export_path = None
 
         # Ensure ClientInfoWidget is created before methods that might use it (like _replace_placeholders_html via _load_content)
         # self.client_info_widget = ClientInfoWidget(self.client_data) # Moved to _setup_ui as per standard practice
@@ -123,14 +124,41 @@ class HtmlEditor(QDialog):
             self.refresh_preview()
 
             page = self.preview_pane.page()
-            # Use functools.partial to pass file_path to the callback
-            callback = functools.partial(self.handle_pdf_export_finished, file_path_ref=file_path)
-            page.printToPdf(file_path, callback)
-            # If the above line with callback causes issues (e.g. specific Qt version compatibility):
-            # page.printToPdf(file_path)
-            # self.handle_pdf_export_finished(True, file_path_ref=file_path) # Assume success for simplicity
-            # QMessageBox.information(self, self.tr("PDF Export"),
-            #                         self.tr("PDF export process started for: {0}.\nNotification of completion depends on system setup.").format(file_path))
+            self.refresh_preview() # Ensure content is up-to-date
+
+            self._current_pdf_export_path = file_path # Store for the slot
+            page = self.preview_pane.page()
+
+            # Disconnect previous connections if any to avoid multiple calls
+            try:
+                page.pdfPrintingFinished.disconnect()
+            except TypeError: # Signal has no connections
+                pass
+
+            page.pdfPrintingFinished.connect(self._handle_pdf_export_signal)
+            page.printToPdf(file_path)
+            # Inform user that process has started, actual success/failure will be shown by the slot
+            QMessageBox.information(self, self.tr("PDF Export Started"),
+                                    self.tr("PDF export process has started for: {0}.\nYou will be notified upon completion.").format(file_path))
+
+    def _handle_pdf_export_signal(self, printed_output_path, success):
+        # This slot receives the path it printed to and a boolean success status.
+        # We use self._current_pdf_export_path as the primary reference for the user message,
+        # but printed_output_path is what the engine actually used.
+
+        # Important: Disconnect after use to prevent issues if export_to_pdf is called again
+        # for a different file before a previous one finished (though unlikely with modal dialogs).
+        try:
+            self.preview_pane.page().pdfPrintingFinished.disconnect(self._handle_pdf_export_signal)
+        except TypeError:
+            pass # No connection to disconnect
+
+        if self._current_pdf_export_path: # Check if an export was initiated
+            self.handle_pdf_export_finished(success, self._current_pdf_export_path)
+            self._current_pdf_export_path = None # Reset path after handling
+        else:
+            # This case should ideally not happen if logic is correct
+            print(f"Warning: _handle_pdf_export_signal called but _current_pdf_export_path was None. Output path: {printed_output_path}, Success: {success}")
 
 
     def handle_pdf_export_finished(self, success, file_path_ref): # file_path_ref is passed by functools.partial
