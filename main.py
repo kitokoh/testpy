@@ -126,6 +126,8 @@ class ContactDialog(QDialog):
         
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+        self.setMinimumWidth(400) # Set minimum width
         
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
         layout.addRow(self.tr("Nom complet:"), self.name_input)
@@ -182,23 +184,27 @@ class TemplateDialog(QDialog):
         
         btn_layout = QHBoxLayout() # Button layout for underneath the list
         btn_layout.setSpacing(10) # Add spacing between buttons
-        self.add_btn = QPushButton(self.tr("Ajouter Modèle"))
-        self.add_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_btn = QPushButton(self.tr("➕ Modèle"))
+        # self.add_btn.setIcon(QIcon.fromTheme("list-add")) # Icon removed
+        self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle"))
         self.add_btn.clicked.connect(self.add_template)
         btn_layout.addWidget(self.add_btn)
         
-        self.edit_btn = QPushButton(self.tr("Modifier"))
-        self.edit_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_btn = QPushButton(self.tr("✏️ Modèle"))
+        # self.edit_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)"))
         self.edit_btn.clicked.connect(self.edit_template)
         btn_layout.addWidget(self.edit_btn)
         
-        self.delete_btn = QPushButton(self.tr("Supprimer"))
-        self.delete_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.delete_btn = QPushButton(self.tr("🗑️ Modèle"))
+        # self.delete_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné"))
         self.delete_btn.clicked.connect(self.delete_template)
         btn_layout.addWidget(self.delete_btn)
         
-        self.default_btn = QPushButton(self.tr("Définir par Défaut"))
-        self.default_btn.setIcon(QIcon.fromTheme("emblem-default"))
+        self.default_btn = QPushButton(self.tr("⭐ Modèle"))
+        # self.default_btn.setIcon(QIcon.fromTheme("emblem-default")) # Icon removed
+        self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue"))
         self.default_btn.clicked.connect(self.set_default_template)
         btn_layout.addWidget(self.default_btn)
         
@@ -520,6 +526,8 @@ class ProductDialog(QDialog):
 
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+        self.setMinimumWidth(400) # Set minimum width
 
         self.name_input = QLineEdit(self.product_data.get("name", ""))
         layout.addRow(self.tr("Nom du Produit:"), self.name_input)
@@ -1051,12 +1059,12 @@ class ClientWidget(QWidget):
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout.setContentsMargins(15, 15, 15, 15) // Verified
+        layout.setSpacing(15) // Verified
         
-        header = QLabel(f"<h2>{self.client_info['client_name']}</h2>") # Client name is data, not UI text
-        header.setStyleSheet("color: #2c3e50;") 
-        layout.addWidget(header)
+        self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
+        self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Added margin-bottom
+        layout.addWidget(self.header_label)
         
         action_layout = QHBoxLayout()
         
@@ -1084,25 +1092,17 @@ class ClientWidget(QWidget):
         status_layout.addWidget(self.status_combo)
         layout.addLayout(status_layout)
         
-        details_layout = QFormLayout()
-        details_layout.setLabelAlignment(Qt.AlignRight)
-        # Labels are UI text, values are data
-        details_data = [
-            (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
-            (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
-            (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
-            (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
-            (self.tr("Prix Final:"), f"{self.client_info.get('price', 0)} €"), # Currency format
-            (self.tr("Date Création:"), self.client_info.get("creation_date", self.tr("N/A"))),
-            (self.tr("Chemin Dossier:"), f"<a href='file:///{self.client_info['base_folder_path']}'>{self.client_info['base_folder_path']}</a>")
-        ]
-        for label_text, value_text in details_data:
-            label_widget = QLabel(label_text)
-            value_widget = QLabel(value_text)
-            value_widget.setOpenExternalLinks(True)
-            value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            details_layout.addRow(label_widget, value_widget)
-        layout.addLayout(details_layout)
+        self.details_layout = QFormLayout()
+        self.details_layout.setLabelAlignment(Qt.AlignRight)
+        self.details_layout.setSpacing(8) # Added spacing for details
+
+        # Store references to value labels for easy updating
+        self.detail_value_labels = {}
+
+        # Initial population
+        self.populate_details_layout() # Call a method to populate for clarity
+
+        layout.addLayout(self.details_layout)
         
         notes_group = QGroupBox(self.tr("Notes"))
         notes_layout = QVBoxLayout(notes_group)
@@ -1156,18 +1156,21 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         
         contacts_btn_layout = QHBoxLayout()
-        self.add_contact_btn = QPushButton(self.tr("Ajouter Contact"))
-        self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new"))
+        self.add_contact_btn = QPushButton(self.tr("➕ Contact"))
+        # self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")) # Icon removed
+        self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client"))
         self.add_contact_btn.clicked.connect(self.add_contact)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         
-        self.edit_contact_btn = QPushButton(self.tr("Modifier Contact"))
-        self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_contact_btn = QPushButton(self.tr("✏️ Contact"))
+        # self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné"))
         self.edit_contact_btn.clicked.connect(self.edit_contact)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         
-        self.remove_contact_btn = QPushButton(self.tr("Supprimer Contact"))
-        self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.remove_contact_btn = QPushButton(self.tr("🗑️ Contact"))
+        # self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client"))
         self.remove_contact_btn.clicked.connect(self.remove_contact)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         
@@ -1189,18 +1192,21 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         
         products_btn_layout = QHBoxLayout()
-        self.add_product_btn = QPushButton(self.tr("Ajouter Produit"))
-        self.add_product_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_product_btn = QPushButton(self.tr("➕ Produit"))
+        # self.add_product_btn.setIcon(QIcon.fromTheme("list-add")) # Icon removed
+        self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet"))
         self.add_product_btn.clicked.connect(self.add_product)
         products_btn_layout.addWidget(self.add_product_btn)
         
-        self.edit_product_btn = QPushButton(self.tr("Modifier Produit"))
-        self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_product_btn = QPushButton(self.tr("✏️ Produit"))
+        # self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné"))
         self.edit_product_btn.clicked.connect(self.edit_product)
         products_btn_layout.addWidget(self.edit_product_btn)
         
-        self.remove_product_btn = QPushButton(self.tr("Supprimer Produit"))
-        self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.remove_product_btn = QPushButton(self.tr("🗑️ Produit"))
+        # self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet"))
         self.remove_product_btn.clicked.connect(self.remove_product)
         products_btn_layout.addWidget(self.remove_product_btn)
         
@@ -1212,6 +1218,63 @@ class ClientWidget(QWidget):
         self.populate_doc_table()
         self.load_contacts()
         self.load_products()
+
+    def populate_details_layout(self):
+        # Clear existing rows from details_layout if any, before repopulating
+        while self.details_layout.rowCount() > 0:
+            self.details_layout.removeRow(0)
+
+        self.detail_value_labels.clear() # Clear old references
+
+        details_data_map = {
+            "project_identifier": (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
+            "country": (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
+            "city": (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
+            "need": (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
+            "price": (self.tr("Prix Final:"), f"{self.client_info.get('price', 0)} €"),
+            "creation_date": (self.tr("Date Création:"), self.client_info.get("creation_date", self.tr("N/A"))),
+            "base_folder_path": (self.tr("Chemin Dossier:"), f"<a href='file:///{self.client_info.get('base_folder_path','')}'>{self.client_info.get('base_folder_path','')}</a>")
+        }
+
+        for key, (label_text, value_text) in details_data_map.items():
+            label_widget = QLabel(label_text)
+            value_widget = QLabel(value_text)
+            if key == "base_folder_path": # Special handling for link
+                value_widget.setOpenExternalLinks(True)
+                value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+            self.details_layout.addRow(label_widget, value_widget)
+            self.detail_value_labels[key] = value_widget # Store reference to the value label
+
+    def refresh_display(self, new_client_info):
+        self.client_info = new_client_info # Update internal data store
+
+        # Update header
+        self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
+
+        # Update status combo
+        # Note: status_combo displays status name. self.client_info should have 'status' field with the name.
+        self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
+
+        # Update details in the QFormLayout
+        if hasattr(self, 'detail_value_labels'): # Check if labels were stored
+            self.detail_value_labels["project_identifier"].setText(self.client_info.get("project_identifier", self.tr("N/A")))
+            self.detail_value_labels["country"].setText(self.client_info.get("country", self.tr("N/A")))
+            self.detail_value_labels["city"].setText(self.client_info.get("city", self.tr("N/A")))
+            self.detail_value_labels["need"].setText(self.client_info.get("need", self.tr("N/A"))) # 'need' is 'primary_need_description' in some contexts
+            self.detail_value_labels["price"].setText(f"{self.client_info.get('price', 0)} €")
+            self.detail_value_labels["creation_date"].setText(self.client_info.get("creation_date", self.tr("N/A")))
+
+            folder_path = self.client_info.get('base_folder_path','')
+            self.detail_value_labels["base_folder_path"].setText(f"<a href='file:///{folder_path}'>{folder_path}</a>")
+        else: # Fallback or if you choose to repopulate the whole layout
+            self.populate_details_layout()
+
+
+        # Update Notes
+        self.notes_edit.setText(self.client_info.get("notes", ""))
+
+        # Other elements like doc_table, contacts_list, products_table are refreshed by their own mechanisms typically.
 
     def load_statuses(self):
         conn = None
@@ -1304,26 +1367,26 @@ class ClientWidget(QWidget):
                     action_layout = QHBoxLayout(action_widget)
                     action_layout.setContentsMargins(0, 0, 0, 0)
                     
-                    open_btn_i = QPushButton()
-                    open_btn_i.setIcon(QIcon.fromTheme("document-open"))
-                    open_btn_i.setToolTip(self.tr("Ouvrir"))
-                    open_btn_i.setFixedSize(30, 30)
+                    open_btn_i = QPushButton("📄")
+                    # open_btn_i.setIcon(QIcon.fromTheme("document-open")) # Icon removed
+                    open_btn_i.setToolTip(self.tr("Ouvrir le document"))
+                    open_btn_i.setFixedSize(32, 32) # Adjusted size
                     open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
                     action_layout.addWidget(open_btn_i)
                     
                     if file_name.endswith('.xlsx') or file_name.endswith('.html'): # Allow edit for HTML too
-                        edit_btn_i = QPushButton()
-                        edit_btn_i.setIcon(QIcon.fromTheme("document-edit"))
-                        edit_btn_i.setToolTip(self.tr("Éditer"))
-                        edit_btn_i.setFixedSize(30, 30)
+                        edit_btn_i = QPushButton("✏️")
+                        # edit_btn_i.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+                        edit_btn_i.setToolTip(self.tr("Éditer le document"))
+                        edit_btn_i.setFixedSize(32, 32) # Adjusted size
                         # For Excel, open_document handles ExcelEditor. For HTML, it handles HtmlEditor.
                         edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
                         action_layout.addWidget(edit_btn_i)
                     
-                    delete_btn_i = QPushButton()
-                    delete_btn_i.setIcon(QIcon.fromTheme("edit-delete"))
-                    delete_btn_i.setToolTip(self.tr("Supprimer"))
-                    delete_btn_i.setFixedSize(30, 30)
+                    delete_btn_i = QPushButton("🗑️")
+                    # delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+                    delete_btn_i.setToolTip(self.tr("Supprimer le document"))
+                    delete_btn_i.setFixedSize(32, 32) # Adjusted size
                     delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document(p))
                     action_layout.addWidget(delete_btn_i)
                     
@@ -1752,6 +1815,194 @@ class ClientWidget(QWidget):
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
 
+class EditClientDialog(QDialog):
+    def __init__(self, client_info, config, parent=None):
+        super().__init__(parent)
+        self.client_info = client_info
+        self.config = config
+        # Ensure db_manager is accessible, e.g., self.db_manager = db_manager
+        # or call db_manager functions directly if it's globally imported and initialized
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.setWindowTitle(self.tr("Modifier Client"))
+        self.setMinimumSize(500, 430) # Adjusted minimum size for spacing
+        layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+
+        # Client Name
+        self.client_name_input = QLineEdit(self.client_info.get('client_name', ''))
+        layout.addRow(self.tr("Nom Client:"), self.client_name_input)
+
+        # Company Name
+        self.company_name_input = QLineEdit(self.client_info.get('company_name', ''))
+        layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
+
+        # Client Need (primary_need_description)
+        self.client_need_input = QLineEdit(self.client_info.get('primary_need_description', self.client_info.get('need',''))) # Fallback to 'need' if 'primary_need_description' is missing
+        layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
+
+        # Project ID (project_identifier)
+        self.project_id_input_field = QLineEdit(self.client_info.get('project_identifier', ''))
+        layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
+
+        # Price (final_price_input)
+        self.final_price_input = QDoubleSpinBox()
+        self.final_price_input.setPrefix("€ ")
+        self.final_price_input.setRange(0, 10000000)
+        self.final_price_input.setValue(float(self.client_info.get('price', 0.0)))
+        layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+
+        # Country (country_select_combo)
+        self.country_select_combo = QComboBox()
+        self.country_select_combo.setEditable(True)
+        self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
+        self.populate_countries() # Populate with all countries
+        # Set current selection for country
+        current_country_id = self.client_info.get('country_id')
+        if current_country_id is not None:
+            index = self.country_select_combo.findData(current_country_id)
+            if index >= 0:
+                self.country_select_combo.setCurrentIndex(index)
+            else: # Fallback if ID not in combo, try by name
+                current_country_name = self.client_info.get('country')
+                if current_country_name:
+                    index_name = self.country_select_combo.findText(current_country_name)
+                    if index_name >=0:
+                         self.country_select_combo.setCurrentIndex(index_name)
+        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country_edit)
+        layout.addRow(self.tr("Pays Client:"), self.country_select_combo)
+
+        # City (city_select_combo)
+        self.city_select_combo = QComboBox()
+        self.city_select_combo.setEditable(True)
+        self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
+        # Initial population of cities based on current country
+        self.load_cities_for_country_edit(self.country_select_combo.currentText())
+        # Set current selection for city
+        current_city_id = self.client_info.get('city_id')
+        if current_city_id is not None:
+            index = self.city_select_combo.findData(current_city_id)
+            if index >= 0:
+                self.city_select_combo.setCurrentIndex(index)
+            else: # Fallback if ID not in combo, try by name
+                current_city_name = self.client_info.get('city')
+                if current_city_name:
+                    index_name = self.city_select_combo.findText(current_city_name)
+                    if index_name >= 0:
+                        self.city_select_combo.setCurrentIndex(index_name)
+
+        layout.addRow(self.tr("Ville Client:"), self.city_select_combo)
+
+        # Languages (language_select_combo)
+        self.language_select_combo = QComboBox()
+        self.lang_display_to_codes_map = {
+            self.tr("Français uniquement (fr)"): ["fr"],
+            self.tr("Arabe uniquement (ar)"): ["ar"],
+            self.tr("Turc uniquement (tr)"): ["tr"],
+            self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]
+        }
+        self.language_select_combo.addItems(list(self.lang_display_to_codes_map.keys()))
+        # Set current selection for languages
+        current_lang_codes = self.client_info.get('selected_languages', ['fr']) # Default to ['fr']
+        if not isinstance(current_lang_codes, list): # Ensure it's a list
+             current_lang_codes = [code.strip() for code in str(current_lang_codes).split(',') if code.strip()]
+
+        # Find the display string that matches the current_lang_codes list
+        selected_display_string = None
+        for display_string, codes_list in self.lang_display_to_codes_map.items():
+            if sorted(codes_list) == sorted(current_lang_codes):
+                selected_display_string = display_string
+                break
+        if selected_display_string:
+            self.language_select_combo.setCurrentText(selected_display_string)
+        else: # Fallback to French if no exact match
+            self.language_select_combo.setCurrentText(self.tr("Français uniquement (fr)"))
+        layout.addRow(self.tr("Langues:"), self.language_select_combo)
+
+        # Dialog Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
+        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addRow(button_box)
+
+    def populate_countries(self):
+        self.country_select_combo.clear()
+        try:
+            countries = db_manager.get_all_countries()
+            if countries is None: countries = []
+            for country_dict in countries:
+                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
+
+
+    def load_cities_for_country_edit(self, country_name_str):
+        self.city_select_combo.clear()
+        if not country_name_str:
+            return
+
+        selected_country_id = self.country_select_combo.currentData()
+
+        if selected_country_id is None:
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name:
+                selected_country_id = country_obj_by_name['country_id']
+            else:
+                return # No valid country selected or found
+
+        try:
+            cities = db_manager.get_all_cities(country_id=selected_country_id)
+            if cities is None: cities = []
+            for city_dict in cities:
+                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
+
+    def get_data(self) -> dict:
+        data = {}
+        data['client_name'] = self.client_name_input.text().strip()
+        data['company_name'] = self.company_name_input.text().strip()
+        data['primary_need_description'] = self.client_need_input.text().strip()
+        data['project_identifier'] = self.project_id_input_field.text().strip()
+        data['price'] = self.final_price_input.value()
+
+        # Country ID
+        country_id = self.country_select_combo.currentData()
+        if country_id is None: # Handle case where user typed a new country not in DB
+            country_name = self.country_select_combo.currentText().strip()
+            if country_name: # Try to get by name if text is present
+                country_obj = db_manager.get_country_by_name(country_name)
+                if country_obj:
+                    country_id = country_obj['country_id']
+                # else: Consider adding the new country or error, for now, it will be None
+        data['country_id'] = country_id
+
+        # City ID
+        city_id = self.city_select_combo.currentData()
+        if city_id is None: # Handle case where user typed a new city not in DB
+            city_name = self.city_select_combo.currentText().strip()
+            # Ensure country_id is valid before trying to fetch/add city by name
+            if city_name and data.get('country_id') is not None:
+                city_obj = db_manager.get_city_by_name_and_country_id(city_name, data['country_id'])
+                if city_obj:
+                    city_id = city_obj['city_id']
+                # else: Consider adding new city or error, for now, it will be None
+        data['city_id'] = city_id
+
+        # Selected Languages (comma-separated string of codes)
+        selected_lang_display_text = self.language_select_combo.currentText()
+        lang_codes_list = self.lang_display_to_codes_map.get(selected_lang_display_text, ["fr"])
+        data['selected_languages'] = ",".join(lang_codes_list)
+
+        return data
+
 # --- DOCX Population Logic ---
 def populate_docx_template(docx_path, client_data):
     """
@@ -1980,6 +2231,7 @@ class DocumentManager(QMainWindow):
         
         form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")); form_vbox_layout = QVBoxLayout(form_group_box)
         creation_form_layout = QFormLayout(); creation_form_layout.setLabelAlignment(Qt.AlignRight) 
+        creation_form_layout.setSpacing(10) # Added spacing
         
         self.client_name_input = QLineEdit(); self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
         creation_form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
@@ -2489,6 +2741,7 @@ class DocumentManager(QMainWindow):
 
         menu = QMenu()
         open_action = menu.addAction(self.tr("Ouvrir Fiche Client")); open_action.triggered.connect(lambda: self.open_client_tab_by_id(client_id_val))
+        edit_action = menu.addAction(self.tr("Modifier Client")); edit_action.triggered.connect(lambda: self.open_edit_client_dialog(client_id_val))
         open_folder_action = menu.addAction(self.tr("Ouvrir Dossier Client")); open_folder_action.triggered.connect(lambda: self.open_client_folder_fs(client_id_val))
         menu.addSeparator()
         archive_action = menu.addAction(self.tr("Archiver Client")); archive_action.triggered.connect(lambda: self.set_client_status_archived(client_id_val))
@@ -2661,6 +2914,59 @@ class DocumentManager(QMainWindow):
         # finally:
             # if conn: conn.close() # Old sqlite3
             
+    def open_edit_client_dialog(self, client_id):
+        current_client_data = self.clients_data_map.get(client_id)
+        if not current_client_data:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Client non trouvé."))
+            return
+
+        dialog = EditClientDialog(current_client_data, self.config, self)
+        if dialog.exec_() == QDialog.Accepted:
+            updated_form_data = dialog.get_data()
+
+            # Prepare data for DB update. Keys should match DB columns.
+            data_for_db_update = {
+                'client_name': updated_form_data.get('client_name'),
+                'company_name': updated_form_data.get('company_name'),
+                'primary_need_description': updated_form_data.get('primary_need_description'),
+                'project_identifier': updated_form_data.get('project_identifier'),
+                'country_id': updated_form_data.get('country_id'),
+                'city_id': updated_form_data.get('city_id'),
+                'price': updated_form_data.get('price'),
+                'selected_languages': updated_form_data.get('selected_languages')
+                # status_id and notes are not in EditClientDialog, so they won't be updated
+                # default_base_folder_path is also not part of this dialog's update scope for now.
+            }
+
+            # Filter out any keys with None values if db_manager.update_client expects only non-null fields for update
+            # However, it's usually fine to pass None to set a field to NULL if the DB allows it.
+            # For now, assume db_manager.update_client handles None values appropriately.
+
+            success = db_manager.update_client(client_id, data_for_db_update)
+
+            if success:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Client mis à jour avec succès."))
+
+                # Refresh data and UI
+                self.load_clients_from_db() # Refreshes map and list widget FIRST
+
+                # Update the open tab if it's the one being edited
+                tab_refreshed = False
+                for i in range(self.client_tabs_widget.count()):
+                    tab_widget = self.client_tabs_widget.widget(i)
+                    if hasattr(tab_widget, 'client_info') and tab_widget.client_info.get("client_id") == client_id:
+                        if hasattr(tab_widget, 'refresh_display'):
+                            updated_client_data_for_tab = self.clients_data_map.get(client_id)
+                            if updated_client_data_for_tab:
+                                tab_widget.refresh_display(updated_client_data_for_tab)
+                                self.client_tabs_widget.setTabText(i, updated_client_data_for_tab.get('client_name', 'Client'))
+                                tab_refreshed = True
+                        break
+
+                self.stats_widget.update_stats()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Échec de la mise à jour du client."))
+
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self)
         if dialog.exec_() == QDialog.Accepted:
