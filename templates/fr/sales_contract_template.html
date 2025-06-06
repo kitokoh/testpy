@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{document_title}} - {{contract_number}}</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            color: #000;
+            font-size: 12pt;
+        }
+        .contract-container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 40px;
+            border: 1px solid #000;
+        }
+        h1, h2, h3 {
+            font-family: Arial, Helvetica, sans-serif;
+            color: #000;
+            margin-top: 0;
+        }
+        .document-main-title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+        .contract-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .party-details {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+        }
+        .party-details strong {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 13pt;
+        }
+        .article {
+            margin-bottom: 20px;
+        }
+        .article-title {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .article-content p, .article-content ul, .article-content div {
+            margin-bottom: 10px;
+        }
+        .article-content ul {
+            list-style-type: disc;
+            margin-left: 40px;
+        }
+        .signature-section {
+            margin-top: 50px;
+            display: flex; /* Using flexbox for side-by-side signatures */
+            justify-content: space-between; /* Puts space between seller and buyer */
+            align-items: flex-start; /* Aligns items at the top */
+        }
+        .signature-block {
+            width: 45%; /* Each block takes up less than half the width */
+            border-top: 1px solid #000;
+            padding-top: 10px;
+        }
+        .signature-block p {
+            margin: 5px 0;
+        }
+        .annex-list {
+            margin-top: 30px;
+            font-style: italic;
+        }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+        .underline { text-decoration: underline; }
+
+        /* Specific styles for product table if used */
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        .products-table th, .products-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        .products-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .preamble {
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="contract-container">
+        <div class="document-main-title">{{document_title}}</div>
+
+        <div class="contract-header">
+            <p><span class="bold">Numéro de Contrat :</span> {{contract_number}}</p>
+            <p><span class="bold">Date d'Entrée en Vigueur :</span> {{date_of_agreement}}</p>
+        </div>
+
+        <div class="party-details">
+            <p><span class="bold">ENTRE :</span></p>
+            <p><span class="bold">Le Vendeur :</span></p>
+            <p><span class="bold">{{seller_company_name}}</span></p>
+            <p>Adresse : {{seller_company_address}}</p>
+            <p>Immatriculée sous le numéro : {{seller_company_registration_number}}</p>
+            <p>Représentée par : {{seller_representative_name}}, {{seller_representative_title}}</p>
+            <p>Ci-après dénommé le « Vendeur ».</p>
+        </div>
+
+        <div class="party-details">
+            <p><span class="bold">ET :</span></p>
+            <p><span class="bold">L'Acheteur :</span></p>
+            <p><span class="bold">{{buyer_company_name}}</span></p>
+            <p>Adresse : {{buyer_company_address}}</p>
+            <p>Immatriculée sous le numéro : {{buyer_company_registration_number}}</p>
+            <p>Représenté par : {{buyer_representative_name}}, {{buyer_representative_title}}</p>
+            <p>Ci-après dénommé l' « Acheteur ».</p>
+        </div>
+
+        <div class="preamble">
+            <p class="article-title">Préambule</p>
+            <p>{{preamble_text}}</p>
+            <p>Les parties conviennent de ce qui suit :</p>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 1 : Objet du Contrat</p>
+            <div class="article-content">
+                <p>1.1. <span class="underline">Description des Biens/Services :</span> {{subject_matter_general_description}}</p>
+                <!-- {{#if products}} -->
+                <p>Les biens (ci-après dénommés les "Produits") faisant l'objet du présent contrat sont les suivants :</p>
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>Description du Produit</th>
+                            <th>Quantité</th>
+                            <th>Spécifications/Qualité</th>
+                            <th>Prix Unitaire</th>
+                            <th>Prix Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- {{#each products}} -->
+                        <tr>
+                            <td>{{product_name}}</td>
+                            <td>{{product_quantity}} {{product_unit}}</td>
+                            <td>{{product_specifications}}</td>
+                            <td>{{product_unit_price_formatted}} {{currency_symbol}}</td>
+                            <td>{{product_total_price_formatted}} {{currency_symbol}}</td>
+                        </tr>
+                        <!-- {{/each}} -->
+                    </tbody>
+                </table>
+                <!-- {{/if}} -->
+                <p>1.2. <span class="underline">Quantité Totale :</span> {{total_quantity}}</p>
+                <p>1.3. <span class="underline">Qualité et Spécifications :</span> {{quality_specifications_details}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 2 : Prix et Modalités de Paiement</p>
+            <div class="article-content">
+                <p>2.1. <span class="underline">Prix Total :</span> {{total_price_formatted}} {{currency_symbol}} ({{total_price_in_words}}).</p>
+                <!-- {{#unless products}} -->
+                <p>2.2. <span class="underline">Prix par Unité (si applicable) :</span> {{price_per_unit_formatted}} {{currency_symbol}}.</p>
+                <!-- {{/unless}} -->
+                <p>2.3. <span class="underline">Modalités de Paiement :</span> {{payment_method_description}}.</p>
+                <p>2.4. <span class="underline">Échéancier de Paiement :</span> {{payment_schedule_description}}.</p>
+                <p>2.5. <span class="underline">Coordonnées Bancaires du Vendeur :</span></p>
+                <ul>
+                    <li>Banque : {{seller_bank_name}}</li>
+                    <li>Adresse de la Banque : {{seller_bank_address}}</li>
+                    <li>Numéro de Compte / IBAN : {{seller_bank_iban}}</li>
+                    <li>Code SWIFT/BIC : {{seller_bank_swift}}</li>
+                    <li>Titulaire du Compte : {{seller_bank_account_holder_name}}</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 3 : Conditions de Livraison</p>
+            <div class="article-content">
+                <p>3.1. <span class="underline">Incoterms® :</span> {{delivery_incoterms}}.</p>
+                <p>3.2. <span class="underline">Lieu de Livraison :</span> {{delivery_place}}.</p>
+                <p>3.3. <span class="underline">Date de Livraison Estimée :</span> {{estimated_delivery_date}}.</p>
+                <p>3.4. <span class="underline">Expéditions Partielles :</span> {{partial_shipments_allowed_description}}.</p>
+                <p>3.5. <span class="underline">Documents d'Expédition Requis :</span> {{shipping_documents_required}}.</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 4 : Inspection des Marchandises</p>
+            <div class="article-content">
+                <p>{{inspection_of_goods_clause}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 5 : Garantie</p>
+            <div class="article-content">
+                <p>5.1. <span class="underline">Période de Garantie :</span> {{warranty_period}}.</p>
+                <p>5.2. <span class="underline">Conditions de Garantie :</span> {{warranty_conditions}}.</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 6 : Force Majeure</p>
+            <div class="article-content">
+                <p>{{force_majeure_clause}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 7 : Droit Applicable et Résolution des Litiges</p>
+            <div class="article-content">
+                <p>7.1. <span class="underline">Droit Applicable :</span> Le présent contrat est régi et interprété conformément aux lois de {{applicable_law_jurisdiction}}.</p>
+                <p>7.2. <span class="underline">Résolution des Litiges :</span> {{dispute_resolution_method}}.</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <p class="article-title">Article 8 : Intégralité de l'Accord et Amendements</p>
+            <div class="article-content">
+                <p>8.1. <span class="underline">Intégralité de l'Accord :</span> Le présent contrat constitue l'intégralité de l'accord entre les Parties concernant son objet et remplace tous les accords, négociations et discussions antérieurs, qu'ils soient oraux ou écrits, entre les Parties.</p>
+                <p>8.2. <span class="underline">Amendements :</span> Toute modification ou amendement au présent contrat ne sera valable que si elle est faite par écrit et signée par les représentants dûment autorisés des deux Parties.</p>
+            </div>
+        </div>
+
+        <div class="signature-section">
+            <div class="signature-block">
+                <p class="bold text-center">POUR LE VENDEUR :</p>
+                <br><br><br>
+                <p>Signature : _________________________</p>
+                <p>Nom : {{seller_signature_name}}</p>
+                <p>Titre : {{seller_signature_title}}</p>
+                <p>Date : {{seller_signature_date}}</p>
+            </div>
+            <div class="signature-block">
+                <p class="bold text-center">POUR L'ACHETEUR :</p>
+                <br><br><br>
+                <p>Signature : _________________________</p>
+                <p>Nom : {{buyer_signature_name}}</p>
+                <p>Titre : {{buyer_signature_title}}</p>
+                <p>Date : {{buyer_signature_date}}</p>
+            </div>
+        </div>
+
+        {{#if annexes_list}}
+        <div class="annex-list">
+            <p class="article-title">Annexes</p>
+            <p>Les documents suivants sont joints et font partie intégrante du présent contrat :</p>
+            <ul>
+                <!-- {{#each annexes_list}} -->
+                <li>{{annex_title}}</li>
+                <!-- {{/each}} -->
+            </ul>
+            <p>{{annexes_placeholder_text}}</p>
+        </div>
+        {{/if}}
+
+    </div>
+</body>
+</html>
