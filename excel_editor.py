@@ -865,35 +865,26 @@ class ExcelEditor(QDialog):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
-        
-        # Create toolbar
-        self.create_toolbar(main_layout)
-        
-        # Create status bar
-        self.create_status_bar(main_layout)
-        
+
+        # Initialize components that are dependencies first
+        self.table_panel = self.create_table_panel() # Initializes self.table
+        self.client_panel = self.create_client_panel()
+
+        # Create toolbar (depends on self.table)
+        self.create_toolbar(main_layout) # Adds toolbar to main_layout
+
         # Main content area
         content_splitter = QSplitter(Qt.Horizontal)
-        
-        # Client info panel
-        self.client_panel = self.create_client_panel()
         content_splitter.addWidget(self.client_panel)
-        
-        # Excel table panel
-        self.table_panel = self.create_table_panel()
-        content_splitter.addWidget(self.table_panel)
-        
-        # PDF preview panel (optional)
-        # self.preview_panel = self.create_preview_panel()
-        # content_splitter.addWidget(self.preview_panel)
-        
-        content_splitter.setStretchFactor(0, 1)
-        content_splitter.setStretchFactor(1, 3)
-        # content_splitter.setStretchFactor(2, 1)
-        
+        content_splitter.addWidget(self.table_panel) # self.table_panel now already created
+        content_splitter.setStretchFactor(0, 1) # client_panel
+        content_splitter.setStretchFactor(1, 3) # table_panel
         main_layout.addWidget(content_splitter)
-        
-        # Progress bar
+
+        # Create status bar (usually at the bottom)
+        self.create_status_bar(main_layout) # Adds status_bar to main_layout
+
+        # Progress bar (below status bar)
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(20)
         self.progress_bar.setVisible(False)
