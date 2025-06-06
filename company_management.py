@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QGridLayout
 
 # Adjust path to import db_manager from the parent directory / current dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
