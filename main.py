@@ -4,6 +4,7 @@ import os
 import json
 # import sqlite3 # Replaced by db_manager
 import db as db_manager
+from db import get_default_company # Added for fetching default company
 from db import DATABASE_NAME as CENTRAL_DATABASE_NAME
 import pandas as pd
 import shutil
@@ -791,7 +792,16 @@ class CreateDocumentDialog(QDialog):
                     try:
                         with open(target_path, 'r', encoding='utf-8') as f:
                             template_content = f.read()
-                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info)
+
+                        # Fetch default company ID for HTML population
+                        default_company_obj = db_manager.get_default_company()
+                        default_company_id = default_company_obj['company_id'] if default_company_obj else None
+
+                        if default_company_id is None:
+                            QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
+
+                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id)
+
                         with open(target_path, 'w', encoding='utf-8') as f:
                             f.write(populated_content)
                         print(f"Populated HTML: {target_path}")
