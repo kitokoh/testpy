@@ -1894,98 +1894,78 @@ class CoverPageGenerator(QMainWindow):
             html_template_name = "traditional_template.html"
 
         if html_template_name:
+            # This block handles HTML template based PDF generation
             try:
-                    html_template_path = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html', html_template_name)
+                html_template_path = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html', html_template_name)
 
-                    template_dir = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html')
-                    # base_url must be a file URI and end with a slash if it's a directory.
-                    base_url = QUrl.fromLocalFile(template_dir).toString()
-                    if not base_url.endswith('/'):
-                        base_url += '/'
+                template_dir = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html')
+                base_url = QUrl.fromLocalFile(template_dir).toString()
+                if not base_url.endswith('/'):
+                    base_url += '/'
 
-                    with open(html_template_path, 'r', encoding='utf-8') as f:
-                        template_content = f.read()
+                with open(html_template_path, 'r', encoding='utf-8') as f:
+                    template_content = f.read()
 
-                    # Handle LOGO_PATH for WeasyPrint:
-                    # It needs to be an absolute file path, a file:// URI, or a resolvable relative path from base_url.
-                    current_logo_path_text = pdf_config.get('LOGO_PATH', '') # This comes from logo_path_edit.text()
+                current_logo_path_text = pdf_config.get('LOGO_PATH', '')
 
-                    if current_logo_path_text:
-                        if not os.path.isabs(current_logo_path_text) and not current_logo_path_text.startswith(('http://', 'https://', 'file://')):
-                            # If it's a relative path (e.g., "logos/my_logo.png")
-                            # We assume it's relative to APP_ROOT_DIR or some known 'assets' folder.
-                            # For WeasyPrint, if it's not an absolute path, it will be resolved against base_url.
-                            # If base_url is '.../templates/cover_pages/html/', then "logos/my_logo.png"
-                            # would be sought at '.../templates/cover_pages/html/logos/my_logo.png'.
-                            # If logo_path_edit stores an absolute path, this is fine.
-                            # If logo_path_edit stores a relative path, user must ensure it's relative to the HTML template's folder.
-                            # For maximum robustness, convert to absolute path if it's not a URL
-                             resolved_logo_path = os.path.join(template_dir, current_logo_path_text)
-                             if os.path.exists(resolved_logo_path):
-                                 pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(resolved_logo_path).toString()
-                             elif not os.path.exists(current_logo_path_text) and not current_logo_path_text.startswith(('http', 'file:')):
-                                 # If relative path doesn't exist relative to template_dir and not absolute/URL
-                                 QMessageBox.warning(self, self.translator.tr("Erreur Logo"),
-                                                      self.translator.tr("Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.", current_logo_path_text))
-                                 pdf_config['LOGO_PATH'] = "" # Prevent broken image
-                        elif os.path.isabs(current_logo_path_text):
-                             pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(current_logo_path_text).toString()
-                        # If it's already a URL (http, https, file://), leave as is.
+                if current_logo_path_text:
+                    if not os.path.isabs(current_logo_path_text) and not current_logo_path_text.startswith(('http://', 'https://', 'file://')):
+                        resolved_logo_path = os.path.join(template_dir, current_logo_path_text)
+                        if os.path.exists(resolved_logo_path):
+                            pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(resolved_logo_path).toString()
+                        elif not os.path.exists(current_logo_path_text) and not current_logo_path_text.startswith(('http', 'file:')):
+                            QMessageBox.warning(self, self.translator.tr("Erreur Logo"),
+                                                self.translator.tr("Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.", current_logo_path_text))
+                            pdf_config['LOGO_PATH'] = ""
+                    elif os.path.isabs(current_logo_path_text):
+                        pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(current_logo_path_text).toString()
 
-                    elif not current_logo_path_text and self.current_logo_data:
-                        # Logo is in memory (self.current_logo_data) but not path specified for HTML.
-                        # WeasyPrint needs a path or URL. We can save it to a temporary file.
-                        temp_logo_dir = os.path.join(APP_ROOT_DIR, "temp_assets")
-                        os.makedirs(temp_logo_dir, exist_ok=True)
-                        temp_logo_filename = "temp_logo_for_html.png" # Assume PNG, or detect from data
-                        temp_logo_path = os.path.join(temp_logo_dir, temp_logo_filename)
-                        try:
-                            with open(temp_logo_path, "wb") as tmp_logo_file:
-                                tmp_logo_file.write(self.current_logo_data)
-                            pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(temp_logo_path).toString()
-                            # This temp file should be cleaned up later, e.g., after PDF generation.
-                        except Exception as e_save_logo:
-                            print(f"Error saving temporary logo: {e_save_logo}")
-                            QMessageBox.warning(self, self.translator.tr("Erreur Logo"), self.translator.tr("Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}", str(e_save_logo)))
-                            pdf_config['LOGO_PATH'] = "" # Ensure it's empty if temp saving fails
-                    else:
-                        # No logo path and no logo data.
+                elif not current_logo_path_text and self.current_logo_data:
+                    temp_logo_dir = os.path.join(APP_ROOT_DIR, "temp_assets")
+                    os.makedirs(temp_logo_dir, exist_ok=True)
+                    temp_logo_filename = "temp_logo_for_html.png"
+                    temp_logo_path = os.path.join(temp_logo_dir, temp_logo_filename)
+                    try:
+                        with open(temp_logo_path, "wb") as tmp_logo_file:
+                            tmp_logo_file.write(self.current_logo_data)
+                        pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(temp_logo_path).toString()
+                    except Exception as e_save_logo:
+                        print(f"Error saving temporary logo: {e_save_logo}")
+                        QMessageBox.warning(self, self.translator.tr("Erreur Logo"), self.translator.tr("Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}", str(e_save_logo)))
                         pdf_config['LOGO_PATH'] = ""
+                else:
+                    pdf_config['LOGO_PATH'] = ""
 
+                populated_html = populate_html(template_content, pdf_config)
+                pdf_bytes = convert_html_to_pdf(populated_html, base_url=base_url)
 
-                    populated_html = populate_html(template_content, pdf_config)
-                    pdf_bytes = convert_html_to_pdf(populated_html, base_url=base_url)
+                if pdf_config.get('LOGO_PATH', '').startswith('file://') and "temp_logo_for_html" in pdf_config['LOGO_PATH']:
+                    temp_logo_to_clean = QUrl(pdf_config['LOGO_PATH']).toLocalFile()
+                    if os.path.exists(temp_logo_to_clean):
+                        try:
+                            os.remove(temp_logo_to_clean)
+                        except Exception as e_clean:
+                            print(f"Error cleaning temporary logo file {temp_logo_to_clean}: {e_clean}")
 
-                    # Clean up temporary logo if created
-                    if pdf_config.get('LOGO_PATH', '').startswith('file://') and "temp_logo_for_html" in pdf_config['LOGO_PATH']:
-                        temp_logo_to_clean = QUrl(pdf_config['LOGO_PATH']).toLocalFile()
-                        if os.path.exists(temp_logo_to_clean):
-                            try:
-                                os.remove(temp_logo_to_clean)
-                            except Exception as e_clean:
-                                print(f"Error cleaning temporary logo file {temp_logo_to_clean}: {e_clean}")
-
-                    if pdf_bytes:
-                        return pdf_bytes
-                    else:
-                        # convert_html_to_pdf raises WeasyPrintError on failure, so this path might not be hit
-                        # if it strictly returns None only on non-error empty results (unlikely for PDF).
-                        QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None)."))
-                        return None
-                except WeasyPrintError as e:
-                    QMessageBox.critical(self, self.translator.tr("Erreur WeasyPrint"), str(e))
+                if pdf_bytes:
+                    return pdf_bytes
+                else:
+                    QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None)."))
                     return None
-                except FileNotFoundError: # For template file itself
-                    QMessageBox.critical(self, self.translator.tr("Erreur Fichier Modèle"), f"{self.translator.tr('Le fichier modèle HTML est introuvable:')} {html_template_path}")
-                    return None
-                except Exception as e: # Catch-all for other errors during HTML path
-                    QMessageBox.critical(self, self.translator.tr("Erreur Inconnue"), f"{self.translator.tr('Une erreur est survenue lors de la génération du PDF HTML:')} {e}")
-                    return None
+            except WeasyPrintError as e:
+                QMessageBox.critical(self, self.translator.tr("Erreur WeasyPrint"), str(e))
+                return None
+            except FileNotFoundError:
+                QMessageBox.critical(self, self.translator.tr("Erreur Fichier Modèle"), f"{self.translator.tr('Le fichier modèle HTML est introuvable:')} {html_template_path}")
+                return None
+            except Exception as e:
+                QMessageBox.critical(self, self.translator.tr("Erreur Inconnue"), f"{self.translator.tr('Une erreur est survenue lors de la génération du PDF HTML:')} {e}")
+                return None
+        else:
+            # --- Fallback to ReportLab Logic (Original Path) ---
+            buffer = io.BytesIO() # Use io.BytesIO for ReportLab path
 
-        # --- Fallback to ReportLab Logic (Original Path) ---
-        buffer = io.BytesIO() # Use io.BytesIO for ReportLab path
-
-        # --- Register Fonts ---
+            # --- Register Fonts ---
         registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
         if font_warnings:
             for warning_message in font_warnings:
