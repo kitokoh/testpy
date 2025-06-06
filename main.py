@@ -250,7 +250,19 @@ class TemplateDialog(QDialog):
                     if file_extension == ".xlsx":
                         try:
                             df = pd.read_excel(template_file_path, sheet_name=0) # Read first sheet
-                            self.preview_area.setPlainText(df.to_string())
+                            # PREPEND CSS for basic styling
+                            html_content = f"""
+                            <style>
+                                table {{ border-collapse: collapse; width: 95%; font-family: Arial, sans-serif; margin: 10px; }} /* Adjusted width and added margin */
+                                th, td {{ border: 1px solid #cccccc; padding: 6px; text-align: left; }} /* Reduced padding slightly */
+                                th {{ background-color: #e0e0e0; font-weight: bold; }} /* Slightly darker header, bold text */
+                                td {{ text-align: right; }} /* Default text-align right for cells */
+                                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                                tr:hover {{ background-color: #e6f7ff; }} /* Add a hover effect for rows */
+                            </style>
+                            {df.to_html(escape=False, index=False, border=0)}
+                            """ # border=0 for df.to_html because CSS handles it
+                            self.preview_area.setHtml(html_content)
                         except Exception as e:
                             self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier Excel:\n{0}").format(str(e)))
                     elif file_extension == ".docx":
