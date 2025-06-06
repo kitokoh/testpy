@@ -32,7 +32,7 @@ from PyQt5.QtCore import QTranslator, QLocale, QLibraryInfo, QCoreApplication # 
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor # Added import for HtmlEditor
 from PyQt5.QtWidgets import QBoxLayout
-  from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
+from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
 from docx import Document # Added for .docx support
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
