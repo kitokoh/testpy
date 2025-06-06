@@ -1060,6 +1060,7 @@ class ClientWidget(QWidget):
                     "price": self.client_info.get("price", 0), "project_identifier": self.client_info.get("project_identifier", ""),
                     "company_name": self.client_info.get("company_name", ""), "country": self.client_info.get("country", ""),
                     "city": self.client_info.get("city", ""),
+                    "client_id": self.client_info.get("client_id"), # Added client_id
                 }
                 if file_path.lower().endswith('.xlsx') and edit_mode:
                     editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
