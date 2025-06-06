@@ -135,14 +135,14 @@
             <div class="seller-details">
                 <!-- Consider adding a logo placeholder if desired -->
                 <!-- <img src="{{seller_logo_url}}" alt="Logo Vendeur" class="logo"> -->
-                <h2>{{seller_name}}</h2>
+                <h2>{{company_legal_name}}</h2>
                 <div class="company-address">
-                    <p>{{seller_address_line1}}</p>
-                    <p>{{seller_address_line2}}</p>
-                    <p>{{seller_city_zip_country}}</p>
-                    <p>Tél: {{seller_phone}}</p>
-                    <p>Email: {{seller_email}}</p>
-                    <p>No TVA: {{seller_vat_number}}</p>
+                    <p>{{company_address_line1}}</p>
+                    <p>{{seller_address_line2}}</p> <!-- Assuming seller_address_line2 remains for now -->
+                    <p>{{company_city}} {{company_postal_code}} {{company_country}}</p>
+                    <p>Tél: {{seller_phone}}</p> <!-- Assuming seller_phone remains for now -->
+                    <p>Email: {{company_email}}</p>
+                    <p>No TVA: {{seller_vat_number}}</p> <!-- Assuming seller_vat_number remains for now -->
                 </div>
             </div>
             <div class="invoice-details" style="text-align: right;">
@@ -277,7 +277,7 @@
         <footer class="footer">
             <p>{{footer_notes}}</p>
             <!-- Example: "Merci pour votre confiance." -->
-            <p>&copy; {{current_year}} {{seller_name}}. Tous droits réservés.</p>
+            <p>&copy; {{current_year}} {{company_legal_name}}. Tous droits réservés.</p> <!-- Also update seller_name here -->
         </footer>
     </div>
 </body>
