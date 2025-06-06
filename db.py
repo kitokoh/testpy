@@ -364,6 +364,19 @@ def initialize_database():
     )
     """)
 
+    # Create TaskDependencies table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS TaskDependencies (
+        dependency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL, -- The task that is dependent
+        predecessor_task_id INTEGER NOT NULL, -- The task it depends upon
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES Tasks (task_id) ON DELETE CASCADE,
+        FOREIGN KEY (predecessor_task_id) REFERENCES Tasks (task_id) ON DELETE CASCADE,
+        UNIQUE (task_id, predecessor_task_id) -- Prevent duplicate dependencies
+    )
+    """)
+
     # Create ClientDocuments table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ClientDocuments (
@@ -472,6 +485,31 @@ def initialize_database():
         FOREIGN KEY (template_id) REFERENCES CoverPageTemplates (template_id) ON DELETE SET NULL,
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
     )
+    """)
+
+    # Create Milestones table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Milestones (
+        milestone_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT NOT NULL,
+        milestone_name TEXT NOT NULL,
+        description TEXT,
+        due_date TEXT, -- ISO8601 format "YYYY-MM-DD"
+        status_id INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id) ON DELETE SET NULL
+    )
+    """)
+
+    # Trigger for Milestones updated_at
+    cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS UpdateMilestoneUpdatedAt
+    AFTER UPDATE ON Milestones FOR EACH ROW
+    BEGIN
+        UPDATE Milestones SET updated_at = CURRENT_TIMESTAMP WHERE milestone_id = OLD.milestone_id;
+    END;
     """)
 
     conn.commit()
@@ -3651,9 +3689,231 @@ def get_status_setting_by_name(status_name: str, status_type: str) -> dict | Non
     finally:
         if conn: conn.close()
 
+# --- Milestone Functions ---
+def add_milestone(data: dict) -> int | None:
+    """
+    Adds a new milestone. Returns milestone_id or None.
+    Expected data keys: 'project_id', 'milestone_name', 'description', 'due_date', 'status_id'.
+    'created_at' and 'updated_at' are handled automatically.
+    """
+    # data = {'project_id': ..., 'milestone_name': ..., 'description': ..., 'due_date': ..., 'status_id': ...}
+    fields = ['project_id', 'milestone_name', 'description', 'due_date', 'status_id']
+    query = f"INSERT INTO Milestones ({', '.join(fields)}) VALUES ({', '.join(['?'] * len(fields))})"
+    values = [data.get(f) for f in fields]
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, values)
+        conn.commit()
+        return cursor.lastrowid
+    except Exception as e:
+        print(f"Error adding milestone: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_milestones_for_project(project_id: str) -> list[dict]:
+    """Retrieves all milestones for a project, ordered by due_date and creation."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT M.*, SS.status_name, SS.color_hex
+            FROM Milestones M
+            LEFT JOIN StatusSettings SS ON M.status_id = SS.status_id
+            WHERE M.project_id = ?
+            ORDER BY M.due_date ASC, M.created_at ASC
+        ''', (project_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"Error fetching milestones for project {project_id}: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_milestone_by_id(milestone_id: int) -> dict | None:
+    """Retrieves a milestone by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Milestones WHERE milestone_id = ?", (milestone_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        print(f"Error fetching milestone {milestone_id}: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def update_milestone(milestone_id: int, data: dict) -> bool:
+    """
+    Updates an existing milestone. Returns True on success.
+    Expected data keys can include: 'milestone_name', 'description', 'due_date', 'status_id'.
+    The 'updated_at' field is automatically updated by a database trigger.
+    """
+    # data = {'milestone_name': ..., 'description': ..., 'due_date': ..., 'status_id': ...}
+    # updated_at is handled by trigger
+    conn = None
+    if not data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        fields = [f"{field} = ?" for field in data.keys()]
+        values = list(data.values())
+        values.append(milestone_id)
+        query = f"UPDATE Milestones SET {', '.join(fields)} WHERE milestone_id = ?"
+
+        cursor.execute(query, values)
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error updating milestone {milestone_id}: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_milestone(milestone_id: int) -> bool:
+    """Deletes a milestone. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Milestones WHERE milestone_id = ?", (milestone_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error deleting milestone {milestone_id}: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def get_project_by_client_id(client_id_str: str) -> dict | None:
+    """Retrieves the first project associated with a given client_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Assuming only one project per client is typical for this function's purpose,
+        # or that the first one found is sufficient.
+        cursor.execute("SELECT * FROM Projects WHERE client_id = ? LIMIT 1", (client_id_str,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_project_by_client_id for client_id {client_id_str}: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+# --- Task Dependency Functions ---
+def add_task_dependency(data: dict) -> int | None:
+    """
+    Adds a task dependency.
+    data = {'task_id': ..., 'predecessor_task_id': ...}
+    Returns the new dependency_id if successful, otherwise None.
+    """
+    if not data.get('task_id') or not data.get('predecessor_task_id'):
+        print("Error: task_id and predecessor_task_id are required for dependency.")
+        return None
+    if data['task_id'] == data['predecessor_task_id']:
+        print("Error: Task cannot depend on itself.")
+        return None
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO TaskDependencies (task_id, predecessor_task_id) VALUES (?, ?)",
+            (data['task_id'], data['predecessor_task_id'])
+        )
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as e:
+        print(f"Failed to add task dependency (task_id={data['task_id']}, pred_id={data['predecessor_task_id']}): {e}. Might be a duplicate.")
+        return None
+    except Exception as e:
+        print(f"Error adding task dependency: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_predecessor_tasks(task_id: int) -> list[dict]:
+    """Returns full task details of predecessor tasks for a given task_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT T.* FROM Tasks T
+            JOIN TaskDependencies TD ON T.task_id = TD.predecessor_task_id
+            WHERE TD.task_id = ?
+        ''', (task_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"Error fetching predecessor tasks for task_id {task_id}: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def get_dependent_tasks(task_id: int) -> list[dict]:
+    """Returns full task details of tasks that depend on the given task_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT T.* FROM Tasks T
+            JOIN TaskDependencies TD ON T.task_id = TD.task_id
+            WHERE TD.predecessor_task_id = ?
+        ''', (task_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        print(f"Error fetching dependent tasks for task_id {task_id}: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def remove_task_dependency(task_id: int, predecessor_task_id: int) -> bool:
+    """Removes a specific task dependency."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM TaskDependencies WHERE task_id = ? AND predecessor_task_id = ?",
+            (task_id, predecessor_task_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"Error removing task dependency (task_id={task_id}, pred_id={predecessor_task_id}): {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def remove_all_dependencies_for_task(task_id: int) -> bool:
+    """Removes all dependencies where the task is either the dependent or the predecessor."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Remove where it's the dependent task
+        cursor.execute("DELETE FROM TaskDependencies WHERE task_id = ?", (task_id,))
+        # Remove where it's the predecessor task
+        cursor.execute("DELETE FROM TaskDependencies WHERE predecessor_task_id = ?", (task_id,))
+        conn.commit()
+        return True # Returns true if execution succeeded, rows affected could be 0.
+    except Exception as e:
+        print(f"Error removing all dependencies for task_id {task_id}: {e}")
+        return False
+    finally:
+        if conn: conn.close()
 
 if __name__ == '__main__':
-    initialize_database()
+    initialize_database() # Ensure tables are created with new schema
     print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
 
     # Example Usage (Illustrative - uncomment and adapt to test)
