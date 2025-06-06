@@ -30,6 +30,33 @@ def initialize_database():
     )
     """)
 
+    # Create Companies table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Companies (
+        company_id TEXT PRIMARY KEY,
+        company_name TEXT NOT NULL,
+        address TEXT,
+        payment_info TEXT,
+        logo_path TEXT,
+        other_info TEXT,
+        is_default BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # Create CompanyPersonnel table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyPersonnel (
+        personnel_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL, -- e.g., "seller", "technical_manager"
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE
+    )
+    """)
+
     # Create TeamMembers table (New, depends on Users)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS TeamMembers (
@@ -778,6 +805,243 @@ def delete_client(client_id: str) -> bool:
         return cursor.rowcount > 0
     except sqlite3.Error as e:
         print(f"Database error in delete_client: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+# CRUD functions for Companies
+def add_company(company_data: dict) -> str | None:
+    """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        new_company_id = str(uuid.uuid4())
+
+        sql = """
+            INSERT INTO Companies (
+                company_id, company_name, address, payment_info, logo_path,
+                other_info, is_default, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_company_id,
+            company_data.get('company_name'),
+            company_data.get('address'),
+            company_data.get('payment_info'),
+            company_data.get('logo_path'),
+            company_data.get('other_info'),
+            company_data.get('is_default', False),
+            now,  # created_at
+            now   # updated_at
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_company_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_company: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_company_by_id(company_id: str) -> dict | None:
+    """Fetches a company by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Companies WHERE company_id = ?", (company_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_company_by_id: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_companies() -> list[dict]:
+    """Fetches all companies."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Companies ORDER BY company_name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_companies: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_company(company_id: str, company_data: dict) -> bool:
+    """Updates company details. Manages updated_at."""
+    conn = None
+    if not company_data:
+        return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        company_data['updated_at'] = now
+
+        set_clauses = [f"{key} = ?" for key in company_data.keys() if key != 'company_id']
+        params = [value for key, value in company_data.items() if key != 'company_id']
+
+        if not set_clauses:
+            return False # No valid fields to update
+
+        params.append(company_id)
+        sql = f"UPDATE Companies SET {', '.join(set_clauses)} WHERE company_id = ?"
+
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_company: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def delete_company(company_id: str) -> bool:
+    """Deletes a company."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # ON DELETE CASCADE will handle CompanyPersonnel
+        cursor.execute("DELETE FROM Companies WHERE company_id = ?", (company_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_company: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def set_default_company(company_id: str) -> bool:
+    """Sets a company as default, ensuring only one company can be default."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        conn.isolation_level = None # Start transaction
+        cursor.execute("BEGIN")
+        # Unset other defaults
+        cursor.execute("UPDATE Companies SET is_default = FALSE WHERE is_default = TRUE AND company_id != ?", (company_id,))
+        # Set the new default
+        cursor.execute("UPDATE Companies SET is_default = TRUE WHERE company_id = ?", (company_id,))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
+        print(f"Database error in set_default_company: {e}")
+        return False
+    finally:
+        if conn:
+            conn.isolation_level = '' # Reset isolation level
+            conn.close()
+
+# CRUD functions for CompanyPersonnel
+def add_company_personnel(personnel_data: dict) -> int | None:
+    """Inserts new personnel linked to a company. Returns personnel_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO CompanyPersonnel (company_id, name, role, created_at)
+            VALUES (?, ?, ?, ?)
+        """
+        params = (
+            personnel_data.get('company_id'),
+            personnel_data.get('name'),
+            personnel_data.get('role'),
+            now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.Error as e:
+        print(f"Database error in add_company_personnel: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_personnel_for_company(company_id: str, role: str = None) -> list[dict]:
+    """Fetches personnel for a company, optionally filtering by role."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM CompanyPersonnel WHERE company_id = ?"
+        params = [company_id]
+        if role:
+            sql += " AND role = ?"
+            params.append(role)
+        sql += " ORDER BY name"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_personnel_for_company: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_company_personnel(personnel_id: int, personnel_data: dict) -> bool:
+    """Updates personnel details."""
+    conn = None
+    if not personnel_data:
+        return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # We don't update created_at, but if there was an updated_at for this table:
+        # personnel_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+
+        set_clauses = [f"{key} = ?" for key in personnel_data.keys() if key != 'personnel_id']
+        params = [value for key, value in personnel_data.items() if key != 'personnel_id']
+
+        if not set_clauses:
+            return False
+
+        params.append(personnel_id)
+        sql = f"UPDATE CompanyPersonnel SET {', '.join(set_clauses)} WHERE personnel_id = ?"
+
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_company_personnel: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def delete_company_personnel(personnel_id: int) -> bool:
+    """Deletes a personnel entry."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM CompanyPersonnel WHERE personnel_id = ?", (personnel_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_company_personnel: {e}")
         return False
     finally:
         if conn:
@@ -4143,6 +4407,53 @@ if __name__ == '__main__':
     print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
 
     # Example Usage (Illustrative - uncomment and adapt to test)
+
+    # --- Test Companies and CompanyPersonnel ---
+    print("\n--- Testing Companies and CompanyPersonnel ---")
+    comp1_id = add_company({'company_name': 'Default Corp', 'address': '123 Main St', 'is_default': True})
+    if comp1_id:
+        print(f"Added company 'Default Corp' with ID: {comp1_id}")
+        set_default_company(comp1_id) # Ensure it's default
+        ret_comp1 = get_company_by_id(comp1_id)
+        print(f"Retrieved company: {ret_comp1['company_name']}, Default: {ret_comp1['is_default']}")
+
+        pers1_id = add_company_personnel({'company_id': comp1_id, 'name': 'John Doe', 'role': 'seller'})
+        if pers1_id:
+            print(f"Added personnel 'John Doe' with ID: {pers1_id} to {comp1_id}")
+
+        pers2_id = add_company_personnel({'company_id': comp1_id, 'name': 'Jane Smith', 'role': 'technical_manager'})
+        if pers2_id:
+            print(f"Added personnel 'Jane Smith' with ID: {pers2_id} to {comp1_id}")
+
+        all_personnel = get_personnel_for_company(comp1_id)
+        print(f"All personnel for Default Corp: {len(all_personnel)}")
+        sellers = get_personnel_for_company(comp1_id, role='seller')
+        print(f"Sellers for Default Corp: {len(sellers)}")
+
+        if pers1_id:
+            update_company_personnel(pers1_id, {'name': 'Johnathan Doe', 'role': 'senior_seller'})
+            updated_pers1 = get_personnel_for_company(comp1_id, role='senior_seller') # Check if update worked
+            if updated_pers1: print(f"Updated personnel: {updated_pers1[0]['name']}")
+
+    comp2_id = add_company({'company_name': 'Second Ent.', 'address': '456 Side Ave'})
+    if comp2_id:
+        print(f"Added company 'Second Ent.' with ID: {comp2_id}")
+        set_default_company(comp1_id) # Try setting first one as default again
+        ret_comp2 = get_company_by_id(comp2_id)
+        if ret_comp2: print(f"Company 'Second Ent.' is_default: {ret_comp2['is_default']}")
+        ret_comp1_after = get_company_by_id(comp1_id)
+        if ret_comp1_after: print(f"Company 'Default Corp' is_default after re-set: {ret_comp1_after['is_default']}")
+
+
+    all_companies = get_all_companies()
+    print(f"Total companies: {len(all_companies)}")
+
+    # Cleanup (optional, for testing)
+    # if pers1_id: delete_company_personnel(pers1_id)
+    # if pers2_id: delete_company_personnel(pers2_id)
+    # if comp1_id: delete_company(comp1_id) # This would cascade delete personnel
+    # if comp2_id: delete_company(comp2_id)
+
 
     # --- Pre-populate base data for FK constraints (Countries, Cities, StatusSettings) ---
     # (This setup code is largely the same as the previous step, ensuring essential lookup data)

@@ -34,6 +34,7 @@ from html_editor import HtmlEditor # Added import for HtmlEditor
 from PyQt5.QtWidgets import QBoxLayout
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG # For cover page
 from docx import Document # Added for .docx support
+from company_management import CompanyTabWidget # Added for Company Management
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
 
@@ -113,6 +114,7 @@ CONFIG = load_config()
 os.makedirs(CONFIG["templates_dir"], exist_ok=True)
 os.makedirs(CONFIG["clients_dir"], exist_ok=True)
 os.makedirs(os.path.join(APP_ROOT_DIR, "translations"), exist_ok=True) # Create translations directory
+os.makedirs(os.path.join(APP_ROOT_DIR, "company_logos"), exist_ok=True) # Create company_logos directory
 
 class ContactDialog(QDialog):
     def __init__(self, client_id=None, contact_data=None, parent=None):
@@ -3151,6 +3153,10 @@ class SettingsDialog(QDialog):
         self.smtp_pass_input_field.setEchoMode(QLineEdit.Password)
         email_form_layout.addRow(self.tr("Mot de passe SMTP:"), self.smtp_pass_input_field)
         tabs_widget.addTab(email_tab_widget, self.tr("Email"))
+
+        # Company Details Tab
+        self.company_tab = CompanyTabWidget(self) # Create instance of CompanyTabWidget
+        tabs_widget.addTab(self.company_tab, self.tr("Company Details")) # Add it as a tab
         
         dialog_button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         dialog_button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
