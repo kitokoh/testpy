@@ -14,13 +14,13 @@ from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QLineEdit, QTextEdit, QListWidget,
+    QPushButton, QLabel, QLineEdit, QTextEdit, QListWidget, QTreeWidget, QTreeWidgetItem, # Added QTreeWidget, QTreeWidgetItem
     QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QDialogButtonBox, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QHeaderView, QInputDialog, QSplitter,
     QCompleter, QTabWidget, QAction, QMenu, QToolBar, QGroupBox,
     QCheckBox, QDateEdit, QSpinBox, QStackedWidget, QListWidgetItem,
-    QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout, QTextEdit # Added QTextEdit
+    QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout, QTextEdit
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QBrush, QPixmap
 from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer
@@ -126,6 +126,8 @@ class ContactDialog(QDialog):
         
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+        self.setMinimumWidth(400) # Set minimum width
         
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
         layout.addRow(self.tr("Nom complet:"), self.name_input)
@@ -171,77 +173,117 @@ class TemplateDialog(QDialog):
 
         # Left side (list and buttons)
         left_vbox_layout = QVBoxLayout()
-        left_vbox_layout.setSpacing(10) # Add some spacing for the left panel elements
+        left_vbox_layout.setSpacing(10) # Good.
+
+        self.template_list = QTreeWidget()
+        self.template_list.setColumnCount(4)
+        self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Default Status")])
+
+        header = self.template_list.header() # Get header for styling
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.template_list.setAlternatingRowColors(True) # Enable alternating row colors
         
-        self.template_list = QListWidget()
-        self.template_list.itemDoubleClicked.connect(self.edit_template)
         font = self.template_list.font()
-        font.setPointSize(font.pointSize() + 1) # Increase font size slightly
+        font.setPointSize(font.pointSize() + 1)
         self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         
-        btn_layout = QHBoxLayout() # Button layout for underneath the list
-        btn_layout.setSpacing(10) # Add spacing between buttons
-        self.add_btn = QPushButton(self.tr("Ajouter Modèle"))
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8) # Slightly tighter buttons
+
+        self.add_btn = QPushButton(self.tr("Ajouter")) # Text updated
         self.add_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle"))
         self.add_btn.clicked.connect(self.add_template)
         btn_layout.addWidget(self.add_btn)
         
-        self.edit_btn = QPushButton(self.tr("Modifier"))
+        self.edit_btn = QPushButton(self.tr("Modifier")) # Text updated
         self.edit_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)"))
         self.edit_btn.clicked.connect(self.edit_template)
+        self.edit_btn.setEnabled(False)
         btn_layout.addWidget(self.edit_btn)
         
-        self.delete_btn = QPushButton(self.tr("Supprimer"))
+        self.delete_btn = QPushButton(self.tr("Supprimer")) # Text updated
         self.delete_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné"))
         self.delete_btn.clicked.connect(self.delete_template)
+        self.delete_btn.setEnabled(False)
         btn_layout.addWidget(self.delete_btn)
         
-        self.default_btn = QPushButton(self.tr("Définir par Défaut"))
-        self.default_btn.setIcon(QIcon.fromTheme("emblem-default"))
+        self.default_btn = QPushButton(self.tr("Par Défaut")) # Text updated
+        self.default_btn.setIcon(QIcon.fromTheme("emblem-default")) # Alternative: "star"
+        self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue"))
         self.default_btn.clicked.connect(self.set_default_template)
+        self.default_btn.setEnabled(False)
         btn_layout.addWidget(self.default_btn)
         
-        left_vbox_layout.addLayout(btn_layout) # Add button layout to the left vertical layout
-        main_hbox_layout.addLayout(left_vbox_layout, 1) # Add left layout to main HBox, stretch factor 1
+        left_vbox_layout.addLayout(btn_layout)
+        main_hbox_layout.addLayout(left_vbox_layout, 1)
 
         # Right side (preview area)
         self.preview_area = QTextEdit()
         self.preview_area.setReadOnly(True)
         self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
-        self.preview_area.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #cccccc;
-                background-color: #f9f9f9;
-            }
-        """)
-        main_hbox_layout.addWidget(self.preview_area, 2) # Add preview area to main HBox, stretch factor 2
+        self.preview_area.setStyleSheet( # Updated stylesheet
+            "QTextEdit {"
+            "    border: 1px solid #cccccc;"
+            "    background-color: #f9f9f9;"
+            "    padding: 5px;"
+            "}"
+        )
+        main_hbox_layout.addWidget(self.preview_area, 2)
 
         # Set overall dialog layout margins
-        main_hbox_layout.setContentsMargins(10, 10, 10, 10) # Add some margins around the dialog content
+        main_hbox_layout.setContentsMargins(15, 15, 15, 15) # More padding
 
         self.load_templates()
-        self.template_list.itemClicked.connect(self.show_template_preview) # Connect itemClicked for preview
-        
+        self.template_list.currentItemChanged.connect(self.handle_tree_item_selection) # Changed signal
+
+    def handle_tree_item_selection(self, current_item, previous_item):
+        if current_item is not None and current_item.parent() is not None: # It's a child (template) item
+            self.show_template_preview(current_item)
+            self.edit_btn.setEnabled(True)
+            self.delete_btn.setEnabled(True)
+            self.default_btn.setEnabled(True)
+        else: # It's a category item or selection cleared
+            self.preview_area.clear()
+            self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
+            self.edit_btn.setEnabled(False)
+            self.delete_btn.setEnabled(False)
+            self.default_btn.setEnabled(False)
+
     def show_template_preview(self, item):
-        if not item:
-            self.preview_area.clear() # This should make placeholder text reappear
-            # self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu.")) # Explicitly set if clear() doesn't restore it
+        if not item: # Should be caught by handle_tree_item_selection, but good practice
+            self.preview_area.clear()
+            self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
             return
 
-        template_id = item.data(Qt.UserRole)
-        conn = None
+        template_id = item.data(0, Qt.UserRole) # Data is in column 0 for QTreeWidgetItems
+        if template_id is None: # It's a category item or item without template_id
+            self.preview_area.clear()
+            self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
+            return
+
+        # conn = None # No longer needed here
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            # Use base_file_name and language_code as per table structure, aliasing language_code to language for consistency with other methods if needed
-            cursor.execute("SELECT base_file_name, language_code FROM Templates WHERE template_id = ?", (template_id,))
-            result = cursor.fetchone()
+            # conn = sqlite3.connect(DATABASE_NAME) # Replaced
+            # cursor = conn.cursor() # Replaced
+            # # Use base_file_name and language_code as per table structure, aliasing language_code to language for consistency with other methods if needed
+            # cursor.execute("SELECT base_file_name, language_code FROM Templates WHERE template_id = ?", (template_id,)) # Replaced
+            # result = cursor.fetchone() # Replaced
+            details = db_manager.get_template_details_for_preview(template_id)
 
-            if result:
-                base_file_name, language_code = result
+            if details:
+                base_file_name = details['base_file_name']
+                language_code = details['language_code']
+                # template_file_path = os.path.join(CONFIG["templates_dir"], language_code, base_file_name) # Path construction remains the same
+
+                # The rest of the path and file handling logic remains the same
                 template_file_path = os.path.join(CONFIG["templates_dir"], language_code, base_file_name)
-
                 self.preview_area.clear()
                 if os.path.exists(template_file_path):
                     _, file_extension = os.path.splitext(template_file_path)
@@ -287,13 +329,13 @@ class TemplateDialog(QDialog):
             else:
                 self.preview_area.setPlainText(self.tr("Détails du modèle non trouvés dans la base de données."))
 
-        except sqlite3.Error as e_db:
-            self.preview_area.setPlainText(self.tr("Erreur DB lors de la récupération des détails du modèle:\n{0}").format(str(e_db)))
-        except Exception as e_general: # Catch any other unexpected errors
-            self.preview_area.setPlainText(self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e_general)))
-        finally:
-            if conn:
-                conn.close()
+        # except sqlite3.Error as e_db: # Replaced by db_manager's error handling (prints to console)
+            # self.preview_area.setPlainText(self.tr("Erreur DB lors de la récupération des détails du modèle:\n{0}").format(str(e_db)))
+        except Exception as e_general: # Catch any other unexpected errors, including those from db_manager if they are not caught by db_manager itself
+            self.preview_area.setPlainText(self.tr("Une erreur est survenue lors de la récupération des détails du modèle:\n{0}").format(str(e_general)))
+        # finally: # conn is no longer managed here
+            # if conn:
+                # conn.close()
 
     # def update_preview(self, current_item, previous_item): # Original currentItemChanged connection
     #     if not current_item:
@@ -309,23 +351,41 @@ class TemplateDialog(QDialog):
     def load_templates(self):
         self.template_list.clear()
         self.preview_area.clear()
-        self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu.")) # Ensure placeholder is set
-        conn = None
-        try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT template_id, template_name, language_code as language, is_default_for_type_lang as is_default FROM Templates ORDER BY template_name, language_code")
-            for row in cursor.fetchall():
-                item_text = f"{row[1]} ({row[2]})"
-                if row[3]:
-                    item_text += f" [{self.tr('Défaut')}]"
-                item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, row[0]) 
-                self.template_list.addItem(item)
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
-        finally:
-            if conn: conn.close()
+        self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
+
+        categories = db_manager.get_all_template_categories()
+        if categories is None: categories = []
+
+        if not categories:
+            # Optionally, add a "General" category if none exist, or inform the user.
+            # For now, we assume "General" is created by db.py's initialize_database.
+            # If still no categories, the tree will be empty.
+            # A message could be shown: self.template_list.addTopLevelItem(QTreeWidgetItem([self.tr("No categories found")]))
+            pass
+
+        for category_dict in categories:
+            category_item = QTreeWidgetItem(self.template_list, [category_dict['category_name']])
+            # Category items are not selectable for actions like edit/delete template
+            # category_item.setFlags(category_item.flags() & ~Qt.ItemIsSelectable) # This makes them non-selectable by mouse click for currentItemChanged
+            # Instead, we check item.parent() in handle_tree_item_selection
+
+            templates_in_category = db_manager.get_templates_by_category_id(category_dict['category_id'])
+            if templates_in_category is None: templates_in_category = []
+
+            for template_dict in templates_in_category:
+                template_name = template_dict['template_name']
+                template_type = template_dict.get('template_type', 'N/A')
+                language = template_dict['language_code']
+                is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
+
+                template_item = QTreeWidgetItem(category_item, [template_name, template_type, language, is_default])
+                template_item.setData(0, Qt.UserRole, template_dict['template_id'])
+
+        self.template_list.expandAll()
+        # Ensure buttons are correctly disabled initially as no item is selected by default
+        self.edit_btn.setEnabled(False)
+        self.delete_btn.setEnabled(False)
+        self.default_btn.setEnabled(False)
             
     def add_template(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -338,7 +398,39 @@ class TemplateDialog(QDialog):
             
         name, ok = QInputDialog.getText(self, self.tr("Nom du Modèle"), self.tr("Entrez un nom pour ce modèle:"))
         if not ok or not name.strip(): return
-            
+
+        # Category Selection
+        existing_categories = db_manager.get_all_template_categories()
+        if existing_categories is None: existing_categories = [] # Handle case where db query fails
+
+        category_display_list = [cat['category_name'] for cat in existing_categories]
+        create_new_option = self.tr("[Create New Category...]")
+        category_display_list.append(create_new_option)
+
+        selected_category_name, ok = QInputDialog.getItem(self, self.tr("Select Template Category"),
+                                                          self.tr("Category:"), category_display_list, 0, False)
+        if not ok: return
+
+        final_category_id = None
+        if selected_category_name == create_new_option:
+            new_category_text, ok_new = QInputDialog.getText(self, self.tr("New Category"), self.tr("Enter name for new category:"))
+            if ok_new and new_category_text.strip():
+                final_category_id = db_manager.add_template_category(new_category_text.strip())
+                if not final_category_id:
+                    QMessageBox.warning(self, self.tr("Error"), self.tr("Could not create or find category: {0}").format(new_category_text.strip()))
+                    return
+            else:
+                return # User cancelled new category creation
+        else:
+            for cat in existing_categories:
+                if cat['category_name'] == selected_category_name:
+                    final_category_id = cat['category_id']
+                    break
+            if final_category_id is None:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Selected category not found internally. Please ensure 'General' category exists or create a new one."))
+                return
+
+        # Language Selection (moved after category)
         languages = ["fr", "en", "ar", "tr", "pt"]
         lang, ok = QInputDialog.getItem(self, self.tr("Langue du Modèle"), self.tr("Sélectionnez la langue:"), languages, 0, False)
         if not ok: return
@@ -364,11 +456,14 @@ class TemplateDialog(QDialog):
             'language_code': lang,
             'base_file_name': base_file_name, # The actual file name
             'description': f"Modèle {name.strip()} en {lang} ({base_file_name})", # Basic description
-            'category': "Utilisateur", # Category for user-added templates
+            'category_id': final_category_id, # Use the determined category_id
             'is_default_for_type_lang': False # User-added templates are not default by default
             # 'raw_template_file_data': None, # Not storing file content in DB for this path
             # 'created_by_user_id': None # Add if user system is integrated here
         }
+        # Ensure old 'category' text field is not accidentally passed if it was in template_metadata before
+        template_metadata.pop('category', None)
+
 
         try:
             # First, copy the file
@@ -416,42 +511,41 @@ class TemplateDialog(QDialog):
             QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
             
     def edit_template(self): 
-        item = self.template_list.currentItem()
-        if not item: return
-        template_id = item.data(Qt.UserRole)
-        conn = None
+        current_item = self.template_list.currentItem()
+        if not current_item or not current_item.parent(): # Check if it's a child item
+            QMessageBox.warning(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un modèle (et non une catégorie) à modifier."))
+            return
+        template_id = current_item.data(0, Qt.UserRole)
+        if template_id is None: return # Should not happen if parent check passed
+
+        # conn = None # Replaced
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT file_name, language FROM Templates WHERE template_id = ?", (template_id,))
-            result = cursor.fetchone()
-            if result:
-                # Assuming result[1] is language folder and result[0] is filename
-                # The path construction was: os.path.join(CONFIG["templates_dir"], result[1], result[0])
-                # This seems incorrect if result[1] is language and result[0] is filename.
-                # It should be: os.path.join(CONFIG["templates_dir"], result[1], result[0])
-                # Let's verify the database schema or how it's populated.
-                # From add_template: target_path = os.path.join(target_dir, base_file_name)
-                # target_dir = os.path.join(CONFIG["templates_dir"], lang)
-                # So, file_name in DB is just base_file_name. Language is separate.
-                # Path should be os.path.join(CONFIG["templates_dir"], result[1] (language), result[0] (file_name))
-                # The original code seems to have result[1] as language and result[0] as file_name.
-                # This was an error in my reasoning, the original code `os.path.join(CONFIG["templates_dir"], result[1], result[0])`
-                # is likely correct if result[1] is the language subfolder and result[0] is the filename.
-                # However, the select statement is `SELECT file_name, language ...`
-                # So result[0] is file_name, result[1] is language.
-                # The path should be os.path.join(CONFIG["templates_dir"], result[1], result[0])
-                template_file_path = os.path.join(CONFIG["templates_dir"], result[1], result[0])
+            # conn = sqlite3.connect(DATABASE_NAME) # Replaced
+            # cursor = conn.cursor() # Replaced
+            # cursor.execute("SELECT file_name, language FROM Templates WHERE template_id = ?", (template_id,)) # Replaced
+            # result = cursor.fetchone() # Replaced
+            path_info = db_manager.get_template_path_info(template_id)
+            if path_info:
+                # path_info contains {'file_name': 'name.xlsx', 'language': 'fr'}
+                template_file_path = os.path.join(CONFIG["templates_dir"], path_info['language'], path_info['file_name'])
                 QDesktopServices.openUrl(QUrl.fromLocalFile(template_file_path))
-        except sqlite3.Error as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur d'accès au modèle:\n{str(e)}"))
-        finally:
-            if conn: conn.close()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer les informations du modèle pour l'édition."))
+        # except sqlite3.Error as e: # Replaced by db_manager's error handling
+            # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur d'accès au modèle:\n{str(e)}"))
+        except Exception as e:
+             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Erreur lors de l'ouverture du modèle:\n{0}").format(str(e)))
+        # finally: # conn is no longer managed here
+            # if conn: conn.close()
             
     def delete_template(self):
-        item = self.template_list.currentItem()
-        if not item: return
-        template_id = item.data(Qt.UserRole)
+        current_item = self.template_list.currentItem()
+        if not current_item or not current_item.parent(): # Check if it's a child item
+            QMessageBox.warning(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un modèle (et non une catégorie) à supprimer."))
+            return
+        template_id = current_item.data(0, Qt.UserRole)
+        if template_id is None: return
+
         reply = QMessageBox.question(
             self,
             self.tr("Confirmer Suppression"),
@@ -460,55 +554,66 @@ class TemplateDialog(QDialog):
             QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            conn = None
+            # conn = None # Replaced
             try:
-                conn = sqlite3.connect(DATABASE_NAME)
-                cursor = conn.cursor()
-                cursor.execute("SELECT file_name, language FROM Templates WHERE template_id = ?", (template_id,))
-                result = cursor.fetchone()
-                cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
-                conn.commit()
-                if result:
-                    file_path_to_delete = os.path.join(CONFIG["templates_dir"], result[1], result[0]) # lang, filename
-                    if os.path.exists(file_path_to_delete): os.remove(file_path_to_delete)
-                self.load_templates()
-                QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle supprimé avec succès."))
+                # conn = sqlite3.connect(DATABASE_NAME) # Replaced
+                # cursor = conn.cursor() # Replaced
+                # cursor.execute("SELECT file_name, language FROM Templates WHERE template_id = ?", (template_id,)) # Replaced
+                # result = cursor.fetchone() # Replaced
+                # cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,)) # Replaced
+                # conn.commit() # Replaced
+
+                file_info = db_manager.delete_template_and_get_file_info(template_id)
+
+                if file_info:
+                    file_path_to_delete = os.path.join(CONFIG["templates_dir"], file_info['language'], file_info['file_name'])
+                    if os.path.exists(file_path_to_delete):
+                        os.remove(file_path_to_delete)
+                    self.load_templates()
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle supprimé avec succès."))
+                else:
+                    # db_manager.delete_template_and_get_file_info would print its own error or if template not found.
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur de suppression du modèle. Il est possible que le modèle n'ait pas été trouvé ou qu'une erreur de base de données se soit produite."))
             except Exception as e: 
-                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur de suppression du modèle:\n{str(e)}"))
-            finally:
-                if conn: conn.close()
+                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur de suppression du modèle:\n{0}").format(str(e)))
+            # finally: # conn is no longer managed here
+                # if conn: conn.close()
                 
     def set_default_template(self):
-        item = self.template_list.currentItem()
-        if not item: return
-        template_id = item.data(Qt.UserRole)
-        conn = None
+        current_item = self.template_list.currentItem()
+        if not current_item or not current_item.parent(): # Check if it's a child item
+            QMessageBox.warning(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un modèle (et non une catégorie) à définir par défaut."))
+            return
+        template_id = current_item.data(0, Qt.UserRole)
+        if template_id is None: return
+
+        # conn = None # Replaced
         try:
-            conn = sqlite3.connect(DATABASE_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT template_name FROM Templates WHERE template_id = ?", (template_id,))
-            name_result = cursor.fetchone()
-            if not name_result: return
-            base_name = name_result[0] 
+            # conn = sqlite3.connect(DATABASE_NAME) # Replaced
+            # cursor = conn.cursor() # Replaced
+            # cursor.execute("SELECT template_name FROM Templates WHERE template_id = ?", (template_id,)) # Logic moved to db_manager
+            # name_result = cursor.fetchone() # Logic moved
+            # if not name_result: return # Logic moved
+            # base_name = name_result[0] # Logic moved
             
-            # This logic might need to be more nuanced if "is_default" is per type AND language
-            # For now, it sets default for all templates with the same base_name, effectively making one variant (lang) default.
-            # The db.add_default_template_if_not_exists sets is_default_for_type_lang = True,
-            # so this function should probably update is_default_for_type_lang.
-            # The original table was Templates(name, file_name, language, is_default)
-            # The new table is Templates(template_name, template_type, language_code, is_default_for_type_lang, ...)
-            # The intent is likely: "For this template's name and type, set this language variant as the default."
-            # This needs refinement if we have template_type in play.
-            # For now, matching original logic on name, but using new column names.
-            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_name = ?", (base_name,))
-            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,))
-            conn.commit()
-            self.load_templates()
-            QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle défini comme modèle par défaut pour sa catégorie et langue."))
-        except sqlite3.Error as e:
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du modèle:\n{str(e)}"))
-        finally:
-            if conn: conn.close()
+            # cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_name = ?", (base_name,)) # Logic moved
+            # cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,)) # Logic moved
+            # conn.commit() # Logic moved
+
+            success = db_manager.set_default_template_by_id(template_id)
+
+            if success:
+                self.load_templates()
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Modèle défini comme modèle par défaut pour sa catégorie et langue."))
+            else:
+                # db_manager.set_default_template_by_id would print its own error or if template not found.
+                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du modèle. Le modèle n'a peut-être pas été trouvé ou une erreur de base de données s'est produite."))
+        # except sqlite3.Error as e: # Replaced by db_manager's error handling
+            # QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du modèle:\n{str(e)}"))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la définition du modèle par défaut:\n{0}").format(str(e)))
+        # finally: # conn is no longer managed here
+            # if conn: conn.close()
 
 class ProductDialog(QDialog):
     def __init__(self, client_id, product_data=None, parent=None):
@@ -520,6 +625,8 @@ class ProductDialog(QDialog):
 
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+        self.setMinimumWidth(400) # Set minimum width
 
         self.name_input = QLineEdit(self.product_data.get("name", ""))
         layout.addRow(self.tr("Nom du Produit:"), self.name_input)
@@ -1051,12 +1158,12 @@ class ClientWidget(QWidget):
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        layout.setContentsMargins(15, 15, 15, 15) // Verified
+        layout.setSpacing(15) // Verified
         
-        header = QLabel(f"<h2>{self.client_info['client_name']}</h2>") # Client name is data, not UI text
-        header.setStyleSheet("color: #2c3e50;") 
-        layout.addWidget(header)
+        self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
+        self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Added margin-bottom
+        layout.addWidget(self.header_label)
         
         action_layout = QHBoxLayout()
         
@@ -1084,25 +1191,17 @@ class ClientWidget(QWidget):
         status_layout.addWidget(self.status_combo)
         layout.addLayout(status_layout)
         
-        details_layout = QFormLayout()
-        details_layout.setLabelAlignment(Qt.AlignRight)
-        # Labels are UI text, values are data
-        details_data = [
-            (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
-            (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
-            (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
-            (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
-            (self.tr("Prix Final:"), f"{self.client_info.get('price', 0)} €"), # Currency format
-            (self.tr("Date Création:"), self.client_info.get("creation_date", self.tr("N/A"))),
-            (self.tr("Chemin Dossier:"), f"<a href='file:///{self.client_info['base_folder_path']}'>{self.client_info['base_folder_path']}</a>")
-        ]
-        for label_text, value_text in details_data:
-            label_widget = QLabel(label_text)
-            value_widget = QLabel(value_text)
-            value_widget.setOpenExternalLinks(True)
-            value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            details_layout.addRow(label_widget, value_widget)
-        layout.addLayout(details_layout)
+        self.details_layout = QFormLayout()
+        self.details_layout.setLabelAlignment(Qt.AlignRight)
+        self.details_layout.setSpacing(8) # Added spacing for details
+
+        # Store references to value labels for easy updating
+        self.detail_value_labels = {}
+
+        # Initial population
+        self.populate_details_layout() # Call a method to populate for clarity
+
+        layout.addLayout(self.details_layout)
         
         notes_group = QGroupBox(self.tr("Notes"))
         notes_layout = QVBoxLayout(notes_group)
@@ -1156,18 +1255,21 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         
         contacts_btn_layout = QHBoxLayout()
-        self.add_contact_btn = QPushButton(self.tr("Ajouter Contact"))
-        self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new"))
+        self.add_contact_btn = QPushButton(self.tr("➕ Contact"))
+        # self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")) # Icon removed
+        self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client"))
         self.add_contact_btn.clicked.connect(self.add_contact)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         
-        self.edit_contact_btn = QPushButton(self.tr("Modifier Contact"))
-        self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_contact_btn = QPushButton(self.tr("✏️ Contact"))
+        # self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné"))
         self.edit_contact_btn.clicked.connect(self.edit_contact)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         
-        self.remove_contact_btn = QPushButton(self.tr("Supprimer Contact"))
-        self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.remove_contact_btn = QPushButton(self.tr("🗑️ Contact"))
+        # self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client"))
         self.remove_contact_btn.clicked.connect(self.remove_contact)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         
@@ -1189,18 +1291,21 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         
         products_btn_layout = QHBoxLayout()
-        self.add_product_btn = QPushButton(self.tr("Ajouter Produit"))
-        self.add_product_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_product_btn = QPushButton(self.tr("➕ Produit"))
+        # self.add_product_btn.setIcon(QIcon.fromTheme("list-add")) # Icon removed
+        self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet"))
         self.add_product_btn.clicked.connect(self.add_product)
         products_btn_layout.addWidget(self.add_product_btn)
         
-        self.edit_product_btn = QPushButton(self.tr("Modifier Produit"))
-        self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_product_btn = QPushButton(self.tr("✏️ Produit"))
+        # self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné"))
         self.edit_product_btn.clicked.connect(self.edit_product)
         products_btn_layout.addWidget(self.edit_product_btn)
         
-        self.remove_product_btn = QPushButton(self.tr("Supprimer Produit"))
-        self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.remove_product_btn = QPushButton(self.tr("🗑️ Produit"))
+        # self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet"))
         self.remove_product_btn.clicked.connect(self.remove_product)
         products_btn_layout.addWidget(self.remove_product_btn)
         
@@ -1212,6 +1317,63 @@ class ClientWidget(QWidget):
         self.populate_doc_table()
         self.load_contacts()
         self.load_products()
+
+    def populate_details_layout(self):
+        # Clear existing rows from details_layout if any, before repopulating
+        while self.details_layout.rowCount() > 0:
+            self.details_layout.removeRow(0)
+
+        self.detail_value_labels.clear() # Clear old references
+
+        details_data_map = {
+            "project_identifier": (self.tr("ID Projet:"), self.client_info.get("project_identifier", self.tr("N/A"))),
+            "country": (self.tr("Pays:"), self.client_info.get("country", self.tr("N/A"))),
+            "city": (self.tr("Ville:"), self.client_info.get("city", self.tr("N/A"))),
+            "need": (self.tr("Besoin Principal:"), self.client_info.get("need", self.tr("N/A"))),
+            "price": (self.tr("Prix Final:"), f"{self.client_info.get('price', 0)} €"),
+            "creation_date": (self.tr("Date Création:"), self.client_info.get("creation_date", self.tr("N/A"))),
+            "base_folder_path": (self.tr("Chemin Dossier:"), f"<a href='file:///{self.client_info.get('base_folder_path','')}'>{self.client_info.get('base_folder_path','')}</a>")
+        }
+
+        for key, (label_text, value_text) in details_data_map.items():
+            label_widget = QLabel(label_text)
+            value_widget = QLabel(value_text)
+            if key == "base_folder_path": # Special handling for link
+                value_widget.setOpenExternalLinks(True)
+                value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+            self.details_layout.addRow(label_widget, value_widget)
+            self.detail_value_labels[key] = value_widget # Store reference to the value label
+
+    def refresh_display(self, new_client_info):
+        self.client_info = new_client_info # Update internal data store
+
+        # Update header
+        self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
+
+        # Update status combo
+        # Note: status_combo displays status name. self.client_info should have 'status' field with the name.
+        self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
+
+        # Update details in the QFormLayout
+        if hasattr(self, 'detail_value_labels'): # Check if labels were stored
+            self.detail_value_labels["project_identifier"].setText(self.client_info.get("project_identifier", self.tr("N/A")))
+            self.detail_value_labels["country"].setText(self.client_info.get("country", self.tr("N/A")))
+            self.detail_value_labels["city"].setText(self.client_info.get("city", self.tr("N/A")))
+            self.detail_value_labels["need"].setText(self.client_info.get("need", self.tr("N/A"))) # 'need' is 'primary_need_description' in some contexts
+            self.detail_value_labels["price"].setText(f"{self.client_info.get('price', 0)} €")
+            self.detail_value_labels["creation_date"].setText(self.client_info.get("creation_date", self.tr("N/A")))
+
+            folder_path = self.client_info.get('base_folder_path','')
+            self.detail_value_labels["base_folder_path"].setText(f"<a href='file:///{folder_path}'>{folder_path}</a>")
+        else: # Fallback or if you choose to repopulate the whole layout
+            self.populate_details_layout()
+
+
+        # Update Notes
+        self.notes_edit.setText(self.client_info.get("notes", ""))
+
+        # Other elements like doc_table, contacts_list, products_table are refreshed by their own mechanisms typically.
 
     def load_statuses(self):
         conn = None
@@ -1304,26 +1466,26 @@ class ClientWidget(QWidget):
                     action_layout = QHBoxLayout(action_widget)
                     action_layout.setContentsMargins(0, 0, 0, 0)
                     
-                    open_btn_i = QPushButton()
-                    open_btn_i.setIcon(QIcon.fromTheme("document-open"))
-                    open_btn_i.setToolTip(self.tr("Ouvrir"))
-                    open_btn_i.setFixedSize(30, 30)
+                    open_btn_i = QPushButton("📄")
+                    # open_btn_i.setIcon(QIcon.fromTheme("document-open")) # Icon removed
+                    open_btn_i.setToolTip(self.tr("Ouvrir le document"))
+                    open_btn_i.setFixedSize(32, 32) # Adjusted size
                     open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
                     action_layout.addWidget(open_btn_i)
                     
                     if file_name.endswith('.xlsx') or file_name.endswith('.html'): # Allow edit for HTML too
-                        edit_btn_i = QPushButton()
-                        edit_btn_i.setIcon(QIcon.fromTheme("document-edit"))
-                        edit_btn_i.setToolTip(self.tr("Éditer"))
-                        edit_btn_i.setFixedSize(30, 30)
+                        edit_btn_i = QPushButton("✏️")
+                        # edit_btn_i.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+                        edit_btn_i.setToolTip(self.tr("Éditer le document"))
+                        edit_btn_i.setFixedSize(32, 32) # Adjusted size
                         # For Excel, open_document handles ExcelEditor. For HTML, it handles HtmlEditor.
                         edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
                         action_layout.addWidget(edit_btn_i)
                     
-                    delete_btn_i = QPushButton()
-                    delete_btn_i.setIcon(QIcon.fromTheme("edit-delete"))
-                    delete_btn_i.setToolTip(self.tr("Supprimer"))
-                    delete_btn_i.setFixedSize(30, 30)
+                    delete_btn_i = QPushButton("🗑️")
+                    # delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+                    delete_btn_i.setToolTip(self.tr("Supprimer le document"))
+                    delete_btn_i.setFixedSize(32, 32) # Adjusted size
                     delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document(p))
                     action_layout.addWidget(delete_btn_i)
                     
@@ -1752,6 +1914,194 @@ class ClientWidget(QWidget):
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
 
+class EditClientDialog(QDialog):
+    def __init__(self, client_info, config, parent=None):
+        super().__init__(parent)
+        self.client_info = client_info
+        self.config = config
+        # Ensure db_manager is accessible, e.g., self.db_manager = db_manager
+        # or call db_manager functions directly if it's globally imported and initialized
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.setWindowTitle(self.tr("Modifier Client"))
+        self.setMinimumSize(500, 430) # Adjusted minimum size for spacing
+        layout = QFormLayout(self)
+        layout.setSpacing(10) # Added spacing
+
+        # Client Name
+        self.client_name_input = QLineEdit(self.client_info.get('client_name', ''))
+        layout.addRow(self.tr("Nom Client:"), self.client_name_input)
+
+        # Company Name
+        self.company_name_input = QLineEdit(self.client_info.get('company_name', ''))
+        layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
+
+        # Client Need (primary_need_description)
+        self.client_need_input = QLineEdit(self.client_info.get('primary_need_description', self.client_info.get('need',''))) # Fallback to 'need' if 'primary_need_description' is missing
+        layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
+
+        # Project ID (project_identifier)
+        self.project_id_input_field = QLineEdit(self.client_info.get('project_identifier', ''))
+        layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
+
+        # Price (final_price_input)
+        self.final_price_input = QDoubleSpinBox()
+        self.final_price_input.setPrefix("€ ")
+        self.final_price_input.setRange(0, 10000000)
+        self.final_price_input.setValue(float(self.client_info.get('price', 0.0)))
+        layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+
+        # Country (country_select_combo)
+        self.country_select_combo = QComboBox()
+        self.country_select_combo.setEditable(True)
+        self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
+        self.populate_countries() # Populate with all countries
+        # Set current selection for country
+        current_country_id = self.client_info.get('country_id')
+        if current_country_id is not None:
+            index = self.country_select_combo.findData(current_country_id)
+            if index >= 0:
+                self.country_select_combo.setCurrentIndex(index)
+            else: # Fallback if ID not in combo, try by name
+                current_country_name = self.client_info.get('country')
+                if current_country_name:
+                    index_name = self.country_select_combo.findText(current_country_name)
+                    if index_name >=0:
+                         self.country_select_combo.setCurrentIndex(index_name)
+        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country_edit)
+        layout.addRow(self.tr("Pays Client:"), self.country_select_combo)
+
+        # City (city_select_combo)
+        self.city_select_combo = QComboBox()
+        self.city_select_combo.setEditable(True)
+        self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
+        # Initial population of cities based on current country
+        self.load_cities_for_country_edit(self.country_select_combo.currentText())
+        # Set current selection for city
+        current_city_id = self.client_info.get('city_id')
+        if current_city_id is not None:
+            index = self.city_select_combo.findData(current_city_id)
+            if index >= 0:
+                self.city_select_combo.setCurrentIndex(index)
+            else: # Fallback if ID not in combo, try by name
+                current_city_name = self.client_info.get('city')
+                if current_city_name:
+                    index_name = self.city_select_combo.findText(current_city_name)
+                    if index_name >= 0:
+                        self.city_select_combo.setCurrentIndex(index_name)
+
+        layout.addRow(self.tr("Ville Client:"), self.city_select_combo)
+
+        # Languages (language_select_combo)
+        self.language_select_combo = QComboBox()
+        self.lang_display_to_codes_map = {
+            self.tr("Français uniquement (fr)"): ["fr"],
+            self.tr("Arabe uniquement (ar)"): ["ar"],
+            self.tr("Turc uniquement (tr)"): ["tr"],
+            self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]
+        }
+        self.language_select_combo.addItems(list(self.lang_display_to_codes_map.keys()))
+        # Set current selection for languages
+        current_lang_codes = self.client_info.get('selected_languages', ['fr']) # Default to ['fr']
+        if not isinstance(current_lang_codes, list): # Ensure it's a list
+             current_lang_codes = [code.strip() for code in str(current_lang_codes).split(',') if code.strip()]
+
+        # Find the display string that matches the current_lang_codes list
+        selected_display_string = None
+        for display_string, codes_list in self.lang_display_to_codes_map.items():
+            if sorted(codes_list) == sorted(current_lang_codes):
+                selected_display_string = display_string
+                break
+        if selected_display_string:
+            self.language_select_combo.setCurrentText(selected_display_string)
+        else: # Fallback to French if no exact match
+            self.language_select_combo.setCurrentText(self.tr("Français uniquement (fr)"))
+        layout.addRow(self.tr("Langues:"), self.language_select_combo)
+
+        # Dialog Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
+        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addRow(button_box)
+
+    def populate_countries(self):
+        self.country_select_combo.clear()
+        try:
+            countries = db_manager.get_all_countries()
+            if countries is None: countries = []
+            for country_dict in countries:
+                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
+
+
+    def load_cities_for_country_edit(self, country_name_str):
+        self.city_select_combo.clear()
+        if not country_name_str:
+            return
+
+        selected_country_id = self.country_select_combo.currentData()
+
+        if selected_country_id is None:
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name:
+                selected_country_id = country_obj_by_name['country_id']
+            else:
+                return # No valid country selected or found
+
+        try:
+            cities = db_manager.get_all_cities(country_id=selected_country_id)
+            if cities is None: cities = []
+            for city_dict in cities:
+                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
+
+    def get_data(self) -> dict:
+        data = {}
+        data['client_name'] = self.client_name_input.text().strip()
+        data['company_name'] = self.company_name_input.text().strip()
+        data['primary_need_description'] = self.client_need_input.text().strip()
+        data['project_identifier'] = self.project_id_input_field.text().strip()
+        data['price'] = self.final_price_input.value()
+
+        # Country ID
+        country_id = self.country_select_combo.currentData()
+        if country_id is None: # Handle case where user typed a new country not in DB
+            country_name = self.country_select_combo.currentText().strip()
+            if country_name: # Try to get by name if text is present
+                country_obj = db_manager.get_country_by_name(country_name)
+                if country_obj:
+                    country_id = country_obj['country_id']
+                # else: Consider adding the new country or error, for now, it will be None
+        data['country_id'] = country_id
+
+        # City ID
+        city_id = self.city_select_combo.currentData()
+        if city_id is None: # Handle case where user typed a new city not in DB
+            city_name = self.city_select_combo.currentText().strip()
+            # Ensure country_id is valid before trying to fetch/add city by name
+            if city_name and data.get('country_id') is not None:
+                city_obj = db_manager.get_city_by_name_and_country_id(city_name, data['country_id'])
+                if city_obj:
+                    city_id = city_obj['city_id']
+                # else: Consider adding new city or error, for now, it will be None
+        data['city_id'] = city_id
+
+        # Selected Languages (comma-separated string of codes)
+        selected_lang_display_text = self.language_select_combo.currentText()
+        lang_codes_list = self.lang_display_to_codes_map.get(selected_lang_display_text, ["fr"])
+        data['selected_languages'] = ",".join(lang_codes_list)
+
+        return data
+
 # --- DOCX Population Logic ---
 def populate_docx_template(docx_path, client_data):
     """
@@ -1980,6 +2330,7 @@ class DocumentManager(QMainWindow):
         
         form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")); form_vbox_layout = QVBoxLayout(form_group_box)
         creation_form_layout = QFormLayout(); creation_form_layout.setLabelAlignment(Qt.AlignRight) 
+        creation_form_layout.setSpacing(10) # Added spacing
         
         self.client_name_input = QLineEdit(); self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
         creation_form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
@@ -2489,6 +2840,7 @@ class DocumentManager(QMainWindow):
 
         menu = QMenu()
         open_action = menu.addAction(self.tr("Ouvrir Fiche Client")); open_action.triggered.connect(lambda: self.open_client_tab_by_id(client_id_val))
+        edit_action = menu.addAction(self.tr("Modifier Client")); edit_action.triggered.connect(lambda: self.open_edit_client_dialog(client_id_val))
         open_folder_action = menu.addAction(self.tr("Ouvrir Dossier Client")); open_folder_action.triggered.connect(lambda: self.open_client_folder_fs(client_id_val))
         menu.addSeparator()
         archive_action = menu.addAction(self.tr("Archiver Client")); archive_action.triggered.connect(lambda: self.set_client_status_archived(client_id_val))
@@ -2661,6 +3013,59 @@ class DocumentManager(QMainWindow):
         # finally:
             # if conn: conn.close() # Old sqlite3
             
+    def open_edit_client_dialog(self, client_id):
+        current_client_data = self.clients_data_map.get(client_id)
+        if not current_client_data:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Client non trouvé."))
+            return
+
+        dialog = EditClientDialog(current_client_data, self.config, self)
+        if dialog.exec_() == QDialog.Accepted:
+            updated_form_data = dialog.get_data()
+
+            # Prepare data for DB update. Keys should match DB columns.
+            data_for_db_update = {
+                'client_name': updated_form_data.get('client_name'),
+                'company_name': updated_form_data.get('company_name'),
+                'primary_need_description': updated_form_data.get('primary_need_description'),
+                'project_identifier': updated_form_data.get('project_identifier'),
+                'country_id': updated_form_data.get('country_id'),
+                'city_id': updated_form_data.get('city_id'),
+                'price': updated_form_data.get('price'),
+                'selected_languages': updated_form_data.get('selected_languages')
+                # status_id and notes are not in EditClientDialog, so they won't be updated
+                # default_base_folder_path is also not part of this dialog's update scope for now.
+            }
+
+            # Filter out any keys with None values if db_manager.update_client expects only non-null fields for update
+            # However, it's usually fine to pass None to set a field to NULL if the DB allows it.
+            # For now, assume db_manager.update_client handles None values appropriately.
+
+            success = db_manager.update_client(client_id, data_for_db_update)
+
+            if success:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Client mis à jour avec succès."))
+
+                # Refresh data and UI
+                self.load_clients_from_db() # Refreshes map and list widget FIRST
+
+                # Update the open tab if it's the one being edited
+                tab_refreshed = False
+                for i in range(self.client_tabs_widget.count()):
+                    tab_widget = self.client_tabs_widget.widget(i)
+                    if hasattr(tab_widget, 'client_info') and tab_widget.client_info.get("client_id") == client_id:
+                        if hasattr(tab_widget, 'refresh_display'):
+                            updated_client_data_for_tab = self.clients_data_map.get(client_id)
+                            if updated_client_data_for_tab:
+                                tab_widget.refresh_display(updated_client_data_for_tab)
+                                self.client_tabs_widget.setTabText(i, updated_client_data_for_tab.get('client_name', 'Client'))
+                                tab_refreshed = True
+                        break
+
+                self.stats_widget.update_stats()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Échec de la mise à jour du client."))
+
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self)
         if dialog.exec_() == QDialog.Accepted:
@@ -2830,6 +3235,18 @@ def main():
     # This might be redundant if the copying above already populates "en" and "pt" and if "ar", "tr" are expected to be handled.
     # However, this ensures that at least the basic structure (empty files or from default_templates_data) exists.
     all_supported_template_langs = ["fr", "en", "ar", "tr", "pt"]
+
+    # Ensure "General" category exists for default templates
+    general_category_id = db_manager.add_template_category("General", "General purpose templates")
+    if general_category_id is None:
+        print("CRITICAL ERROR: Could not create or find the 'General' template category. Default templates may not be added correctly.")
+        # Allowing continuation, db_manager.add_default_template_if_not_exists should ideally handle
+        # a missing category_id gracefully if it's designed to take category_name.
+        # However, the task implies add_default_template_if_not_exists now expects category_id.
+        # If general_category_id is None here, and add_default_template_if_not_exists *requires* a valid ID,
+        # then the template addition will fail.
+        # For this implementation, we are proceeding with the assumption that add_default_template_if_not_exists
+        # was updated in step 2 to expect 'category_id'.
     
     default_templates_data = {
         SPEC_TECH_TEMPLATE_NAME: pd.DataFrame({'Section': ["Info Client", "Détails Tech"], 'Champ': ["Nom:", "Exigence:"], 'Valeur': ["{NOM_CLIENT}", ""]}),
@@ -2870,9 +3287,12 @@ def main():
                 'language_code': lang_code,
                 'base_file_name': template_file_name,
                 'description': f"Modèle Excel par défaut pour {template_name_for_db} en {lang_code}.",
-                'category': "Général",
+                'category_id': general_category_id, # Use the fetched/created ID
                 'is_default_for_type_lang': True
             }
+            # Ensure 'category' (text) is not in metadata if add_default_template_if_not_exists strictly expects category_id
+            template_metadata.pop('category', None)
+
             db_template_id = db_manager.add_default_template_if_not_exists(template_metadata)
             if db_template_id:
                 if created_file_on_disk:
