@@ -4105,13 +4105,14 @@ def add_country(country_data: dict) -> int | None:
         try:
             cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
             conn.commit()
-            return cursor.lastrowid
+            new_country_id = cursor.lastrowid
+            return {'country_id': new_country_id, 'country_name': country_name}
         except sqlite3.IntegrityError:
             # Country name already exists, fetch its ID
             print(f"Country '{country_name}' already exists. Fetching its ID.")
-            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            cursor.execute("SELECT country_id, country_name FROM Countries WHERE country_name = ?", (country_name,))
             row = cursor.fetchone()
-            return row['country_id'] if row else None
+            return dict(row) if row else None
 
     except sqlite3.Error as e:
         print(f"Database error in add_country: {e}")
@@ -4166,15 +4167,16 @@ def add_city(city_data: dict) -> int | None:
             # So, we will just insert. If a stricter uniqueness is needed, the table schema should be updated.
             cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
             conn.commit()
-            return cursor.lastrowid
+            new_city_id = cursor.lastrowid
+            return {'city_id': new_city_id, 'country_id': country_id, 'city_name': city_name}
         except sqlite3.IntegrityError:
             # This part would be relevant if there was a UNIQUE constraint on (country_id, city_name)
             # For now, this block might not be hit unless city_name itself becomes unique across all countries (which is not typical)
             print(f"IntegrityError likely means city '{city_name}' under country_id '{country_id}' already exists or other constraint failed.")
             # If it were unique and we wanted to return existing:
-            # cursor.execute("SELECT city_id FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
+            # cursor.execute("SELECT city_id, country_id, city_name FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
             # row = cursor.fetchone()
-            # return row['city_id'] if row else None
+            # return dict(row) if row else None
             return None # For now, any IntegrityError is treated as a failure to add as new.
 
     except sqlite3.Error as e:
@@ -4400,6 +4402,35 @@ def get_status_setting_by_name(status_name: str, status_type: str) -> dict | Non
         return None
     finally:
         if conn: conn.close()
+
+def get_client_by_project_identifier(project_identifier: str) -> dict | None:
+    """Retrieves a client by their project_identifier. Returns a dict or None if not found."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Clients WHERE project_identifier = ?", (project_identifier,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_by_project_identifier: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def delete_project_and_tasks(project_id: str) -> bool:
+    """
+    Deletes a project and all its associated tasks.
+    Returns True if successful, False otherwise.
+    Note: This relies on ON DELETE CASCADE for tasks if project is deleted.
+    If not, tasks must be deleted manually first. The current schema for Tasks
+    has ON DELETE CASCADE for project_id, so this should work.
+    """
+    # For now, just a wrapper around delete_project, assuming CASCADE works for tasks.
+    # If more complex logic is needed (e.g. logging, checking sub-dependencies), it would go here.
+    print(f"Attempting to delete project and its tasks (via CASCADE): {project_id}")
+    return delete_project(project_id)
 
 
 if __name__ == '__main__':

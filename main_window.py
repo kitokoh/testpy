@@ -236,8 +236,7 @@ class DocumentManager(QMainWindow):
             for country_dict in countries:
                 self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:
-{0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays: {0}").format(str(e)))
 
     def load_cities_for_country(self, country_name_str):
         self.city_select_combo.clear()
@@ -253,8 +252,7 @@ class DocumentManager(QMainWindow):
             for city_dict in cities:
                 self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:
-{0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes: {0}").format(str(e)))
 
     def add_new_country_dialog(self):
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
@@ -272,8 +270,7 @@ class DocumentManager(QMainWindow):
                 else:
                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
             except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays:
-{0}").format(str(e)))
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays: {0}").format(str(e)))
 
     def add_new_city_dialog(self):
         current_country_name = self.country_select_combo.currentText()
@@ -296,8 +293,7 @@ class DocumentManager(QMainWindow):
                 else:
                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
             except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville:
-{0}").format(str(e)))
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville: {0}").format(str(e)))
 
     def execute_create_client(self):
 
@@ -408,16 +404,25 @@ class DocumentManager(QMainWindow):
             self.project_id_input_field.clear(); self.final_price_input.setValue(0)
             QMessageBox.information(self, self.tr("Client Créé"), self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
             self.open_client_tab_by_id(actual_new_client_id)
+
+            # Find the ClientWidget and trigger the add contact dialog
+            for i in range(self.client_tabs_widget.count()):
+                widget = self.client_tabs_widget.widget(i)
+                if hasattr(widget, 'client_info') and widget.client_info['client_id'] == actual_new_client_id:
+                    if hasattr(widget, 'trigger_add_contact_dialog'): # Check if the method exists
+                        widget.trigger_add_contact_dialog()
+                    else:
+                        print(f"DEBUG: ClientWidget for client_id {actual_new_client_id} does not have trigger_add_contact_dialog method.")
+                    break
+
             self.stats_widget.update_stats()
         except OSError as e_os:
-            QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:
-{0}").format(str(e_os)))
+            QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client: {0}").format(str(e_os)))
             if actual_new_client_id:
                  db_manager.delete_client(actual_new_client_id)
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
         except Exception as e_db:
-            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:
-{0}").format(str(e_db)))
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches: {0}").format(str(e_db)))
             if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
                 db_manager.delete_project(new_project_id_central_db)
             if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
@@ -461,8 +466,7 @@ class DocumentManager(QMainWindow):
                 self.clients_data_map[adapted_client_dict["client_id"]] = adapted_client_dict
                 self.add_client_to_list_widget(adapted_client_dict)
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des clients:
-{0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des clients: {0}").format(str(e)))
 
     def add_client_to_list_widget(self, client_dict_data):
         item = QListWidgetItem(client_dict_data["client_name"])
@@ -557,16 +561,15 @@ class DocumentManager(QMainWindow):
             else:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'archivage du client. Vérifiez les logs."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'archivage du client:
-{0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'archivage du client: {0}").format(str(e)))
 
     def delete_client_permanently(self, client_id_val):
         if client_id_val not in self.clients_data_map: return
         client_name_val = self.clients_data_map[client_id_val]['client_name']
         client_folder_path = self.clients_data_map[client_id_val]["base_folder_path"]
-        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"), self.tr("Supprimer '{0}'?
-Ceci supprimera le client de la base de données (les contacts liés seront détachés mais pas supprimés globalement) et son dossier de fichiers (si possible).
-Cette action est irréversible.").format(client_name_val), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Supprimer '{0}'?\nCeci supprimera le client de la base de données (les contacts liés seront détachés mais pas supprimés globalement) et son dossier de fichiers (si possible).\nCette action est irréversible.").format(client_name_val),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
                 deleted_from_db = db_manager.delete_client(client_id_val)
@@ -584,8 +587,7 @@ Cette action est irréversible.").format(client_name_val), QMessageBox.Yes | QMe
                 else:
                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur lors de la suppression du client de la base de données. Le dossier n'a pas été supprimé."))
             except OSError as e_os:
-                QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier:
-{0}").format(str(e_os)))
+                QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier: {0}").format(str(e_os)))
                 if client_id_val in self.clients_data_map:
                     del self.clients_data_map[client_id_val]
                     self.filter_client_list_display()
@@ -595,8 +597,7 @@ Cette action est irréversible.").format(client_name_val), QMessageBox.Yes | QMe
                             self.close_client_tab(i); break
                     self.stats_widget.update_stats()
             except Exception as e_db:
-                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur lors de la suppression du client:
-{0}").format(str(e_db)))
+                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur lors de la suppression du client: {0}").format(str(e_db)))
 
     def check_old_clients_routine(self):
         try:
@@ -629,12 +630,10 @@ Cette action est irréversible.").format(client_name_val), QMessageBox.Yes | QMe
                             print(f"Could not parse creation_date '{creation_date_str}' for client {client.get('client_id')}: {ve}")
                             continue
             if old_clients_to_notify:
-                client_names_str = "
-".join([f"- {c['client_name']} (créé le {c['creation_date_str']})" for c in old_clients_to_notify])
-                reply = QMessageBox.question(self, self.tr("Clients Anciens Actifs"), self.tr("Les clients suivants sont actifs depuis plus de {0} jours:
-{1}
-
-Voulez-vous les archiver?").format(reminder_days_val, client_names_str), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                client_names_str = "\n".join([f"- {c['client_name']} (créé le {c['creation_date_str']})" for c in old_clients_to_notify])
+                reply = QMessageBox.question(self, self.tr("Clients Anciens Actifs"),
+                                             self.tr("Les clients suivants sont actifs depuis plus de {0} jours:\n{1}\n\nVoulez-vous les archiver?").format(reminder_days_val, client_names_str),
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if reply == QMessageBox.Yes:
                     for c_info in old_clients_to_notify:
                         self.set_client_status_archived(c_info['client_id'])
