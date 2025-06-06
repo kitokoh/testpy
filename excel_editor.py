@@ -456,6 +456,40 @@ class ExcelTableWidget(QTableWidget):
             
         return str(value)
 
+    def add_row(self):
+        current_row_count = self.rowCount()
+        self.insertRow(current_row_count)
+        if self.columnCount() == 0: # Ensure there's at least one column to see the row
+            self.insertColumn(0)
+            self.setHorizontalHeaderItem(0, QTableWidgetItem("Column 1"))
+
+    def add_column(self):
+        current_column_count = self.columnCount()
+        self.insertColumn(current_column_count)
+        # Set a default header for the new column
+        header_item = QTableWidgetItem(f"Column {current_column_count + 1}")
+        self.setHorizontalHeaderItem(current_column_count, header_item)
+        if self.rowCount() == 0: # Ensure there's at least one row
+             self.insertRow(0)
+
+    def delete_selected_rows(self):
+        selected_rows = sorted(list(set(index.row() for index in self.selectedIndexes())), reverse=True)
+        if not selected_rows:
+            # Optional: show a message or just do nothing
+            # print("No rows selected for deletion.")
+            return
+        for row_index in selected_rows:
+            self.removeRow(row_index)
+
+    def delete_selected_columns(self):
+        selected_cols = sorted(list(set(index.column() for index in self.selectedIndexes())), reverse=True)
+        if not selected_cols:
+            # Optional: show a message or just do nothing
+            # print("No columns selected for deletion.")
+            return
+        for col_index in selected_cols:
+            self.removeColumn(col_index)
+
 class PDFGenerator:
     """Handles high-quality PDF export with modern styling"""
     
@@ -865,35 +899,26 @@ class ExcelEditor(QDialog):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
-        
-        # Create toolbar
-        self.create_toolbar(main_layout)
-        
-        # Create status bar
-        self.create_status_bar(main_layout)
-        
+
+        # Initialize components that are dependencies first
+        self.table_panel = self.create_table_panel() # Initializes self.table
+        self.client_panel = self.create_client_panel()
+
+        # Create toolbar (depends on self.table)
+        self.create_toolbar(main_layout) # Adds toolbar to main_layout
+
         # Main content area
         content_splitter = QSplitter(Qt.Horizontal)
-        
-        # Client info panel
-        self.client_panel = self.create_client_panel()
         content_splitter.addWidget(self.client_panel)
-        
-        # Excel table panel
-        self.table_panel = self.create_table_panel()
-        content_splitter.addWidget(self.table_panel)
-        
-        # PDF preview panel (optional)
-        # self.preview_panel = self.create_preview_panel()
-        # content_splitter.addWidget(self.preview_panel)
-        
-        content_splitter.setStretchFactor(0, 1)
-        content_splitter.setStretchFactor(1, 3)
-        # content_splitter.setStretchFactor(2, 1)
-        
+        content_splitter.addWidget(self.table_panel) # self.table_panel now already created
+        content_splitter.setStretchFactor(0, 1) # client_panel
+        content_splitter.setStretchFactor(1, 3) # table_panel
         main_layout.addWidget(content_splitter)
-        
-        # Progress bar
+
+        # Create status bar (usually at the bottom)
+        self.create_status_bar(main_layout) # Adds status_bar to main_layout
+
+        # Progress bar (below status bar)
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(20)
         self.progress_bar.setVisible(False)
