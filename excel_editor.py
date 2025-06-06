@@ -456,6 +456,40 @@ class ExcelTableWidget(QTableWidget):
             
         return str(value)
 
+    def add_row(self):
+        current_row_count = self.rowCount()
+        self.insertRow(current_row_count)
+        if self.columnCount() == 0: # Ensure there's at least one column to see the row
+            self.insertColumn(0)
+            self.setHorizontalHeaderItem(0, QTableWidgetItem("Column 1"))
+
+    def add_column(self):
+        current_column_count = self.columnCount()
+        self.insertColumn(current_column_count)
+        # Set a default header for the new column
+        header_item = QTableWidgetItem(f"Column {current_column_count + 1}")
+        self.setHorizontalHeaderItem(current_column_count, header_item)
+        if self.rowCount() == 0: # Ensure there's at least one row
+             self.insertRow(0)
+
+    def delete_selected_rows(self):
+        selected_rows = sorted(list(set(index.row() for index in self.selectedIndexes())), reverse=True)
+        if not selected_rows:
+            # Optional: show a message or just do nothing
+            # print("No rows selected for deletion.")
+            return
+        for row_index in selected_rows:
+            self.removeRow(row_index)
+
+    def delete_selected_columns(self):
+        selected_cols = sorted(list(set(index.column() for index in self.selectedIndexes())), reverse=True)
+        if not selected_cols:
+            # Optional: show a message or just do nothing
+            # print("No columns selected for deletion.")
+            return
+        for col_index in selected_cols:
+            self.removeColumn(col_index)
+
 class PDFGenerator:
     """Handles high-quality PDF export with modern styling"""
     
