@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView, QHeaderView, QInputDialog, QSplitter,
     QCompleter, QTabWidget, QAction, QMenu, QToolBar, QGroupBox,
     QCheckBox, QDateEdit, QSpinBox, QStackedWidget, QListWidgetItem,
-    QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout
+    QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout, QTextEdit # Added QTextEdit
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QBrush, QPixmap
 from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer
@@ -163,17 +163,25 @@ class TemplateDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Gestion des Modèles")
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(800, 500) # Increased size to accommodate preview
         self.setup_ui()
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        main_hbox_layout = QHBoxLayout(self) # Main layout is now QHBoxLayout
+
+        # Left side (list and buttons)
+        left_vbox_layout = QVBoxLayout()
+        left_vbox_layout.setSpacing(10) # Add some spacing for the left panel elements
         
         self.template_list = QListWidget()
         self.template_list.itemDoubleClicked.connect(self.edit_template)
-        layout.addWidget(self.template_list)
+        font = self.template_list.font()
+        font.setPointSize(font.pointSize() + 1) # Increase font size slightly
+        self.template_list.setFont(font)
+        left_vbox_layout.addWidget(self.template_list)
         
-        btn_layout = QHBoxLayout()
+        btn_layout = QHBoxLayout() # Button layout for underneath the list
+        btn_layout.setSpacing(10) # Add spacing between buttons
         self.add_btn = QPushButton(self.tr("Ajouter Modèle"))
         self.add_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_btn.clicked.connect(self.add_template)
@@ -194,11 +202,102 @@ class TemplateDialog(QDialog):
         self.default_btn.clicked.connect(self.set_default_template)
         btn_layout.addWidget(self.default_btn)
         
-        layout.addLayout(btn_layout)
+        left_vbox_layout.addLayout(btn_layout) # Add button layout to the left vertical layout
+        main_hbox_layout.addLayout(left_vbox_layout, 1) # Add left layout to main HBox, stretch factor 1
+
+        # Right side (preview area)
+        self.preview_area = QTextEdit()
+        self.preview_area.setReadOnly(True)
+        self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
+        self.preview_area.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #cccccc;
+                background-color: #f9f9f9;
+            }
+        """)
+        main_hbox_layout.addWidget(self.preview_area, 2) # Add preview area to main HBox, stretch factor 2
+
+        # Set overall dialog layout margins
+        main_hbox_layout.setContentsMargins(10, 10, 10, 10) # Add some margins around the dialog content
+
         self.load_templates()
+        self.template_list.itemClicked.connect(self.show_template_preview) # Connect itemClicked for preview
         
+    def show_template_preview(self, item):
+        if not item:
+            self.preview_area.clear() # This should make placeholder text reappear
+            # self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu.")) # Explicitly set if clear() doesn't restore it
+            return
+
+        template_id = item.data(Qt.UserRole)
+        conn = None
+        try:
+            conn = sqlite3.connect(DATABASE_NAME)
+            cursor = conn.cursor()
+            # Use base_file_name and language_code as per table structure, aliasing language_code to language for consistency with other methods if needed
+            cursor.execute("SELECT base_file_name, language_code FROM Templates WHERE template_id = ?", (template_id,))
+            result = cursor.fetchone()
+
+            if result:
+                base_file_name, language_code = result
+                template_file_path = os.path.join(CONFIG["templates_dir"], language_code, base_file_name)
+
+                self.preview_area.clear()
+                if os.path.exists(template_file_path):
+                    _, file_extension = os.path.splitext(template_file_path)
+                    file_extension = file_extension.lower()
+
+                    if file_extension == ".xlsx":
+                        try:
+                            df = pd.read_excel(template_file_path, sheet_name=0) # Read first sheet
+                            self.preview_area.setPlainText(df.to_string())
+                        except Exception as e:
+                            self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier Excel:\n{0}").format(str(e)))
+                    elif file_extension == ".docx":
+                        try:
+                            doc = Document(template_file_path)
+                            full_text = []
+                            for para in doc.paragraphs:
+                                full_text.append(para.text)
+                            self.preview_area.setPlainText("\n".join(full_text))
+                        except Exception as e:
+                            self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier Word:\n{0}").format(str(e)))
+                    elif file_extension == ".html":
+                        try:
+                            with open(template_file_path, "r", encoding="utf-8") as f:
+                                self.preview_area.setPlainText(f.read())
+                        except Exception as e:
+                            self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier HTML:\n{0}").format(str(e)))
+                    else:
+                        self.preview_area.setPlainText(self.tr("Aperçu non disponible pour ce type de fichier."))
+                else:
+                    self.preview_area.setPlainText(self.tr("Fichier modèle introuvable."))
+            else:
+                self.preview_area.setPlainText(self.tr("Détails du modèle non trouvés dans la base de données."))
+
+        except sqlite3.Error as e_db:
+            self.preview_area.setPlainText(self.tr("Erreur DB lors de la récupération des détails du modèle:\n{0}").format(str(e_db)))
+        except Exception as e_general: # Catch any other unexpected errors
+            self.preview_area.setPlainText(self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e_general)))
+        finally:
+            if conn:
+                conn.close()
+
+    # def update_preview(self, current_item, previous_item): # Original currentItemChanged connection
+    #     if not current_item:
+    #         self.preview_area.clear()
+    #         return
+    #     template_id = current_item.data(Qt.UserRole)
+    #     # TODO: Fetch template content based on ID and display it (Handled by show_template_preview now)
+    #     # This will likely involve reading the template file
+    #     # For now, just showing the ID as placeholder
+    #     # self.preview_area.setText(f"Preview for Template ID: {template_id}\n\n(Content loading not yet implemented)")
+    #     self.show_template_preview(current_item) # Call the new method if using currentItemChanged
+
     def load_templates(self):
         self.template_list.clear()
+        self.preview_area.clear()
+        self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu.")) # Ensure placeholder is set
         conn = None
         try:
             conn = sqlite3.connect(DATABASE_NAME)
