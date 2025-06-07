@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtWebChannel import QWebChannel
 
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebChannel
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication, pyqtSlot, QObject, pyqtSignal, QFileInfo
 import db as db_manager
 from db import get_document_context_data, get_default_company
