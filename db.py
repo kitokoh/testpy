@@ -2700,6 +2700,32 @@ def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
         if conn:
             conn.close()
 
+def get_all_products_for_selection() -> list[dict]:
+    """
+    Retrieves active products (product_id, product_name, description, base_unit_price)
+    for selection, ordered by product_name.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Filter by is_active = TRUE (or 1 for boolean in SQLite)
+        sql = """
+            SELECT product_id, product_name, description, base_unit_price
+            FROM Products
+            WHERE is_active = TRUE
+            ORDER BY product_name
+        """
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_products_for_selection: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 # Functions for ClientProjectProducts association
 def add_product_to_client_or_project(link_data: dict) -> int | None:
     """Links a product to a client or project, calculating total price."""

@@ -682,9 +682,68 @@ class ProductDialog(QDialog):
         self.client_id = client_id
         # self.product_data = product_data or {} # Original single product data, not used for multi-line
         self.setWindowTitle(self.tr("Ajouter Produits au Client")) # Title for multi-line
-        self.setMinimumSize(700, 600) # Adjusted for table and new layout
+        self.setMinimumSize(700, 750) # Adjusted for table and new layout (increased height for search)
         # Refactor: Multi-line product entry
         self.setup_ui()
+        self._load_existing_products() # Call to load products initially
+
+    def _load_existing_products(self):
+        self.existing_products_list.clear()
+        try:
+            products = db_manager.get_all_products_for_selection() # This function was added in a previous step
+            if products is None: products = [] # Ensure products is iterable
+
+            for product_data in products:
+                # product_id = product_data.get('product_id')
+                product_name = product_data.get('product_name', 'N/A')
+                description = product_data.get('description', '')
+                base_unit_price = product_data.get('base_unit_price', 0.0)
+
+                # Create a more informative display string
+                desc_snippet = (description[:30] + '...') if len(description) > 30 else description
+                display_text = f"{product_name} (Desc: {desc_snippet}, Prix: {base_unit_price:.2f} €)"
+
+                item = QListWidgetItem(display_text)
+                item.setData(Qt.UserRole, product_data) # Store the whole dictionary
+                self.existing_products_list.addItem(item)
+        except Exception as e:
+            print(f"Error loading existing products: {e}")
+            # Optionally, show a message to the user
+            QMessageBox.warning(self, self.tr("Erreur Chargement Produits"),
+                                self.tr("Impossible de charger la liste des produits existants:\n{0}").format(str(e)))
+
+    def _filter_existing_products_list(self):
+        search_text = self.search_existing_product_input.text().lower()
+        for i in range(self.existing_products_list.count()):
+            item = self.existing_products_list.item(i)
+            product_data = item.data(Qt.UserRole)
+            if product_data: # Check if data exists
+                item_text = product_data.get('product_name', '').lower()
+                item_description = product_data.get('description', '').lower()
+                # Make search more comprehensive by checking name and description
+                if search_text in item_text or search_text in item_description:
+                    item.setHidden(False)
+                else:
+                    item.setHidden(True)
+            else: # If no data, hide by default or handle as error
+                item.setHidden(True)
+
+    def _populate_form_from_selected_product(self, item):
+        product_data = item.data(Qt.UserRole)
+        if product_data:
+            self.name_input.setText(product_data.get('product_name', ''))
+            self.description_input.setPlainText(product_data.get('description', ''))
+
+            base_price = product_data.get('base_unit_price', 0.0)
+            try:
+                self.unit_price_input.setValue(float(base_price))
+            except (ValueError, TypeError):
+                self.unit_price_input.setValue(0.0)
+
+            self.quantity_input.setValue(1.0) # Default quantity for a selected product
+            self.quantity_input.setFocus() # Set focus to quantity for quick input
+            self._update_current_line_total_preview() # Update total preview based on populated data
+
 
     def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
         widget = QWidget()
@@ -706,8 +765,24 @@ class ProductDialog(QDialog):
         header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
         main_layout.addWidget(header_label)
 
+        # Existing Product Search Group
+        search_group_box = QGroupBox(self.tr("Rechercher Produit Existant"))
+        search_layout = QVBoxLayout(search_group_box)
+
+        self.search_existing_product_input = QLineEdit()
+        self.search_existing_product_input.setPlaceholderText(self.tr("Tapez pour rechercher..."))
+        self.search_existing_product_input.textChanged.connect(self._filter_existing_products_list)
+        search_layout.addWidget(self.search_existing_product_input)
+
+        self.existing_products_list = QListWidget()
+        self.existing_products_list.setMinimumHeight(100) # Reasonable default height
+        self.existing_products_list.itemDoubleClicked.connect(self._populate_form_from_selected_product)
+        search_layout.addWidget(self.existing_products_list)
+        main_layout.addWidget(search_group_box)
+
+
         # Input Group for Current Product Line
-        input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle"))
+        input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"))
         form_layout = QFormLayout(input_group_box)
         form_layout.setSpacing(10)
 
