@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
 from PyQt5.QtCore import Qt, QUrl, QDir, QCoreApplication, pyqtSignal # Added pyqtSignal
+from PyQt5.QtWidgets import QStyle # Added for standard icons
 from PyQt5.QtWebEngineWidgets import QWebEngineView # Added for HTML preview
 
 from app_config import CONFIG, APP_ROOT_DIR, load_config
@@ -104,20 +105,30 @@ class ContactDialog(QDialog):
         # self.client_id = client_id # Not directly used if contact_data has all info
         self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
-        self.setMinimumSize(400, 270) # Adjusted size
-        self.setStyleSheet(STYLE_GENERIC_INPUT) # Apply to all inputs in dialog
+        self.setMinimumSize(400, 300) # Adjusted size for better spacing
+        # self.setStyleSheet(STYLE_GENERIC_INPUT) # Apply to all inputs in dialog - applied individually now
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10) # Add spacing between rows
+
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
+        self.name_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Nom complet:"), self.name_input)
+
         self.email_input = QLineEdit(self.contact_data.get("email", ""))
+        self.email_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Email:"), self.email_input)
+
         self.phone_input = QLineEdit(self.contact_data.get("phone", ""))
+        self.phone_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Téléphone:"), self.phone_input)
+
         self.position_input = QLineEdit(self.contact_data.get("position", ""))
+        self.position_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Poste:"), self.position_input)
+
         self.primary_check = QCheckBox(self.tr("Contact principal"))
         self.primary_check.setChecked(bool(self.contact_data.get("is_primary", 0)))
         layout.addRow(self.primary_check)
@@ -126,10 +137,14 @@ class ContactDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply", self.style().standardIcon(QStyle.SP_DialogOkButton)))
+
 
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
-        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON) # Optional: for explicit neutral
+        cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON)
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel", self.style().standardIcon(QStyle.SP_DialogCancelButton)))
+
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -491,19 +506,27 @@ class ProductDialog(QDialog):
         # self.client_id = client_id # Store if needed for linking new products
         self.product_data = product_data or {} # For editing existing linked product
         self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data.get('client_project_product_id') else self.tr("Modifier Produit"))
-        self.setStyleSheet(STYLE_GENERIC_INPUT)
+        self.setMinimumSize(450, 350) # Adjusted size
+        # self.setStyleSheet(STYLE_GENERIC_INPUT) # Applied individually
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
+        layout.setSpacing(10)
+
         self.name_input = QLineEdit(self.product_data.get("product_name", "")) # Global product name
+        self.name_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Nom du Produit:"), self.name_input)
+
         self.description_input = QTextEdit(self.product_data.get("product_description", "")) # Global product desc
         self.description_input.setFixedHeight(80)
+        self.description_input.setStyleSheet(STYLE_GENERIC_INPUT)
         layout.addRow(self.tr("Description:"), self.description_input)
+
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0, 1000000)
         self.quantity_input.setValue(self.product_data.get("quantity", 0)) # From ClientProjectProducts
+        self.quantity_input.setStyleSheet(STYLE_GENERIC_INPUT)
         self.quantity_input.valueChanged.connect(self.update_total_price)
         layout.addRow(self.tr("Quantité:"), self.quantity_input)
 
@@ -513,12 +536,13 @@ class ProductDialog(QDialog):
         self.unit_price_input.setRange(0, 10000000)
         self.unit_price_input.setPrefix("€ ")
         self.unit_price_input.setValue(effective_unit_price)
+        self.unit_price_input.setStyleSheet(STYLE_GENERIC_INPUT)
         self.unit_price_input.valueChanged.connect(self.update_total_price)
         layout.addRow(self.tr("Prix Unitaire:"), self.unit_price_input)
 
         total_price_title_label = QLabel(self.tr("Prix Total:"))
         self.total_price_label = QLabel("€ 0.00")
-        self.total_price_label.setStyleSheet("font-weight: bold;")
+        self.total_price_label.setStyleSheet("font-weight: bold; font-size: 11pt; color: #333;")
         layout.addRow(total_price_title_label, self.total_price_label)
         self.update_total_price() # Initial calculation
 
@@ -526,9 +550,13 @@ class ProductDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply", self.style().standardIcon(QStyle.SP_DialogOkButton)))
+
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
-        # cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON)
+        cancel_button.setStyleSheet(STYLE_NEUTRAL_BUTTON)
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel", self.style().standardIcon(QStyle.SP_DialogCancelButton)))
+
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -557,29 +585,43 @@ class CreateDocumentDialog(QDialog):
         super().__init__(parent)
         self.client_info = client_info
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(600, 450) # Adjusted size
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+
         lang_layout = QHBoxLayout()
         lang_layout.addWidget(QLabel(self.tr("Langue:")))
         self.lang_combo = QComboBox()
         self.lang_combo.addItems(self.client_info.get("selected_languages", ["fr"]))
+        self.lang_combo.setStyleSheet(STYLE_GENERIC_INPUT)
         lang_layout.addWidget(self.lang_combo)
         layout.addLayout(lang_layout)
+
+        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")))
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")))
+        self.templates_list.setStyleSheet("""
+            QListWidget { padding: 5px; border: 1px solid #ccc; border-radius: 3px; }
+            QListWidget::item:alternate { background: #f0f0f0; }
+            QListWidget::item:selected { background: #cceeff; color: black; }
+        """)
         layout.addWidget(self.templates_list)
         self.load_templates_for_creation() # Renamed to avoid conflict
+
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
         create_btn = QPushButton(self.tr("Créer Documents"))
-        create_btn.setIcon(QIcon.fromTheme("document-new"))
+        create_btn.setIcon(QIcon.fromTheme("document-new", QIcon.fromTheme("document-new"))) # Keep existing icon
+        create_btn.setStyleSheet(STYLE_PRIMARY_BUTTON)
         create_btn.clicked.connect(self.create_documents_from_selection) # Renamed
         btn_layout.addWidget(create_btn)
+
         cancel_btn = QPushButton(self.tr("Annuler"))
-        cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel", QIcon.fromTheme("dialog-cancel"))) # Keep existing icon
+        cancel_btn.setStyleSheet(STYLE_NEUTRAL_BUTTON)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
