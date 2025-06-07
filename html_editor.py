@@ -324,67 +324,137 @@ class HtmlEditor(QDialog):
 
 
 if __name__ == '__main__':
+    # Required for QWebEngineView
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            self.tr("Save PDF As"),
-            default_path,
-            self.tr("PDF Files (*.pdf)")
-        )
+    app = QApplication(sys.argv)
 
-        if file_path:
-            # Ensure the preview is up-to-date before printing
-            self.refresh_preview()
+    dummy_client_data = {
+        "client_id": "dummy_client_uuid_123", # Added client_id
+        "Nom du client": "Client Test Main", # Used by ClientInfoWidget directly
+        "project_identifier": "MAIN_PROJ_001", # Used by _replace_placeholders and ClientInfoWidget
+        "Besoin": "Testing Main Application Flow", # Used by ClientInfoWidget
+        "price": 123.45, # Used by ClientInfoWidget
+    }
 
-            page = self.preview_pane.page()
-            self.refresh_preview() # Ensure content is up-to-date
+    class MockDBForMain:
+        def __init__(self):
+            print("Using MockDBForMain for html_editor.py's __main__ block.")
 
-            self._current_pdf_export_path = file_path # Store for the slot
-            page = self.preview_pane.page()
+        def get_default_company(self):
+            print("MockDB: get_default_company called")
+            return {"company_id": "dummy_company_uuid_456", "company_name": "Mock Default Corp"}
 
-            # Disconnect previous connections if any to avoid multiple calls
-            try:
-                page.pdfPrintingFinished.disconnect()
-            except TypeError: # Signal has no connections
-                pass
+        def get_document_context_data(self, client_id, company_id, project_id=None, product_ids=None, additional_context=None):
+            print(f"MockDB: get_document_context_data called with client_id={client_id}, company_id={company_id}, project_id={project_id}")
+            # Return a simplified context for the __main__ test template
+            mock_context = {
+                "doc": {
+                    "current_date": datetime.now().strftime("%Y-%m-%d"),
+                    "current_year": str(datetime.now().year),
+                    "currency_symbol": "$",
+                    "show_products": True
+                },
+                "client": {
+                    "name": dummy_client_data.get("Nom du client", "N/A Client from Mock"),
+                    "id": client_id,
+                    "full_address": "Mock Client Address, Mock City, Mock Country",
+                    "contact_name": "Mock Client Contact"
+                },
+                "seller": {
+                    "name": "Mock Default Corp from Mock",
+                    "address_raw": "Mock Seller St, Seller City",
+                    "logo_path_absolute": None # No logo for this mock
+                },
+                "seller_personnel": {
+                    "sales_person_name": "Mock Sales Person"
+                },
+                "project": {
+                    "name": project_id if project_id else "N/A Project from Mock",
+                    "id": project_id
+                },
+                "products": [
+                    {"name": "Mock Product A", "price_formatted": "$100", "description": "Desc A"},
+                    {"name": "Mock Product B", "price_formatted": "$200", "description": "Desc B"}
+                ] if project_id else [], # Only show products if project_id is present for this mock
+                "additional": {}
+            }
+            if additional_context:
+                mock_context["additional"].update(additional_context)
+            return mock_context
 
-            page.pdfPrintingFinished.connect(self._handle_pdf_export_signal)
-            page.printToPdf(file_path)
-            # Inform user that process has started, actual success/failure will be shown by the slot
-            QMessageBox.information(self, self.tr("PDF Export Started"),
-                                    self.tr("PDF export process has started for: {0}.\nYou will be notified upon completion.").format(file_path))
-
-    def _handle_pdf_export_signal(self, printed_output_path, success):
-        # This slot receives the path it printed to and a boolean success status.
-        # We use self._current_pdf_export_path as the primary reference for the user message,
-        # but printed_output_path is what the engine actually used.
-
-        # Important: Disconnect after use to prevent issues if export_to_pdf is called again
-        # for a different file before a previous one finished (though unlikely with modal dialogs).
-        try:
-            self.preview_pane.page().pdfPrintingFinished.disconnect(self._handle_pdf_export_signal)
-        except TypeError:
-            pass # No connection to disconnect
-
-        if self._current_pdf_export_path: # Check if an export was initiated
-            self.handle_pdf_export_finished(success, self._current_pdf_export_path)
-            self._current_pdf_export_path = None # Reset path after handling
-        else:
-            # This case should ideally not happen if logic is correct
-            print(f"Warning: _handle_pdf_export_signal called but _current_pdf_export_path was None. Output path: {printed_output_path}, Success: {success}")
+        # Add other db functions that *might* be directly called by HtmlEditor or its components,
+        # though with the new _replace_placeholders_html, most data comes via get_document_context_data.
+        # db.get_setting was used before, if any part of UI still uses it, it might need mocking.
+        # For now, assume these are not directly called by the parts being tested in __main__.
+        def get_setting(self, key, default=""):
+            print(f"MockDB: get_setting called for {key}")
+            return f"MockSetting: {key}"
 
 
-    def handle_pdf_export_finished(self, success, file_path_ref): # file_path_ref is passed by functools.partial
-        if success:
-            QMessageBox.information(self, self.tr("PDF Export"),
-                                    self.tr("PDF exported successfully to: {0}").format(file_path_ref))
-        else:
-            QMessageBox.warning(self, self.tr("PDF Export"),
-                                self.tr("Failed to export PDF to: {0}").format(file_path_ref))
+    original_db_module = sys.modules['db']
+    mock_db_instance = MockDBForMain()
 
-    def _load_content(self):
-        if os.path.exists(self.file_path):
-            try:
+    # Monkey patch functions in the actual 'db' module namespace that HtmlEditor imports from
+    # This is more targeted than replacing sys.modules['db']
+    original_get_default_company = db.get_default_company
+    original_get_document_context_data = db.get_document_context_data
+
+    db.get_default_company = mock_db_instance.get_default_company
+    db.get_document_context_data = mock_db_instance.get_document_context_data
+    # If HtmlEditor directly calls db.get_setting, mock that too:
+    # original_get_setting = db.get_setting
+    # db.get_setting = mock_db_instance.get_setting
+
+
+    temp_dir = QStandardPaths.writableLocation(QStandardPaths.TemporaryLocation)
+    os.makedirs(temp_dir, exist_ok=True)
+    dummy_file_name = f"test_editor_doc_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
+    dummy_file_path = os.path.join(temp_dir, dummy_file_name)
+    print(f"Test HTML file will be at: {dummy_file_path}")
+
+    # Updated HTML for __main__ to use {{ }} and new context structure
+    with open(dummy_file_path, 'w', encoding='utf-8') as f_dummy:
+        f_dummy.write("""<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{doc.current_date}} - {{client.name}}</title>
+</head>
+<body>
+    <h1>Client: {{client.name}}</h1>
+    <p>Address: {{client.full_address}}</p>
+    <p>Contact: {{client.contact_name}}</p>
+    <hr>
+    <h2>Vendeur: {{seller.name}}</h2>
+    <p>Vendeur (Commercial): {{seller_personnel.sales_person_name}}</p>
+    <p>Projet: {{project.name}} (ID: {{project.id}})</p>
+
+    {{#if doc.show_products}}
+        <h3>Produits:</h3>
+        <ul>
+            {{#each products}}
+            <li>{{this.name}} - {{this.price_formatted}} -- {{this.description}}</li>
+            {{/each}}
+        </ul>
+    {{/if}}
+    <p>Document généré le: {{doc.current_date}}. Année: {{doc.current_year}}.</p>
+</body>
+</html>""")
+
+    editor = HtmlEditor(file_path=dummy_file_path, client_data=dummy_client_data)
+    editor.show()
+    app_exit_code = app.exec_()
+
+    # Restore original db functions
+    db.get_default_company = original_get_default_company
+    db.get_document_context_data = original_get_document_context_data
+    # if 'original_get_setting' in locals(): db.get_setting = original_get_setting
+
+    sys.exit(app_exit_code)
                 with open(self.file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                     self.html_edit.setPlainText(content)
