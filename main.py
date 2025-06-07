@@ -1047,7 +1047,7 @@ class CreateDocumentDialog(QDialog):
         self.client_info = client_info
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(550, 450) # Adjusted size for header and button frame
+        self.setMinimumSize(600, 500) # Adjusted size for new filters
         self.setup_ui()
 
     def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
@@ -1060,114 +1060,165 @@ class CreateDocumentDialog(QDialog):
         layout.addWidget(icon_label)
         layout.addWidget(QLabel(label_text))
         return widget
-        
+
     def setup_ui(self):
-        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout
+        main_layout = QVBoxLayout(self)
         main_layout.setSpacing(15)
 
-        # UI Enhancement: Header Added
         header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
         header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
         main_layout.addWidget(header_label)
 
-        # Consistent padding for list/combos and specific hover effect for list
         input_style = """
-            QComboBox, QListWidget { padding: 3px; }
+            QComboBox, QListWidget, QLineEdit { padding: 3px; }
             QListWidget::item:hover { background-color: #e6f7ff; }
         """
-        self.setStyleSheet(input_style) # Apply to dialog
+        self.setStyleSheet(input_style)
 
-        # UI Enhancement: Icons Added
-        lang_selection_layout = QHBoxLayout()
-        lang_icon_label_widget = self._create_icon_label_widget("text-x-generic", self.tr("Langue:"))
-        lang_selection_layout.addWidget(lang_icon_label_widget)
-        self.lang_combo = QComboBox()
-        self.lang_combo.addItems(self.client_info.get("selected_languages", ["fr"]))
-        lang_selection_layout.addWidget(self.lang_combo)
-        lang_selection_layout.addStretch() # Push combo to the left if space allows
-        main_layout.addLayout(lang_selection_layout)
+        # Filters and Search Layout
+        filters_layout = QGridLayout()
+        filters_layout.setSpacing(10)
 
-        templates_label_widget = self._create_icon_label_widget("document-multiple", self.tr("Sélectionnez les documents à créer:"))
-        main_layout.addWidget(templates_label_widget)
-        
+        # Language Filter
+        self.language_filter_label = QLabel(self.tr("Langue:"))
+        self.language_filter_combo = QComboBox()
+        self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"])
+        # TODO: Set client's current language if desired, for now "All"
+        self.language_filter_combo.setCurrentText(self.tr("All"))
+        filters_layout.addWidget(self.language_filter_label, 0, 0)
+        filters_layout.addWidget(self.language_filter_combo, 0, 1)
+
+        # Extension Filter
+        self.extension_filter_label = QLabel(self.tr("Extension:"))
+        self.extension_filter_combo = QComboBox()
+        self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
+        self.extension_filter_combo.setCurrentText("HTML") # Default to HTML
+        filters_layout.addWidget(self.extension_filter_label, 0, 2)
+        filters_layout.addWidget(self.extension_filter_combo, 0, 3)
+
+        # Search Bar
+        self.search_bar_label = QLabel(self.tr("Rechercher:"))
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
+        filters_layout.addWidget(self.search_bar_label, 1, 0)
+        filters_layout.addWidget(self.search_bar, 1, 1, 1, 3) # Span search bar across 3 columns
+
+        main_layout.addLayout(filters_layout)
+
+        # Templates List
+        templates_list_label = self._create_icon_label_widget("document-multiple", self.tr("Modèles disponibles:"))
+        main_layout.addWidget(templates_list_label)
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        # Hover effect applied via dialog stylesheet
         main_layout.addWidget(self.templates_list)
+
+        # Connect signals for filters
+        self.language_filter_combo.currentTextChanged.connect(self.load_templates)
+        self.extension_filter_combo.currentTextChanged.connect(self.load_templates)
+        self.search_bar.textChanged.connect(self.load_templates)
         
-        self.load_templates()
+        self.load_templates() # Initial load
         main_layout.addStretch()
 
-        # UI Enhancement: Improved Button Grouping
+        # Button Grouping
         button_frame = QFrame(self)
         button_frame.setObjectName("buttonFrame")
         button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
         button_frame_layout = QHBoxLayout(button_frame)
         button_frame_layout.setContentsMargins(0,0,0,0)
 
-        btn_actions_layout = QHBoxLayout() # Original button layout
-        btn_actions_layout.setSpacing(10)
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
 
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
         create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
         create_btn.clicked.connect(self.create_documents)
-        btn_actions_layout.addWidget(create_btn)
-        
+        button_frame_layout.addWidget(create_btn) # Add directly to button_frame_layout
+
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
         cancel_btn.setStyleSheet("padding: 5px 15px;")
         cancel_btn.clicked.connect(self.reject)
-        btn_actions_layout.addWidget(cancel_btn)
+        button_frame_layout.addWidget(cancel_btn) # Add directly to button_frame_layout
         
-        button_frame_layout.addLayout(btn_actions_layout)
         main_layout.addWidget(button_frame)
-        # UI Enhancements Applied
-        
+
     def load_templates(self):
         self.templates_list.clear()
-        # conn = None # Old sqlite3
-        try:
-            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
-            # cursor = conn.cursor() # Old sqlite3
-            # cursor.execute("SELECT name, language, file_name FROM Templates ORDER BY name, language") # Old SQL
-            # for name, lang, file_name_db in cursor.fetchall(): # Old iteration
 
-            # New logic using db_manager
-            # Fetches templates that have a base_file_name, suitable for document generation.
+        selected_lang = self.language_filter_combo.currentText()
+        selected_ext_display = self.extension_filter_combo.currentText()
+        search_text = self.search_bar.text().lower()
+
+        # Map display extension to actual extension
+        ext_map = {
+            "HTML": ".html",
+            "XLSX": ".xlsx",
+            "DOCX": ".docx"
+        }
+        selected_ext = ext_map.get(selected_ext_display) # Will be None if "All" or not found
+
+        try:
             all_file_templates = db_manager.get_all_file_based_templates()
             if all_file_templates is None: all_file_templates = []
 
+            filtered_templates = []
             for template_dict in all_file_templates:
+                name = template_dict.get('template_name', 'N/A')
+                lang_code = template_dict.get('language_code', 'N/A')
+                base_file_name = template_dict.get('base_file_name', 'N/A')
+
+                # Language filter
+                if selected_lang != self.tr("All") and lang_code != selected_lang:
+                    continue
+
+                # Extension filter
+                file_actual_ext = os.path.splitext(base_file_name)[1].lower()
+                if selected_ext_display != self.tr("All"):
+                    if not selected_ext or file_actual_ext != selected_ext:
+                        continue
+
+                # Search text filter (case-insensitive on template name)
+                if search_text and search_text not in name.lower():
+                    continue
+
+                filtered_templates.append(template_dict)
+
+            for template_dict in filtered_templates:
                 name = template_dict.get('template_name', 'N/A')
                 lang = template_dict.get('language_code', 'N/A')
                 base_file_name = template_dict.get('base_file_name', 'N/A')
 
                 item_text = f"{name} ({lang}) - {base_file_name}"
                 item = QListWidgetItem(item_text)
-                # Store the necessary info for when the document is created
-                item.setData(Qt.UserRole, (name, lang, base_file_name))
+                item.setData(Qt.UserRole, (name, lang, base_file_name)) # Store data for creation
                 self.templates_list.addItem(item)
 
-        except Exception as e: # Catch generic db_manager errors or other issues
+        except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
-        # finally:
-            # if conn: conn.close() # Old sqlite3
             
     def create_documents(self):
         selected_items = self.templates_list.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer."))
             return
-            
-        lang = self.lang_combo.currentText() # This gives the language code directly if items are codes
-        target_dir = os.path.join(self.client_info["base_folder_path"], lang)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        created_files = []
+
+        # Language for document creation is determined by the template itself (db_template_lang)
+        # The self.lang_combo (client's general language pref) is removed from this dialog.
+        # We use the language associated with the chosen template.
+
+        created_files_count = 0
         
         for item in selected_items:
             db_template_name, db_template_lang, actual_template_filename = item.data(Qt.UserRole)
+
+            # Determine target directory based on template's language
+            target_dir_for_document = os.path.join(self.client_info["base_folder_path"], db_template_lang)
+            os.makedirs(target_dir_for_document, exist_ok=True)
             
             if not actual_template_filename:
                 print(f"Warning: No actual_template_filename for template '{db_template_name}' ({db_template_lang}). Skipping.")
@@ -1177,47 +1228,40 @@ class CreateDocumentDialog(QDialog):
             template_file_found_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
 
             if os.path.exists(template_file_found_abs):
-                target_path = os.path.join(target_dir, actual_template_filename)
-                shutil.copy(template_file_found_abs, target_path)
+                target_path = os.path.join(target_dir_for_document, actual_template_filename) # Use target_dir_for_document
+                try:
+                    shutil.copy(template_file_found_abs, target_path)
 
-                if target_path.lower().endswith(".docx"):
-                    try:
+                    if target_path.lower().endswith(".docx"):
                         populate_docx_template(target_path, self.client_info)
                         print(f"Populated DOCX: {target_path}")
-                    except Exception as e_pop:
-                        print(f"Error populating DOCX template {target_path}: {e_pop}")
-                        QMessageBox.warning(self, self.tr("Erreur DOCX"), self.tr("Impossible de populer le modèle Word '{0}':\n{1}").format(os.path.basename(target_path), e_pop))
-                elif target_path.lower().endswith(".html"):
-                    try:
+                    elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f:
                             template_content = f.read()
-
-                        # Fetch default company ID for HTML population
                         default_company_obj = db_manager.get_default_company()
                         default_company_id = default_company_obj['company_id'] if default_company_obj else None
-
                         if default_company_id is None:
                             QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-
                         populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id)
-
                         with open(target_path, 'w', encoding='utf-8') as f:
                             f.write(populated_content)
                         print(f"Populated HTML: {target_path}")
-                    except Exception as e_html_pop:
-                        print(f"Error populating HTML template {target_path}: {e_html_pop}")
-                        QMessageBox.warning(self, self.tr("Erreur HTML"), self.tr("Impossible de populer le modèle HTML '{0}':\n{1}").format(os.path.basename(target_path), e_html_pop))
 
-                created_files.append(target_path)
+                    created_files_count += 1
+                except Exception as e_create:
+                    print(f"Error processing template {actual_template_filename} for {db_template_name}: {e_create}")
+                    QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
             else:
                 print(f"Warning: Template file '{actual_template_filename}' for '{db_template_name}' ({db_template_lang}) not found at {template_file_found_abs}.")
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
 
-        if created_files:
-            QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(len(created_files)))
+        if created_files_count > 0:
+            QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
             self.accept()
-        else:
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé."))
+        elif not selected_items: # No items were selected in the first place
+             pass # Message already shown
+        else: # Items were selected, but none could be created
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les erreurs précédentes."))
 
 class CompilePdfDialog(QDialog):
     def __init__(self, client_info, parent=None):
@@ -4027,21 +4071,530 @@ def main():
         },
     ]
 
+    HTML_TEMPLATE_CONTENTS = {
+    "proforma_invoice_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Proforma Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
+        </div>
+
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+                <p>Email: {{SELLER_EMAIL}}</p>
+                <p>VAT ID: {{SELLER_VAT_ID}}</p>
+            </div>
+
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
+                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
+            </div>
+        </div>
+
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
+            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{PRODUCTS_TABLE_ROWS}}
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
+            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
+            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
+            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
+        </div>
+
+        <div class="footer">
+            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "packing_list_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Packing List</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .shipper-details, .consignee-details, .notify-party-details { width: 32%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .shipment-info { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee;}
+        .shipment-info p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .totals-summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PACKING LIST</h1>
+        </div>
+
+        <div class.details-section">
+            <div class="shipper-details">
+                <h3>Shipper/Exporter:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+            </div>
+
+            <div class="consignee-details">
+                <h3>Consignee:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+            </div>
+
+            <div class="notify-party-details">
+                <h3>Notify Party:</h3>
+                <p>{{NOTIFY_PARTY_NAME}}</p>
+                <p>{{NOTIFY_PARTY_ADDRESS}}</p>
+            </div>
+        </div>
+
+        <div class="shipment-info">
+            <p><strong>Packing List No:</strong> {{PACKING_LIST_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Invoice No:</strong> {{INVOICE_ID}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Vessel/Flight No:</strong> {{VESSEL_FLIGHT_NO}}</p>
+            <p><strong>Port of Loading:</strong> {{PORT_OF_LOADING}}</p>
+            <p><strong>Port of Discharge:</strong> {{PORT_OF_DISCHARGE}}</p>
+            <p><strong>Final Destination:</strong> {{FINAL_DESTINATION_COUNTRY}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Mark & Nos.</th>
+                    <th>Description of Goods</th>
+                    <th>No. of Packages</th>
+                    <th>Type of Packages</th>
+                    <th>Net Weight (kg)</th>
+                    <th>Gross Weight (kg)</th>
+                    <th>Dimensions (LxWxH cm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{PACKING_LIST_ITEMS}}
+                <!-- Example Row:
+                <tr>
+                    <td>CS/NO. 1-10</td>
+                    <td>Product Alpha - Model X</td>
+                    <td>10</td>
+                    <td>Cartons</td>
+                    <td>100.00</td>
+                    <td>110.00</td>
+                    <td>50x40x30</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="totals-summary">
+            <p><strong>Total Number of Packages:</strong> {{TOTAL_PACKAGES}}</p>
+            <p><strong>Total Net Weight:</strong> {{TOTAL_NET_WEIGHT}} kg</p>
+            <p><strong>Total Gross Weight:</strong> {{TOTAL_GROSS_WEIGHT}} kg</p>
+            <p><strong>Total Volume:</strong> {{TOTAL_VOLUME_CBM}} CBM</p>
+        </div>
+
+        <div class="footer">
+            <p>Exporter's Signature: _________________________</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "sales_contract_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Contract</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; margin: 40px; line-height: 1.6; color: #000; }
+        .container { width: 85%; margin: auto; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .contract-title { font-size: 24px; font-weight: bold; }
+        .party-details { margin-bottom: 30px; overflow: auto; }
+        .seller-details, .buyer-details { width: 48%; float: left; padding: 10px; }
+        .buyer-details { float: right; }
+        .article { margin-bottom: 20px; }
+        .article h3 { font-size: 16px; margin-bottom: 5px; }
+        .signatures { margin-top: 50px; overflow: auto; }
+        .signature-block { width: 45%; float: left; margin-top:30px;}
+        .signature-block p { margin-bottom: 40px; }
+        .footer { text-align: center; margin-top: 50px; font-size: 0.8em; color: #555; }
+        .logo { max-width: 120px; max-height: 60px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <p class="contract-title">SALES CONTRACT</p>
+            <p>Contract No: {{CONTRACT_ID}}</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+
+        <div class="party-details">
+            <div class="seller-details">
+                <h4>The Seller:</h4>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>Address: {{SELLER_FULL_ADDRESS}}</p>
+                <p>Represented by: {{SELLER_REPRESENTATIVE_NAME}}, {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="buyer-details">
+                <h4>The Buyer:</h4>
+                <p><strong>{{CLIENT_NAME}}</strong> ({{CLIENT_COMPANY_NAME}})</p>
+                <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
+                <p>Represented by: {{PRIMARY_CONTACT_NAME}}, {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <h3>Article 1: Subject of the Contract</h3>
+            <p>The Seller agrees to sell and the Buyer agrees to buy the goods specified in Annex 1 ("The Goods") attached hereto and forming an integral part of this Contract.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 2: Price and Total Value</h3>
+            <p>The unit prices of the Goods are specified in {{CURRENCY_CODE}} as per Annex 1. The total value of this Contract is {{CURRENCY_CODE}} {{GRAND_TOTAL_AMOUNT}} ({{GRAND_TOTAL_AMOUNT_WORDS}}).</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 3: Terms of Payment</h3>
+            <p>{{PAYMENT_TERMS_DETAIL}} (e.g., 30% advance payment, 70% upon shipment via Letter of Credit, etc.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 4: Delivery Terms</h3>
+            <p>Delivery shall be made {{INCOTERMS}} {{NAMED_PLACE_OF_DELIVERY}} as per Incoterms 2020. Estimated date of shipment: {{ESTIMATED_SHIPMENT_DATE}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 5: Packing and Marking</h3>
+            <p>The Goods shall be packed in {{PACKING_TYPE_DESCRIPTION}}, suitable for international shipment and ensuring their safety during transit. Markings as per Buyer's instructions / Standard export markings.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 6: Warranty</h3>
+            <p>The Seller warrants that the Goods are new, unused, and conform to the specifications agreed upon for a period of {{WARRANTY_PERIOD_MONTHS}} months from the date of {{WARRANTY_START_CONDITION e.g., arrival at destination/installation}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 7: Inspection</h3>
+            <p>{{INSPECTION_CLAUSE_DETAIL}} (e.g., Inspection by Buyer's representative before shipment at Seller's premises / Inspection by {{INSPECTION_AGENCY_NAME}} at port of loading.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 8: Force Majeure</h3>
+            <p>Neither party shall be liable for any failure or delay in performing their obligations under this Contract if such failure or delay is due to Force Majeure events...</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 9: Applicable Law and Dispute Resolution</h3>
+            <p>This Contract shall be governed by and construed in accordance with the laws of {{JURISDICTION_COUNTRY_NAME}}. Any dispute arising out of or in connection with this Contract shall be settled by arbitration in {{ARBITRATION_LOCATION}} under the rules of {{ARBITRATION_RULES_BODY}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 10: Entire Agreement</h3>
+            <p>This Contract, including any Annexes, constitutes the entire agreement between the parties and supersedes all prior negotiations, understandings, and agreements, whether written or oral.</p>
+        </div>
+
+        <div class="signatures">
+            <div class="signature-block">
+                <p><strong>For the Seller:</strong></p>
+                <p>_________________________</p>
+                <p>{{SELLER_COMPANY_NAME}}</p>
+                <p>Name: {{SELLER_REPRESENTATIVE_NAME}}</p>
+                <p>Title: {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="signature-block" style="float:right;">
+                <p><strong>For the Buyer:</strong></p>
+                <p>_________________________</p>
+                <p>{{CLIENT_COMPANY_NAME}}</p>
+                <p>Name: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Title: {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Annex 1: Specification and Price of Goods (to be attached)</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "warranty_document_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Warranty Certificate</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; color: #333; }
+        .container { width: 80%; margin: auto; border: 2px solid #0056b3; padding: 30px; }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { color: #0056b3; }
+        .warranty-details p, .product-details p, .terms p { margin: 8px 0; line-height: 1.5; }
+        .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #0056b3; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        .footer { text-align: center; margin-top: 40px; font-size: 0.9em; }
+        .company-signature { margin-top: 30px;}
+        .logo { max-width: 140px; max-height: 60px; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>WARRANTY CERTIFICATE</h1>
+        </div>
+
+        <div class="warranty-details">
+            <p><strong>Certificate No:</strong> {{WARRANTY_CERTIFICATE_ID}}</p>
+            <p><strong>Date of Issue:</strong> {{DATE}}</p>
+            <p><strong>Issued By (Warrantor):</strong> {{SELLER_COMPANY_NAME}}</p>
+            <p>Address: {{SELLER_FULL_ADDRESS}}</p>
+        </div>
+
+        <div class="product-details">
+            <h3 class="section-title">Product Information</h3>
+            <p><strong>Product Name/Description:</strong> {{PRODUCT_NAME_WARRANTY}}</p>
+            <p><strong>Model No:</strong> {{PRODUCT_MODEL_WARRANTY}}</p>
+            <p><strong>Serial No(s):</strong> {{PRODUCT_SERIAL_NUMBERS_WARRANTY}}</p>
+            <p><strong>Date of Purchase/Supply:</strong> {{PURCHASE_SUPPLY_DATE}}</p>
+            <p><strong>Original Invoice No:</strong> {{ORIGINAL_INVOICE_ID_WARRANTY}}</p>
+        </div>
+
+        <div class="beneficiary-details">
+            <h3 class="section-title">Beneficiary Information</h3>
+            <p><strong>Beneficiary (Owner):</strong> {{CLIENT_NAME}} ({{CLIENT_COMPANY_NAME}})</p>
+            <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
+        </div>
+
+        <div class="terms">
+            <h3 class="section-title">Warranty Terms and Conditions</h3>
+            <p><strong>Warranty Period:</strong> This product is warranted against defects in materials and workmanship for a period of <strong>{{WARRANTY_PERIOD_TEXT}}</strong> (e.g., twelve (12) months) from the date of {{WARRANTY_START_POINT_TEXT}} (e.g., original purchase / installation).</p>
+
+            <p><strong>Coverage:</strong> During the warranty period, {{SELLER_COMPANY_NAME}} will repair or replace, at its option, any part found to be defective due to improper workmanship or materials, free of charge. This warranty covers {{WARRANTY_COVERAGE_DETAILS}}.</p>
+
+            <p><strong>Exclusions:</strong> This warranty does not cover:
+                <ul>
+                    <li>Damage resulting from accident, misuse, abuse, neglect, or improper installation or maintenance.</li>
+                    <li>Normal wear and tear, or cosmetic damage.</li>
+                    <li>Products whose serial numbers have been altered, defaced, or removed.</li>
+                    <li>Damage caused by use of non-original spare parts or accessories.</li>
+                    <li>{{OTHER_EXCLUSIONS_LIST}}</li>
+                </ul>
+            </p>
+
+            <p><strong>Claim Procedure:</strong> To make a warranty claim, please contact {{SELLER_COMPANY_NAME}} or an authorized service center at {{WARRANTY_CLAIM_CONTACT_INFO}}, providing proof of purchase and a description of the defect. {{WARRANTY_CLAIM_PROCEDURE_DETAIL}}</p>
+
+            <p><strong>Limitation of Liability:</strong> The liability of {{SELLER_COMPANY_NAME}} under this warranty is limited to the repair or replacement of defective parts. {{SELLER_COMPANY_NAME}} shall not be liable for any incidental or consequential damages.</p>
+
+            <p>This warranty gives you specific legal rights, and you may also have other rights which vary from country to country.</p>
+        </div>
+
+        <div class="company-signature">
+            <p>For and on behalf of <strong>{{SELLER_COMPANY_NAME}}</strong></p>
+            <br><br>
+            <p>_________________________</p>
+            <p>Authorized Signature</p>
+            <p>Name: {{SELLER_AUTHORIZED_SIGNATORY_NAME}}</p>
+            <p>Title: {{SELLER_AUTHORIZED_SIGNATORY_TITLE}}</p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; {{CURRENT_YEAR}} {{SELLER_COMPANY_NAME}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "cover_page_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{doc.document_title}} - Cover Page</title> <!-- Adjusted placeholder -->
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f4f8; color: #333; text-align: center; }
+        .cover-container { width: 80%; max-width: 800px; background-color: #fff; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 10px solid #005ea5; }
+        .logo { max-width: 200px; max-height: 100px; margin-bottom: 30px; }
+        h1 { font-size: 2.8em; color: #005ea5; margin-bottom: 15px; text-transform: uppercase; }
+        h2 { font-size: 1.8em; color: #555; margin-bottom: 25px; font-weight: normal; }
+        .meta-info { margin-top: 40px; margin-bottom: 40px; }
+        .meta-info p { font-size: 1.1em; margin: 8px 0; }
+        .meta-info strong { color: #005ea5; }
+        .prepared-for, .prepared-by { margin-top: 30px; }
+        .footer { margin-top: 50px; font-size: 0.9em; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="cover-container">
+        <img src="{{seller_company_logo_path}}" alt="Company Logo" class="logo"> <!-- Adjusted placeholder -->
+
+        <h1>{{doc.document_title}}</h1> <!-- Adjusted placeholder -->
+        {{#if doc.document_subtitle}}
+        <h2>{{doc.document_subtitle}}</h2> <!-- Adjusted placeholder -->
+        {{/if}}
+
+        <div class="meta-info">
+            <p><strong>Client:</strong> {{client_name}} ({{client_company_name}})</p> <!-- Adjusted placeholder -->
+            <p><strong>Project ID:</strong> {{project_id}}</p> <!-- Adjusted placeholder -->
+            <p><strong>Date:</strong> {{date}}</p> <!-- Adjusted placeholder -->
+            {{#if doc.document_version}}
+            <p><strong>Version:</strong> {{doc.document_version}}</p> <!-- Adjusted placeholder -->
+            {{/if}}
+        </div>
+
+        <div class="prepared-for">
+            <p><em>Prepared for:</em></p>
+            <p>{{client_name}}</p> <!-- Adjusted placeholder -->
+            <p>{{client_full_address}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="prepared-by">
+            <p><em>Prepared by:</em></p>
+            <p><strong>{{seller_company_name}}</strong></p> <!-- Adjusted placeholder -->
+            <p>{{seller_full_address}}</p> <!-- Adjusted placeholder -->
+            <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="footer">
+            <p>This document is confidential and intended solely for the use of the individual or entity to whom it is addressed.</p>
+            <p>&copy; {{current_year}} {{seller_company_name}}</p> <!-- Adjusted placeholder -->
+        </div>
+    </div>
+</body>
+</html>"""
+}
+
     html_template_languages = ["fr", "en", "ar", "tr", "pt"]
     # templates_root_dir is already defined above for Excel templates, can reuse
     
-    print("\n--- Starting HTML Template Registration ---")
+    print("\n--- Starting HTML Template File Creation & Registration ---") # Updated print
     html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.")
     if html_category_id is None:
         print("CRITICAL ERROR: Could not create or find the 'Documents HTML' category. HTML templates may not be added correctly.")
-        # Potentially exit or handle this error, for now, registration will likely fail if category_id is strictly needed by add_default_template_if_not_exists
 
+    # Logic to create HTML files on disk
+    for html_meta_for_file_creation in DEFAULT_HTML_TEMPLATES_METADATA:
+        base_fn = html_meta_for_file_creation['base_file_name']
+        if base_fn in HTML_TEMPLATE_CONTENTS:
+            html_content_to_write = HTML_TEMPLATE_CONTENTS[base_fn]
+            for lang_code_for_file in html_template_languages:
+                lang_specific_template_dir = os.path.join(templates_root_dir, lang_code_for_file)
+                os.makedirs(lang_specific_template_dir, exist_ok=True)
+
+                template_file_full_path = os.path.join(lang_specific_template_dir, base_fn)
+
+                if not os.path.exists(template_file_full_path):
+                    try:
+                        # Replace LANGUAGE_CODE placeholder for the specific language file
+                        # This makes the <html lang="..."> attribute correct per file
+                        # Other placeholders {{PLACEHOLDER}} are for runtime population by HtmlEditor
+                        # Note: The main.py placeholders are like {{CLIENT_NAME}}, db.py context uses client.name
+                        # The render_html_template function (from html_to_pdf_util) will handle the context mapping.
+                        # Here, we only replace the {{LANGUAGE_CODE}} specific to the file instance.
+                        lang_specific_content = html_content_to_write.replace("{{LANGUAGE_CODE}}", lang_code_for_file)
+
+                        # Adjustments for Proforma Invoice product rows
+                        if base_fn == "proforma_invoice_template.html":
+                            lang_specific_content = lang_specific_content.replace(
+                                "<tbody>\n                {{PRODUCTS_TABLE_ROWS}}\n                <!-- Example Row (to be replaced by HtmlEditor):",
+                                "<tbody>\n                {{doc.products_table_rows}} <!-- Populated by db.py -->\n                <!-- Example Row (to be replaced by HtmlEditor):"
+                            )
+                        # Adjustments for Packing List items (if similar pattern)
+                        elif base_fn == "packing_list_template.html":
+                             lang_specific_content = lang_specific_content.replace(
+                                "<tbody>\n                {{PACKING_LIST_ITEMS}}\n                <!-- Example Row:",
+                                "<tbody>\n                {{doc.packing_list_items}} <!-- Populated by db.py -->\n                <!-- Example Row:"
+                            )
+
+                        with open(template_file_full_path, "w", encoding="utf-8") as f:
+                            f.write(lang_specific_content)
+                        print(f"CREATED Default HTML Template File: {template_file_full_path}")
+                    except IOError as e_io:
+                        print(f"ERROR creating HTML template file {template_file_full_path}: {e_io}")
+                # else: # File already exists
+                    # print(f"SKIP existing HTML Template File: {template_file_full_path}")
+
+    # Original logic for DB registration (should now find the files created above)
     for html_meta in DEFAULT_HTML_TEMPLATES_METADATA:
         for lang_code in html_template_languages:
             template_file_path = os.path.join(templates_root_dir, lang_code, html_meta['base_file_name'])
             
-            if os.path.exists(template_file_path):
-                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
+            if os.path.exists(template_file_path): # Check again, in case creation failed
+                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})" # Keep display name consistent
                 
                 template_data_for_db = {
                     'template_name': db_template_name,
@@ -4049,18 +4602,24 @@ def main():
                     'language_code': lang_code,
                     'base_file_name': html_meta['base_file_name'],
                     'description': html_meta['description_fr'],
-                    'category_name': html_meta['category_name'], # add_default_template_if_not_exists handles resolving this to category_id
-                    'is_default_for_type_lang': True if lang_code == 'fr' else False
+                    # category_id is preferred if html_category_id is valid
+                    'category_id': html_category_id if html_category_id else None,
+                    # Fallback to category_name if ID is None, add_default_template_if_not_exists should handle this
+                    'category_name': html_meta['category_name'] if not html_category_id else None,
+                    'is_default_for_type_lang': True if lang_code == 'fr' else False # Default French ones
                 }
-                
+                # Clean up None values from dict to avoid passing them if not desired by add_default_template_if_not_exists
+                template_data_for_db = {k:v for k,v in template_data_for_db.items() if v is not None}
+
                 template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
                 if template_id:
-                    print(f"SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processed. DB ID: {template_id}")
-                else:
-                    print(f"INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processing complete (may already exist or error).")
+                    print(f"DB REGISTRATION SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}). DB ID: {template_id}")
+                # else: # add_default_template_if_not_exists now handles "already exists" by returning existing ID, or None for other errors.
+                    # print(f"DB REGISTRATION INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) may already exist or error during registration.")
             else:
-                print(f"SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
-    print("--- HTML Template Registration Finished ---")
+                # This message means the file wasn't found for DB registration, which is an issue if it was supposed to be created.
+                print(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
+    print("--- HTML Template File Creation & Registration Finished ---") # Updated print
        
     main_window = DocumentManager() 
     main_window.show()
