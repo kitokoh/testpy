@@ -2,6 +2,7 @@
 import sys
 import os
 import json
+from PyQt5.QtWidgets import QFrame
 # import sqlite3 # Replaced by db_manager
 import db as db_manager
 from db import get_default_company # Added for fetching default company
