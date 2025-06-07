@@ -699,6 +699,9 @@ class ProductDialog(QDialog):
                 product_name = product_data.get('product_name', 'N/A')
                 description = product_data.get('description', '')
                 base_unit_price = product_data.get('base_unit_price', 0.0)
+                # Ensure base_unit_price is not None before formatting
+                if base_unit_price is None:
+                    base_unit_price = 0.0
 
                 # Create a more informative display string
                 desc_snippet = (description[:30] + '...') if len(description) > 30 else description
