@@ -923,12 +923,33 @@ class ClientWidget(QWidget):
             details_layout.addRow(label_widget, value_widget)
         layout.addLayout(details_layout)
 
-        notes_group = QGroupBox(self.tr("Notes")); notes_layout = QVBoxLayout(notes_group)
-        self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
-        self.notes_edit.setStyleSheet(STYLE_GENERIC_INPUT)
-        self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
-        self.notes_edit.textChanged.connect(self.save_client_notes_to_db) # Renamed
-        notes_layout.addWidget(self.notes_edit); layout.addWidget(notes_group)
+        # --- New Notes/Chat History Section ---
+        notes_history_group = QGroupBox(self.tr("Notes / Chat History"))
+        notes_history_layout = QVBoxLayout(notes_history_group)
+
+        self.notes_display_widget = QListWidget()
+        self.notes_display_widget.setStyleSheet("QListWidget { border: 1px solid #ccc; border-radius: 3px; min-height: 100px; }") # Basic styling + min-height
+        notes_history_layout.addWidget(self.notes_display_widget)
+
+        new_note_input_layout = QHBoxLayout() # Renamed for clarity
+        self.new_note_input = QLineEdit()
+        self.new_note_input.setPlaceholderText(self.tr("Type your note here..."))
+        self.new_note_input.setStyleSheet(STYLE_GENERIC_INPUT)
+        new_note_input_layout.addWidget(self.new_note_input)
+
+        self.add_note_button = QPushButton(self.tr("Add Note"))
+        # Attempting to use a standard icon if available, otherwise text is fine.
+        # SP_ArrowForward, SP_DialogApplyButton, SP_MailSend are options.
+        # Using SP_DialogApplyButton as a generic "action" icon for now.
+        self.add_note_button.setIcon(QIcon.fromTheme("mail-send", self.style().standardIcon(QStyle.SP_DialogApplyButton)))
+        self.add_note_button.setStyleSheet(STYLE_PRIMARY_BUTTON)
+        # self.add_note_button.clicked.connect(self.add_new_note_handler) # Connection to be added in next subtask
+        self.add_note_button.clicked.connect(self.handle_add_note) # Connect button
+        new_note_input_layout.addWidget(self.add_note_button)
+
+        notes_history_layout.addLayout(new_note_input_layout)
+        layout.addWidget(notes_history_group)
+        # --- End New Notes/Chat History Section ---
 
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
@@ -983,6 +1004,7 @@ class ClientWidget(QWidget):
         self.populate_doc_table_for_client() # Renamed
         self.load_contacts_for_client() # Renamed
         self.load_products_for_client() # Renamed
+        self.load_client_notes() # Load notes on setup
 
         # PDF Generation Section
         pdf_generation_group = QGroupBox(self.tr("Générer Documents PDF"))
@@ -1041,22 +1063,94 @@ class ClientWidget(QWidget):
                 # Refresh client list in main window if main_window reference is available
                 if self.main_window and hasattr(self.main_window, 'filter_client_list_display'):
                     self.main_window.filter_client_list_display()
-                if self.main_window and hasattr(self.main_window, 'stats_widget'):
-                    self.main_window.stats_widget.update_stats()
+                if self.main_window and hasattr(self.main_window, 'stats_widget'): # Check if stats_widget exists
+                    if self.main_window.stats_widget: # And is not None
+                         self.main_window.stats_widget.update_stats()
             else:
-                 QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut."))
+                 QMessageBox.warning(self, self.tr("Database Error"), self.tr("Failed to update status."))
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de mise à jour du statut:
-{0}").format(str(e)))
+            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error updating status: {0}").format(str(e)))
 
-    def save_client_notes_to_db(self): # Renamed
-        notes = self.notes_edit.toPlainText()
+    def load_client_notes(self):
+        self.notes_display_widget.clear()
+        if not self.client_info or 'client_id' not in self.client_info:
+            return # No client_id, cannot load notes
+
         try:
-            updated = db_manager.update_client(self.client_info["client_id"], {'notes': notes})
-            if updated: self.client_info["notes"] = notes
-            # else: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec sauvegarde des notes.")) # Optional feedback
+            notes = db_manager.get_client_notes(self.client_info['client_id'])
+            for note in notes:
+                timestamp_str = note.get('timestamp', '')
+                note_text = note.get('note_text', '')
+                user_id = note.get('user_id') # For future use
+
+                formatted_ts = ""
+                if timestamp_str:
+                    try:
+                        # Attempt to parse common formats, ISO with Z, ISO without Z, with/without microseconds
+                        if 'T' in timestamp_str:
+                            dt_obj = datetime.fromisoformat(timestamp_str.replace('Z', '').split('.')[0])
+                        else:
+                            dt_obj = datetime.strptime(timestamp_str.split('.')[0], '%Y-%m-%d %H:%M:%S')
+                        formatted_ts = dt_obj.strftime('%Y-%m-%d %H:%M')
+                    except ValueError as ve:
+                        print(f"Error parsing timestamp '{timestamp_str}': {ve}")
+                        formatted_ts = timestamp_str # Fallback to raw string if parsing fails
+
+                # For now, user display is basic. Could be enhanced by fetching username from user_id
+                display_text = f"{formatted_ts} - {note_text}"
+                if user_id:
+                    display_text += f" (User: {user_id[:8]}...)" # Basic user ID display
+
+                item = QListWidgetItem(display_text)
+                self.notes_display_widget.addItem(item)
+            self.notes_display_widget.scrollToBottom() # Scroll to the latest note
+        except sqlite3.Error as db_err:
+            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error loading client notes: {0}").format(str(db_err)))
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("An unexpected error occurred while loading notes: {0}").format(str(e)))
+
+
+    def handle_add_note(self):
+        note_text = self.new_note_input.text().strip()
+        if not note_text:
+            return
+
+        if not self.client_info or 'client_id' not in self.client_info:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("Client information is missing."))
+            return
+
+        try:
+            # Assuming current_user_id might be available from main_window or a session manager
+            # For now, passing None as per instruction if add_client_note handles it.
+            # If you have a way to get current_user_id, use it here.
+            # Example: current_user_id = self.main_window.get_current_user_id() if self.main_window else None
+            current_user_id = None # Placeholder for now
+
+            new_note_id = db_manager.add_client_note(
+                client_id=self.client_info['client_id'],
+                note_text=note_text,
+                user_id=current_user_id # Pass None or actual user_id
+            )
+
+            if new_note_id is not None:
+                self.new_note_input.clear()
+                self.load_client_notes() # Refresh the list
+            else:
+                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Failed to add note to the database."))
+        except sqlite3.Error as db_err:
+            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error adding note: {0}").format(str(db_err)))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("An unexpected error occurred while adding note: {0}").format(str(e)))
+
+
+    # def save_client_notes_to_db(self): # Renamed and Commented Out as per Step 1
+    #     # notes = self.notes_edit.toPlainText() # Old notes_edit removed
+    #     # try:
+    #     #     updated = db_manager.update_client(self.client_info["client_id"], {'notes': notes}) # This was for old notes field
+    #     #     if updated: self.client_info["notes"] = notes
+    #     #     # else: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec sauvegarde des notes.")) # Optional feedback
+    #     # except Exception as e:
+    #     #     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:
 {0}").format(str(e)))
 
     def populate_doc_table_for_client(self): # Renamed
