@@ -8,6 +8,8 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox, QFileDialog, QStyle, QLabel, QLineEdit, QWidget,
     QSizePolicy, QSplitter
 )
+from PyQt5.QtWebChannel import QWebChannel
+
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebChannel
 from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication, pyqtSlot, QObject, pyqtSignal, QFileInfo
 import db as db_manager
