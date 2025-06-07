@@ -1438,8 +1438,8 @@ class ClientWidget(QWidget):
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15) // Verified
-        layout.setSpacing(15) // Verified
+        layout.setContentsMargins(15, 15, 15, 15) 
+        layout.setSpacing(15) 
         
         self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
         self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Added margin-bottom
