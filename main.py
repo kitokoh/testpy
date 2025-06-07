@@ -7,6 +7,7 @@ import db as db_manager
 from db import get_default_company # Added for fetching default company
 from db import DATABASE_NAME as CENTRAL_DATABASE_NAME
 import pandas as pd
+from PyQt5.QtWidgets import QFrame
 import shutil
 import smtplib
 from email.mime.multipart import MIMEMultipart
