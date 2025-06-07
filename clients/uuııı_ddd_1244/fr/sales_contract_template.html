@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{doc_lang_code | default: 'fr'}}" dir="{{doc_direction | default: 'ltr'}}">
+<html lang="" dir="">
 <head>
     <meta charset="UTF-8">
-    <title>{{document_title}} - {{contract_number}}</title>
+    <title>Document - </title>
     <style>
         @page {
             size: A4;
@@ -144,89 +144,65 @@
 </head>
 <body>
     <div class="contract-container">
-        <div class="document-main-title">{{document_title}}</div>
+        <div class="document-main-title">Document</div>
 
         <div class="contract-header">
-            <p><span class="bold">Numéro de Contrat :</span> {{contract_number}}</p>
-            <p><span class="bold">Date d'Entrée en Vigueur :</span> {{date_of_agreement}}</p>
+            <p><span class="bold">Numéro de Contrat :</span> </p>
+            <p><span class="bold">Date d'Entrée en Vigueur :</span> </p>
         </div>
 
         <div class="party-details text-left">
             <p><strong class="party-title">ENTRE :</strong></p>
             <p><strong class="party-role">Le Vendeur :</strong></p>
-            <p><span class="bold">{{seller_company_name}}</span></p>
-            <p>Adresse : {{seller_company_address}}</p>
-            <p>Immatriculée sous le numéro : {{seller_company_registration_number}}</p>
-            <p>Représentée par : {{seller_representative_name}}, {{seller_representative_title}}</p>
+            <p><span class="bold">asss</span></p>
+            <p>Adresse : sfdfdsfdf</p>
+            <p>Immatriculée sous le numéro : N/A (Champ 'registration_number' manquant dans la table Companies)</p>
+            <p>Représentée par : jhhjhj, seller</p>
             <p>Ci-après dénommé le « Vendeur ».</p>
         </div>
 
         <div class="party-details text-left">
             <p><strong class="party-title">ET :</strong></p>
             <p><strong class="party-role">L'Acheteur :</strong></p>
-            <p><span class="bold">{{buyer_company_name}}</span></p>
-            <p>Adresse : {{buyer_company_address}}</p>
-            <p>Immatriculée sous le numéro : {{buyer_company_registration_number}}</p>
-            <p>Représenté par : {{buyer_representative_name}}, {{buyer_representative_title}}</p>
+            <p><span class="bold">yyuh</span></p>
+            <p>Adresse : ssf, ddd</p>
+            <p>Immatriculée sous le numéro : N/A (Champ 'registration_number' manquant dans la table Clients)</p>
+            <p>Représenté par : dgfg, 99855</p>
             <p>Ci-après dénommé l' « Acheteur ».</p>
         </div>
 
         <div class="preamble">
             <h3 class="article-title">Préambule</h3>
-            <p>{{preamble_text}}</p>
+            <p></p>
             <p>Les parties conviennent de ce qui suit :</p>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 1 : Objet du Contrat</h3>
             <div class="article-content">
-                <p>1.1. <span class="underline">Description des Biens/Services :</span> {{subject_matter_general_description}}</p>
-                {{#if products}}
-                <p>Les biens (ci-après dénommés les "Produits") faisant l'objet du présent contrat sont les suivants :</p>
-                <table class="products-table">
-                    <thead>
-                        <tr>
-                            <th>Description du Produit</th>
-                            <th>Quantité</th>
-                            <th>Spécifications/Qualité</th>
-                            <th class="text-right">Prix Unitaire</th>
-                            <th class="text-right">Prix Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{#each products}}
-                        <tr>
-                            <td>{{product_name}}</td>
-                            <td>{{product_quantity}} {{product_unit}}</td>
-                            <td>{{product_specifications}}</td>
-                            <td class="text-right">{{product_unit_price_formatted}} {{currency_symbol}}</td>
-                            <td class="text-right">{{product_total_price_formatted}} {{currency_symbol}}</td>
-                        </tr>
-                        {{/each}}
-                    </tbody>
-                </table>
-                {{/if}}
-                <p>1.2. <span class="underline">Quantité Totale :</span> {{total_quantity}}</p>
-                <p>1.3. <span class="underline">Qualité et Spécifications :</span> {{quality_specifications_details}}</p>
+                <p>1.1. <span class="underline">Description des Biens/Services :</span> </p>
+                
+                <p>1.2. <span class="underline">Quantité Totale :</span> </p>
+                <p>1.3. <span class="underline">Qualité et Spécifications :</span> </p>
             </div>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 2 : Prix et Modalités de Paiement</h3>
             <div class="article-content">
-                <p>2.1. <span class="underline">Prix Total :</span> {{total_price_formatted}} {{currency_symbol}} ({{total_price_in_words}}).</p>
-                {{^products}}
-                <p>2.2. <span class="underline">Prix par Unité (si applicable) :</span> {{price_per_unit_formatted}} {{currency_symbol}}.</p>
-                {{/products}}
-                <p>2.3. <span class="underline">Modalités de Paiement :</span> {{payment_method_description}}.</p>
-                <p>2.4. <span class="underline">Échéancier de Paiement :</span> {{payment_schedule_description}}.</p>
+                <p>2.1. <span class="underline">Prix Total :</span>   ().</p>
+                
+                <p>2.2. <span class="underline">Prix par Unité (si applicable) :</span>  .</p>
+                
+                <p>2.3. <span class="underline">Modalités de Paiement :</span> .</p>
+                <p>2.4. <span class="underline">Échéancier de Paiement :</span> .</p>
                 <p>2.5. <span class="underline">Coordonnées Bancaires du Vendeur :</span></p>
                 <ul>
-                    <li>Banque : {{seller_bank_name}}</li>
-                    <li>Adresse de la Banque : {{seller_bank_address}}</li>
-                    <li>Numéro de Compte / IBAN : {{seller_bank_iban}}</li>
-                    <li>Code SWIFT/BIC : {{seller_bank_swift}}</li>
-                    <li>Titulaire du Compte : {{seller_bank_account_holder_name}}</li>
+                    <li>Banque : N/A (Champ 'payment_info' non structuré)</li>
+                    <li>Adresse de la Banque : N/A (Champ 'payment_info' non structuré)</li>
+                    <li>Numéro de Compte / IBAN : N/A (Champ 'payment_info' non structuré)</li>
+                    <li>Code SWIFT/BIC : N/A (Champ 'payment_info' non structuré)</li>
+                    <li>Titulaire du Compte : N/A (Champ 'payment_info' non structuré)</li>
                 </ul>
             </div>
         </div>
@@ -234,41 +210,41 @@
         <div class="article">
             <h3 class="article-title">Article 3 : Conditions de Livraison</h3>
             <div class="article-content">
-                <p>3.1. <span class="underline">Incoterms® :</span> {{delivery_incoterms}}.</p>
-                <p>3.2. <span class="underline">Lieu de Livraison :</span> {{delivery_place}}.</p>
-                <p>3.3. <span class="underline">Date de Livraison Estimée :</span> {{estimated_delivery_date}}.</p>
-                <p>3.4. <span class="underline">Expéditions Partielles :</span> {{partial_shipments_allowed_description}}.</p>
-                <p>3.5. <span class="underline">Documents d'Expédition Requis :</span> {{shipping_documents_required}}.</p>
+                <p>3.1. <span class="underline">Incoterms® :</span> .</p>
+                <p>3.2. <span class="underline">Lieu de Livraison :</span> .</p>
+                <p>3.3. <span class="underline">Date de Livraison Estimée :</span> .</p>
+                <p>3.4. <span class="underline">Expéditions Partielles :</span> .</p>
+                <p>3.5. <span class="underline">Documents d'Expédition Requis :</span> .</p>
             </div>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 4 : Inspection des Marchandises</h3>
             <div class="article-content">
-                <p>{{inspection_of_goods_clause}}</p>
+                <p></p>
             </div>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 5 : Garantie</h3>
             <div class="article-content">
-                <p>5.1. <span class="underline">Période de Garantie :</span> {{warranty_period}}.</p>
-                <p>5.2. <span class="underline">Conditions de Garantie :</span> {{warranty_conditions}}.</p>
+                <p>5.1. <span class="underline">Période de Garantie :</span> .</p>
+                <p>5.2. <span class="underline">Conditions de Garantie :</span> .</p>
             </div>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 6 : Force Majeure</h3>
             <div class="article-content">
-                <p>{{force_majeure_clause}}</p>
+                <p></p>
             </div>
         </div>
 
         <div class="article">
             <h3 class="article-title">Article 7 : Droit Applicable et Résolution des Litiges</h3>
             <div class="article-content">
-                <p>7.1. <span class="underline">Droit Applicable :</span> Le présent contrat est régi et interprété conformément aux lois de {{applicable_law_jurisdiction}}.</p>
-                <p>7.2. <span class="underline">Résolution des Litiges :</span> {{dispute_resolution_method}}.</p>
+                <p>7.1. <span class="underline">Droit Applicable :</span> Le présent contrat est régi et interprété conformément aux lois de .</p>
+                <p>7.2. <span class="underline">Résolution des Litiges :</span> .</p>
             </div>
         </div>
 
@@ -285,32 +261,23 @@
                 <p class="bold text-center">POUR LE VENDEUR :</p>
                 <div style="height: 50px;"></div>
                 <p style="border-top: 1px solid #000; padding-top: 5px;">Signature :</p>
-                <p>Nom : {{seller_signature_name}}</p>
-                <p>Titre : {{seller_signature_title}}</p>
-                <p>Date : {{seller_signature_date}}</p>
+                <p>Nom : </p>
+                <p>Titre : </p>
+                <p>Date : </p>
             </div>
             <div class="signature-block">
                 <p class="bold text-center">POUR L'ACHETEUR :</p>
                 <div style="height: 50px;"></div>
                 <p style="border-top: 1px solid #000; padding-top: 5px;">Signature :</p>
-                <p>Nom : {{buyer_signature_name}}</p>
-                <p>Titre : {{buyer_signature_title}}</p>
-                <p>Date : {{buyer_signature_date}}</p>
+                <p>Nom : </p>
+                <p>Titre : </p>
+                <p>Date : </p>
             </div>
         </div>
 
-        {{#if annexes_list}}
-        <div class="annex-list">
-            <h3 class="article-title">Annexes</h3>
-            <p>Les documents suivants sont joints et font partie intégrante du présent contrat :</p>
-            <ul>
-                {{#each annexes_list}}
-                <li>{{annex_title}}</li>
-                {{/each}}
-            </ul>
-            {{#if annexes_placeholder_text}}<p>{{annexes_placeholder_text}}</p>{{/if}}
+        
         </div>
-        {{/if}}
+        
 
     </div>
 </body>
