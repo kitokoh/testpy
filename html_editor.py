@@ -391,4 +391,3 @@ if __name__ == '__main__':
     db_manager.get_document_context_data = original_get_document_context_data
 
     sys.exit(app_exit_code)
-    
