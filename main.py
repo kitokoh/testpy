@@ -122,15 +122,21 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id
         self.contact_data = contact_data or {}
-        self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
-        self.setWindowTitle(self.tr("Gestion des Modèles"))
-        self.setMinimumSize(600, 400)
+        if self.contact_data:
+            self.setWindowTitle(self.tr("Modifier Contact"))
+        else:
+            self.setWindowTitle(self.tr("Ajouter Contact"))
+        self.setMinimumSize(450, 320) # Adjusted size
         self.setup_ui()
         
     def setup_ui(self):
         layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+        layout.setSpacing(10)
+        # self.setMinimumWidth(400) # Covered by setMinimumSize
+
+        # Consistent padding for input widgets
+        input_style = "QLineEdit, QCheckBox { padding: 3px; }"
+        self.setStyleSheet(input_style)
         
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
         layout.addRow(self.tr("Nom complet:"), self.name_input)
@@ -149,11 +155,18 @@ class ContactDialog(QDialog):
         layout.addRow(self.primary_check)
         
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setStyleSheet("padding: 5px 15px;") # Standard padding
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
+        # UI Enhancements Applied
         
     def get_data(self):
         return {
@@ -624,18 +637,23 @@ class ProductDialog(QDialog):
         self.client_id = client_id
         self.product_data = product_data or {}
         self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data else self.tr("Modifier Produit"))
+        self.setMinimumSize(450, 350) # Adjusted size
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+        layout.setSpacing(10)
+        # self.setMinimumWidth(400) # Covered by setMinimumSize
+
+        # Consistent padding for input widgets
+        input_style = "QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }"
+        self.setStyleSheet(input_style)
 
         self.name_input = QLineEdit(self.product_data.get("name", ""))
         layout.addRow(self.tr("Nom du Produit:"), self.name_input)
 
         self.description_input = QTextEdit(self.product_data.get("description", ""))
-        self.description_input.setFixedHeight(80)
+        self.description_input.setFixedHeight(80) # Keep specified height
         layout.addRow(self.tr("Description:"), self.description_input)
 
         self.quantity_input = QDoubleSpinBox()
@@ -653,18 +671,29 @@ class ProductDialog(QDialog):
         
         total_price_title_label = QLabel(self.tr("Prix Total:"))
         self.total_price_label = QLabel("€ 0.00") # Currency might need localization
-        self.total_price_label.setStyleSheet("font-weight: bold;")
+        font = self.total_price_label.font()
+        font.setPointSize(font.pointSize() + 2) # Slightly larger font
+        font.setBold(True)
+        self.total_price_label.setFont(font)
+        self.total_price_label.setStyleSheet("color: #2c3e50; padding: 5px 0;") # Darker color and some vertical padding
         layout.addRow(total_price_title_label, self.total_price_label)
 
         if self.product_data:
             self.update_total_price()
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setStyleSheet("padding: 5px 15px;")
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
+        # UI Enhancements Applied
 
     def update_total_price(self):
         quantity = self.quantity_input.value()
@@ -688,11 +717,16 @@ class CreateDocumentDialog(QDialog):
         self.client_info = client_info
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(550, 350) # Adjusted size
         self.setup_ui()
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setSpacing(10) # Add spacing
+
+        # Consistent padding for list/combos
+        input_style = "QComboBox, QListWidget { padding: 3px; }"
+        self.setStyleSheet(input_style)
         
         # Langue sélection
         lang_layout = QHBoxLayout()
@@ -713,17 +747,22 @@ class CreateDocumentDialog(QDialog):
         
         # Boutons
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10) # Spacing for buttons
+
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
+        create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
         create_btn.clicked.connect(self.create_documents)
         btn_layout.addWidget(create_btn)
         
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_btn.setStyleSheet("padding: 5px 15px;")
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
         
         layout.addLayout(btn_layout)
+        # UI Enhancements Applied
         
     def load_templates(self):
         self.templates_list.clear()
@@ -2705,11 +2744,46 @@ class DocumentManager(QMainWindow):
                 }
                 self.clients_data_map[actual_new_client_id] = ui_map_data
                 self.add_client_to_list_widget(ui_map_data) # Update client list display
-            
+
             # Clear input fields
             self.client_name_input.clear(); self.company_name_input.clear(); self.client_need_input.clear()
             self.project_id_input_field.clear(); self.final_price_input.setValue(0)
             # Optionally reset country/city/language combos to default
+
+            # START of new dialog sequence
+            # At this point, actual_new_client_id and ui_map_data are available.
+            # Dialog sequence logic verified
+
+            # 1. Contact Dialog
+            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=self)
+            if contact_dialog.exec_() == QDialog.Accepted:
+                # Contact dialog accepted, proceed to Product Dialog
+                # Optionally, process contact_dialog.get_data() here if needed immediately
+
+                # 2. Product Dialog
+                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=self)
+                if product_dialog.exec_() == QDialog.Accepted:
+                    # Product dialog accepted, proceed to Create Document Dialog
+                    # Optionally, process product_dialog.get_data() here
+
+                    # 3. Create Document Dialog
+                    # Ensure ui_map_data is available and correctly structured for client_info
+                    if ui_map_data:
+                        create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
+                        if create_document_dialog.exec_() == QDialog.Accepted:
+                            # All dialogs completed successfully
+                            print("CreateDocumentDialog accepted, all dialogs in sequence complete.")
+                        else:
+                            print("CreateDocumentDialog cancelled.")
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur Données Client"),
+                                            self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
+                else:
+                    print("ProductDialog cancelled.")
+            else:
+                print("ContactDialog cancelled.")
+
+            # END of new dialog sequence
             
             QMessageBox.information(self, self.tr("Client Créé"),
                                     self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
