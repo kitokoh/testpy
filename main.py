@@ -39,6 +39,7 @@ from docx import Document # Added for .docx support
 from company_management import CompanyTabWidget # Added for Company Management
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
+from html_to_pdf_util import convert_html_to_pdf # For PDF generation from HTML
 
 import sqlite3
 
@@ -1673,6 +1674,21 @@ class ClientWidget(QWidget):
         self.load_contacts()
         self.load_products()
 
+    def _handle_open_pdf_action(self, file_path):
+        print(f"Action: Open PDF for {file_path}")
+        # This method will now call generate_pdf_for_document
+        # client_info is available in self.client_info
+        if not self.client_info or 'client_id' not in self.client_info:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
+            return
+
+        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self)
+        if generated_pdf_path:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+            # Optionally, refresh doc table if the PDF is saved in a way it should appear there
+            # self.populate_doc_table()
+
+
     def populate_details_layout(self):
         # Clear existing rows from details_layout if any, before repopulating
         while self.details_layout.rowCount() > 0:
@@ -1819,31 +1835,50 @@ class ClientWidget(QWidget):
                     
                     action_widget = QWidget()
                     action_layout = QHBoxLayout(action_widget)
-                    action_layout.setContentsMargins(0, 0, 0, 0)
+                    action_layout.setContentsMargins(2, 2, 2, 2) # Small margins
+                    action_layout.setSpacing(5) # Spacing between buttons
+
+                    # Button 1: Ouvrir PDF (Placeholder)
+                    pdf_btn = QPushButton("PDF") # Placeholder icon/text
+                    pdf_btn.setIcon(QIcon.fromTheme("application-pdf", QIcon("📄"))) # Fallback icon
+                    pdf_btn.setToolTip(self.tr("Ouvrir PDF du document"))
+                    pdf_btn.setFixedSize(30, 30)
+                    pdf_btn.clicked.connect(lambda _, p=file_path: self._handle_open_pdf_action(p))
+                    action_layout.addWidget(pdf_btn)
+
+                    # Button 2: Afficher Source
+                    source_btn = QPushButton("👁️") # Placeholder icon/text
+                    source_btn.setIcon(QIcon.fromTheme("document-properties", QIcon("👁️"))) # Fallback icon
+                    source_btn.setToolTip(self.tr("Afficher le fichier source"))
+                    source_btn.setFixedSize(30, 30)
+                    source_btn.clicked.connect(lambda _, p=file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
+                    action_layout.addWidget(source_btn)
                     
-                    open_btn_i = QPushButton("📄")
-                    # open_btn_i.setIcon(QIcon.fromTheme("document-open")) # Icon removed
-                    open_btn_i.setToolTip(self.tr("Ouvrir le document"))
-                    open_btn_i.setFixedSize(32, 32) # Adjusted size
-                    open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
-                    action_layout.addWidget(open_btn_i)
+                    # Button 3: Modifier Contenu (only for Excel/HTML)
+                    if file_name.lower().endswith(('.xlsx', '.html')):
+                        edit_btn = QPushButton("✏️")
+                        edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon("✏️"))) # Fallback icon
+                        edit_btn.setToolTip(self.tr("Modifier le contenu du document"))
+                        edit_btn.setFixedSize(30, 30)
+                        edit_btn.clicked.connect(lambda _, p=file_path: self.open_document(p)) # open_document handles editor logic
+                        action_layout.addWidget(edit_btn)
+                    else:
+                        # Add a spacer or disabled button if not editable to maintain layout consistency
+                        spacer_widget = QWidget()
+                        spacer_widget.setFixedSize(30,30)
+                        action_layout.addWidget(spacer_widget)
+
+
+                    # Button 4: Supprimer
+                    delete_btn = QPushButton("🗑️")
+                    delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon("🗑️"))) # Fallback icon
+                    delete_btn.setToolTip(self.tr("Supprimer le document"))
+                    delete_btn.setFixedSize(30, 30)
+                    delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p))
+                    action_layout.addWidget(delete_btn)
                     
-                    if file_name.endswith('.xlsx') or file_name.endswith('.html'): # Allow edit for HTML too
-                        edit_btn_i = QPushButton("✏️")
-                        # edit_btn_i.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
-                        edit_btn_i.setToolTip(self.tr("Éditer le document"))
-                        edit_btn_i.setFixedSize(32, 32) # Adjusted size
-                        # For Excel, open_document handles ExcelEditor. For HTML, it handles HtmlEditor.
-                        edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
-                        action_layout.addWidget(edit_btn_i)
-                    
-                    delete_btn_i = QPushButton("🗑️")
-                    # delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
-                    delete_btn_i.setToolTip(self.tr("Supprimer le document"))
-                    delete_btn_i.setFixedSize(32, 32) # Adjusted size
-                    delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document(p))
-                    action_layout.addWidget(delete_btn_i)
-                    
+                    action_layout.addStretch() # Push buttons to the left if there's space
+                    action_widget.setLayout(action_layout) # Set the layout on the widget
                     self.doc_table.setCellWidget(row, 4, action_widget)
                     row += 1
 
@@ -1879,21 +1914,59 @@ class ClientWidget(QWidget):
             try:
                 # Data passed to editors is data, not UI text.
                 editor_client_data = {
-                    "Nom du client": self.client_info.get("client_name", ""),
-                    "Besoin": self.client_info.get("need", ""),
-                    "price": self.client_info.get("price", 0),
-                    "project_identifier": self.client_info.get("project_identifier", ""),
+                    "client_id": self.client_info.get("client_id"), # Crucial for DB context
+                    "Nom du client": self.client_info.get("client_name", ""), # Legacy key, keep for compatibility
+                    "client_name": self.client_info.get("client_name", ""), # Preferred key
                     "company_name": self.client_info.get("company_name", ""),
-                    "country": self.client_info.get("country", ""),
-                    "city": self.client_info.get("city", ""),
+                    "Besoin": self.client_info.get("need", ""), # 'need' is primary_need_description in client_info map
+                    "primary_need_description": self.client_info.get("need", ""), # Explicitly map
+                    "project_identifier": self.client_info.get("project_identifier", ""),
+                    "country": self.client_info.get("country", ""), # This is country_name
+                    "country_id": self.client_info.get("country_id"),
+                    "city": self.client_info.get("city", ""), # This is city_name
+                    "city_id": self.client_info.get("city_id"),
+                    "price": self.client_info.get("price", 0), # raw_price
+                    "status": self.client_info.get("status"), # status name
+                    "status_id": self.client_info.get("status_id"),
+                    "selected_languages": self.client_info.get("selected_languages"), # list
+                    "notes": self.client_info.get("notes"),
+                    "creation_date": self.client_info.get("creation_date"),
+                    "category": self.client_info.get("category"),
+                    "base_folder_path": self.client_info.get("base_folder_path")
+                    # Add any other direct fields from client_info that get_document_context_data might use
+                    # or that HtmlEditor might directly use for its own templating logic.
                 }
                 if file_path.lower().endswith('.xlsx'):
                     editor = ExcelEditor(file_path, parent=self)
-                    editor.exec_()
+                    if editor.exec_() == QDialog.Accepted:
+                        expected_pdf_basename = os.path.splitext(os.path.basename(file_path))[0] + "_" + datetime.now().strftime('%Y%m%d') + ".pdf"
+                        expected_pdf_path = os.path.join(os.path.dirname(file_path), expected_pdf_basename)
+                        if os.path.exists(expected_pdf_path):
+                            archive_timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                            archive_pdf_name = os.path.splitext(expected_pdf_path)[0] + f"_archive_{archive_timestamp}.pdf"
+                            try:
+                                os.rename(expected_pdf_path, os.path.join(os.path.dirname(expected_pdf_path), archive_pdf_name))
+                                print(f"Archived existing PDF to: {archive_pdf_name}")
+                            except OSError as e_archive:
+                                print(f"Error archiving PDF {expected_pdf_path}: {e_archive}")
+                        generate_pdf_for_document(file_path, self.client_info, self) # This will show info message for XLSX
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
                     html_editor_dialog = HtmlEditor(file_path, client_data=editor_client_data, parent=self)
-                    html_editor_dialog.exec_()
+                    if html_editor_dialog.exec_() == QDialog.Accepted:
+                        expected_pdf_basename = os.path.splitext(os.path.basename(file_path))[0] + "_" + datetime.now().strftime('%Y%m%d') + ".pdf"
+                        expected_pdf_path = os.path.join(os.path.dirname(file_path), expected_pdf_basename)
+                        if os.path.exists(expected_pdf_path):
+                            archive_timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                            archive_pdf_name = os.path.splitext(expected_pdf_path)[0] + f"_archive_{archive_timestamp}.pdf"
+                            try:
+                                os.rename(expected_pdf_path, os.path.join(os.path.dirname(expected_pdf_path), archive_pdf_name))
+                                print(f"Archived existing PDF to: {archive_pdf_name}")
+                            except OSError as e_archive:
+                                print(f"Error archiving PDF {expected_pdf_path}: {e_archive}")
+                        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self)
+                        if generated_pdf_path:
+                             print(f"Updated PDF generated at: {generated_pdf_path}")
                     self.populate_doc_table()
                 elif file_path.lower().endswith(('.docx', '.pdf')):
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
@@ -3660,6 +3733,75 @@ class SettingsDialog(QDialog):
             "smtp_server": self.smtp_server_input_field.text(), "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(), "smtp_password": self.smtp_pass_input_field.text()
         }
+
+def main():
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'): QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'): QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
+    # Determine language for translations
+    language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
+
+
+def generate_pdf_for_document(source_file_path: str, client_info: dict, parent_widget=None) -> str | None:
+    """
+    Generates a PDF for a given source document (HTML, XLSX, DOCX).
+    For HTML, it converts the content to PDF.
+    For XLSX/DOCX, it informs the user that direct conversion is not supported.
+    """
+    if not client_info or 'client_id' not in client_info:
+        QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur Client"),
+                            QCoreApplication.translate("generate_pdf", "ID Client manquant. Impossible de générer le PDF."))
+        return None
+
+    client_name = client_info.get('client_name', 'UnknownClient')
+    file_name, file_ext = os.path.splitext(os.path.basename(source_file_path))
+    current_date_str = datetime.now().strftime("%Y%m%d")
+    output_pdf_filename = f"{file_name}_{current_date_str}.pdf"
+    output_pdf_path = os.path.join(os.path.dirname(source_file_path), output_pdf_filename)
+
+    if file_ext.lower() == '.html':
+        try:
+            with open(source_file_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+
+            default_company_obj = db_manager.get_default_company()
+            default_company_id = default_company_obj['company_id'] if default_company_obj else None
+            if not default_company_id:
+                 QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Avertissement"),
+                                        QCoreApplication.translate("generate_pdf", "Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants."))
+
+            # Use HtmlEditor's static method for populating content
+            # Ensure client_info passed here is comprehensive enough for populate_html_content
+            processed_html = HtmlEditor.populate_html_content(html_content, client_info, default_company_id)
+
+            # Use the utility function for conversion
+            # base_url could be the directory of the source_file_path for relative assets
+            base_url = QUrl.fromLocalFile(os.path.dirname(source_file_path)).toString()
+            pdf_bytes = convert_html_to_pdf(processed_html, base_url=base_url)
+
+            if pdf_bytes:
+                with open(output_pdf_path, 'wb') as f_pdf:
+                    f_pdf.write(pdf_bytes)
+                QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Succès PDF"),
+                                        QCoreApplication.translate("generate_pdf", "PDF généré avec succès:\n{0}").format(output_pdf_path))
+                return output_pdf_path
+            else:
+                QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur PDF"),
+                                    QCoreApplication.translate("generate_pdf", "La conversion HTML en PDF a échoué. Le contenu PDF résultant était vide."))
+                return None
+        except Exception as e:
+            QMessageBox.critical(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur HTML vers PDF"),
+                                 QCoreApplication.translate("generate_pdf", "Erreur lors de la génération du PDF à partir du HTML:\n{0}").format(str(e)))
+            return None
+    elif file_ext.lower() in ['.xlsx', '.docx']:
+        QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Fonctionnalité non disponible"),
+                                QCoreApplication.translate("generate_pdf", "La génération PDF directe pour les fichiers {0} n'est pas supportée.\nVeuillez utiliser la fonction 'Enregistrer sous PDF' ou 'Exporter vers PDF' de l'application correspondante.").format(file_ext.upper()))
+        return None
+    else:
+        QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Type de fichier non supporté"),
+                            QCoreApplication.translate("generate_pdf", "La génération PDF n'est pas supportée pour les fichiers de type '{0}'.").format(file_ext))
+        return None
+
 
 def main():
     if hasattr(Qt, 'AA_EnableHighDpiScaling'): QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
