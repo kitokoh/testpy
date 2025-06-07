@@ -39,6 +39,7 @@ from docx import Document # Added for .docx support
 from company_management import CompanyTabWidget # Added for Company Management
 from datetime import datetime # Ensure datetime is explicitly imported if not already for populate_docx_template
 from projectManagement import MainDashboard as ProjectManagementDashboard # Added for integration
+from html_to_pdf_util import convert_html_to_pdf # For PDF generation from HTML
 
 import sqlite3
 
@@ -682,9 +683,68 @@ class ProductDialog(QDialog):
         self.client_id = client_id
         # self.product_data = product_data or {} # Original single product data, not used for multi-line
         self.setWindowTitle(self.tr("Ajouter Produits au Client")) # Title for multi-line
-        self.setMinimumSize(700, 600) # Adjusted for table and new layout
+        self.setMinimumSize(900, 800) # Adjusted for two-column layout
         # Refactor: Multi-line product entry
         self.setup_ui()
+        self._load_existing_products() # Call to load products initially
+
+    def _load_existing_products(self):
+        self.existing_products_list.clear()
+        try:
+            products = db_manager.get_all_products_for_selection() # This function was added in a previous step
+            if products is None: products = [] # Ensure products is iterable
+
+            for product_data in products:
+                # product_id = product_data.get('product_id')
+                product_name = product_data.get('product_name', 'N/A')
+                description = product_data.get('description', '')
+                base_unit_price = product_data.get('base_unit_price', 0.0)
+
+                # Create a more informative display string
+                desc_snippet = (description[:30] + '...') if len(description) > 30 else description
+                display_text = f"{product_name} (Desc: {desc_snippet}, Prix: {base_unit_price:.2f} €)"
+
+                item = QListWidgetItem(display_text)
+                item.setData(Qt.UserRole, product_data) # Store the whole dictionary
+                self.existing_products_list.addItem(item)
+        except Exception as e:
+            print(f"Error loading existing products: {e}")
+            # Optionally, show a message to the user
+            QMessageBox.warning(self, self.tr("Erreur Chargement Produits"),
+                                self.tr("Impossible de charger la liste des produits existants:\n{0}").format(str(e)))
+
+    def _filter_existing_products_list(self):
+        search_text = self.search_existing_product_input.text().lower()
+        for i in range(self.existing_products_list.count()):
+            item = self.existing_products_list.item(i)
+            product_data = item.data(Qt.UserRole)
+            if product_data: # Check if data exists
+                item_text = product_data.get('product_name', '').lower()
+                item_description = product_data.get('description', '').lower()
+                # Make search more comprehensive by checking name and description
+                if search_text in item_text or search_text in item_description:
+                    item.setHidden(False)
+                else:
+                    item.setHidden(True)
+            else: # If no data, hide by default or handle as error
+                item.setHidden(True)
+
+    def _populate_form_from_selected_product(self, item):
+        product_data = item.data(Qt.UserRole)
+        if product_data:
+            self.name_input.setText(product_data.get('product_name', ''))
+            self.description_input.setPlainText(product_data.get('description', ''))
+
+            base_price = product_data.get('base_unit_price', 0.0)
+            try:
+                self.unit_price_input.setValue(float(base_price))
+            except (ValueError, TypeError):
+                self.unit_price_input.setValue(0.0)
+
+            self.quantity_input.setValue(1.0) # Default quantity for a selected product
+            self.quantity_input.setFocus() # Set focus to quantity for quick input
+            self._update_current_line_total_preview() # Update total preview based on populated data
+
 
     def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
         widget = QWidget()
@@ -706,44 +766,55 @@ class ProductDialog(QDialog):
         header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
         main_layout.addWidget(header_label)
 
-        # Input Group for Current Product Line
-        input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle"))
+        # Two-column layout for search and form
+        two_columns_layout = QHBoxLayout()
+
+        # Left Column: Existing Product Search Group
+        search_group_box = QGroupBox(self.tr("Rechercher Produit Existant"))
+        search_layout = QVBoxLayout(search_group_box)
+        self.search_existing_product_input = QLineEdit()
+        self.search_existing_product_input.setPlaceholderText(self.tr("Tapez pour rechercher..."))
+        self.search_existing_product_input.textChanged.connect(self._filter_existing_products_list)
+        search_layout.addWidget(self.search_existing_product_input)
+        self.existing_products_list = QListWidget()
+        self.existing_products_list.setMinimumHeight(150) # Increased height for better visibility in column
+        self.existing_products_list.itemDoubleClicked.connect(self._populate_form_from_selected_product)
+        search_layout.addWidget(self.existing_products_list)
+        two_columns_layout.addWidget(search_group_box, 1) # Add to left, stretch factor 1
+
+        # Right Column: Input Group for Current Product Line
+        input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"))
         form_layout = QFormLayout(input_group_box)
         form_layout.setSpacing(10)
-
         input_style = "QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }"
         self.setStyleSheet(input_style) # Apply to dialog
-
         self.name_input = QLineEdit()
         form_layout.addRow(self._create_icon_label_widget("package-x-generic", self.tr("Nom du Produit:")), self.name_input)
-
         self.description_input = QTextEdit()
-        self.description_input.setFixedHeight(60) # Slightly smaller for this context
+        self.description_input.setFixedHeight(80) # Increased height for better visibility in column
         form_layout.addRow(self.tr("Description:"), self.description_input)
-
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0, 1000000)
         self.quantity_input.setValue(0.0)
         self.quantity_input.valueChanged.connect(self._update_current_line_total_preview)
         form_layout.addRow(self._create_icon_label_widget("format-list-numbered", self.tr("Quantité:")), self.quantity_input)
-
         self.unit_price_input = QDoubleSpinBox()
         self.unit_price_input.setRange(0, 10000000)
         self.unit_price_input.setPrefix("€ ")
         self.unit_price_input.setValue(0.0)
         self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview)
         form_layout.addRow(self._create_icon_label_widget("cash", self.tr("Prix Unitaire:")), self.unit_price_input)
-
         current_line_total_title_label = QLabel(self.tr("Total Ligne Actuelle:"))
         self.current_line_total_label = QLabel("€ 0.00")
         font = self.current_line_total_label.font()
         font.setBold(True)
         self.current_line_total_label.setFont(font)
         form_layout.addRow(current_line_total_title_label, self.current_line_total_label)
+        two_columns_layout.addWidget(input_group_box, 2) # Add to right, stretch factor 2 (more space for form)
 
-        main_layout.addWidget(input_group_box)
+        main_layout.addLayout(two_columns_layout) # Add the two-column section to the main vertical layout
 
-        # "Add Line" Button
+        # "Add Line" Button (remains below the two columns)
         self.add_line_btn = QPushButton(self.tr("Ajouter Produit à la Liste"))
         self.add_line_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_line_btn.setStyleSheet("background-color: #3498db; color: white; padding: 5px 10px;")
@@ -909,6 +980,66 @@ class ProductDialog(QDialog):
                 "total_price": line_total
             })
         return products_list
+
+class EditProductLineDialog(QDialog):
+    def __init__(self, product_data, parent=None):
+        super().__init__(parent)
+        self.product_data = product_data # Store the passed product data
+        self.setWindowTitle(self.tr("Modifier Ligne de Produit"))
+        self.setMinimumSize(450, 300) # Reasonable starting size
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self) # Main layout for the dialog
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        # Name Input
+        self.name_input = QLineEdit(self.product_data.get('name', ''))
+        form_layout.addRow(self.tr("Nom du Produit:"), self.name_input)
+
+        # Description Input
+        self.description_input = QTextEdit(self.product_data.get('description', ''))
+        self.description_input.setFixedHeight(80)
+        form_layout.addRow(self.tr("Description:"), self.description_input)
+
+        # Quantity Input
+        self.quantity_input = QDoubleSpinBox()
+        self.quantity_input.setRange(0.01, 1000000) # Min quantity 0.01
+        self.quantity_input.setValue(float(self.product_data.get('quantity', 1.0)))
+        form_layout.addRow(self.tr("Quantité:"), self.quantity_input)
+
+        # Unit Price Input
+        self.unit_price_input = QDoubleSpinBox()
+        self.unit_price_input.setRange(0.00, 10000000)
+        self.unit_price_input.setPrefix("€ ")
+        self.unit_price_input.setDecimals(2) # Ensure two decimal places
+        self.unit_price_input.setValue(float(self.product_data.get('unit_price', 0.0)))
+        form_layout.addRow(self.tr("Prix Unitaire:"), self.unit_price_input)
+
+        layout.addLayout(form_layout)
+        layout.addStretch()
+
+        # Dialog Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
+        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+    def get_data(self) -> dict:
+        return {
+            "name": self.name_input.text().strip(),
+            "description": self.description_input.toPlainText().strip(),
+            "quantity": self.quantity_input.value(),
+            "unit_price": self.unit_price_input.value(),
+            "product_id": self.product_data.get('product_id'),
+            "client_project_product_id": self.product_data.get('client_project_product_id')
+        }
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
@@ -1598,6 +1729,21 @@ class ClientWidget(QWidget):
         self.load_contacts()
         self.load_products()
 
+    def _handle_open_pdf_action(self, file_path):
+        print(f"Action: Open PDF for {file_path}")
+        # This method will now call generate_pdf_for_document
+        # client_info is available in self.client_info
+        if not self.client_info or 'client_id' not in self.client_info:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
+            return
+
+        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self)
+        if generated_pdf_path:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+            # Optionally, refresh doc table if the PDF is saved in a way it should appear there
+            # self.populate_doc_table()
+
+
     def populate_details_layout(self):
         # Clear existing rows from details_layout if any, before repopulating
         while self.details_layout.rowCount() > 0:
@@ -1744,31 +1890,50 @@ class ClientWidget(QWidget):
                     
                     action_widget = QWidget()
                     action_layout = QHBoxLayout(action_widget)
-                    action_layout.setContentsMargins(0, 0, 0, 0)
+                    action_layout.setContentsMargins(2, 2, 2, 2) # Small margins
+                    action_layout.setSpacing(5) # Spacing between buttons
+
+                    # Button 1: Ouvrir PDF (Placeholder)
+                    pdf_btn = QPushButton("PDF") # Placeholder icon/text
+                    pdf_btn.setIcon(QIcon.fromTheme("application-pdf", QIcon("📄"))) # Fallback icon
+                    pdf_btn.setToolTip(self.tr("Ouvrir PDF du document"))
+                    pdf_btn.setFixedSize(30, 30)
+                    pdf_btn.clicked.connect(lambda _, p=file_path: self._handle_open_pdf_action(p))
+                    action_layout.addWidget(pdf_btn)
+
+                    # Button 2: Afficher Source
+                    source_btn = QPushButton("👁️") # Placeholder icon/text
+                    source_btn.setIcon(QIcon.fromTheme("document-properties", QIcon("👁️"))) # Fallback icon
+                    source_btn.setToolTip(self.tr("Afficher le fichier source"))
+                    source_btn.setFixedSize(30, 30)
+                    source_btn.clicked.connect(lambda _, p=file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
+                    action_layout.addWidget(source_btn)
                     
-                    open_btn_i = QPushButton("📄")
-                    # open_btn_i.setIcon(QIcon.fromTheme("document-open")) # Icon removed
-                    open_btn_i.setToolTip(self.tr("Ouvrir le document"))
-                    open_btn_i.setFixedSize(32, 32) # Adjusted size
-                    open_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
-                    action_layout.addWidget(open_btn_i)
+                    # Button 3: Modifier Contenu (only for Excel/HTML)
+                    if file_name.lower().endswith(('.xlsx', '.html')):
+                        edit_btn = QPushButton("✏️")
+                        edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon("✏️"))) # Fallback icon
+                        edit_btn.setToolTip(self.tr("Modifier le contenu du document"))
+                        edit_btn.setFixedSize(30, 30)
+                        edit_btn.clicked.connect(lambda _, p=file_path: self.open_document(p)) # open_document handles editor logic
+                        action_layout.addWidget(edit_btn)
+                    else:
+                        # Add a spacer or disabled button if not editable to maintain layout consistency
+                        spacer_widget = QWidget()
+                        spacer_widget.setFixedSize(30,30)
+                        action_layout.addWidget(spacer_widget)
+
+
+                    # Button 4: Supprimer
+                    delete_btn = QPushButton("🗑️")
+                    delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon("🗑️"))) # Fallback icon
+                    delete_btn.setToolTip(self.tr("Supprimer le document"))
+                    delete_btn.setFixedSize(30, 30)
+                    delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p))
+                    action_layout.addWidget(delete_btn)
                     
-                    if file_name.endswith('.xlsx') or file_name.endswith('.html'): # Allow edit for HTML too
-                        edit_btn_i = QPushButton("✏️")
-                        # edit_btn_i.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
-                        edit_btn_i.setToolTip(self.tr("Éditer le document"))
-                        edit_btn_i.setFixedSize(32, 32) # Adjusted size
-                        # For Excel, open_document handles ExcelEditor. For HTML, it handles HtmlEditor.
-                        edit_btn_i.clicked.connect(lambda _, p=file_path: self.open_document(p))
-                        action_layout.addWidget(edit_btn_i)
-                    
-                    delete_btn_i = QPushButton("🗑️")
-                    # delete_btn_i.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
-                    delete_btn_i.setToolTip(self.tr("Supprimer le document"))
-                    delete_btn_i.setFixedSize(32, 32) # Adjusted size
-                    delete_btn_i.clicked.connect(lambda _, p=file_path: self.delete_document(p))
-                    action_layout.addWidget(delete_btn_i)
-                    
+                    action_layout.addStretch() # Push buttons to the left if there's space
+                    action_widget.setLayout(action_layout) # Set the layout on the widget
                     self.doc_table.setCellWidget(row, 4, action_widget)
                     row += 1
 
@@ -1804,21 +1969,59 @@ class ClientWidget(QWidget):
             try:
                 # Data passed to editors is data, not UI text.
                 editor_client_data = {
-                    "Nom du client": self.client_info.get("client_name", ""),
-                    "Besoin": self.client_info.get("need", ""),
-                    "price": self.client_info.get("price", 0),
-                    "project_identifier": self.client_info.get("project_identifier", ""),
+                    "client_id": self.client_info.get("client_id"), # Crucial for DB context
+                    "Nom du client": self.client_info.get("client_name", ""), # Legacy key, keep for compatibility
+                    "client_name": self.client_info.get("client_name", ""), # Preferred key
                     "company_name": self.client_info.get("company_name", ""),
-                    "country": self.client_info.get("country", ""),
-                    "city": self.client_info.get("city", ""),
+                    "Besoin": self.client_info.get("need", ""), # 'need' is primary_need_description in client_info map
+                    "primary_need_description": self.client_info.get("need", ""), # Explicitly map
+                    "project_identifier": self.client_info.get("project_identifier", ""),
+                    "country": self.client_info.get("country", ""), # This is country_name
+                    "country_id": self.client_info.get("country_id"),
+                    "city": self.client_info.get("city", ""), # This is city_name
+                    "city_id": self.client_info.get("city_id"),
+                    "price": self.client_info.get("price", 0), # raw_price
+                    "status": self.client_info.get("status"), # status name
+                    "status_id": self.client_info.get("status_id"),
+                    "selected_languages": self.client_info.get("selected_languages"), # list
+                    "notes": self.client_info.get("notes"),
+                    "creation_date": self.client_info.get("creation_date"),
+                    "category": self.client_info.get("category"),
+                    "base_folder_path": self.client_info.get("base_folder_path")
+                    # Add any other direct fields from client_info that get_document_context_data might use
+                    # or that HtmlEditor might directly use for its own templating logic.
                 }
                 if file_path.lower().endswith('.xlsx'):
                     editor = ExcelEditor(file_path, parent=self)
-                    editor.exec_()
+                    if editor.exec_() == QDialog.Accepted:
+                        expected_pdf_basename = os.path.splitext(os.path.basename(file_path))[0] + "_" + datetime.now().strftime('%Y%m%d') + ".pdf"
+                        expected_pdf_path = os.path.join(os.path.dirname(file_path), expected_pdf_basename)
+                        if os.path.exists(expected_pdf_path):
+                            archive_timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                            archive_pdf_name = os.path.splitext(expected_pdf_path)[0] + f"_archive_{archive_timestamp}.pdf"
+                            try:
+                                os.rename(expected_pdf_path, os.path.join(os.path.dirname(expected_pdf_path), archive_pdf_name))
+                                print(f"Archived existing PDF to: {archive_pdf_name}")
+                            except OSError as e_archive:
+                                print(f"Error archiving PDF {expected_pdf_path}: {e_archive}")
+                        generate_pdf_for_document(file_path, self.client_info, self) # This will show info message for XLSX
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
                     html_editor_dialog = HtmlEditor(file_path, client_data=editor_client_data, parent=self)
-                    html_editor_dialog.exec_()
+                    if html_editor_dialog.exec_() == QDialog.Accepted:
+                        expected_pdf_basename = os.path.splitext(os.path.basename(file_path))[0] + "_" + datetime.now().strftime('%Y%m%d') + ".pdf"
+                        expected_pdf_path = os.path.join(os.path.dirname(file_path), expected_pdf_basename)
+                        if os.path.exists(expected_pdf_path):
+                            archive_timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                            archive_pdf_name = os.path.splitext(expected_pdf_path)[0] + f"_archive_{archive_timestamp}.pdf"
+                            try:
+                                os.rename(expected_pdf_path, os.path.join(os.path.dirname(expected_pdf_path), archive_pdf_name))
+                                print(f"Archived existing PDF to: {archive_pdf_name}")
+                            except OSError as e_archive:
+                                print(f"Error archiving PDF {expected_pdf_path}: {e_archive}")
+                        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self)
+                        if generated_pdf_path:
+                             print(f"Updated PDF generated at: {generated_pdf_path}")
                     self.populate_doc_table()
                 elif file_path.lower().endswith(('.docx', '.pdf')):
                     QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
@@ -2069,83 +2272,83 @@ class ClientWidget(QWidget):
                  QMessageBox.information(self, self.tr("Information"), self.tr("Certains produits n'ont pas pu être ajoutés. Veuillez vérifier les messages d'erreur."))
 
     def edit_product(self):
-        # FIXME: ProductDialog has been refactored for multi-line entry and no longer supports
-        # pre-populating for a single item edit via its constructor in the same way.
-        # This edit_product method needs a complete rework.
-        # Possible solutions:
-        # 1. Create a new, separate dialog for editing a single product line item.
-        # 2. Modify ProductDialog to have an "edit mode" which might involve passing
-        #    the existing product_data and having the table pre-populated with that one item,
-        #    and then get_data() would need to differentiate or the calling code would
-        #    only expect one item back in edit mode. This is complex.
-        # 3. Change the edit interaction: e.g., delete the line and re-add it using the multi-line dialog.
-        # For now, this functionality is effectively disabled to prevent errors.
-        QMessageBox.warning(self,
-                              self.tr("Fonctionnalité en cours de révision"),
-                              self.tr("La modification des produits est temporairement désactivée et en cours de révision en raison de la nouvelle interface d'ajout multiple de produits."))
-        return
-
         selected_row = self.products_table.currentRow()
-        if selected_row < 0: return
-        
-        # Assuming the hidden ID column (0) stores client_project_product_id
-        cpp_id_item = self.products_table.item(selected_row, 0)
-        if not cpp_id_item: return
-        client_project_product_id = cpp_id_item.data(Qt.UserRole) # This ID is for ClientProjectProducts table
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier."))
+            return
 
-        client_uuid = self.client_info.get("client_id")
+        cpp_id_item = self.products_table.item(selected_row, 0) # Hidden column with client_project_product_id
+        if not cpp_id_item:
+            QMessageBox.critical(self, self.tr("Erreur Données"), self.tr("ID du produit lié introuvable dans la table."))
+            return
+        client_project_product_id = cpp_id_item.data(Qt.UserRole)
 
         try:
-            # Fetch the current linked product details (quantity, price_override)
-            # get_products_for_client_or_project returns a list, we need the specific one by cpp_id
-            # This requires a new function: db_manager.get_client_project_product_by_id(cpp_id)
+            # Fetch complete details of the linked product, including global product info
             linked_product_details = db_manager.get_client_project_product_by_id(client_project_product_id)
 
-            if linked_product_details:
-                # ProductDialog expects 'name', 'description', 'quantity', 'unit_price'
-                # 'name' and 'description' come from the global Product table (joined in linked_product_details)
-                # 'quantity' comes from ClientProjectProducts
-                # 'unit_price' for dialog should be the effective price (override or base)
-                effective_unit_price = linked_product_details.get('unit_price_override', linked_product_details.get('base_unit_price'))
+            if not linked_product_details:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié introuvables dans la base de données."))
+                return
 
-                dialog_data = {
-                    "name": linked_product_details.get('product_name', ''), # From joined Products table
-                    "description": linked_product_details.get('product_description', ''), # From joined Products table
-                    "quantity": linked_product_details.get('quantity', 0),
-                    "unit_price": effective_unit_price
+            # Prepare data for the EditProductLineDialog
+            # The dialog expects 'name', 'description', 'quantity', 'unit_price', 'product_id', 'client_project_product_id'
+            effective_unit_price = linked_product_details.get('unit_price_override', linked_product_details.get('base_unit_price', 0.0))
+
+            dialog_data_for_edit = {
+                "name": linked_product_details.get('product_name', ''),
+                "description": linked_product_details.get('product_description', ''),
+                "quantity": linked_product_details.get('quantity', 1.0),
+                "unit_price": effective_unit_price, # This is the price shown and edited in the dialog
+                "product_id": linked_product_details.get('product_id'),
+                "client_project_product_id": client_project_product_id,
+                # Store original base price for comparison later
+                "original_base_unit_price": linked_product_details.get('base_unit_price', 0.0)
+            }
+
+            dialog = EditProductLineDialog(product_data=dialog_data_for_edit, parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                updated_data_from_dialog = dialog.get_data()
+
+                # 1. Update Global Product (Products table) if name, description, or base price logic dictates
+                global_product_update_payload = {}
+                if updated_data_from_dialog['name'] != linked_product_details.get('product_name'):
+                    global_product_update_payload['product_name'] = updated_data_from_dialog['name']
+                if updated_data_from_dialog['description'] != linked_product_details.get('product_description'):
+                    global_product_update_payload['description'] = updated_data_from_dialog['description']
+
+                # Logic for updating base_unit_price:
+                # If name or description changed, consider the edited price as the new base price for this (potentially now distinct) product.
+                if global_product_update_payload: # If name or description changed
+                     global_product_update_payload['base_unit_price'] = updated_data_from_dialog['unit_price']
+
+                if global_product_update_payload:
+                    db_manager.update_product(updated_data_from_dialog['product_id'], global_product_update_payload)
+
+                # 2. Update Linked Product (ClientProjectProducts table)
+                # Determine unit_price_override based on the potentially updated global product's base_unit_price
+                current_global_product_info = db_manager.get_product_by_id(updated_data_from_dialog['product_id'])
+                current_global_base_price = current_global_product_info.get('base_unit_price', 0.0) if current_global_product_info else 0.0
+
+                unit_price_override_val = None
+                if float(updated_data_from_dialog['unit_price']) != float(current_global_base_price): # Compare as float
+                    unit_price_override_val = updated_data_from_dialog['unit_price']
+
+                link_update_payload = {
+                    'quantity': updated_data_from_dialog['quantity'],
+                    'unit_price_override': unit_price_override_val
+                    # total_price_calculated will be handled by db_manager.update_client_project_product
                 }
 
-                dialog = ProductDialog(client_uuid, dialog_data, parent=self)
-                if dialog.exec_() == QDialog.Accepted:
-                    form_data = dialog.get_data()
-
-                    update_link_data = {
-                        'quantity': form_data['quantity'],
-                        'unit_price_override': form_data['unit_price']
-                                              if form_data['unit_price'] != linked_product_details.get('base_unit_price')
-                                              else None
-                        # total_price_calculated will be handled by db_manager.update_client_project_product
-                    }
-                    # Note: If product name/description from dialog differs, it implies editing the global product.
-                    # This might need db_manager.update_product(linked_product_details['product_id'], {...})
-                    # For now, focusing on quantity/price_override for the link.
-                    if form_data['name'] != linked_product_details.get('product_name') or \
-                       form_data['description'] != linked_product_details.get('product_description'):
-                        db_manager.update_product(linked_product_details['product_id'], {
-                            'product_name': form_data['name'],
-                            'description': form_data['description']
-                            # Base price update could also be considered here if dialog unit_price is meant to update it
-                        })
-
-
-                    if db_manager.update_client_project_product(client_project_product_id, update_link_data):
-                        self.load_products()
-                    else:
-                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du produit lié."))
-            else:
-                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié introuvables."))
+                if db_manager.update_client_project_product(client_project_product_id, link_update_payload):
+                    self.load_products() # Refresh the table
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour avec succès."))
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit liée."))
+            # Else (dialog cancelled), do nothing
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du produit:\n{0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            print(f"Error in edit_product: {e}") # For debugging
 
     def remove_product(self):
         selected_row = self.products_table.currentRow()
@@ -3585,6 +3788,75 @@ class SettingsDialog(QDialog):
             "smtp_server": self.smtp_server_input_field.text(), "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(), "smtp_password": self.smtp_pass_input_field.text()
         }
+
+def main():
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'): QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'): QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+
+    # Determine language for translations
+    language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
+
+
+def generate_pdf_for_document(source_file_path: str, client_info: dict, parent_widget=None) -> str | None:
+    """
+    Generates a PDF for a given source document (HTML, XLSX, DOCX).
+    For HTML, it converts the content to PDF.
+    For XLSX/DOCX, it informs the user that direct conversion is not supported.
+    """
+    if not client_info or 'client_id' not in client_info:
+        QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur Client"),
+                            QCoreApplication.translate("generate_pdf", "ID Client manquant. Impossible de générer le PDF."))
+        return None
+
+    client_name = client_info.get('client_name', 'UnknownClient')
+    file_name, file_ext = os.path.splitext(os.path.basename(source_file_path))
+    current_date_str = datetime.now().strftime("%Y%m%d")
+    output_pdf_filename = f"{file_name}_{current_date_str}.pdf"
+    output_pdf_path = os.path.join(os.path.dirname(source_file_path), output_pdf_filename)
+
+    if file_ext.lower() == '.html':
+        try:
+            with open(source_file_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+
+            default_company_obj = db_manager.get_default_company()
+            default_company_id = default_company_obj['company_id'] if default_company_obj else None
+            if not default_company_id:
+                 QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Avertissement"),
+                                        QCoreApplication.translate("generate_pdf", "Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants."))
+
+            # Use HtmlEditor's static method for populating content
+            # Ensure client_info passed here is comprehensive enough for populate_html_content
+            processed_html = HtmlEditor.populate_html_content(html_content, client_info, default_company_id)
+
+            # Use the utility function for conversion
+            # base_url could be the directory of the source_file_path for relative assets
+            base_url = QUrl.fromLocalFile(os.path.dirname(source_file_path)).toString()
+            pdf_bytes = convert_html_to_pdf(processed_html, base_url=base_url)
+
+            if pdf_bytes:
+                with open(output_pdf_path, 'wb') as f_pdf:
+                    f_pdf.write(pdf_bytes)
+                QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Succès PDF"),
+                                        QCoreApplication.translate("generate_pdf", "PDF généré avec succès:\n{0}").format(output_pdf_path))
+                return output_pdf_path
+            else:
+                QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur PDF"),
+                                    QCoreApplication.translate("generate_pdf", "La conversion HTML en PDF a échoué. Le contenu PDF résultant était vide."))
+                return None
+        except Exception as e:
+            QMessageBox.critical(parent_widget, QCoreApplication.translate("generate_pdf", "Erreur HTML vers PDF"),
+                                 QCoreApplication.translate("generate_pdf", "Erreur lors de la génération du PDF à partir du HTML:\n{0}").format(str(e)))
+            return None
+    elif file_ext.lower() in ['.xlsx', '.docx']:
+        QMessageBox.information(parent_widget, QCoreApplication.translate("generate_pdf", "Fonctionnalité non disponible"),
+                                QCoreApplication.translate("generate_pdf", "La génération PDF directe pour les fichiers {0} n'est pas supportée.\nVeuillez utiliser la fonction 'Enregistrer sous PDF' ou 'Exporter vers PDF' de l'application correspondante.").format(file_ext.upper()))
+        return None
+    else:
+        QMessageBox.warning(parent_widget, QCoreApplication.translate("generate_pdf", "Type de fichier non supporté"),
+                            QCoreApplication.translate("generate_pdf", "La génération PDF n'est pas supportée pour les fichiers de type '{0}'.").format(file_ext))
+        return None
+
 
 def main():
     if hasattr(Qt, 'AA_EnableHighDpiScaling'): QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)

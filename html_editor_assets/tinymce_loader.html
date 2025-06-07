@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>TinyMCE Loader</title>
+    <!-- This path assumes 'tinymce' folder is a sibling to this HTML file -->
+    <script src="tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+    <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+        /* The #tinymce-editor div will be targeted by TinyMCE */
+    </style>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            new QWebChannel(qt.webChannelTransport, function (channel) {
+                window.qt_bridge = channel.objects.qt_bridge;
+
+                tinymce.init({
+                    selector: '#tinymce-editor',
+                    inline: false, // Use iframe editor
+                    plugins: 'code table lists link image preview fullscreen help wordcount anchor searchreplace visualblocks charmap insertdatetime media pagebreak', // Added pagebreak
+                    toolbar: 'undo redo | styleselect | bold italic underline | ' +
+                             'alignleft aligncenter alignright alignjustify | ' +
+                             'bullist numlist outdent indent | link image media | ' +
+                             'table | code preview fullscreen help | pagebreak', // Added pagebreak
+                    height: "100%", // Make the editor fill its container
+                    resize: false, // Optional: disable resizing by the user
+                    license_key: 'gpl', // Or your commercial key
+                    setup: function(editor) {
+                        editor.on('init', function() {
+                            console.log("TinyMCE editor instance initialized.");
+                            if (window.qt_bridge) {
+                                console.log("qt_bridge found, emitting onTinymceInitialized.");
+                                window.qt_bridge.onTinymceInitialized();
+                            } else {
+                                console.error("qt_bridge not found on TinyMCE init.");
+                            }
+                        });
+                        // Optional: Listen for content changes to enable save button etc.
+                        // editor.on('Change', function(e) {
+                        //     if(window.qt_bridge) {
+                        //          window.qt_bridge.receiveHtmlContent(editor.getContent());
+                        //     }
+                        // });
+                    }
+                });
+            });
+        });
+
+        function setEditorContent(htmlContent) {
+            const editor = tinymce.get('tinymce-editor');
+            if (editor) {
+                editor.setContent(htmlContent);
+                return true;
+            }
+            console.error("TinyMCE editor instance not found for setEditorContent.");
+            return false;
+        }
+
+        function getEditorContent() {
+            const editor = tinymce.get('tinymce-editor');
+            if (editor) {
+                return editor.getContent();
+            }
+            console.error("TinyMCE editor instance not found for getEditorContent.");
+            return "";
+        }
+    </script>
+</head>
+<body>
+    <!-- This div will be replaced by TinyMCE -->
+    <div id="tinymce-editor" style="width: 100%; height: 100vh;"></div>
+</body>
+</html>
