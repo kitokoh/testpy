@@ -122,39 +122,96 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id
         self.contact_data = contact_data or {}
-        self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
-        self.setWindowTitle(self.tr("Gestion des Modèles"))
-        self.setMinimumSize(600, 400)
+        if self.contact_data:
+            self.setWindowTitle(self.tr("Modifier Contact"))
+        else:
+            self.setWindowTitle(self.tr("Ajouter Contact"))
+        self.setMinimumSize(450, 380) # Adjusted height for header and button frame
         self.setup_ui()
+
+    def _create_icon_label_widget(self, icon_name, label_text):
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
         
     def setup_ui(self):
-        layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout for header + form + button frame
+        main_layout.setSpacing(15)
+
+        # UI Enhancement: Header Added
+        header_label = QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact"))
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 0, 10, 0) # Add some horizontal margins to the form
+
+        # Consistent padding for input widgets
+        input_style = "QLineEdit, QCheckBox { padding: 3px; }"
+        self.setStyleSheet(input_style) # Apply to dialog for all children
         
+        # UI Enhancement: Icons Added
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
-        layout.addRow(self.tr("Nom complet:"), self.name_input)
+        form_layout.addRow(self._create_icon_label_widget("user", self.tr("Nom complet:")), self.name_input)
         
         self.email_input = QLineEdit(self.contact_data.get("email", ""))
-        layout.addRow(self.tr("Email:"), self.email_input)
+        form_layout.addRow(self._create_icon_label_widget("mail-message-new", self.tr("Email:")), self.email_input)
         
         self.phone_input = QLineEdit(self.contact_data.get("phone", ""))
-        layout.addRow(self.tr("Téléphone:"), self.phone_input)
+        form_layout.addRow(self._create_icon_label_widget("phone", self.tr("Téléphone:")), self.phone_input)
         
         self.position_input = QLineEdit(self.contact_data.get("position", ""))
-        layout.addRow(self.tr("Poste:"), self.position_input)
+        form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user", self.tr("Poste:")), self.position_input) # Using a generic user-related icon
         
         self.primary_check = QCheckBox(self.tr("Contact principal"))
         self.primary_check.setChecked(bool(self.contact_data.get("is_primary", 0)))
-        layout.addRow(self.primary_check)
+        # UI Enhancement: Visual Cue for Primary Contact
+        self.primary_check.stateChanged.connect(self.update_primary_contact_visuals)
+        form_layout.addRow(self._create_icon_label_widget("emblem-important", self.tr("Principal:")), self.primary_check) # Icon for primary status
         
+        main_layout.addLayout(form_layout)
+        main_layout.addStretch() # Add stretch before the button frame
+
+        # UI Enhancement: Improved Button Grouping
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame") # For potential specific styling if needed
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0) # No margins for the layout within the frame
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_button.setStyleSheet("padding: 5px 15px;")
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addRow(button_box)
         
+        button_frame_layout.addWidget(button_box)
+        main_layout.addWidget(button_frame)
+
+        self.update_primary_contact_visuals(self.primary_check.checkState()) # Set initial visual state
+        # UI Enhancements Applied
+
+    def update_primary_contact_visuals(self, state):
+        if state == Qt.Checked:
+            self.name_input.setStyleSheet("background-color: #e6ffe6; padding: 3px;") # Light green
+        else:
+            self.name_input.setStyleSheet("padding: 3px;") # Revert to default padding style
+
     def get_data(self):
         return {
             "name": self.name_input.text().strip(),
@@ -624,47 +681,97 @@ class ProductDialog(QDialog):
         self.client_id = client_id
         self.product_data = product_data or {}
         self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data else self.tr("Modifier Produit"))
+        self.setMinimumSize(450, 420) # Adjusted size for header and button frame
         self.setup_ui()
 
-    def setup_ui(self):
-        layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+    def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
 
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self) # Main layout for header, form, button frame
+        main_layout.setSpacing(15)
+
+        # UI Enhancement: Header Added
+        header_text = self.tr("Ajouter Détails Produit") if not self.product_data else self.tr("Modifier Détails Produit")
+        header_label = QLabel(header_text)
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 0, 10, 0)
+
+        # Consistent padding for input widgets
+        input_style = "QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }"
+        self.setStyleSheet(input_style) # Apply to dialog for all children
+
+        # UI Enhancement: Icons Added
         self.name_input = QLineEdit(self.product_data.get("name", ""))
-        layout.addRow(self.tr("Nom du Produit:"), self.name_input)
+        form_layout.addRow(self._create_icon_label_widget("package-x-generic", self.tr("Nom du Produit:")), self.name_input)
 
         self.description_input = QTextEdit(self.product_data.get("description", ""))
         self.description_input.setFixedHeight(80)
-        layout.addRow(self.tr("Description:"), self.description_input)
+        form_layout.addRow(self.tr("Description:"), self.description_input) # Icon might be too much for QTextEdit label
 
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0, 1000000)
         self.quantity_input.setValue(self.product_data.get("quantity", 0))
         self.quantity_input.valueChanged.connect(self.update_total_price)
-        layout.addRow(self.tr("Quantité:"), self.quantity_input)
+        form_layout.addRow(self._create_icon_label_widget("format-list-numbered", self.tr("Quantité:")), self.quantity_input)
 
         self.unit_price_input = QDoubleSpinBox()
         self.unit_price_input.setRange(0, 10000000)
-        self.unit_price_input.setPrefix("€ ") # Currency might need localization if app supports multiple currencies
+        self.unit_price_input.setPrefix("€ ")
         self.unit_price_input.setValue(self.product_data.get("unit_price", 0))
         self.unit_price_input.valueChanged.connect(self.update_total_price)
-        layout.addRow(self.tr("Prix Unitaire:"), self.unit_price_input)
+        form_layout.addRow(self._create_icon_label_widget("cash", self.tr("Prix Unitaire:")), self.unit_price_input) # Using 'cash' as a placeholder for currency
         
         total_price_title_label = QLabel(self.tr("Prix Total:"))
-        self.total_price_label = QLabel("€ 0.00") # Currency might need localization
-        self.total_price_label.setStyleSheet("font-weight: bold;")
-        layout.addRow(total_price_title_label, self.total_price_label)
+        self.total_price_label = QLabel("€ 0.00")
+        font = self.total_price_label.font()
+        font.setPointSize(font.pointSize() + 2)
+        font.setBold(True)
+        self.total_price_label.setFont(font)
+        self.total_price_label.setStyleSheet("color: #2c3e50; padding: 5px 0;")
+        form_layout.addRow(total_price_title_label, self.total_price_label)
 
         if self.product_data:
             self.update_total_price()
 
+        main_layout.addLayout(form_layout)
+        main_layout.addStretch()
+
+        # UI Enhancement: Improved Button Grouping
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_button.setStyleSheet("padding: 5px 15px;")
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addRow(button_box)
+        button_frame_layout.addWidget(button_box)
+        main_layout.addWidget(button_frame)
+        # UI Enhancements Applied
 
     def update_total_price(self):
         quantity = self.quantity_input.value()
@@ -688,42 +795,82 @@ class CreateDocumentDialog(QDialog):
         self.client_info = client_info
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(550, 450) # Adjusted size for header and button frame
         self.setup_ui()
+
+    def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Langue sélection
-        lang_layout = QHBoxLayout()
-        lang_layout.addWidget(QLabel(self.tr("Langue:")))
+        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout
+        main_layout.setSpacing(15)
+
+        # UI Enhancement: Header Added
+        header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
+
+        # Consistent padding for list/combos and specific hover effect for list
+        input_style = """
+            QComboBox, QListWidget { padding: 3px; }
+            QListWidget::item:hover { background-color: #e6f7ff; }
+        """
+        self.setStyleSheet(input_style) # Apply to dialog
+
+        # UI Enhancement: Icons Added
+        lang_selection_layout = QHBoxLayout()
+        lang_icon_label_widget = self._create_icon_label_widget("text-x-generic", self.tr("Langue:"))
+        lang_selection_layout.addWidget(lang_icon_label_widget)
         self.lang_combo = QComboBox()
-        # Assuming selected_languages are codes like "fr", "ar". If they are full names, this needs adjustment.
         self.lang_combo.addItems(self.client_info.get("selected_languages", ["fr"]))
-        lang_layout.addWidget(self.lang_combo)
-        layout.addLayout(lang_layout)
+        lang_selection_layout.addWidget(self.lang_combo)
+        lang_selection_layout.addStretch() # Push combo to the left if space allows
+        main_layout.addLayout(lang_selection_layout)
+
+        templates_label_widget = self._create_icon_label_widget("document-multiple", self.tr("Sélectionnez les documents à créer:"))
+        main_layout.addWidget(templates_label_widget)
         
-        # Liste des templates
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")))
-        layout.addWidget(self.templates_list)
+        # Hover effect applied via dialog stylesheet
+        main_layout.addWidget(self.templates_list)
         
         self.load_templates()
-        
-        # Boutons
-        btn_layout = QHBoxLayout()
+        main_layout.addStretch()
+
+        # UI Enhancement: Improved Button Grouping
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
+
+        btn_actions_layout = QHBoxLayout() # Original button layout
+        btn_actions_layout.setSpacing(10)
+
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
+        create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
         create_btn.clicked.connect(self.create_documents)
-        btn_layout.addWidget(create_btn)
+        btn_actions_layout.addWidget(create_btn)
         
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_btn.setStyleSheet("padding: 5px 15px;")
         cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
+        btn_actions_layout.addWidget(cancel_btn)
         
-        layout.addLayout(btn_layout)
+        button_frame_layout.addLayout(btn_actions_layout)
+        main_layout.addWidget(button_frame)
+        # UI Enhancements Applied
         
     def load_templates(self):
         self.templates_list.clear()
@@ -2705,11 +2852,114 @@ class DocumentManager(QMainWindow):
                 }
                 self.clients_data_map[actual_new_client_id] = ui_map_data
                 self.add_client_to_list_widget(ui_map_data) # Update client list display
-            
+
             # Clear input fields
             self.client_name_input.clear(); self.company_name_input.clear(); self.client_need_input.clear()
             self.project_id_input_field.clear(); self.final_price_input.setValue(0)
             # Optionally reset country/city/language combos to default
+
+            # START of new dialog sequence
+            # At this point, actual_new_client_id and ui_map_data are available.
+            # Dialog sequence logic verified
+
+            # 1. Contact Dialog
+            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=self)
+            if contact_dialog.exec_() == QDialog.Accepted:
+                contact_form_data = contact_dialog.get_data()
+                try:
+                    existing_contact = db_manager.get_contact_by_email(contact_form_data['email'])
+                    contact_id_to_link = None
+                    if existing_contact:
+                        contact_id_to_link = existing_contact['contact_id']
+                        update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
+                        if update_data: db_manager.update_contact(contact_id_to_link, update_data)
+                    else:
+                        new_contact_id = db_manager.add_contact({
+                            'name': contact_form_data['name'], 'email': contact_form_data['email'],
+                            'phone': contact_form_data['phone'], 'position': contact_form_data['position']
+                        })
+                        if new_contact_id:
+                            contact_id_to_link = new_contact_id
+                        else:
+                            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le nouveau contact global lors de la création du client."))
+
+                    if contact_id_to_link:
+                        if contact_form_data['is_primary']:
+                            client_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
+                            if client_contacts:
+                                for cc in client_contacts:
+                                    if cc['is_primary_for_client'] and cc.get('client_contact_id'): # Ensure client_contact_id exists
+                                        db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
+
+                        link_id = db_manager.link_contact_to_client(
+                            actual_new_client_id, contact_id_to_link,
+                            is_primary=contact_form_data['is_primary']
+                        )
+                        if not link_id:
+                             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
+                except Exception as e_contact_save:
+                    QMessageBox.critical(self, self.tr("Erreur Sauvegarde Contact"), self.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
+
+                # 2. Product Dialog
+                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=self)
+                if product_dialog.exec_() == QDialog.Accepted:
+                    product_form_data = product_dialog.get_data()
+                    try:
+                        global_product = db_manager.get_product_by_name(product_form_data['name'])
+                        global_product_id = None
+                        current_base_unit_price = None
+
+                        if global_product:
+                            global_product_id = global_product['product_id']
+                            current_base_unit_price = global_product.get('base_unit_price')
+                        else:
+                            new_global_product_id = db_manager.add_product({
+                                'product_name': product_form_data['name'],
+                                'description': product_form_data['description'],
+                                'base_unit_price': product_form_data['unit_price']
+                            })
+                            if new_global_product_id:
+                                global_product_id = new_global_product_id
+                                current_base_unit_price = product_form_data['unit_price'] # New product, so this is its base price
+                            else:
+                                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global lors de la création du client."))
+
+                        if global_product_id:
+                            unit_price_override_val = None
+                            if current_base_unit_price is None or product_form_data['unit_price'] != current_base_unit_price:
+                                unit_price_override_val = product_form_data['unit_price']
+
+                            link_data = {
+                                'client_id': actual_new_client_id,
+                                'project_id': None,
+                                'product_id': global_product_id,
+                                'quantity': product_form_data['quantity'],
+                                'unit_price_override': unit_price_override_val
+                            }
+                            cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                            if not cpp_id:
+                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de lier le produit au client."))
+                    except Exception as e_product_save:
+                        QMessageBox.critical(self, self.tr("Erreur Sauvegarde Produit"), self.tr("Une erreur est survenue lors de la sauvegarde du produit : {0}").format(str(e_product_save)))
+
+                    # 3. Create Document Dialog
+                    # Ensure ui_map_data is available and correctly structured for client_info
+                    if ui_map_data:
+                        create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
+                        if create_document_dialog.exec_() == QDialog.Accepted:
+                            # All dialogs completed successfully
+                            print("CreateDocumentDialog accepted, all dialogs in sequence complete.")
+                        else:
+                            print("CreateDocumentDialog cancelled.")
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur Données Client"),
+                                            self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
+                else:
+                    print("ProductDialog cancelled.")
+            else:
+                print("ContactDialog cancelled.")
+
+            # END of new dialog sequence
             
             QMessageBox.information(self, self.tr("Client Créé"),
                                     self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
