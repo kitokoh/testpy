@@ -1060,6 +1060,7 @@ class ClientWidget(QWidget):
                     "price": self.client_info.get("price", 0), "project_identifier": self.client_info.get("project_identifier", ""),
                     "company_name": self.client_info.get("company_name", ""), "country": self.client_info.get("country", ""),
                     "city": self.client_info.get("city", ""),
+                    "client_id": self.client_info.get("client_id"), # Added client_id
                 }
                 if file_path.lower().endswith('.xlsx') and edit_mode:
                     editor = ExcelEditor(file_path, client_data=editor_client_data, parent=self)
@@ -1349,29 +1350,120 @@ def populate_docx_template(docx_path, client_data):
             # Add any other specific context needed per doc_type_key
         }
         # Example of adding specific context based on document type
-        current_time_str = datetime.now().strftime("%Y%m%d%H%M")
+        current_time_str = datetime.now().strftime("%Y%m%d%H%M%S") # Added seconds for more uniqueness
         project_identifier_short = self.client_info.get('project_identifier', client_id[:5])
+        today_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Default placeholders for complex/legal text
+        default_claus_text = "[Specify Details Here]"
+        default_terms_text = "[Specify Terms Here]"
+        default_list_text = "[List Items Here]"
 
         if doc_type_key == 'proforma':
-            additional_doc_context["invoice_number"] = f"PRO-{project_identifier_short}-{current_time_str}"
-            additional_doc_context["invoice_date_issue"] = datetime.now().strftime("%Y-%m-%d")
-            # invoice_date_due could be calculated, e.g., invoice_date_issue + 30 days
-            additional_doc_context["invoice_date_due"] = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+            additional_doc_context.update({
+                "invoice_number": f"PRO-{project_identifier_short}-{current_time_str}",
+                "invoice_date_issue": today_date,
+                "invoice_date_due": (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d"),
+                "payment_terms": "Paiement à 30 jours nets.",
+                "proforma_validity_days": "30",
+                "subtotal_formatted": "€ 0.00 (Calculé)", # Example, real calculation would be more complex
+                "tax_description": "TVA",
+                "tax_rate": "20",
+                "tax_amount_formatted": "€ 0.00 (Calculé)",
+                "grand_total_formatted": "€ 0.00 (Calculé)",
+                "signature_name_and_title": "[Nom et Titre du Signataire]",
+                # Bank details will primarily come from DB if structured, otherwise N/A or raw.
+            })
         elif doc_type_key == 'packing_list':
-             additional_doc_context["packing_list_number"] = f"PL-{project_identifier_short}-{current_time_str}"
-             additional_doc_context["packing_list_date"] = datetime.now().strftime("%Y-%m-%d")
-             additional_doc_context["date_of_shipment"] = datetime.now().strftime("%Y-%m-%d") # Placeholder, adjust as needed
+             additional_doc_context.update({
+                "packing_list_number": f"PL-{project_identifier_short}-{current_time_str}",
+                "packing_list_date": today_date,
+                "invoice_number": f"INV-{project_identifier_short}-{current_time_str}", # Link to a proforma/invoice
+                "order_number": self.client_info.get('project_identifier', default_claus_text),
+                "date_of_shipment": today_date,
+                "port_of_loading": "[Port de Chargement]",
+                "port_of_discharge": "[Port de Déchargement]",
+                "vessel_flight_details": "[Détails Navire/Vol]",
+                "shipping_marks": "[Marques d'Expédition]",
+                "item_number_or_code": "[Code Article]",
+                "item_quantity_packages": "1",
+                "item_quantity_units_per_package": "1",
+                "item_total_units": "1",
+                "item_net_weight_per_unit_formatted": "0.00 kg",
+                "item_gross_weight_per_unit_formatted": "0.00 kg",
+                "item_total_net_weight_formatted": "0.00 kg",
+                "item_total_gross_weight_formatted": "0.00 kg",
+                "item_package_dimensions": "N/A",
+                "item_package_volume_formatted": "0.00 m³",
+                "total_packages_count": "0",
+                "total_net_weight_shipment_formatted": "0.00 kg",
+                "total_gross_weight_shipment_formatted": "0.00 kg",
+                "total_volume_shipment_formatted": "0.00 m³",
+                "declaration_statement": "[Déclaration Standard]",
+                "instructions": "[Instructions Spéciales]",
+                "signature_date": today_date,
+                "notify_party_name": "[Nom Partie à Notifier]",
+                "notify_party_address": "[Adresse Partie à Notifier]",
+             })
         elif doc_type_key == 'sales_contract':
-            additional_doc_context["contract_number"] = f"SC-{project_identifier_short}-{current_time_str}"
-            additional_doc_context["date_of_agreement"] = datetime.now().strftime("%Y-%m-%d")
+            additional_doc_context.update({
+                "contract_number": f"SC-{project_identifier_short}-{current_time_str}",
+                "date_of_agreement": today_date,
+                "preamble_text": "[Préambule du contrat à spécifier]",
+                "subject_matter_general_description": self.client_info.get('need', default_claus_text),
+                "total_quantity": default_claus_text, # Example: "As per Annex A"
+                "quality_specifications_details": default_claus_text,
+                "total_price_formatted": "€ 0.00 (Calculé)",
+                "total_price_in_words": "[Montant Total en Toutes Lettres]",
+                "price_per_unit_formatted": "€ 0.00",
+                "payment_method_description": default_terms_text,
+                "payment_schedule_description": default_terms_text,
+                "delivery_incoterms": "EXW (Incoterms® 2020)",
+                "delivery_place": "[Lieu de Livraison]",
+                "estimated_delivery_date": (datetime.now() + timedelta(days=45)).strftime("%Y-%m-%d"),
+                "partial_shipments_allowed_description": "Non autorisées",
+                "shipping_documents_required": default_list_text,
+                "inspection_of_goods_clause": default_claus_text,
+                "warranty_period": "1 an à compter de la date de livraison",
+                "warranty_conditions": default_claus_text,
+                "force_majeure_clause": default_claus_text,
+                "applicable_law_jurisdiction": "[Loi Applicable et Juridiction]",
+                "dispute_resolution_method": "[Méthode de Résolution des Litiges]",
+                "seller_signature_date": today_date,
+                "buyer_signature_date": today_date,
+                "annexes_list": [], # Expect a list of {'annex_title': '...'}
+                "annexes_placeholder_text": "Aucune annexe pour le moment."
+            })
         elif doc_type_key == 'warranty':
-            additional_doc_context["date_of_issue_of_warranty"] = datetime.now().strftime("%Y-%m-%d")
-            additional_doc_context["related_invoice_number"] = f"INV-{project_identifier_short}-{current_time_str}" # Example
-            additional_doc_context["date_of_purchase"] = datetime.now().strftime("%Y-%m-%d") # Example
-        # For 'cover_page', the title is already set. Other fields will come from context.
+            additional_doc_context.update({
+                "document_title": self.tr("Certificat de Garantie"), # Override default title
+                "related_invoice_number": f"INV-{project_identifier_short}-{current_time_str}",
+                "date_of_issue_of_warranty": today_date,
+                "date_of_purchase": today_date, # Assume purchase on issue date for default
+                # products_covered would be a list of dicts: {'product_name':'X', 'product_serial_number':'Y', ...}
+                "products_covered": [{'product_name': '[Nom du Produit Garanti]', 'product_serial_number': '[Numéro de Série]', 'product_other_identifier': '[Autre ID]'}],
+                "product_name_single": "[Nom du Produit Garanti]", # For single product warranty
+                "product_serial_number_single": "[Numéro de Série]",
+                "product_description_single": "[Description du Produit]",
+                "warranty_period_description": "Un (1) an à compter de la date d'achat.",
+                "warranty_start_date": today_date,
+                "warranty_end_date": (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d"),
+                "warranty_coverage_details": default_claus_text,
+                "exclusions_from_warranty_details": default_claus_text,
+                "claim_procedure_details": default_claus_text,
+                "remedies_details": default_claus_text,
+                "limitation_of_liability_details": default_claus_text,
+                "governing_law_jurisdiction": "[Loi Applicable - Garantie]",
+                "signature_date": today_date,
+            })
+        elif doc_type_key == 'cover_page':
+            additional_doc_context.update({
+                "document_subtitle": self.client_info.get('project_identifier', self.tr("Rapport de Projet")),
+                "document_version": "1.0",
+                "document_date": today_date, # Overrides context["doc"]["current_date"] if used for cover page
+            })
 
-
-        # Fetch the main context
+        # Fetch the main context, merging with additional specifics
         context = db_manager.get_document_context_data(client_id, company_id, project_id, additional_context=additional_doc_context)
 
         try:
