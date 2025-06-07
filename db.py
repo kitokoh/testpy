@@ -2668,6 +2668,37 @@ def delete_product(product_id: int) -> bool:
     finally:
         if conn: conn.close()
 
+def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
+    """
+    Retrieves products where the product_name matches the given pattern (LIKE %pattern%).
+    Returns a list of up to 10 matching products as dictionaries, or None on error.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        search_pattern = f"%{pattern}%"
+        sql = """
+            SELECT product_id, product_name, description, base_unit_price
+            FROM Products
+            WHERE product_name LIKE ?
+            ORDER BY product_name
+            LIMIT 10
+        """
+        cursor.execute(sql, (search_pattern,))
+        rows = cursor.fetchall()
+
+        products = [dict(row) for row in rows]
+        return products
+
+    except sqlite3.Error as e:
+        print(f"Database error in get_products_by_name_pattern: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 # Functions for ClientProjectProducts association
 def add_product_to_client_or_project(link_data: dict) -> int | None:
     """Links a product to a client or project, calculating total price."""

@@ -122,39 +122,96 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id
         self.contact_data = contact_data or {}
-        self.setWindowTitle(self.tr("Gestion des Contacts") if not contact_data else self.tr("Modifier Contact"))
-        self.setWindowTitle(self.tr("Gestion des Modèles"))
-        self.setMinimumSize(600, 400)
+        if self.contact_data:
+            self.setWindowTitle(self.tr("Modifier Contact"))
+        else:
+            self.setWindowTitle(self.tr("Ajouter Contact"))
+        self.setMinimumSize(450, 380) # Adjusted height for header and button frame
         self.setup_ui()
+
+    def _create_icon_label_widget(self, icon_name, label_text):
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
         
     def setup_ui(self):
-        layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout for header + form + button frame
+        main_layout.setSpacing(15)
+
+        # UI Enhancement: Header Added
+        header_label = QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact"))
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        form_layout.setContentsMargins(10, 0, 10, 0) # Add some horizontal margins to the form
+
+        # Consistent padding for input widgets
+        input_style = "QLineEdit, QCheckBox { padding: 3px; }"
+        self.setStyleSheet(input_style) # Apply to dialog for all children
         
+        # UI Enhancement: Icons Added
         self.name_input = QLineEdit(self.contact_data.get("name", ""))
-        layout.addRow(self.tr("Nom complet:"), self.name_input)
+        form_layout.addRow(self._create_icon_label_widget("user", self.tr("Nom complet:")), self.name_input)
         
         self.email_input = QLineEdit(self.contact_data.get("email", ""))
-        layout.addRow(self.tr("Email:"), self.email_input)
+        form_layout.addRow(self._create_icon_label_widget("mail-message-new", self.tr("Email:")), self.email_input)
         
         self.phone_input = QLineEdit(self.contact_data.get("phone", ""))
-        layout.addRow(self.tr("Téléphone:"), self.phone_input)
+        form_layout.addRow(self._create_icon_label_widget("phone", self.tr("Téléphone:")), self.phone_input)
         
         self.position_input = QLineEdit(self.contact_data.get("position", ""))
-        layout.addRow(self.tr("Poste:"), self.position_input)
+        form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user", self.tr("Poste:")), self.position_input) # Using a generic user-related icon
         
         self.primary_check = QCheckBox(self.tr("Contact principal"))
         self.primary_check.setChecked(bool(self.contact_data.get("is_primary", 0)))
-        layout.addRow(self.primary_check)
+        # UI Enhancement: Visual Cue for Primary Contact
+        self.primary_check.stateChanged.connect(self.update_primary_contact_visuals)
+        form_layout.addRow(self._create_icon_label_widget("emblem-important", self.tr("Principal:")), self.primary_check) # Icon for primary status
         
+        main_layout.addLayout(form_layout)
+        main_layout.addStretch() # Add stretch before the button frame
+
+        # UI Enhancement: Improved Button Grouping
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame") # For potential specific styling if needed
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0) # No margins for the layout within the frame
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_button.setStyleSheet("padding: 5px 15px;")
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addRow(button_box)
         
+        button_frame_layout.addWidget(button_box)
+        main_layout.addWidget(button_frame)
+
+        self.update_primary_contact_visuals(self.primary_check.checkState()) # Set initial visual state
+        # UI Enhancements Applied
+
+    def update_primary_contact_visuals(self, state):
+        if state == Qt.Checked:
+            self.name_input.setStyleSheet("background-color: #e6ffe6; padding: 3px;") # Light green
+        else:
+            self.name_input.setStyleSheet("padding: 3px;") # Revert to default padding style
+
     def get_data(self):
         return {
             "name": self.name_input.text().strip(),
@@ -622,65 +679,235 @@ class ProductDialog(QDialog):
     def __init__(self, client_id, product_data=None, parent=None):
         super().__init__(parent)
         self.client_id = client_id
-        self.product_data = product_data or {}
-        self.setWindowTitle(self.tr("Ajouter Produit") if not self.product_data else self.tr("Modifier Produit"))
+        # self.product_data = product_data or {} # Original single product data, not used for multi-line
+        self.setWindowTitle(self.tr("Ajouter Produits au Client")) # Title for multi-line
+        self.setMinimumSize(700, 600) # Adjusted for table and new layout
+        # Refactor: Multi-line product entry
         self.setup_ui()
 
+    def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
+
     def setup_ui(self):
-        layout = QFormLayout(self)
-        layout.setSpacing(10) # Added spacing
-        self.setMinimumWidth(400) # Set minimum width
+        main_layout = QVBoxLayout(self)
+        main_layout.setSpacing(15)
 
-        self.name_input = QLineEdit(self.product_data.get("name", ""))
-        layout.addRow(self.tr("Nom du Produit:"), self.name_input)
+        # UI Enhancement: Header Added
+        header_label = QLabel(self.tr("Ajouter Lignes de Produits"))
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
 
-        self.description_input = QTextEdit(self.product_data.get("description", ""))
-        self.description_input.setFixedHeight(80)
-        layout.addRow(self.tr("Description:"), self.description_input)
+        # Input Group for Current Product Line
+        input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle"))
+        form_layout = QFormLayout(input_group_box)
+        form_layout.setSpacing(10)
+
+        input_style = "QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }"
+        self.setStyleSheet(input_style) # Apply to dialog
+
+        self.name_input = QLineEdit()
+        form_layout.addRow(self._create_icon_label_widget("package-x-generic", self.tr("Nom du Produit:")), self.name_input)
+
+        self.description_input = QTextEdit()
+        self.description_input.setFixedHeight(60) # Slightly smaller for this context
+        form_layout.addRow(self.tr("Description:"), self.description_input)
 
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0, 1000000)
-        self.quantity_input.setValue(self.product_data.get("quantity", 0))
-        self.quantity_input.valueChanged.connect(self.update_total_price)
-        layout.addRow(self.tr("Quantité:"), self.quantity_input)
+        self.quantity_input.setValue(0.0)
+        self.quantity_input.valueChanged.connect(self._update_current_line_total_preview)
+        form_layout.addRow(self._create_icon_label_widget("format-list-numbered", self.tr("Quantité:")), self.quantity_input)
 
         self.unit_price_input = QDoubleSpinBox()
         self.unit_price_input.setRange(0, 10000000)
-        self.unit_price_input.setPrefix("€ ") # Currency might need localization if app supports multiple currencies
-        self.unit_price_input.setValue(self.product_data.get("unit_price", 0))
-        self.unit_price_input.valueChanged.connect(self.update_total_price)
-        layout.addRow(self.tr("Prix Unitaire:"), self.unit_price_input)
-        
-        total_price_title_label = QLabel(self.tr("Prix Total:"))
-        self.total_price_label = QLabel("€ 0.00") # Currency might need localization
-        self.total_price_label.setStyleSheet("font-weight: bold;")
-        layout.addRow(total_price_title_label, self.total_price_label)
+        self.unit_price_input.setPrefix("€ ")
+        self.unit_price_input.setValue(0.0)
+        self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview)
+        form_layout.addRow(self._create_icon_label_widget("cash", self.tr("Prix Unitaire:")), self.unit_price_input)
 
-        if self.product_data:
-            self.update_total_price()
+        current_line_total_title_label = QLabel(self.tr("Total Ligne Actuelle:"))
+        self.current_line_total_label = QLabel("€ 0.00")
+        font = self.current_line_total_label.font()
+        font.setBold(True)
+        self.current_line_total_label.setFont(font)
+        form_layout.addRow(current_line_total_title_label, self.current_line_total_label)
+
+        main_layout.addWidget(input_group_box)
+
+        # "Add Line" Button
+        self.add_line_btn = QPushButton(self.tr("Ajouter Produit à la Liste"))
+        self.add_line_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_line_btn.setStyleSheet("background-color: #3498db; color: white; padding: 5px 10px;")
+        self.add_line_btn.clicked.connect(self._add_current_line_to_table)
+        main_layout.addWidget(self.add_line_btn)
+
+        # Table for Product Lines
+        self.products_table = QTableWidget()
+        self.products_table.setColumnCount(5)
+        self.products_table.setHorizontalHeaderLabels([
+            self.tr("Nom Produit"), self.tr("Description"), self.tr("Qté"),
+            self.tr("Prix Unitaire"), self.tr("Total Ligne")
+        ])
+        self.products_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.products_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.products_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.products_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.products_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.products_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        main_layout.addWidget(self.products_table)
+
+        # "Remove Selected Line" Button
+        self.remove_line_btn = QPushButton(self.tr("Supprimer Produit Sélectionné"))
+        self.remove_line_btn.setIcon(QIcon.fromTheme("list-remove"))
+        self.remove_line_btn.setStyleSheet("padding: 5px 10px;")
+        self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table)
+        main_layout.addWidget(self.remove_line_btn)
+
+        # Overall Total Price Label
+        self.overall_total_label = QLabel(self.tr("Total Général: € 0.00"))
+        font = self.overall_total_label.font()
+        font.setPointSize(font.pointSize() + 3)
+        font.setBold(True)
+        self.overall_total_label.setFont(font)
+        self.overall_total_label.setStyleSheet("color: #2c3e50; padding: 10px 0; margin-top: 5px;")
+        self.overall_total_label.setAlignment(Qt.AlignRight)
+        main_layout.addWidget(self.overall_total_label)
+
+        main_layout.addStretch()
+
+        # UI Enhancement: Improved Button Grouping (OK/Cancel)
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
+        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+        cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_button.setStyleSheet("padding: 5px 15px;")
+
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addRow(button_box)
+        button_frame_layout.addWidget(button_box)
+        main_layout.addWidget(button_frame)
+        # Refactor: Multi-line product entry and UI Enhancements Applied
 
-    def update_total_price(self):
+    def _update_current_line_total_preview(self):
+        # Bugfix: Handle potential NoneType in price/quantity calculations
         quantity = self.quantity_input.value()
         unit_price = self.unit_price_input.value()
-        total = quantity * unit_price
-        self.total_price_label.setText(f"€ {total:.2f}")
+        current_quantity = quantity if isinstance(quantity, (int, float)) else 0.0
+        current_unit_price = unit_price if isinstance(unit_price, (int, float)) else 0.0
+        line_total = current_quantity * current_unit_price
+        self.current_line_total_label.setText(f"€ {line_total:.2f}")
+
+    def _add_current_line_to_table(self):
+        name = self.name_input.text().strip()
+        description = self.description_input.toPlainText().strip()
+        quantity = self.quantity_input.value()
+        unit_price = self.unit_price_input.value()
+
+        if not name:
+            QMessageBox.warning(self, self.tr("Champ Requis"), self.tr("Le nom du produit est requis."))
+            self.name_input.setFocus()
+            return
+        if quantity <= 0:
+            QMessageBox.warning(self, self.tr("Quantité Invalide"), self.tr("La quantité doit être supérieure à zéro."))
+            self.quantity_input.setFocus()
+            return
+
+        line_total = quantity * unit_price
+
+        row_position = self.products_table.rowCount()
+        self.products_table.insertRow(row_position)
+
+        self.products_table.setItem(row_position, 0, QTableWidgetItem(name))
+        self.products_table.setItem(row_position, 1, QTableWidgetItem(description))
+
+        qty_item = QTableWidgetItem(f"{quantity:.2f}") # Format to 2 decimal places for consistency
+        qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.products_table.setItem(row_position, 2, qty_item)
+
+        price_item = QTableWidgetItem(f"€ {unit_price:.2f}")
+        price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.products_table.setItem(row_position, 3, price_item)
+
+        total_item = QTableWidgetItem(f"€ {line_total:.2f}")
+        total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.products_table.setItem(row_position, 4, total_item)
+
+        # Clear input fields for next entry
+        self.name_input.clear()
+        self.description_input.clear()
+        self.quantity_input.setValue(0.0)
+        self.unit_price_input.setValue(0.0)
+        self._update_current_line_total_preview() # Reset preview label
+        self._update_overall_total()
+        self.name_input.setFocus()
+
+    def _remove_selected_line_from_table(self):
+        selected_rows = self.products_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.information(self, self.tr("Aucune Sélection"), self.tr("Veuillez sélectionner une ligne à supprimer."))
+            return
+        for index in sorted(selected_rows, reverse=True):
+            self.products_table.removeRow(index.row())
+        self._update_overall_total()
+
+    def _update_overall_total(self):
+        total_sum = 0.0
+        for row in range(self.products_table.rowCount()):
+            item = self.products_table.item(row, 4) # Column 4 is "Line Total"
+            if item and item.text():
+                try:
+                    # Extract float from text like "€ 123.45"
+                    value_str = item.text().replace("€", "").replace(",", ".").strip() # Handle comma as decimal sep if needed
+                    total_sum += float(value_str)
+                except ValueError:
+                    print(f"Warning: Could not parse float from table cell: {item.text()}")
+        self.overall_total_label.setText(self.tr("Total Général: € {0:.2f}").format(total_sum))
 
     def get_data(self):
-        return {
-            "client_id": self.client_id,
-            "name": self.name_input.text().strip(),
-            "description": self.description_input.toPlainText().strip(),
-            "quantity": self.quantity_input.value(),
-            "unit_price": self.unit_price_input.value(),
-            "total_price": self.quantity_input.value() * self.unit_price_input.value()
-        }
+        # Refactor: Multi-line product entry - returns a list of product dicts
+        products_list = []
+        for row in range(self.products_table.rowCount()):
+            name = self.products_table.item(row, 0).text()
+            description = self.products_table.item(row, 1).text()
+
+            qty_str = self.products_table.item(row, 2).text().replace(",", ".")
+            quantity = float(qty_str) if qty_str else 0.0
+
+            unit_price_str = self.products_table.item(row, 3).text().replace("€", "").replace(",", ".").strip()
+            unit_price = float(unit_price_str) if unit_price_str else 0.0
+
+            line_total_str = self.products_table.item(row, 4).text().replace("€", "").replace(",", ".").strip()
+            line_total = float(line_total_str) if line_total_str else 0.0
+
+            products_list.append({
+                "client_id": self.client_id, # This might be redundant if the caller already has client_id
+                "name": name,
+                "description": description,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "total_price": line_total
+            })
+        return products_list
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
@@ -688,42 +915,82 @@ class CreateDocumentDialog(QDialog):
         self.client_info = client_info
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(550, 450) # Adjusted size for header and button frame
         self.setup_ui()
+
+    def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        icon_label = QLabel()
+        icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16, 16))
+        layout.addWidget(icon_label)
+        layout.addWidget(QLabel(label_text))
+        return widget
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Langue sélection
-        lang_layout = QHBoxLayout()
-        lang_layout.addWidget(QLabel(self.tr("Langue:")))
+        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout
+        main_layout.setSpacing(15)
+
+        # UI Enhancement: Header Added
+        header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
+        header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        main_layout.addWidget(header_label)
+
+        # Consistent padding for list/combos and specific hover effect for list
+        input_style = """
+            QComboBox, QListWidget { padding: 3px; }
+            QListWidget::item:hover { background-color: #e6f7ff; }
+        """
+        self.setStyleSheet(input_style) # Apply to dialog
+
+        # UI Enhancement: Icons Added
+        lang_selection_layout = QHBoxLayout()
+        lang_icon_label_widget = self._create_icon_label_widget("text-x-generic", self.tr("Langue:"))
+        lang_selection_layout.addWidget(lang_icon_label_widget)
         self.lang_combo = QComboBox()
-        # Assuming selected_languages are codes like "fr", "ar". If they are full names, this needs adjustment.
         self.lang_combo.addItems(self.client_info.get("selected_languages", ["fr"]))
-        lang_layout.addWidget(self.lang_combo)
-        layout.addLayout(lang_layout)
+        lang_selection_layout.addWidget(self.lang_combo)
+        lang_selection_layout.addStretch() # Push combo to the left if space allows
+        main_layout.addLayout(lang_selection_layout)
+
+        templates_label_widget = self._create_icon_label_widget("document-multiple", self.tr("Sélectionnez les documents à créer:"))
+        main_layout.addWidget(templates_label_widget)
         
-        # Liste des templates
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        layout.addWidget(QLabel(self.tr("Sélectionnez les documents à créer:")))
-        layout.addWidget(self.templates_list)
+        # Hover effect applied via dialog stylesheet
+        main_layout.addWidget(self.templates_list)
         
         self.load_templates()
-        
-        # Boutons
-        btn_layout = QHBoxLayout()
+        main_layout.addStretch()
+
+        # UI Enhancement: Improved Button Grouping
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
+
+        btn_actions_layout = QHBoxLayout() # Original button layout
+        btn_actions_layout.setSpacing(10)
+
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
+        create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
         create_btn.clicked.connect(self.create_documents)
-        btn_layout.addWidget(create_btn)
+        btn_actions_layout.addWidget(create_btn)
         
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_btn.setStyleSheet("padding: 5px 15px;")
         cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
+        btn_actions_layout.addWidget(cancel_btn)
         
-        layout.addLayout(btn_layout)
+        button_frame_layout.addLayout(btn_actions_layout)
+        main_layout.addWidget(button_frame)
+        # UI Enhancements Applied
         
     def load_templates(self):
         self.templates_list.clear()
@@ -1745,58 +2012,78 @@ class ClientWidget(QWidget):
         client_uuid = self.client_info.get("client_id")
         if not client_uuid: return
 
-        # ProductDialog collects name, desc, qty, unit_price.
-        # These will be used to first find/create a global product, then link it.
-        dialog = ProductDialog(client_uuid, parent=self)
+        dialog = ProductDialog(client_uuid, parent=self) # ProductDialog now supports multi-line
         if dialog.exec_() == QDialog.Accepted:
-            form_data = dialog.get_data() # Contains name, description, quantity, unit_price
+            products_list_data = dialog.get_data() # This is now a list of product dicts
 
-            try:
-                # Step 1: Find or Create Global Product
-                # For simplicity, we'll assume product_name is unique for finding.
-                # A more robust solution might involve a product selection dialog from global products.
-                global_product = db_manager.get_product_by_name(form_data['name']) # Needs get_product_by_name
-                global_product_id = None
+            # Process list of products from dialog
+            products_added_count = 0
+            for product_item_data in products_list_data: # Use a different loop variable name
+                try:
+                    # Step 1: Find or Create Global Product
+                    global_product = db_manager.get_product_by_name(product_item_data['name'])
+                    global_product_id = None
+                    current_base_unit_price = None # For checking if override is needed
 
-                if global_product:
-                    global_product_id = global_product['product_id']
-                    # Optionally update global product's description or base_unit_price if form_data differs significantly
-                    # For now, we use the existing global product's base price if no override.
-                else:
-                    new_global_product_id = db_manager.add_product({
-                        'product_name': form_data['name'],
-                        'description': form_data['description'],
-                        'base_unit_price': form_data['unit_price'] # Use dialog unit_price as base if new
-                        # 'category', 'unit_of_measure' could be added to ProductDialog if needed
-                    })
-                    if new_global_product_id:
-                        global_product_id = new_global_product_id
+                    if global_product:
+                        global_product_id = global_product['product_id']
+                        current_base_unit_price = global_product.get('base_unit_price')
                     else:
-                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global."))
-                        return
+                        new_global_product_id = db_manager.add_product({
+                            'product_name': product_item_data['name'],
+                            'description': product_item_data['description'],
+                            'base_unit_price': product_item_data['unit_price']
+                        })
+                        if new_global_product_id:
+                            global_product_id = new_global_product_id
+                            current_base_unit_price = product_item_data['unit_price']
+                        else:
+                            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}'.").format(product_item_data['name']))
+                            continue # Skip to next product
 
-                # Step 2: Link Product to Client (via ClientProjectProducts, project_id=None for client-general)
-                if global_product_id:
-                    link_data = {
-                        'client_id': client_uuid,
-                        'project_id': None, # Assuming client-level product for now
-                        'product_id': global_product_id,
-                        'quantity': form_data['quantity'],
-                        # unit_price_override will be form_data['unit_price'] if it's different from global base, else None
-                        'unit_price_override': form_data['unit_price']
-                                              if not global_product or form_data['unit_price'] != global_product.get('base_unit_price')
-                                              else None
-                    }
-                    # add_product_to_client_or_project calculates total_price
-                    cpp_id = db_manager.add_product_to_client_or_project(link_data)
-                    if cpp_id:
-                        self.load_products()
-                    else:
-                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de lier le produit au client."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du produit:\n{0}").format(str(e)))
+                    # Step 2: Link Product to Client
+                    if global_product_id:
+                        unit_price_override_val = None
+                        if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price:
+                            unit_price_override_val = product_item_data['unit_price']
+
+                        link_data = {
+                            'client_id': client_uuid,
+                            'project_id': None,
+                            'product_id': global_product_id,
+                            'quantity': product_item_data['quantity'],
+                            'unit_price_override': unit_price_override_val
+                        }
+                        cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                        if cpp_id:
+                            products_added_count +=1
+                        else:
+                            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
+                except Exception as e:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du produit '{0}':\n{1}").format(product_item_data.get('name', 'Inconnu'), str(e)))
+
+            if products_added_count > 0:
+                self.load_products() # Refresh product list in ClientWidget only once after processing all
+            if products_added_count < len(products_list_data) and len(products_list_data) > 0 : # Avoid message if list was empty
+                 QMessageBox.information(self, self.tr("Information"), self.tr("Certains produits n'ont pas pu être ajoutés. Veuillez vérifier les messages d'erreur."))
 
     def edit_product(self):
+        # FIXME: ProductDialog has been refactored for multi-line entry and no longer supports
+        # pre-populating for a single item edit via its constructor in the same way.
+        # This edit_product method needs a complete rework.
+        # Possible solutions:
+        # 1. Create a new, separate dialog for editing a single product line item.
+        # 2. Modify ProductDialog to have an "edit mode" which might involve passing
+        #    the existing product_data and having the table pre-populated with that one item,
+        #    and then get_data() would need to differentiate or the calling code would
+        #    only expect one item back in edit mode. This is complex.
+        # 3. Change the edit interaction: e.g., delete the line and re-add it using the multi-line dialog.
+        # For now, this functionality is effectively disabled to prevent errors.
+        QMessageBox.warning(self,
+                              self.tr("Fonctionnalité en cours de révision"),
+                              self.tr("La modification des produits est temporairement désactivée et en cours de révision en raison de la nouvelle interface d'ajout multiple de produits."))
+        return
+
         selected_row = self.products_table.currentRow()
         if selected_row < 0: return
         
@@ -2705,11 +2992,119 @@ class DocumentManager(QMainWindow):
                 }
                 self.clients_data_map[actual_new_client_id] = ui_map_data
                 self.add_client_to_list_widget(ui_map_data) # Update client list display
-            
+
             # Clear input fields
             self.client_name_input.clear(); self.company_name_input.clear(); self.client_need_input.clear()
             self.project_id_input_field.clear(); self.final_price_input.setValue(0)
             # Optionally reset country/city/language combos to default
+
+            # START of new dialog sequence
+            # At this point, actual_new_client_id and ui_map_data are available.
+            # Dialog sequence logic verified
+
+            # 1. Contact Dialog
+            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=self)
+            if contact_dialog.exec_() == QDialog.Accepted:
+                contact_form_data = contact_dialog.get_data()
+                try:
+                    existing_contact = db_manager.get_contact_by_email(contact_form_data['email'])
+                    contact_id_to_link = None
+                    if existing_contact:
+                        contact_id_to_link = existing_contact['contact_id']
+                        update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
+                        if update_data: db_manager.update_contact(contact_id_to_link, update_data)
+                    else:
+                        new_contact_id = db_manager.add_contact({
+                            'name': contact_form_data['name'], 'email': contact_form_data['email'],
+                            'phone': contact_form_data['phone'], 'position': contact_form_data['position']
+                        })
+                        if new_contact_id:
+                            contact_id_to_link = new_contact_id
+                        else:
+                            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le nouveau contact global lors de la création du client."))
+
+                    if contact_id_to_link:
+                        if contact_form_data['is_primary']:
+                            client_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
+                            if client_contacts:
+                                for cc in client_contacts:
+                                    if cc['is_primary_for_client'] and cc.get('client_contact_id'): # Ensure client_contact_id exists
+                                        db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
+
+                        link_id = db_manager.link_contact_to_client(
+                            actual_new_client_id, contact_id_to_link,
+                            is_primary=contact_form_data['is_primary']
+                        )
+                        if not link_id:
+                             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
+                except Exception as e_contact_save:
+                    QMessageBox.critical(self, self.tr("Erreur Sauvegarde Contact"), self.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
+
+                # 2. Product Dialog
+                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=self)
+                if product_dialog.exec_() == QDialog.Accepted:
+                    products_list_data = product_dialog.get_data() # Now a list
+                    # Process list of products from dialog
+                    for product_item_data in products_list_data:
+                        try:
+                            global_product = db_manager.get_product_by_name(product_item_data['name'])
+                            global_product_id = None
+                            current_base_unit_price = None
+
+                            if global_product:
+                                global_product_id = global_product['product_id']
+                                current_base_unit_price = global_product.get('base_unit_price')
+                            else:
+                                new_global_product_id = db_manager.add_product({
+                                    'product_name': product_item_data['name'],
+                                    'description': product_item_data['description'],
+                                    'base_unit_price': product_item_data['unit_price'] # Use dialog price as base for new global product
+                                })
+                                if new_global_product_id:
+                                    global_product_id = new_global_product_id
+                                    current_base_unit_price = product_item_data['unit_price']
+                                else:
+                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}'.").format(product_item_data['name']))
+                                    continue # Skip to next product in list
+
+                            if global_product_id:
+                                unit_price_override_val = None
+                                # If the price in dialog differs from base, or if it's a new product (current_base_unit_price was just set from item)
+                                # or if global product had no base price (should not happen ideally)
+                                if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price:
+                                    unit_price_override_val = product_item_data['unit_price']
+
+                                link_data = {
+                                    'client_id': actual_new_client_id,
+                                    'project_id': None,
+                                    'product_id': global_product_id,
+                                    'quantity': product_item_data['quantity'],
+                                    'unit_price_override': unit_price_override_val # This can be None
+                                }
+                                cpp_id = db_manager.add_product_to_client_or_project(link_data)
+                                if not cpp_id:
+                                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
+                        except Exception as e_product_save:
+                            QMessageBox.critical(self, self.tr("Erreur Sauvegarde Produit"), self.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))
+
+                    # 3. Create Document Dialog
+                    # Ensure ui_map_data is available and correctly structured for client_info
+                    if ui_map_data:
+                        create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
+                        if create_document_dialog.exec_() == QDialog.Accepted:
+                            # All dialogs completed successfully
+                            print("CreateDocumentDialog accepted, all dialogs in sequence complete.")
+                        else:
+                            print("CreateDocumentDialog cancelled.")
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur Données Client"),
+                                            self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
+                else:
+                    print("ProductDialog cancelled.")
+            else:
+                print("ContactDialog cancelled.")
+
+            # END of new dialog sequence
             
             QMessageBox.information(self, self.tr("Client Créé"),
                                     self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
