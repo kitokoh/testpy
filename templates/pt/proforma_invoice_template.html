@@ -149,6 +149,139 @@
     </style>
 </head>
 <body>
+<<<<<<< HEAD
+    <div class="invoice-container">
+        <header class="invoice-header">
+            <div class="seller-details">
+                <!-- <img src="{{seller_logo_url}}" alt="Logo Vendeur" class="logo"> -->
+                <h2>{{seller_name}}</h2>
+                <div class="company-address">
+                    <p>{{seller_address_line1}}</p>
+                    <p>{{seller_address_line2}}</p>
+                    <p>{{seller_city_zip_country}}</p>
+                    <p>Tél: {{seller_phone}}</p>
+                    <p>Email: {{seller_email}}</p>
+                    <p>No TVA: {{seller_vat_number}}</p>
+                </div>
+            </div>
+            <div class="invoice-details" style="text-align: right;">
+                <h1>FACTURE PROFORMA</h1>
+                <div class="invoice-info">
+                    <p><strong>Proforma N°:</strong> {{proforma_number}}</p>
+                    <p><strong>Date:</strong> {{proforma_date}}</p>
+                    <p><strong>Référence Client:</strong> {{buyer_reference}}</p>
+                </div>
+            </div>
+        </header>
+
+        <section class="buyer-details">
+            <h3>Client:</h3>
+            <p><strong>{{buyer_name}}</strong></p>
+            <p>{{buyer_address_line1}}</p>
+            <p>{{buyer_address_line2}}</p>
+            <p>{{buyer_city_zip_country}}</p>
+            <p>Tél: {{buyer_phone}}</p>
+            <p>Email: {{buyer_email}}</p>
+        </section>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Description de la Marchandise / Service</th>
+                    <th class="quantity">Quantité</th>
+                    <th class="unit-price">Prix Unitaire Estimé ({{currency}})</th>
+                    <th class="total-price">Prix Total Estimé ({{currency}})</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Start: Items Loop -->
+                <!-- {{#each items}} -->
+                <tr>
+                    <td>{{item_description}}</td>
+                    <td class="quantity">{{item_quantity}}</td>
+                    <td class="unit-price">{{item_unit_price}}</td>
+                    <td class="total-price">{{item_total_price}}</td>
+                </tr>
+                <!-- {{/each}} -->
+                <!-- Example Row (remove or comment out when using templating engine) -->
+                <tr>
+                    <td>Produit Alpha (estimation)</td>
+                    <td class="quantity">5</td>
+                    <td class="unit-price">99.00</td>
+                    <td class="total-price">495.00</td>
+                </tr>
+                <tr>
+                    <td>Service Beta (consultation préliminaire)</td>
+                    <td class="quantity">1</td>
+                    <td class="unit-price">300.00</td>
+                    <td class="total-price">300.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <section class="totals-section">
+            <table class="totals-table">
+                <tbody>
+                    <tr>
+                        <td class="label">Sous-total Estimé:</td>
+                        <td class="value">{{subtotal_amount}} {{currency}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Frais de transport Estimés:</td>
+                        <td class="value">{{shipping_cost}} {{currency}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Assurance Estimée:</td>
+                        <td class="value">{{insurance_cost}} {{currency}}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Autres Frais Estimés ({{other_charges_description}}):</td>
+                        <td class="value">{{other_charges_amount}} {{currency}}</td>
+                    </tr>
+                    <tr class="grand-total">
+                        <td class="label">TOTAL GÉNÉRAL ESTIMÉ:</td>
+                        <td class="value">{{grand_total_amount}} {{currency}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="terms-section">
+            <h4>Termes et Conditions Provisoires:</h4>
+            <p><strong>Termes de vente (Incoterms® 2020):</strong> {{incoterms}}</p>
+            <p><strong>Termes de paiement:</strong> {{payment_terms}}</p>
+            <p><strong>Date d'expédition estimée:</strong> {{estimated_shipping_date}}</p>
+            <p><strong>Monnaie de la transaction:</strong> {{currency}}</p>
+        </section>
+
+        <section class="bank-details-section">
+            <h4>Coordonnées Bancaires pour Paiement (si applicable pour acompte):</h4>
+            <p><strong>Nom de la banque:</strong> {{bank_name}}</p>
+            <p><strong>Adresse de la banque:</strong> {{bank_address}}</p>
+            <p><strong>Titulaire du compte:</strong> {{bank_account_holder_name}}</p>
+            <p><strong>Numéro de compte (IBAN):</strong> {{bank_iban}}</p>
+            <p><strong>Code SWIFT/BIC:</strong> {{bank_swift_bic}}</p>
+        </section>
+
+        <section class="validity-section">
+            <h4>Validité de l'Offre Proforma:</h4>
+            <p>Cette offre proforma est valide jusqu'au: <strong>{{proforma_validity_date}}</strong>.</p>
+            <p>Les prix sont sujets à confirmation au moment de la commande ferme.</p>
+        </section>
+
+        <div class="signature-area">
+            <p>_________________________</p>
+            <p>Signature Autorisée / Cachet de l'entreprise</p>
+            <p><strong>{{authorized_signature_name}}</strong></p>
+            <p><em>{{authorized_signature_title}}</em></p>
+        </div>
+
+        <footer class="footer">
+            <p>{{footer_notes}}</p>
+            <!-- Example: "Cette facture proforma ne constitue pas un engagement ferme de vente." -->
+            <p>&copy; {{current_year}} {{seller_name}}. Document non contractuel.</p>
+        </footer>
+=======
     <div class="invoice-box">
         <table>
             <tr class="top">
@@ -286,6 +419,7 @@
             <p>{{footer_company_name}} - {{footer_contact_info}}</p>
             <p>{{footer_additional_info}}</p>
         </div>
+>>>>>>> fe463fef1e459e775bdbe7708758a8cbc511c907
     </div>
 </body>
 </html>
