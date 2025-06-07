@@ -3713,7 +3713,83 @@ def main():
                     # print(f"Ensured default template '{template_name_for_db}' ({lang_code}) is registered in DB with ID: {db_template_id}")
             # else: # Error during DB registration
                 # print(f"Failed to register default template '{template_name_for_db}' ({lang_code}) in DB.")
+
+
+
+    # HTML Templates Metadata and Registration
+    DEFAULT_HTML_TEMPLATES_METADATA = [
+        {
+            "base_file_name": "proforma_invoice_template.html",
+            "template_type": "HTML_PROFORMA",
+            "display_name_fr": "Facture Proforma (HTML)",
+            "description_fr": "Modèle HTML pour la génération de factures proforma.",
+            "category_name": "Documents HTML",
+        },
+        {
+            "base_file_name": "packing_list_template.html",
+            "template_type": "HTML_PACKING_LIST",
+            "display_name_fr": "Liste de Colisage (HTML)",
+            "description_fr": "Modèle HTML pour les listes de colisage.",
+            "category_name": "Documents HTML",
+        },
+        {
+            "base_file_name": "sales_contract_template.html",
+            "template_type": "HTML_SALES_CONTRACT",
+            "display_name_fr": "Contrat de Vente (HTML)",
+            "description_fr": "Modèle HTML pour les contrats de vente.",
+            "category_name": "Documents HTML",
+        },
+        {
+            "base_file_name": "warranty_document_template.html",
+            "template_type": "HTML_WARRANTY",
+            "display_name_fr": "Document de Garantie (HTML)",
+            "description_fr": "Modèle HTML pour les documents de garantie.",
+            "category_name": "Documents HTML",
+        },
+        {
+            "base_file_name": "cover_page_template.html",
+            "template_type": "HTML_COVER_PAGE",
+            "display_name_fr": "Page de Garde (HTML)",
+            "description_fr": "Modèle HTML pour les pages de garde de documents.",
+            "category_name": "Documents HTML",
+        },
+    ]
+
+    html_template_languages = ["fr", "en", "ar", "tr", "pt"]
+    # templates_root_dir is already defined above for Excel templates, can reuse
     
+    print("\n--- Starting HTML Template Registration ---")
+    html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.")
+    if html_category_id is None:
+        print("CRITICAL ERROR: Could not create or find the 'Documents HTML' category. HTML templates may not be added correctly.")
+        # Potentially exit or handle this error, for now, registration will likely fail if category_id is strictly needed by add_default_template_if_not_exists
+
+    for html_meta in DEFAULT_HTML_TEMPLATES_METADATA:
+        for lang_code in html_template_languages:
+            template_file_path = os.path.join(templates_root_dir, lang_code, html_meta['base_file_name'])
+            
+            if os.path.exists(template_file_path):
+                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
+                
+                template_data_for_db = {
+                    'template_name': db_template_name,
+                    'template_type': html_meta['template_type'],
+                    'language_code': lang_code,
+                    'base_file_name': html_meta['base_file_name'],
+                    'description': html_meta['description_fr'],
+                    'category_name': html_meta['category_name'], # add_default_template_if_not_exists handles resolving this to category_id
+                    'is_default_for_type_lang': True if lang_code == 'fr' else False
+                }
+                
+                template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
+                if template_id:
+                    print(f"SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processed. DB ID: {template_id}")
+                else:
+                    print(f"INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processing complete (may already exist or error).")
+            else:
+                print(f"SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
+    print("--- HTML Template Registration Finished ---")
+       
     main_window = DocumentManager() 
     main_window.show()
     sys.exit(app.exec_())

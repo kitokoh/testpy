@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="{{doc_lang_code | default: 'fr'}}" dir="{{doc_direction | default: 'ltr'}}">
+<html lang="" dir="">
 <head>
     <meta charset="UTF-8">
-    <title>Facture Proforma - {{invoice_number}}</title>
+    <title>Facture Proforma - </title>
     <style>
         @page {
             size: A4;
@@ -156,17 +156,17 @@
                     <table>
                         <tr>
                             <td class="title text-left"> <!-- Use helper class -->
-                                {{#if seller_company_logo_path}}
-                                <img src="{{seller_company_logo_path}}" alt="Company Logo" class="company-logo">
-                                {{else}}
-                                <span style="font-size: 20pt;">{{seller_company_name}}</span>
-                                {{/if}}
+                                
+                                <img src="C:\Users\cheic\company_logos\4e6978c2-241e-43dc-8f99-013d05b6aed6.png" alt="Company Logo" class="company-logo">
+                                
+                                <span style="font-size: 20pt;">asss</span>
+                                
                             </td>
                             <td class="text-right" style="font-size: 10pt;">
                                 <strong style="font-size: 14pt; text-transform: uppercase;">FACTURE PROFORMA</strong><br>
-                                Numéro: {{invoice_number}}<br>
-                                Date d'émission: {{invoice_date_issue}}<br>
-                                Date d'échéance: {{invoice_date_due}}
+                                Numéro: <br>
+                                Date d'émission: <br>
+                                Date d'échéance: 
                             </td>
                         </tr>
                     </table>
@@ -179,35 +179,28 @@
                         <tr>
                             <td style="width: 50%;" class="text-left"> <!-- Use helper class -->
                                 <div class="section-title">Vendeur</div>
-                                <strong>{{seller_company_name}}</strong><br>
-                                {{seller_company_address}}<br>
-                                {{seller_company_city_zip_country}}<br>
-                                Tel: {{seller_company_phone}}<br>
-                                Email: {{seller_company_email}}<br>
-                                {{#if seller_vat_number}}TVA: {{seller_vat_number}}{{/if}}
+                                <strong>asss</strong><br>
+                                sfdfdsfdf<br>
+                                N/A (Adresse structurée manquante)<br>
+                                Tel: N/A (Champ 'phone' manquant dans la table Companies)<br>
+                                Email: N/A (Champ 'email' manquant dans la table Companies)<br>
+                                TVA: N/A (Champ 'vat_number' manquant dans la table Companies)
                             </td>
                             <td style="width: 50%;" class="text-left"> <!-- Use helper class, content inside might be .text-right per language needs -->
                                 <div class="section-title">Client</div>
-                                <strong>{{buyer_name}}</strong><br>
-                                {{buyer_address}}<br>
-                                {{buyer_city_zip_country}}<br>
-                                {{#if buyer_phone}}Tel: {{buyer_phone}}{{/if}}<br>
-                                {{#if buyer_email}}Email: {{buyer_email}}{{/if}}<br>
-                                {{#if buyer_vat_number}}TVA: {{buyer_vat_number}}{{/if}}
+                                <strong>fffff</strong><br>
+                                ssf, ddd<br>
+                                ssf, ddd<br>
+                                Tel: 258896<br>
+                                Email: allal@gomai.com<br>
+                                TVA: N/A (Champ 'vat_number' manquant dans la table Clients)
                             </td>
                         </tr>
                     </table>
                 </td>
             </tr>
 
-            {{#if project_description}}
-            <tr>
-                <td colspan="4" class="text-left"> <!-- Use helper class -->
-                    <div class="section-title">Description du Projet/Service</div>
-                    <p>{{project_description}}</p>
-                </td>
-            </tr>
-            {{/if}}
+            
 
             <tr class="heading">
                 <td style="width: 55%;">Description</td>
@@ -215,76 +208,47 @@
                 <td class="text-right" style="width: 15%;">Prix Unitaire HT</td>
                 <td class="text-right" style="width: 15%;">Total HT</td>
             </tr>
-            <!-- {{#each items}} -->
-            <tr class="item">
-                <td>{{item_description}}</td>
-                <td class="text-center">{{item_quantity}}</td>
-                <td class="text-right">{{item_unit_price_formatted}}</td>
-                <td class="text-right">{{item_total_price_formatted}}</td>
-            </tr>
-            <!-- {{/each}} -->
-            {{^items}}
+            <!--  -->
+            
             <tr class="item">
                 <td colspan="4" class="text-center" style="padding: 20px;">Aucun article pour le moment.</td>
             </tr>
-            {{/items}}
+            
 
 
             <tr class="total">
                 <td colspan="3" class="label">Sous-total HT:</td> <!-- Use class for label -->
-                <td>{{subtotal_formatted}}</td>
+                <td></td>
             </tr>
-            {{#if tax_description}}
-            <tr class="total">
-                <td colspan="3" class="label">{{tax_description}} ({{tax_rate}}%):</td>
-                <td>{{tax_amount_formatted}}</td>
-            </tr>
-            {{/if}}
-            {{#if discount_description}}
-            <tr class="total">
-                <td colspan="3" class="label">{{discount_description}} ({{discount_rate}}%):</td>
-                <td>-{{discount_amount_formatted}}</td>
-            </tr>
-            {{/if}}
+            
+            
             <tr class="total" style="font-size: 1.1em;">
                 <td colspan="3" class="label bold">TOTAL TTC:</td>
-                <td class="bold">{{grand_total_formatted}} {{currency_symbol}}</td>
+                <td class="bold"> </td>
             </tr>
         </table>
 
         <div class="terms text-left"> <!-- Use helper class -->
             <div class="section-title">Termes et Conditions</div>
-            <p>{{payment_terms}}</p>
+            <p></p>
         </div>
 
-        {{#if bank_details_iban}}
-        <div class="bank-details text-left"> <!-- Use helper class -->
-            <div class="section-title">Coordonnées Bancaires</div>
-            <p><strong>Banque:</strong> {{bank_details_name}}</p>
-            <p><strong>IBAN:</strong> {{bank_details_iban}}</p>
-            <p><strong>BIC/SWIFT:</strong> {{bank_details_swift}}</p>
-            {{#if bank_account_holder_name}}<p><strong>Titulaire du compte:</strong> {{bank_account_holder_name}}</p>{{/if}}
+        
         </div>
-        {{/if}}
+        
 
         <div class="validity-signature text-left"> <!-- Use helper class -->
-            {{#if proforma_validity_days}}
-            <p><strong>Validité de l'offre:</strong> Cette proforma est valable {{proforma_validity_days}} jours à compter de sa date d'émission.</p>
-            {{/if}}
+            
             <div class="signature-area">
                 <p><strong>Signature / Cachet de l'entreprise:</strong></p>
-                {{#if signature_image_path}}
-                <img src="{{signature_image_path}}" alt="Signature" style="max-height: 80px; margin-top:10px;">
-                {{else}}
-                <div style="height: 60px; border: 1px dashed #ccc; margin-top:10px; background-color: #f9f9f9;"></div>
-                {{/if}}
-                <p style="margin-top:5px;">{{signature_name_and_title}}</p>
+                
+                <p style="margin-top:5px;"></p>
             </div>
         </div>
 
         <div class="footer">
-            <p>{{footer_company_name}} - {{footer_contact_info}}</p>
-            <p>{{footer_additional_info}}</p>
+            <p> - </p>
+            <p></p>
         </div>
     </div>
 </body>
