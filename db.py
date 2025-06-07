@@ -185,6 +185,19 @@ def initialize_database():
     )
     """)
 
+    # Create ClientNotes table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ClientNotes (
+        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        note_text TEXT NOT NULL,
+        user_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
     # Create Projects table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Projects (
@@ -815,6 +828,58 @@ def delete_client(client_id: str) -> bool:
     except sqlite3.Error as e:
         print(f"Database error in delete_client: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
+
+def add_client_note(client_id: str, note_text: str, user_id: str = None) -> int | None:
+    """
+    Adds a new note for a client.
+    Returns the note_id if successful, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            INSERT INTO ClientNotes (client_id, note_text, user_id)
+            VALUES (?, ?, ?)
+        """
+        # timestamp is handled by DEFAULT CURRENT_TIMESTAMP
+        params = (client_id, note_text, user_id)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid  # Returns the note_id of the inserted row
+    except sqlite3.Error as e:
+        print(f"Database error in add_client_note: {e}")
+        if conn:
+            conn.rollback() # Rollback any changes if an error occurred
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_client_notes(client_id: str) -> list[dict]:
+    """
+    Retrieves all notes for a given client_id, ordered by timestamp (oldest first).
+    Returns a list of dictionaries, where each dictionary represents a note.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT note_id, client_id, timestamp, note_text, user_id
+            FROM ClientNotes
+            WHERE client_id = ?
+            ORDER BY timestamp ASC
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_notes: {e}")
+        return [] # Return an empty list in case of error
     finally:
         if conn:
             conn.close()
