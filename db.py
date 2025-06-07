@@ -2554,7 +2554,8 @@ def add_product(product_data: dict) -> int | None:
         """
         params = (
             product_data.get('product_name'), product_data.get('description'),
-            product_data.get('category'), product_data.get('base_unit_price'),
+            product_data.get('category'),
+            product_data.get('base_unit_price') if product_data.get('base_unit_price') is not None else 0.0,
             product_data.get('unit_of_measure'), product_data.get('is_active', True),
             now, now
         )
@@ -2706,6 +2707,9 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        # Initialize effective_unit_price in case of early exit or error before its definition
+        effective_unit_price = None # Ensure it's in scope for the except block
+        product_info = None # Ensure it's in scope for the except block
 
         product_id = link_data.get('product_id')
         product_info = get_product_by_id(product_id) # Need this for base price
@@ -2714,8 +2718,18 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
             return None
 
         quantity = link_data.get('quantity', 1)
-        unit_price = link_data.get('unit_price_override', product_info['base_unit_price'])
-        total_price_calculated = quantity * unit_price
+        unit_price_override = link_data.get('unit_price_override')
+
+        if unit_price_override is not None: # Explicit check for None
+            effective_unit_price = unit_price_override
+        else:
+            effective_unit_price = product_info.get('base_unit_price')
+
+        if effective_unit_price is None:
+            print(f"Warning: `effective_unit_price` was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0 to prevent TypeError.")
+            effective_unit_price = 0.0
+
+        total_price_calculated = quantity * effective_unit_price
 
         sql = """
             INSERT INTO ClientProjectProducts (
@@ -2734,6 +2748,17 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         cursor.execute(sql, params)
         conn.commit()
         return cursor.lastrowid
+    except TypeError as te: # Specifically catch the error we are investigating
+        print(f"TypeError in add_product_to_client_or_project: {te}")
+        print(f"  product_id: {link_data.get('product_id')}")
+        print(f"  quantity: {link_data.get('quantity', 1)}")
+        print(f"  unit_price_override from link_data: {link_data.get('unit_price_override')}")
+        if product_info: # product_info might be None if error happened before it was fetched
+            print(f"  base_unit_price from product_info: {product_info.get('base_unit_price')}")
+        else:
+            print(f"  product_info was None or not fetched prior to error.")
+        print(f"  effective_unit_price at point of error: {effective_unit_price if 'effective_unit_price' in locals() else 'Not yet defined or error before definition'}")
+        return None # Indicate failure
     except sqlite3.Error as e:
         print(f"Database error in add_product_to_client_or_project: {e}")
         return None
