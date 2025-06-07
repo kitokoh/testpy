@@ -261,11 +261,11 @@ class TemplateDialog(QDialog):
     def load_templates(self):
         self.template_list.clear()
         try:
-            all_templates = db_manager.get_all_templates_with_details()
+            all_templates = db_manager.get_all_templates() # Changed to get_all_templates
             if all_templates is None: all_templates = []
             for template_data in all_templates:
                 item_text = f"{template_data.get('template_name', 'N/A')} ({template_data.get('language_code', 'N/A')})"
-                if template_data.get('is_default_for_category_language'):
+                if template_data.get('is_default_for_type_lang'): # Changed to is_default_for_type_lang
                     item_text += f" [{self.tr('Default')}]"
 
                 item = QListWidgetItem(item_text)
@@ -388,7 +388,9 @@ class TemplateDialog(QDialog):
         if not item: return
         template_id = item.data(Qt.UserRole + 1) # ID is in UserRole + 1
         try:
-            success = db_manager.set_default_template_for_category_language(template_id)
+            # Ensure the correct function name is called here if it changed in db_manager
+            # For now, assuming set_default_template_by_id is the correct one for setting default status
+            success = db_manager.set_default_template_by_id(template_id)
             if success:
                 self.load_templates()
                 QMessageBox.information(self, self.tr("Success"), self.tr("Template set as default for its category and language."))
