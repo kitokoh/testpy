@@ -9,3 +9,5 @@ pytz==2025.2
 six==1.17.0
 tzdata==2025.2
 WeasyPrint>=50.0
+openpyxl>=3.0
+python-docx>=0.8
