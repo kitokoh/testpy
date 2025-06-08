@@ -891,6 +891,17 @@ def add_company(company_data: dict) -> str | None:
     """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
     conn = None
     try:
+        product_name = product_data.get('product_name')
+        base_unit_price = product_data.get('base_unit_price')
+        language_code = product_data.get('language_code', 'fr') # Default to 'fr'
+
+        if not product_name:
+            print("Error in add_product: 'product_name' is required.")
+            return None
+        if base_unit_price is None: # Explicitly check for None, as 0.0 is a valid price
+            print("Error in add_product: 'base_unit_price' is required.")
+            return None
+
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
@@ -2620,18 +2631,30 @@ def add_product(product_data: dict) -> int | None:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            product_data.get('product_name'), product_data.get('description'),
+            product_name, product_data.get('description'),
             product_data.get('category'),
-            product_data.get('language_code', 'fr'), # Default to 'fr' if not provided
-            product_data.get('base_unit_price') if product_data.get('base_unit_price') is not None else 0.0,
+            language_code,
+            base_unit_price,
             product_data.get('unit_of_measure'), product_data.get('is_active', True),
             now, now
         )
         cursor.execute(sql, params)
         conn.commit()
         return cursor.lastrowid
+    except sqlite3.IntegrityError as e:
+        # This will catch the UNIQUE constraint violation for (product_name, language_code)
+        print(f"IntegrityError in add_product for name '{product_name}' and lang '{language_code}': {e}")
+        if conn:
+            conn.rollback()
+        # Optionally, here you could query for the existing product_id if needed:
+        # cursor.execute("SELECT product_id FROM Products WHERE product_name = ? AND language_code = ?", (product_name, language_code))
+        # existing_product = cursor.fetchone()
+        # if existing_product: return existing_product['product_id']
+        return None # Indicates "add failed" or "already exists"
     except sqlite3.Error as e:
         print(f"Database error in add_product: {e}")
+        if conn:
+            conn.rollback()
         return None
     finally:
         if conn: conn.close()
@@ -2835,8 +2858,11 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         else:
             effective_unit_price = product_info.get('base_unit_price')
 
+        # Ensure effective_unit_price is not None before multiplication
         if effective_unit_price is None:
-            print(f"Warning: `effective_unit_price` was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0 to prevent TypeError.")
+            # This case should ideally not be reached if base_unit_price is NOT NULL in DB
+            # and product_info is correctly fetched.
+            print(f"Warning: effective_unit_price was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0.")
             effective_unit_price = 0.0
 
         total_price_calculated = quantity * effective_unit_price

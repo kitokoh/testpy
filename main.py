@@ -963,7 +963,14 @@ class ProductDialog(QDialog):
         row_position = self.products_table.rowCount()
         self.products_table.insertRow(row_position)
 
-        self.products_table.setItem(row_position, 0, QTableWidgetItem(name))
+        name_item = QTableWidgetItem(name)
+        # Store the selected language for this product line
+        current_lang_code = self.product_language_filter_combo.currentText()
+        if current_lang_code == self.tr("All"): # Use a default if "All" is selected
+            current_lang_code = "fr" # Or get from client_info, or a global default
+        name_item.setData(Qt.UserRole + 1, current_lang_code) # Store lang_code
+
+        self.products_table.setItem(row_position, 0, name_item)
         self.products_table.setItem(row_position, 1, QTableWidgetItem(description))
 
         qty_item = QTableWidgetItem(f"{quantity:.2f}") # Format to 2 decimal places for consistency
@@ -1025,13 +1032,18 @@ class ProductDialog(QDialog):
             line_total_str = self.products_table.item(row, 4).text().replace("€", "").replace(",", ".").strip()
             line_total = float(line_total_str) if line_total_str else 0.0
 
+            # Retrieve the stored language code
+            name_item = self.products_table.item(row, 0)
+            language_code = name_item.data(Qt.UserRole + 1) if name_item else "fr" # Default 'fr' if not found
+
             products_list.append({
                 "client_id": self.client_id, # This might be redundant if the caller already has client_id
                 "name": name,
                 "description": description,
                 "quantity": quantity,
-                "unit_price": unit_price,
-                "total_price": line_total
+                "unit_price": unit_price, # This is the line item unit price
+                "total_price": line_total,
+                "language_code": language_code # Add language code to the returned data
             })
         return products_list
 
@@ -3447,13 +3459,15 @@ class DocumentManager(QMainWindow):
                                 new_global_product_id = db_manager.add_product({
                                     'product_name': product_item_data['name'],
                                     'description': product_item_data['description'],
-                                    'base_unit_price': product_item_data['unit_price'] # Use dialog price as base for new global product
+                                    'base_unit_price': product_item_data['unit_price'], # Use dialog price as base for new global product
+                                    'language_code': product_item_data.get('language_code', 'fr') # Added language code
                                 })
                                 if new_global_product_id:
                                     global_product_id = new_global_product_id
                                     current_base_unit_price = product_item_data['unit_price']
                                 else:
-                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}'.").format(product_item_data['name']))
+                                    # Error message from add_product (e.g. IntegrityError) will be printed to console from db.py
+                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}' (lang: {1}). Vérifiez que le nom n'est pas déjà utilisé pour cette langue ou si un prix de base est manquant.").format(product_item_data['name'], product_item_data.get('language_code', 'fr')))
                                     continue # Skip to next product in list
 
                             if global_product_id:
