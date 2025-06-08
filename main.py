@@ -86,11 +86,12 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app'): #
         # Use a unique attribute name to avoid conflict if db_manager is imported elsewhere too
         db_manager._initialized_main_app = True
 
+
 def setup_logging():
     """Configures logging for the application."""
     log_file_name = "client_manager_app.log"
     log_format = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
-
+    
     # Configure root logger
     logging.basicConfig(level=logging.DEBUG, format=log_format, stream=sys.stderr) # Basic config for console (stderr)
 
@@ -100,7 +101,7 @@ def setup_logging():
     )
     file_handler.setLevel(logging.INFO) # Log INFO and above to file
     file_handler.setFormatter(logging.Formatter(log_format))
-
+    
     # Console Handler - Only for ERROR and CRITICAL
     console_handler = logging.StreamHandler(sys.stderr) # Explicitly use stderr for errors
     console_handler.setLevel(logging.ERROR) # Log ERROR and CRITICAL to console
@@ -125,7 +126,7 @@ def load_stylesheet_global(app):
     """Loads the global stylesheet."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     qss_file_path = os.path.join(script_dir, "style.qss")
-
+    
     if not os.path.exists(qss_file_path):
         print(f"Stylesheet file not found: {qss_file_path}")
         # Create an empty style.qss if it doesn't exist to avoid crashing
@@ -256,12 +257,14 @@ class ContactDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
-        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        ok_button.setObjectName("primaryButton") # Apply primary button style
+        # ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;") # Removed for global style
+
 
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
         cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_button.setStyleSheet("padding: 5px 15px;")
+        # cancel_button.setStyleSheet("padding: 5px 15px;") # Rely on global style
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -323,6 +326,7 @@ class TemplateDialog(QDialog):
         self.add_btn = QPushButton(self.tr("Ajouter")) # Text updated
         self.add_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle"))
+        self.add_btn.setObjectName("primaryButton") # Style as primary
         self.add_btn.clicked.connect(self.add_template)
         btn_layout.addWidget(self.add_btn)
         
@@ -336,6 +340,7 @@ class TemplateDialog(QDialog):
         self.delete_btn = QPushButton(self.tr("Supprimer")) # Text updated
         self.delete_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné"))
+        self.delete_btn.setObjectName("dangerButton") # Style as danger
         self.delete_btn.clicked.connect(self.delete_template)
         self.delete_btn.setEnabled(False)
         btn_layout.addWidget(self.delete_btn)
@@ -747,22 +752,61 @@ class ProductDialog(QDialog):
         self.client_id = client_id
         # self.product_data = product_data or {} # Original single product data, not used for multi-line
         self.setWindowTitle(self.tr("Ajouter Produits au Client")) # Title for multi-line
-        self.setMinimumSize(700, 750) # Adjusted for table and new layout (increased height for search)
+        self.setMinimumSize(900, 800) # Adjusted for two-column layout
+        self.client_info = db_manager.get_client_by_id(self.client_id) # Fetch client info
         # Refactor: Multi-line product entry
-        self.setup_ui()
-        self._load_existing_products() # Call to load products initially
+        self.setup_ui() # Sets up UI, including language filter combo
+        self._set_initial_language_filter() # Sets default language
+        self._filter_products_by_language_and_search() # Initial load based on default lang and empty search
+
+    def _set_initial_language_filter(self):
+        primary_language = None
+        if self.client_info:
+            client_langs = self.client_info.get('selected_languages')
+            if client_langs: # This is expected to be a comma-separated string from DB
+                primary_language = client_langs.split(',')[0].strip()
+
+        if primary_language:
+            for i in range(self.product_language_filter_combo.count()):
+                if self.product_language_filter_combo.itemText(i) == primary_language:
+                    self.product_language_filter_combo.setCurrentText(primary_language)
+                    break
+        # else: it will default to "All" or the first item in the combo
 
     def _load_existing_products(self):
+        # This method's core logic has been moved to _filter_products_by_language_and_search
+        # and is triggered by __init__ after initial setup.
+        # This can be safely removed or left empty.
+        pass
+
+    def _filter_products_by_language_and_search(self):
         self.existing_products_list.clear()
+
+        selected_language = self.product_language_filter_combo.currentText()
+        if selected_language == self.tr("All"):
+            language_code_for_db = None
+        else:
+            language_code_for_db = selected_language
+
+        search_text = self.search_existing_product_input.text().lower()
+        name_pattern_for_db = f"%{search_text}%" if search_text else None
+
         try:
-            products = db_manager.get_all_products_for_selection() # This function was added in a previous step
-            if products is None: products = [] # Ensure products is iterable
+            # Assuming get_all_products_for_selection can handle language_code=None and name_pattern=None
+            products = db_manager.get_all_products_for_selection_filtered( # Changed to new function
+                language_code=language_code_for_db,
+                name_pattern=name_pattern_for_db
+            )
+            if products is None: products = []
 
             for product_data in products:
                 # product_id = product_data.get('product_id')
                 product_name = product_data.get('product_name', 'N/A')
                 description = product_data.get('description', '')
                 base_unit_price = product_data.get('base_unit_price', 0.0)
+                # Ensure base_unit_price is not None before formatting
+                if base_unit_price is None:
+                    base_unit_price = 0.0
 
                 # Create a more informative display string
                 desc_snippet = (description[:30] + '...') if len(description) > 30 else description
@@ -830,63 +874,67 @@ class ProductDialog(QDialog):
         header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
         main_layout.addWidget(header_label)
 
-        # Existing Product Search Group
+        # Two-column layout for search and form
+        two_columns_layout = QHBoxLayout()
+
+        # Left Column: Existing Product Search Group
         search_group_box = QGroupBox(self.tr("Rechercher Produit Existant"))
         search_layout = QVBoxLayout(search_group_box)
 
+        # Language Filter for Products
+        self.product_language_filter_label = QLabel(self.tr("Filtrer par langue:"))
+        search_layout.addWidget(self.product_language_filter_label)
+        self.product_language_filter_combo = QComboBox()
+        self.product_language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"]) # TODO: Use global lang list if available
+        self.product_language_filter_combo.currentTextChanged.connect(self._filter_products_by_language_and_search)
+        search_layout.addWidget(self.product_language_filter_combo)
+
         self.search_existing_product_input = QLineEdit()
         self.search_existing_product_input.setPlaceholderText(self.tr("Tapez pour rechercher..."))
-        self.search_existing_product_input.textChanged.connect(self._filter_existing_products_list)
+        self.search_existing_product_input.textChanged.connect(self._filter_products_by_language_and_search) # Changed connection
         search_layout.addWidget(self.search_existing_product_input)
-
         self.existing_products_list = QListWidget()
-        self.existing_products_list.setMinimumHeight(100) # Reasonable default height
+        self.existing_products_list.setMinimumHeight(150) # Increased height for better visibility in column
         self.existing_products_list.itemDoubleClicked.connect(self._populate_form_from_selected_product)
         search_layout.addWidget(self.existing_products_list)
-        main_layout.addWidget(search_group_box)
+        two_columns_layout.addWidget(search_group_box, 1) # Add to left, stretch factor 1
 
-
-        # Input Group for Current Product Line
+        # Right Column: Input Group for Current Product Line
         input_group_box = QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"))
         form_layout = QFormLayout(input_group_box)
         form_layout.setSpacing(10)
-
         input_style = "QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }"
         self.setStyleSheet(input_style) # Apply to dialog
-
         self.name_input = QLineEdit()
         form_layout.addRow(self._create_icon_label_widget("package-x-generic", self.tr("Nom du Produit:")), self.name_input)
-
         self.description_input = QTextEdit()
-        self.description_input.setFixedHeight(60) # Slightly smaller for this context
+        self.description_input.setFixedHeight(80) # Increased height for better visibility in column
         form_layout.addRow(self.tr("Description:"), self.description_input)
-
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0, 1000000)
         self.quantity_input.setValue(0.0)
         self.quantity_input.valueChanged.connect(self._update_current_line_total_preview)
         form_layout.addRow(self._create_icon_label_widget("format-list-numbered", self.tr("Quantité:")), self.quantity_input)
-
         self.unit_price_input = QDoubleSpinBox()
         self.unit_price_input.setRange(0, 10000000)
         self.unit_price_input.setPrefix("€ ")
         self.unit_price_input.setValue(0.0)
         self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview)
         form_layout.addRow(self._create_icon_label_widget("cash", self.tr("Prix Unitaire:")), self.unit_price_input)
-
         current_line_total_title_label = QLabel(self.tr("Total Ligne Actuelle:"))
         self.current_line_total_label = QLabel("€ 0.00")
         font = self.current_line_total_label.font()
         font.setBold(True)
         self.current_line_total_label.setFont(font)
         form_layout.addRow(current_line_total_title_label, self.current_line_total_label)
+        two_columns_layout.addWidget(input_group_box, 2) # Add to right, stretch factor 2 (more space for form)
 
-        main_layout.addWidget(input_group_box)
+        main_layout.addLayout(two_columns_layout) # Add the two-column section to the main vertical layout
 
-        # "Add Line" Button
+        # "Add Line" Button (remains below the two columns)
         self.add_line_btn = QPushButton(self.tr("Ajouter Produit à la Liste"))
         self.add_line_btn.setIcon(QIcon.fromTheme("list-add"))
-        self.add_line_btn.setStyleSheet("background-color: #3498db; color: white; padding: 5px 10px;")
+        self.add_line_btn.setObjectName("primaryButton") # Style as primary
         self.add_line_btn.clicked.connect(self._add_current_line_to_table)
         main_layout.addWidget(self.add_line_btn)
 
@@ -936,12 +984,14 @@ class ProductDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
-        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        ok_button.setObjectName("primaryButton") # Apply primary button style
+        # ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
 
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
         cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_button.setStyleSheet("padding: 5px 15px;")
+        # cancel_button.setStyleSheet("padding: 5px 15px;") # Rely on global style
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -978,7 +1028,14 @@ class ProductDialog(QDialog):
         row_position = self.products_table.rowCount()
         self.products_table.insertRow(row_position)
 
-        self.products_table.setItem(row_position, 0, QTableWidgetItem(name))
+        name_item = QTableWidgetItem(name)
+        # Store the selected language for this product line
+        current_lang_code = self.product_language_filter_combo.currentText()
+        if current_lang_code == self.tr("All"): # Use a default if "All" is selected
+            current_lang_code = "fr" # Or get from client_info, or a global default
+        name_item.setData(Qt.UserRole + 1, current_lang_code) # Store lang_code
+
+        self.products_table.setItem(row_position, 0, name_item)
         self.products_table.setItem(row_position, 1, QTableWidgetItem(description))
 
         qty_item = QTableWidgetItem(f"{quantity:.2f}") # Format to 2 decimal places for consistency
@@ -1040,15 +1097,80 @@ class ProductDialog(QDialog):
             line_total_str = self.products_table.item(row, 4).text().replace("€", "").replace(",", ".").strip()
             line_total = float(line_total_str) if line_total_str else 0.0
 
+            # Retrieve the stored language code
+            name_item = self.products_table.item(row, 0)
+            language_code = name_item.data(Qt.UserRole + 1) if name_item else "fr" # Default 'fr' if not found
+
             products_list.append({
                 "client_id": self.client_id, # This might be redundant if the caller already has client_id
                 "name": name,
                 "description": description,
                 "quantity": quantity,
-                "unit_price": unit_price,
-                "total_price": line_total
+                "unit_price": unit_price, # This is the line item unit price
+                "total_price": line_total,
+                "language_code": language_code # Add language code to the returned data
             })
         return products_list
+
+class EditProductLineDialog(QDialog):
+    def __init__(self, product_data, parent=None):
+        super().__init__(parent)
+        self.product_data = product_data # Store the passed product data
+        self.setWindowTitle(self.tr("Modifier Ligne de Produit"))
+        self.setMinimumSize(450, 300) # Reasonable starting size
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self) # Main layout for the dialog
+
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        # Name Input
+        self.name_input = QLineEdit(self.product_data.get('name', ''))
+        form_layout.addRow(self.tr("Nom du Produit:"), self.name_input)
+
+        # Description Input
+        self.description_input = QTextEdit(self.product_data.get('description', ''))
+        self.description_input.setFixedHeight(80)
+        form_layout.addRow(self.tr("Description:"), self.description_input)
+
+        # Quantity Input
+        self.quantity_input = QDoubleSpinBox()
+        self.quantity_input.setRange(0.01, 1000000) # Min quantity 0.01
+        self.quantity_input.setValue(float(self.product_data.get('quantity', 1.0)))
+        form_layout.addRow(self.tr("Quantité:"), self.quantity_input)
+
+        # Unit Price Input
+        self.unit_price_input = QDoubleSpinBox()
+        self.unit_price_input.setRange(0.00, 10000000)
+        self.unit_price_input.setPrefix("€ ")
+        self.unit_price_input.setDecimals(2) # Ensure two decimal places
+        self.unit_price_input.setValue(float(self.product_data.get('unit_price', 0.0)))
+        form_layout.addRow(self.tr("Prix Unitaire:"), self.unit_price_input)
+
+        layout.addLayout(form_layout)
+        layout.addStretch()
+
+        # Dialog Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
+        button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        layout.addWidget(button_box)
+        self.setLayout(layout)
+
+    def get_data(self) -> dict:
+        return {
+            "name": self.name_input.text().strip(),
+            "description": self.description_input.toPlainText().strip(),
+            "quantity": self.quantity_input.value(),
+            "unit_price": self.unit_price_input.value(),
+            "product_id": self.product_data.get('product_id'),
+            "client_project_product_id": self.product_data.get('client_project_product_id')
+        }
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
@@ -1056,7 +1178,8 @@ class CreateDocumentDialog(QDialog):
         self.client_info = client_info
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
-        self.setMinimumSize(550, 450) # Adjusted size for header and button frame
+        self.setMinimumSize(600, 500) # Adjusted size for new filters
+        self._initial_load_complete = False # Flag for initial language setting
         self.setup_ui()
 
     def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
@@ -1069,114 +1192,182 @@ class CreateDocumentDialog(QDialog):
         layout.addWidget(icon_label)
         layout.addWidget(QLabel(label_text))
         return widget
-        
+
     def setup_ui(self):
-        main_layout = QVBoxLayout(self) # Changed to QVBoxLayout
+        main_layout = QVBoxLayout(self)
         main_layout.setSpacing(15)
 
-        # UI Enhancement: Header Added
         header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
         header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
         main_layout.addWidget(header_label)
 
-        # Consistent padding for list/combos and specific hover effect for list
         input_style = """
-            QComboBox, QListWidget { padding: 3px; }
+            QComboBox, QListWidget, QLineEdit { padding: 3px; }
             QListWidget::item:hover { background-color: #e6f7ff; }
         """
-        self.setStyleSheet(input_style) # Apply to dialog
+        self.setStyleSheet(input_style)
 
-        # UI Enhancement: Icons Added
-        lang_selection_layout = QHBoxLayout()
-        lang_icon_label_widget = self._create_icon_label_widget("text-x-generic", self.tr("Langue:"))
-        lang_selection_layout.addWidget(lang_icon_label_widget)
-        self.lang_combo = QComboBox()
-        self.lang_combo.addItems(self.client_info.get("selected_languages", ["fr"]))
-        lang_selection_layout.addWidget(self.lang_combo)
-        lang_selection_layout.addStretch() # Push combo to the left if space allows
-        main_layout.addLayout(lang_selection_layout)
+        # Filters and Search Layout
+        filters_layout = QGridLayout()
+        filters_layout.setSpacing(10)
 
-        templates_label_widget = self._create_icon_label_widget("document-multiple", self.tr("Sélectionnez les documents à créer:"))
-        main_layout.addWidget(templates_label_widget)
-        
+        # Language Filter
+        self.language_filter_label = QLabel(self.tr("Langue:"))
+        self.language_filter_combo = QComboBox()
+        self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"])
+        # TODO: Set client's current language if desired, for now "All"
+        self.language_filter_combo.setCurrentText(self.tr("All"))
+        filters_layout.addWidget(self.language_filter_label, 0, 0)
+        filters_layout.addWidget(self.language_filter_combo, 0, 1)
+
+        # Extension Filter
+        self.extension_filter_label = QLabel(self.tr("Extension:"))
+        self.extension_filter_combo = QComboBox()
+        self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
+        self.extension_filter_combo.setCurrentText("HTML") # Default to HTML
+        filters_layout.addWidget(self.extension_filter_label, 0, 2)
+        filters_layout.addWidget(self.extension_filter_combo, 0, 3)
+
+        # Search Bar
+        self.search_bar_label = QLabel(self.tr("Rechercher:"))
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
+        filters_layout.addWidget(self.search_bar_label, 1, 0)
+        filters_layout.addWidget(self.search_bar, 1, 1, 1, 3) # Span search bar across 3 columns
+
+        main_layout.addLayout(filters_layout)
+
+        # Templates List
+        templates_list_label = self._create_icon_label_widget("document-multiple", self.tr("Modèles disponibles:"))
+        main_layout.addWidget(templates_list_label)
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
-        # Hover effect applied via dialog stylesheet
         main_layout.addWidget(self.templates_list)
+
+        # Connect signals for filters
+        self.language_filter_combo.currentTextChanged.connect(self.load_templates)
+        self.extension_filter_combo.currentTextChanged.connect(self.load_templates)
+        self.search_bar.textChanged.connect(self.load_templates)
         
-        self.load_templates()
+        self.load_templates() # Initial load
         main_layout.addStretch()
 
-        # UI Enhancement: Improved Button Grouping
+        # Button Grouping
         button_frame = QFrame(self)
         button_frame.setObjectName("buttonFrame")
         button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
         button_frame_layout = QHBoxLayout(button_frame)
         button_frame_layout.setContentsMargins(0,0,0,0)
 
-        btn_actions_layout = QHBoxLayout() # Original button layout
-        btn_actions_layout.setSpacing(10)
+        button_frame = QFrame(self)
+        button_frame.setObjectName("buttonFrame")
+        button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame_layout = QHBoxLayout(button_frame)
+        button_frame_layout.setContentsMargins(0,0,0,0)
 
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
-        create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        create_btn.setObjectName("primaryButton") # Apply primary button style
         create_btn.clicked.connect(self.create_documents)
-        btn_actions_layout.addWidget(create_btn)
-        
+        button_frame_layout.addWidget(create_btn) # Add directly to button_frame_layout
+
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_btn.setStyleSheet("padding: 5px 15px;")
+        # cancel_btn.setStyleSheet("padding: 5px 15px;") # Rely on global style
         cancel_btn.clicked.connect(self.reject)
-        btn_actions_layout.addWidget(cancel_btn)
+        button_frame_layout.addWidget(cancel_btn) # Add directly to button_frame_layout
         
-        button_frame_layout.addLayout(btn_actions_layout)
         main_layout.addWidget(button_frame)
-        # UI Enhancements Applied
-        
+
     def load_templates(self):
         self.templates_list.clear()
-        # conn = None # Old sqlite3
-        try:
-            # conn = sqlite3.connect(DATABASE_NAME) # Old sqlite3
-            # cursor = conn.cursor() # Old sqlite3
-            # cursor.execute("SELECT name, language, file_name FROM Templates ORDER BY name, language") # Old SQL
-            # for name, lang, file_name_db in cursor.fetchall(): # Old iteration
 
-            # New logic using db_manager
-            # Fetches templates that have a base_file_name, suitable for document generation.
+        if not self._initial_load_complete:
+            primary_language = None
+            client_langs = self.client_info.get('selected_languages') # This is a list e.g. ['fr', 'en'] or a string "fr,en"
+            if client_langs:
+                if isinstance(client_langs, list) and client_langs:
+                    primary_language = client_langs[0]
+                elif isinstance(client_langs, str) and client_langs.strip():
+                    primary_language = client_langs.split(',')[0].strip()
+
+            if primary_language and self.language_filter_combo.currentText() == self.tr("All"):
+                # Check if primary_language is a valid option in the combo
+                for i in range(self.language_filter_combo.count()):
+                    if self.language_filter_combo.itemText(i) == primary_language:
+                        self.language_filter_combo.setCurrentText(primary_language)
+                        break
+            self._initial_load_complete = True
+
+        selected_lang = self.language_filter_combo.currentText()
+        selected_ext_display = self.extension_filter_combo.currentText()
+        search_text = self.search_bar.text().lower()
+
+        # Map display extension to actual extension
+        ext_map = {
+            "HTML": ".html",
+            "XLSX": ".xlsx",
+            "DOCX": ".docx"
+        }
+        selected_ext = ext_map.get(selected_ext_display) # Will be None if "All" or not found
+
+        try:
             all_file_templates = db_manager.get_all_file_based_templates()
             if all_file_templates is None: all_file_templates = []
 
+            filtered_templates = []
             for template_dict in all_file_templates:
+                name = template_dict.get('template_name', 'N/A')
+                lang_code = template_dict.get('language_code', 'N/A')
+                base_file_name = template_dict.get('base_file_name', 'N/A')
+
+                # Language filter
+                if selected_lang != self.tr("All") and lang_code != selected_lang:
+                    continue
+
+                # Extension filter
+                file_actual_ext = os.path.splitext(base_file_name)[1].lower()
+                if selected_ext_display != self.tr("All"):
+                    if not selected_ext or file_actual_ext != selected_ext:
+                        continue
+
+                # Search text filter (case-insensitive on template name)
+                if search_text and search_text not in name.lower():
+                    continue
+
+                filtered_templates.append(template_dict)
+
+            for template_dict in filtered_templates:
                 name = template_dict.get('template_name', 'N/A')
                 lang = template_dict.get('language_code', 'N/A')
                 base_file_name = template_dict.get('base_file_name', 'N/A')
 
                 item_text = f"{name} ({lang}) - {base_file_name}"
                 item = QListWidgetItem(item_text)
-                # Store the necessary info for when the document is created
-                item.setData(Qt.UserRole, (name, lang, base_file_name))
+                item.setData(Qt.UserRole, (name, lang, base_file_name)) # Store data for creation
                 self.templates_list.addItem(item)
 
-        except Exception as e: # Catch generic db_manager errors or other issues
+        except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
-        # finally:
-            # if conn: conn.close() # Old sqlite3
             
     def create_documents(self):
         selected_items = self.templates_list.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer."))
             return
-            
-        lang = self.lang_combo.currentText() # This gives the language code directly if items are codes
-        target_dir = os.path.join(self.client_info["base_folder_path"], lang)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        created_files = []
+
+        # Language for document creation is determined by the template itself (db_template_lang)
+        # The self.lang_combo (client's general language pref) is removed from this dialog.
+        # We use the language associated with the chosen template.
+
+        created_files_count = 0
         
         for item in selected_items:
             db_template_name, db_template_lang, actual_template_filename = item.data(Qt.UserRole)
+
+            # Determine target directory based on template's language
+            target_dir_for_document = os.path.join(self.client_info["base_folder_path"], db_template_lang)
+            os.makedirs(target_dir_for_document, exist_ok=True)
             
             if not actual_template_filename:
                 print(f"Warning: No actual_template_filename for template '{db_template_name}' ({db_template_lang}). Skipping.")
@@ -1186,47 +1377,40 @@ class CreateDocumentDialog(QDialog):
             template_file_found_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
 
             if os.path.exists(template_file_found_abs):
-                target_path = os.path.join(target_dir, actual_template_filename)
-                shutil.copy(template_file_found_abs, target_path)
+                target_path = os.path.join(target_dir_for_document, actual_template_filename) # Use target_dir_for_document
+                try:
+                    shutil.copy(template_file_found_abs, target_path)
 
-                if target_path.lower().endswith(".docx"):
-                    try:
+                    if target_path.lower().endswith(".docx"):
                         populate_docx_template(target_path, self.client_info)
                         print(f"Populated DOCX: {target_path}")
-                    except Exception as e_pop:
-                        print(f"Error populating DOCX template {target_path}: {e_pop}")
-                        QMessageBox.warning(self, self.tr("Erreur DOCX"), self.tr("Impossible de populer le modèle Word '{0}':\n{1}").format(os.path.basename(target_path), e_pop))
-                elif target_path.lower().endswith(".html"):
-                    try:
+                    elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f:
                             template_content = f.read()
-
-                        # Fetch default company ID for HTML population
                         default_company_obj = db_manager.get_default_company()
                         default_company_id = default_company_obj['company_id'] if default_company_obj else None
-
                         if default_company_id is None:
                             QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-
                         populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id)
-
                         with open(target_path, 'w', encoding='utf-8') as f:
                             f.write(populated_content)
                         print(f"Populated HTML: {target_path}")
-                    except Exception as e_html_pop:
-                        print(f"Error populating HTML template {target_path}: {e_html_pop}")
-                        QMessageBox.warning(self, self.tr("Erreur HTML"), self.tr("Impossible de populer le modèle HTML '{0}':\n{1}").format(os.path.basename(target_path), e_html_pop))
 
-                created_files.append(target_path)
+                    created_files_count += 1
+                except Exception as e_create:
+                    print(f"Error processing template {actual_template_filename} for {db_template_name}: {e_create}")
+                    QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
             else:
                 print(f"Warning: Template file '{actual_template_filename}' for '{db_template_name}' ({db_template_lang}) not found at {template_file_found_abs}.")
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
 
-        if created_files:
-            QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(len(created_files)))
+        if created_files_count > 0:
+            QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
             self.accept()
-        else:
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé."))
+        elif not selected_items: # No items were selected in the first place
+             pass # Message already shown
+        else: # Items were selected, but none could be created
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les erreurs précédentes."))
 
 class CompilePdfDialog(QDialog):
     def __init__(self, client_info, parent=None):
@@ -1282,12 +1466,13 @@ class CompilePdfDialog(QDialog):
         action_layout = QHBoxLayout()
         compile_btn = QPushButton(self.tr("Compiler PDF"))
         compile_btn.setIcon(QIcon.fromTheme("document-export"))
-        compile_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+        compile_btn.setObjectName("primaryButton") # Apply primary button style
         compile_btn.clicked.connect(self.compile_pdf)
         action_layout.addWidget(compile_btn)
         
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        # No specific style needed if global QPushButton style is sufficient
         cancel_btn.clicked.connect(self.reject)
         action_layout.addWidget(cancel_btn)
         
@@ -1545,56 +1730,29 @@ class CompilePdfDialog(QDialog):
         msg = MIMEMultipart()
         msg['From'] = config["smtp_user"]
         msg['To'] = email
+        # Subject and body content are email content, not UI, so direct tr() might be too simple.
+        # These might need a more complex templating system if they need to be multilingual based on recipient preference.
+        # For now, translating as if it's for the user sending the email.
         msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info['client_name'])
         
-        body_text = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier'])
-        msg.attach(MIMEText(body_text, 'plain'))
-
+        body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier'])
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with open(pdf_path, 'rb') as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
+        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
+        msg.attach(part)
+        
         try:
-            with open(pdf_path, 'rb') as f_attach:
-                part = MIMEApplication(f_attach.read(), Name=os.path.basename(pdf_path))
-            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
-            msg.attach(part)
-        except (OSError, IOError) as e_file:
-            logging.error(f"Error attaching PDF file {pdf_path} to email.", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur Fichier Pièce Jointe"),
-                                 self.tr("Impossible de lire le fichier PDF pour la pièce jointe.\n{0}\n\nL'email n'a pas été envoyé.").format(str(e_file)))
-            return # Stop if attachment cannot be read
-
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            server = smtplib.SMTP(config["smtp_server"], config.get("smtp_port", 587), timeout=10) # Added timeout
-            server.ehlo()
+            server = smtplib.SMTP(config["smtp_server"], config.get("smtp_port", 587))
             if config.get("smtp_port", 587) == 587:
                 server.starttls()
-                server.ehlo()
             server.login(config["smtp_user"], config["smtp_password"])
             server.send_message(msg)
             server.quit()
-            QMessageBox.information(self, self.tr("Email Envoyé"), self.tr("Le document a été envoyé avec succès."))
-            logging.info(f"Email sent successfully to {email} for client {self.client_info.get('client_id')}, PDF: {pdf_path}")
-        except smtplib.SMTPAuthenticationError as e_auth:
-            logging.error("SMTP Authentication Error while sending email.", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur d'Authentification SMTP"),
-                                 self.tr("Impossible de s'authentifier auprès du serveur SMTP. Veuillez vérifier vos identifiants SMTP dans les paramètres.\n\nErreur: {0}").format(e_auth.smtp_error.decode('utf-8', 'ignore') if hasattr(e_auth, 'smtp_error') and e_auth.smtp_error else str(e_auth)))
-        except smtplib.SMTPConnectError as e_conn:
-            logging.error("SMTP Connection Error while sending email.", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur de Connexion SMTP"),
-                                 self.tr("Impossible de se connecter au serveur SMTP. Veuillez vérifier l'adresse du serveur et le port dans les paramètres, ainsi que votre connexion Internet.\n\nErreur: {0}").format(str(e_conn)))
-        except smtplib.SMTPServerDisconnected as e_disc:
-            logging.error("SMTP Server Disconnected Error while sending email.", exc_info=True)
-            QMessageBox.critical(self, self.tr("Déconnexion du Serveur SMTP"),
-                                 self.tr("La connexion au serveur SMTP a été perdue. Veuillez réessayer. Si le problème persiste, contactez votre administrateur.\n\nErreur: {0}").format(str(e_disc)))
-        except OSError as e_os:
-            logging.error("OS Error (e.g., socket error) while sending email.", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur Réseau"),
-                                 self.tr("Une erreur réseau (par exemple, problème de socket) est survenue lors de la tentative d'envoi de l'email. Vérifiez votre connexion Internet et les paramètres du pare-feu.\n\nErreur: {0}").format(str(e_os)))
-        except Exception as e_general:
-            logging.error("Generic error while sending email.", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur d'Envoi"),
-                                 self.tr("Une erreur inattendue est survenue lors de l'envoi de l'email:\n{0}").format(str(e_general)))
-        finally:
-            QApplication.restoreOverrideCursor()
+            QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))
 
 class ClientWidget(QWidget):
     def __init__(self, client_info, config, parent=None): 
@@ -1616,13 +1774,13 @@ class ClientWidget(QWidget):
         
         self.create_docs_btn = QPushButton(self.tr("Créer Documents"))
         self.create_docs_btn.setIcon(QIcon.fromTheme("document-new"))
-        self.create_docs_btn.setStyleSheet("background-color: #3498db; color: white;")
+        self.create_docs_btn.setObjectName("primaryButton")
         self.create_docs_btn.clicked.connect(self.open_create_docs_dialog)
         action_layout.addWidget(self.create_docs_btn)
         
         self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
         self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export"))
-        self.compile_pdf_btn.setStyleSheet("background-color: #27ae60; color: white;")
+        self.compile_pdf_btn.setProperty("primary", True) # Alternative way to mark as primary
         self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog)
         action_layout.addWidget(self.compile_pdf_btn)
         
@@ -1647,6 +1805,13 @@ class ClientWidget(QWidget):
 
         # Initial population
         self.populate_details_layout() # Call a method to populate for clarity
+
+        # Add Category display
+        self.category_label = QLabel(self.tr("Catégorie:"))
+        self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
+        self.details_layout.addRow(self.category_label, self.category_value_label)
+        self.detail_value_labels["category"] = self.category_value_label
+
 
         layout.addLayout(self.details_layout)
         
@@ -1702,21 +1867,22 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         
         contacts_btn_layout = QHBoxLayout()
-        self.add_contact_btn = QPushButton(self.tr("➕ Contact"))
-        # self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")) # Icon removed
+        self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")) # Standardized text
+        self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add")))
         self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client"))
         self.add_contact_btn.clicked.connect(self.add_contact)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         
-        self.edit_contact_btn = QPushButton(self.tr("✏️ Contact"))
-        # self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")) # Standardized text
+        self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit"))
         self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné"))
         self.edit_contact_btn.clicked.connect(self.edit_contact)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         
-        self.remove_contact_btn = QPushButton(self.tr("🗑️ Contact"))
-        # self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_contact_btn = QPushButton(self.tr("🗑️ Supprimer")) # Standardized text
+        self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client"))
+        self.remove_contact_btn.setObjectName("dangerButton") # Mark as danger
         self.remove_contact_btn.clicked.connect(self.remove_contact)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         
@@ -1738,21 +1904,22 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         
         products_btn_layout = QHBoxLayout()
-        self.add_product_btn = QPushButton(self.tr("➕ Produit"))
-        # self.add_product_btn.setIcon(QIcon.fromTheme("list-add")) # Icon removed
+        self.add_product_btn = QPushButton(self.tr("➕ Ajouter")) # Standardized text
+        self.add_product_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet"))
         self.add_product_btn.clicked.connect(self.add_product)
         products_btn_layout.addWidget(self.add_product_btn)
         
-        self.edit_product_btn = QPushButton(self.tr("✏️ Produit"))
-        # self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_product_btn = QPushButton(self.tr("✏️ Modifier")) # Standardized text
+        self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit"))
         self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné"))
         self.edit_product_btn.clicked.connect(self.edit_product)
         products_btn_layout.addWidget(self.edit_product_btn)
         
-        self.remove_product_btn = QPushButton(self.tr("🗑️ Produit"))
-        # self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_product_btn = QPushButton(self.tr("🗑️ Supprimer")) # Standardized text
+        self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet"))
+        self.remove_product_btn.setObjectName("dangerButton") # Mark as danger
         self.remove_product_btn.clicked.connect(self.remove_product)
         products_btn_layout.addWidget(self.remove_product_btn)
         
@@ -1828,8 +1995,18 @@ class ClientWidget(QWidget):
 
             folder_path = self.client_info.get('base_folder_path','')
             self.detail_value_labels["base_folder_path"].setText(f"<a href='file:///{folder_path}'>{folder_path}</a>")
+
+            # Update Category if the label exists
+            if "category" in self.detail_value_labels:
+                 self.detail_value_labels["category"].setText(self.client_info.get("category", self.tr("N/A")))
+            elif hasattr(self, 'category_value_label'): # Fallback for direct attribute if detail_value_labels not fully populated yet
+                 self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
+
         else: # Fallback or if you choose to repopulate the whole layout
             self.populate_details_layout()
+            # Explicitly update category here too if populate_details_layout doesn't handle it fully initially
+            if hasattr(self, 'category_value_label'):
+                 self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
 
 
         # Update Notes
@@ -2308,83 +2485,83 @@ class ClientWidget(QWidget):
                  QMessageBox.information(self, self.tr("Information"), self.tr("Certains produits n'ont pas pu être ajoutés. Veuillez vérifier les messages d'erreur."))
 
     def edit_product(self):
-        # FIXME: ProductDialog has been refactored for multi-line entry and no longer supports
-        # pre-populating for a single item edit via its constructor in the same way.
-        # This edit_product method needs a complete rework.
-        # Possible solutions:
-        # 1. Create a new, separate dialog for editing a single product line item.
-        # 2. Modify ProductDialog to have an "edit mode" which might involve passing
-        #    the existing product_data and having the table pre-populated with that one item,
-        #    and then get_data() would need to differentiate or the calling code would
-        #    only expect one item back in edit mode. This is complex.
-        # 3. Change the edit interaction: e.g., delete the line and re-add it using the multi-line dialog.
-        # For now, this functionality is effectively disabled to prevent errors.
-        QMessageBox.warning(self,
-                              self.tr("Fonctionnalité en cours de révision"),
-                              self.tr("La modification des produits est temporairement désactivée et en cours de révision en raison de la nouvelle interface d'ajout multiple de produits."))
-        return
-
         selected_row = self.products_table.currentRow()
-        if selected_row < 0: return
-        
-        # Assuming the hidden ID column (0) stores client_project_product_id
-        cpp_id_item = self.products_table.item(selected_row, 0)
-        if not cpp_id_item: return
-        client_project_product_id = cpp_id_item.data(Qt.UserRole) # This ID is for ClientProjectProducts table
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier."))
+            return
 
-        client_uuid = self.client_info.get("client_id")
+        cpp_id_item = self.products_table.item(selected_row, 0) # Hidden column with client_project_product_id
+        if not cpp_id_item:
+            QMessageBox.critical(self, self.tr("Erreur Données"), self.tr("ID du produit lié introuvable dans la table."))
+            return
+        client_project_product_id = cpp_id_item.data(Qt.UserRole)
 
         try:
-            # Fetch the current linked product details (quantity, price_override)
-            # get_products_for_client_or_project returns a list, we need the specific one by cpp_id
-            # This requires a new function: db_manager.get_client_project_product_by_id(cpp_id)
+            # Fetch complete details of the linked product, including global product info
             linked_product_details = db_manager.get_client_project_product_by_id(client_project_product_id)
 
-            if linked_product_details:
-                # ProductDialog expects 'name', 'description', 'quantity', 'unit_price'
-                # 'name' and 'description' come from the global Product table (joined in linked_product_details)
-                # 'quantity' comes from ClientProjectProducts
-                # 'unit_price' for dialog should be the effective price (override or base)
-                effective_unit_price = linked_product_details.get('unit_price_override', linked_product_details.get('base_unit_price'))
+            if not linked_product_details:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié introuvables dans la base de données."))
+                return
 
-                dialog_data = {
-                    "name": linked_product_details.get('product_name', ''), # From joined Products table
-                    "description": linked_product_details.get('product_description', ''), # From joined Products table
-                    "quantity": linked_product_details.get('quantity', 0),
-                    "unit_price": effective_unit_price
+            # Prepare data for the EditProductLineDialog
+            # The dialog expects 'name', 'description', 'quantity', 'unit_price', 'product_id', 'client_project_product_id'
+            effective_unit_price = linked_product_details.get('unit_price_override', linked_product_details.get('base_unit_price', 0.0))
+
+            dialog_data_for_edit = {
+                "name": linked_product_details.get('product_name', ''),
+                "description": linked_product_details.get('product_description', ''),
+                "quantity": linked_product_details.get('quantity', 1.0),
+                "unit_price": effective_unit_price, # This is the price shown and edited in the dialog
+                "product_id": linked_product_details.get('product_id'),
+                "client_project_product_id": client_project_product_id,
+                # Store original base price for comparison later
+                "original_base_unit_price": linked_product_details.get('base_unit_price', 0.0)
+            }
+
+            dialog = EditProductLineDialog(product_data=dialog_data_for_edit, parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                updated_data_from_dialog = dialog.get_data()
+
+                # 1. Update Global Product (Products table) if name, description, or base price logic dictates
+                global_product_update_payload = {}
+                if updated_data_from_dialog['name'] != linked_product_details.get('product_name'):
+                    global_product_update_payload['product_name'] = updated_data_from_dialog['name']
+                if updated_data_from_dialog['description'] != linked_product_details.get('product_description'):
+                    global_product_update_payload['description'] = updated_data_from_dialog['description']
+
+                # Logic for updating base_unit_price:
+                # If name or description changed, consider the edited price as the new base price for this (potentially now distinct) product.
+                if global_product_update_payload: # If name or description changed
+                     global_product_update_payload['base_unit_price'] = updated_data_from_dialog['unit_price']
+
+                if global_product_update_payload:
+                    db_manager.update_product(updated_data_from_dialog['product_id'], global_product_update_payload)
+
+                # 2. Update Linked Product (ClientProjectProducts table)
+                # Determine unit_price_override based on the potentially updated global product's base_unit_price
+                current_global_product_info = db_manager.get_product_by_id(updated_data_from_dialog['product_id'])
+                current_global_base_price = current_global_product_info.get('base_unit_price', 0.0) if current_global_product_info else 0.0
+
+                unit_price_override_val = None
+                if float(updated_data_from_dialog['unit_price']) != float(current_global_base_price): # Compare as float
+                    unit_price_override_val = updated_data_from_dialog['unit_price']
+
+                link_update_payload = {
+                    'quantity': updated_data_from_dialog['quantity'],
+                    'unit_price_override': unit_price_override_val
+                    # total_price_calculated will be handled by db_manager.update_client_project_product
                 }
 
-                dialog = ProductDialog(client_uuid, dialog_data, parent=self)
-                if dialog.exec_() == QDialog.Accepted:
-                    form_data = dialog.get_data()
-
-                    update_link_data = {
-                        'quantity': form_data['quantity'],
-                        'unit_price_override': form_data['unit_price']
-                                              if form_data['unit_price'] != linked_product_details.get('base_unit_price')
-                                              else None
-                        # total_price_calculated will be handled by db_manager.update_client_project_product
-                    }
-                    # Note: If product name/description from dialog differs, it implies editing the global product.
-                    # This might need db_manager.update_product(linked_product_details['product_id'], {...})
-                    # For now, focusing on quantity/price_override for the link.
-                    if form_data['name'] != linked_product_details.get('product_name') or \
-                       form_data['description'] != linked_product_details.get('product_description'):
-                        db_manager.update_product(linked_product_details['product_id'], {
-                            'product_name': form_data['name'],
-                            'description': form_data['description']
-                            # Base price update could also be considered here if dialog unit_price is meant to update it
-                        })
-
-
-                    if db_manager.update_client_project_product(client_project_product_id, update_link_data):
-                        self.load_products()
-                    else:
-                        QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du produit lié."))
-            else:
-                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié introuvables."))
+                if db_manager.update_client_project_product(client_project_product_id, link_update_payload):
+                    self.load_products() # Refresh the table
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour avec succès."))
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit liée."))
+            # Else (dialog cancelled), do nothing
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du produit:\n{0}").format(str(e)))
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            print(f"Error in edit_product: {e}") # For debugging
 
     def remove_product(self):
         selected_row = self.products_table.currentRow()
@@ -2489,7 +2666,33 @@ class EditClientDialog(QDialog):
         self.final_price_input.setPrefix("€ ")
         self.final_price_input.setRange(0, 10000000)
         self.final_price_input.setValue(float(self.client_info.get('price', 0.0)))
-        layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+        self.final_price_input.setReadOnly(True) # Make read-only
+        price_info_label = QLabel(self.tr("Le prix final est calculé à partir des produits et n'est pas modifiable ici."))
+        price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;")
+        price_layout = QHBoxLayout()
+        price_layout.addWidget(self.final_price_input)
+        price_layout.addWidget(price_info_label)
+        layout.addRow(self.tr("Prix Final:"), price_layout)
+
+        # Status (status_select_combo)
+        self.status_select_combo = QComboBox()
+        self.populate_statuses() # New method to populate statuses
+        current_status_id = self.client_info.get('status_id')
+        if current_status_id is not None:
+            index = self.status_select_combo.findData(current_status_id)
+            if index >= 0:
+                self.status_select_combo.setCurrentIndex(index)
+        layout.addRow(self.tr("Statut Client:"), self.status_select_combo)
+
+        # Category
+        self.category_input = QLineEdit(self.client_info.get('category', ''))
+        layout.addRow(self.tr("Catégorie:"), self.category_input)
+
+        # Notes
+        self.notes_edit = QTextEdit(self.client_info.get('notes', ''))
+        self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
+        self.notes_edit.setFixedHeight(80) # Set a reasonable height for notes
+        layout.addRow(self.tr("Notes:"), self.notes_edit)
 
         # Country (country_select_combo)
         self.country_select_combo = QComboBox()
@@ -2570,6 +2773,16 @@ class EditClientDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
 
+    def populate_statuses(self):
+        self.status_select_combo.clear()
+        try:
+            statuses = db_manager.get_all_status_settings(status_type='Client')
+            if statuses is None: statuses = []
+            for status_dict in statuses:
+                self.status_select_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts client:\n{0}").format(str(e)))
+
     def populate_countries(self):
         self.country_select_combo.clear()
         try:
@@ -2609,7 +2822,16 @@ class EditClientDialog(QDialog):
         data['company_name'] = self.company_name_input.text().strip()
         data['primary_need_description'] = self.client_need_input.text().strip()
         data['project_identifier'] = self.project_id_input_field.text().strip()
-        data['price'] = self.final_price_input.value()
+        data['price'] = self.final_price_input.value() # Although read-only, get current value
+
+        # Status ID
+        data['status_id'] = self.status_select_combo.currentData()
+
+        # Category
+        data['category'] = self.category_input.text().strip()
+
+        # Notes
+        data['notes'] = self.notes_edit.toPlainText().strip()
 
         # Country ID
         country_id = self.country_select_combo.currentData()
@@ -2903,12 +3125,16 @@ class DocumentManager(QMainWindow):
         creation_form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
         self.final_price_input = QDoubleSpinBox(); self.final_price_input.setPrefix("€ ") 
         self.final_price_input.setRange(0, 10000000); self.final_price_input.setValue(0)
+        self.final_price_input.setReadOnly(True) # Set to read-only
         creation_form_layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+        price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
+        price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;") # Optional: style the label
+        creation_form_layout.addRow("", price_info_label) # Add info label below price input, span if needed or adjust layout
         self.language_select_combo = QComboBox() 
         self.language_select_combo.addItems([self.tr("Français uniquement (fr)"), self.tr("Arabe uniquement (ar)"), self.tr("Turc uniquement (tr)"), self.tr("Toutes les langues (fr, ar, tr)")])
         creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
         self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon.fromTheme("list-add"))
-        self.create_client_button.setStyleSheet("QPushButton { background-color: #27ae60; color: white; font-weight: bold; padding: 10px; border-radius: 5px; } QPushButton:hover { background-color: #2ecc71; }")
+        self.create_client_button.setObjectName("primaryButton") # Use object name for global styling
         self.create_client_button.clicked.connect(self.execute_create_client) 
         creation_form_layout.addRow(self.create_client_button)
         form_vbox_layout.addLayout(creation_form_layout); left_layout.addWidget(form_group_box)
@@ -3298,13 +3524,15 @@ class DocumentManager(QMainWindow):
                                 new_global_product_id = db_manager.add_product({
                                     'product_name': product_item_data['name'],
                                     'description': product_item_data['description'],
-                                    'base_unit_price': product_item_data['unit_price'] # Use dialog price as base for new global product
+                                    'base_unit_price': product_item_data['unit_price'], # Use dialog price as base for new global product
+                                    'language_code': product_item_data.get('language_code', 'fr') # Added language code
                                 })
                                 if new_global_product_id:
                                     global_product_id = new_global_product_id
                                     current_base_unit_price = product_item_data['unit_price']
                                 else:
-                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}'.").format(product_item_data['name']))
+                                    # Error message from add_product (e.g. IntegrityError) will be printed to console from db.py
+                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}' (lang: {1}). Vérifiez que le nom n'est pas déjà utilisé pour cette langue ou si un prix de base est manquant.").format(product_item_data['name'], product_item_data.get('language_code', 'fr')))
                                     continue # Skip to next product in list
 
                             if global_product_id:
@@ -3330,6 +3558,24 @@ class DocumentManager(QMainWindow):
                     # 3. Create Document Dialog
                     # Ensure ui_map_data is available and correctly structured for client_info
                     if ui_map_data:
+                        # After ProductDialog, calculate and update price
+                        linked_products = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                        if linked_products is None: linked_products = []
+
+                        calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
+
+                        db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum})
+
+                        # Update ui_map_data and self.clients_data_map for immediate UI consistency
+                        ui_map_data['price'] = calculated_total_sum
+                        if actual_new_client_id in self.clients_data_map:
+                             self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+
+                        # Refresh client list display to reflect new price potentially if it's shown there
+                        # self.add_client_to_list_widget might need to be called again or the item updated
+                        # For now, the list widget primarily shows name and status color.
+                        # The critical part is that clients_data_map is updated before open_client_tab_by_id.
+
                         create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
                         if create_document_dialog.exec_() == QDialog.Accepted:
                             # All dialogs completed successfully
@@ -3341,11 +3587,43 @@ class DocumentManager(QMainWindow):
                                             self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
                 else:
                     print("ProductDialog cancelled.")
+                    # If ProductDialog is cancelled, we should still calculate the price based on any products
+                    # that might have been added if the dialog allowed partial additions before cancel.
+                    # However, current ProductDialog only returns data on Accept.
+                    # So, if cancelled, linked_products would be empty or from a previous state.
+                    # For safety, recalculate and update price even if ProductDialog is cancelled,
+                    # based on whatever products are linked to the client at this stage.
+                    if actual_new_client_id and ui_map_data: # Ensure client and map exist
+                        linked_products_on_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                        if linked_products_on_cancel is None: linked_products_on_cancel = []
+                        calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
+                        db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
+                        ui_map_data['price'] = calculated_total_sum_on_cancel
+                        if actual_new_client_id in self.clients_data_map:
+                             self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
+
             else:
                 print("ContactDialog cancelled.")
+                # Similar to above, if ContactDialog is cancelled, calculate price based on current state.
+                if actual_new_client_id and ui_map_data:
+                    linked_products_on_contact_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                    if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
+                    calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
+                    db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
+                    ui_map_data['price'] = calculated_total_sum_on_contact_cancel
+                    if actual_new_client_id in self.clients_data_map:
+                         self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
+
 
             # END of new dialog sequence
             
+            # Ensure client_dict_from_db and ui_map_data are refreshed with the latest price before opening tab
+            # This is important if the tab display relies on the price from these maps.
+            # The price calculation logic has already updated ui_map_data and self.clients_data_map.
+            # The call to self.add_client_to_list_widget uses ui_map_data.
+            # The call to self.open_client_tab_by_id uses self.clients_data_map.
+            # So, the price should be correctly reflected if these maps are the source of truth for those UI elements.
+
             QMessageBox.information(self, self.tr("Client Créé"),
                                     self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
             self.open_client_tab_by_id(actual_new_client_id) # Open the new client's tab
@@ -3368,33 +3646,19 @@ class DocumentManager(QMainWindow):
             # The project/tasks are separate transactions usually.
 
         except OSError as e_os:
-            logging.error(f"OS error during client folder creation for: {client_name_val}", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur Dossier"),
-                                 self.tr("Erreur de création du dossier client '{0}'.\nVérifiez les permissions ou l'espace disque.\n\nErreur: {1}").format(base_folder_full_path, str(e_os)))
-            # Rollback: If client was added to DB but folder creation failed
-            if actual_new_client_id: # Client might have been created in DB before folder error
-                if db_manager.get_client_by_id(actual_new_client_id): # Check if it really exists in DB
-                    db_manager.delete_client(actual_new_client_id) # This should cascade if FKs are set up
-                    logging.info(f"Rolled back client DB entry for {actual_new_client_id} due to OSError.")
-                    QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
-            # Also attempt to delete project if it was created before folder error
-            if new_project_id_central_db:
-                if db_manager.get_project_by_id(new_project_id_central_db):
-                    db_manager.delete_project(new_project_id_central_db) # This should cascade tasks
-                    logging.info(f"Rolled back project DB entry for {new_project_id_central_db} due to OSError.")
-
-
-        except Exception as e_general: # Catch other potential errors from db_manager calls or logic
-            logging.error(f"Unexpected error during client creation: {client_name_val}", exc_info=True)
-            QMessageBox.critical(self, self.tr("Erreur Inattendue"),
-                                 self.tr("Une erreur inattendue est survenue lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_general)))
-            # Rollback for general errors if partial creation might have occurred
+            QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
+            # Rollback: If client was added to DB but folder creation failed, delete client from DB
+            if actual_new_client_id:
+                 db_manager.delete_client(actual_new_client_id) # This will also cascade-delete related Project and Tasks if FKs are set up correctly
+                
+                 QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
+        except Exception as e_db: # Catch other potential errors from db_manager calls or logic
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
+            # Rollback: If client or project was added before a subsequent error
             if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
-                db_manager.delete_project(new_project_id_central_db)
-                logging.info(f"Rolled back project DB entry {new_project_id_central_db} due to general error.")
+                db_manager.delete_project(new_project_id_central_db) # Cascade delete tasks
             if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
                  db_manager.delete_client(actual_new_client_id)
-                 logging.info(f"Rolled back client DB entry {actual_new_client_id} due to general error.")
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
             
     def load_clients_from_db(self):
@@ -3709,10 +3973,13 @@ class DocumentManager(QMainWindow):
                 'project_identifier': updated_form_data.get('project_identifier'),
                 'country_id': updated_form_data.get('country_id'),
                 'city_id': updated_form_data.get('city_id'),
-                'price': updated_form_data.get('price'),
-                'selected_languages': updated_form_data.get('selected_languages')
-                # status_id and notes are not in EditClientDialog, so they won't be updated
-                # default_base_folder_path is also not part of this dialog's update scope for now.
+                # 'price': updated_form_data.get('price'), # Price is read-only in dialog, not updated directly
+                'selected_languages': updated_form_data.get('selected_languages'),
+                'status_id': updated_form_data.get('status_id'),
+                'notes': updated_form_data.get('notes'),
+                'category': updated_form_data.get('category')
+                # default_base_folder_path is not part of this dialog's update scope.
+                # price is handled by product updates.
             }
 
             # Filter out any keys with None values if db_manager.update_client expects only non-null fields for update
@@ -3835,8 +4102,14 @@ class SettingsDialog(QDialog):
         tabs_widget.addTab(self.company_tab, self.tr("Company Details")) # Add it as a tab
         
         dialog_button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        dialog_button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        dialog_button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_settings_button = dialog_button_box.button(QDialogButtonBox.Ok)
+        ok_settings_button.setText(self.tr("OK"))
+        ok_settings_button.setObjectName("primaryButton")
+
+        cancel_settings_button = dialog_button_box.button(QDialogButtonBox.Cancel)
+        cancel_settings_button.setText(self.tr("Annuler"))
+        # Standard cancel button styling will apply from global stylesheet
+
         dialog_button_box.accepted.connect(self.accept); dialog_button_box.rejected.connect(self.reject)
         layout.addWidget(dialog_button_box)
         
@@ -3863,15 +4136,8 @@ def main():
     # Determine language for translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("ClientDocManager")
-    app.setStyle("Fusion")
 
-    # Load the global stylesheet
-    load_stylesheet_global(app)
-
-    # Setup translations
-    translator = QTranslator()
+def generate_pdf_for_document(source_file_path: str, client_info: dict, parent_widget=None) -> str | None:
     """
     Generates a PDF for a given source document (HTML, XLSX, DOCX).
     For HTML, it converts the content to PDF.
@@ -3939,6 +4205,141 @@ def main():
     # Determine language for translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
 
+    app = QApplication(sys.argv)
+    app.setApplicationName("ClientDocManager")
+    app.setStyle("Fusion")
+
+    # Set a default font (example: Segoe UI for Windows, fallback to a common sans-serif)
+    default_font = QFont("Segoe UI", 9) # Adjust size as needed
+    if sys.platform != "win32": # Basic platform check for font
+        default_font = QFont("Arial", 10) # Or "Helvetica", "DejaVu Sans" etc.
+    app.setFont(default_font)
+
+    # Basic global stylesheet
+    app.setStyleSheet("""
+        QWidget {
+            /* General spacing and font settings for all widgets if needed */
+        }
+        QPushButton {
+            padding: 6px 12px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            background-color: #f8f9fa; /* Light gray, good for general buttons */
+            min-width: 80px; /* Ensure buttons have a decent minimum width */
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        QPushButton:pressed {
+            background-color: #dee2e6;
+            border-color: #adb5bd;
+        }
+        QPushButton:disabled {
+            background-color: #e9ecef;
+            color: #6c757d;
+            border-color: #ced4da;
+        }
+        QPushButton#primaryButton, QPushButton[primary="true"] { /* Selector for primary buttons */
+            background-color: #007bff; /* Blue */
+            color: white;
+            border-color: #007bff;
+        }
+        QPushButton#primaryButton:hover, QPushButton[primary="true"]:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+        QPushButton#primaryButton:pressed, QPushButton[primary="true"]:pressed {
+            background-color: #005cbf;
+            border-color: #005cbf;
+        }
+        QPushButton#dangerButton, QPushButton[danger="true"] { /* Selector for danger buttons */
+            background-color: #dc3545; /* Red */
+            color: white;
+            border-color: #dc3545;
+        }
+        QPushButton#dangerButton:hover, QPushButton[danger="true"]:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+        QPushButton#dangerButton:pressed, QPushButton[danger="true"]:pressed {
+            background-color: #b21f2d;
+            border-color: #b21f2d;
+        }
+        QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border-color: #80bdff; /* Light blue, common focus indicator */
+        }
+        QGroupBox {
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin-top: 10px;
+            padding: 10px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            padding: 0 3px 0 3px;
+            left: 10px;
+            background-color: transparent;
+        }
+        QTabWidget::pane {
+            border-top: 1px solid #ced4da;
+            padding: 10px;
+        }
+        QTabBar::tab {
+            padding: 8px 15px;
+            border: 1px solid #ced4da;
+            border-bottom: none;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            background-color: #e9ecef;
+            margin-right: 2px;
+        }
+        QTabBar::tab:selected {
+            background-color: #ffffff;
+            border-color: #ced4da;
+        }
+        QTabBar::tab:hover:!selected {
+            background-color: #f8f9fa;
+        }
+        QTableWidget {
+            border: 1px solid #dee2e6;
+            gridline-color: #dee2e6;
+            alternate-background-color: #f8f9fa; /* For alternating rows */
+        }
+        QHeaderView::section {
+            background-color: #e9ecef; /* Slightly darker than table row hover for distinction */
+            padding: 4px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+        }
+        QListWidget {
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        QListWidget::item {
+            padding: 5px;
+        }
+        QListWidget::item:alternate {
+            background-color: #f8f9fa; /* For alternating rows if enabled */
+        }
+        QListWidget::item:hover {
+            background-color: #e9ecef;
+        }
+        QListWidget::item:selected {
+            background-color: #007bff; /* Blue for selection */
+            color: white;
+        }
+    """)
+
+    # Setup translations
+    translator = QTranslator()
     translation_path = os.path.join(APP_ROOT_DIR, "translations", f"app_{language_code}.qm")
     if translator.load(translation_path):
         app.installTranslator(translator)
@@ -4095,21 +4496,530 @@ def main():
         },
     ]
 
+    HTML_TEMPLATE_CONTENTS = {
+    "proforma_invoice_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Proforma Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
+        </div>
+
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+                <p>Email: {{SELLER_EMAIL}}</p>
+                <p>VAT ID: {{SELLER_VAT_ID}}</p>
+            </div>
+
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
+                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
+            </div>
+        </div>
+
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
+            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{PRODUCTS_TABLE_ROWS}}
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
+            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
+            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
+            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
+        </div>
+
+        <div class="footer">
+            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "packing_list_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Packing List</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .shipper-details, .consignee-details, .notify-party-details { width: 32%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .shipment-info { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee;}
+        .shipment-info p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .totals-summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PACKING LIST</h1>
+        </div>
+
+        <div class.details-section">
+            <div class="shipper-details">
+                <h3>Shipper/Exporter:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+            </div>
+
+            <div class="consignee-details">
+                <h3>Consignee:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+            </div>
+
+            <div class="notify-party-details">
+                <h3>Notify Party:</h3>
+                <p>{{NOTIFY_PARTY_NAME}}</p>
+                <p>{{NOTIFY_PARTY_ADDRESS}}</p>
+            </div>
+        </div>
+
+        <div class="shipment-info">
+            <p><strong>Packing List No:</strong> {{PACKING_LIST_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Invoice No:</strong> {{INVOICE_ID}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Vessel/Flight No:</strong> {{VESSEL_FLIGHT_NO}}</p>
+            <p><strong>Port of Loading:</strong> {{PORT_OF_LOADING}}</p>
+            <p><strong>Port of Discharge:</strong> {{PORT_OF_DISCHARGE}}</p>
+            <p><strong>Final Destination:</strong> {{FINAL_DESTINATION_COUNTRY}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Mark & Nos.</th>
+                    <th>Description of Goods</th>
+                    <th>No. of Packages</th>
+                    <th>Type of Packages</th>
+                    <th>Net Weight (kg)</th>
+                    <th>Gross Weight (kg)</th>
+                    <th>Dimensions (LxWxH cm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{PACKING_LIST_ITEMS}}
+                <!-- Example Row:
+                <tr>
+                    <td>CS/NO. 1-10</td>
+                    <td>Product Alpha - Model X</td>
+                    <td>10</td>
+                    <td>Cartons</td>
+                    <td>100.00</td>
+                    <td>110.00</td>
+                    <td>50x40x30</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="totals-summary">
+            <p><strong>Total Number of Packages:</strong> {{TOTAL_PACKAGES}}</p>
+            <p><strong>Total Net Weight:</strong> {{TOTAL_NET_WEIGHT}} kg</p>
+            <p><strong>Total Gross Weight:</strong> {{TOTAL_GROSS_WEIGHT}} kg</p>
+            <p><strong>Total Volume:</strong> {{TOTAL_VOLUME_CBM}} CBM</p>
+        </div>
+
+        <div class="footer">
+            <p>Exporter's Signature: _________________________</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "sales_contract_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Contract</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; margin: 40px; line-height: 1.6; color: #000; }
+        .container { width: 85%; margin: auto; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .contract-title { font-size: 24px; font-weight: bold; }
+        .party-details { margin-bottom: 30px; overflow: auto; }
+        .seller-details, .buyer-details { width: 48%; float: left; padding: 10px; }
+        .buyer-details { float: right; }
+        .article { margin-bottom: 20px; }
+        .article h3 { font-size: 16px; margin-bottom: 5px; }
+        .signatures { margin-top: 50px; overflow: auto; }
+        .signature-block { width: 45%; float: left; margin-top:30px;}
+        .signature-block p { margin-bottom: 40px; }
+        .footer { text-align: center; margin-top: 50px; font-size: 0.8em; color: #555; }
+        .logo { max-width: 120px; max-height: 60px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <p class="contract-title">SALES CONTRACT</p>
+            <p>Contract No: {{CONTRACT_ID}}</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+
+        <div class="party-details">
+            <div class="seller-details">
+                <h4>The Seller:</h4>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>Address: {{SELLER_FULL_ADDRESS}}</p>
+                <p>Represented by: {{SELLER_REPRESENTATIVE_NAME}}, {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="buyer-details">
+                <h4>The Buyer:</h4>
+                <p><strong>{{CLIENT_NAME}}</strong> ({{CLIENT_COMPANY_NAME}})</p>
+                <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
+                <p>Represented by: {{PRIMARY_CONTACT_NAME}}, {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <h3>Article 1: Subject of the Contract</h3>
+            <p>The Seller agrees to sell and the Buyer agrees to buy the goods specified in Annex 1 ("The Goods") attached hereto and forming an integral part of this Contract.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 2: Price and Total Value</h3>
+            <p>The unit prices of the Goods are specified in {{CURRENCY_CODE}} as per Annex 1. The total value of this Contract is {{CURRENCY_CODE}} {{GRAND_TOTAL_AMOUNT}} ({{GRAND_TOTAL_AMOUNT_WORDS}}).</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 3: Terms of Payment</h3>
+            <p>{{PAYMENT_TERMS_DETAIL}} (e.g., 30% advance payment, 70% upon shipment via Letter of Credit, etc.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 4: Delivery Terms</h3>
+            <p>Delivery shall be made {{INCOTERMS}} {{NAMED_PLACE_OF_DELIVERY}} as per Incoterms 2020. Estimated date of shipment: {{ESTIMATED_SHIPMENT_DATE}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 5: Packing and Marking</h3>
+            <p>The Goods shall be packed in {{PACKING_TYPE_DESCRIPTION}}, suitable for international shipment and ensuring their safety during transit. Markings as per Buyer's instructions / Standard export markings.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 6: Warranty</h3>
+            <p>The Seller warrants that the Goods are new, unused, and conform to the specifications agreed upon for a period of {{WARRANTY_PERIOD_MONTHS}} months from the date of {{WARRANTY_START_CONDITION e.g., arrival at destination/installation}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 7: Inspection</h3>
+            <p>{{INSPECTION_CLAUSE_DETAIL}} (e.g., Inspection by Buyer's representative before shipment at Seller's premises / Inspection by {{INSPECTION_AGENCY_NAME}} at port of loading.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 8: Force Majeure</h3>
+            <p>Neither party shall be liable for any failure or delay in performing their obligations under this Contract if such failure or delay is due to Force Majeure events...</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 9: Applicable Law and Dispute Resolution</h3>
+            <p>This Contract shall be governed by and construed in accordance with the laws of {{JURISDICTION_COUNTRY_NAME}}. Any dispute arising out of or in connection with this Contract shall be settled by arbitration in {{ARBITRATION_LOCATION}} under the rules of {{ARBITRATION_RULES_BODY}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 10: Entire Agreement</h3>
+            <p>This Contract, including any Annexes, constitutes the entire agreement between the parties and supersedes all prior negotiations, understandings, and agreements, whether written or oral.</p>
+        </div>
+
+        <div class="signatures">
+            <div class="signature-block">
+                <p><strong>For the Seller:</strong></p>
+                <p>_________________________</p>
+                <p>{{SELLER_COMPANY_NAME}}</p>
+                <p>Name: {{SELLER_REPRESENTATIVE_NAME}}</p>
+                <p>Title: {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="signature-block" style="float:right;">
+                <p><strong>For the Buyer:</strong></p>
+                <p>_________________________</p>
+                <p>{{CLIENT_COMPANY_NAME}}</p>
+                <p>Name: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Title: {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Annex 1: Specification and Price of Goods (to be attached)</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "warranty_document_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>Warranty Certificate</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; color: #333; }
+        .container { width: 80%; margin: auto; border: 2px solid #0056b3; padding: 30px; }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { color: #0056b3; }
+        .warranty-details p, .product-details p, .terms p { margin: 8px 0; line-height: 1.5; }
+        .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #0056b3; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        .footer { text-align: center; margin-top: 40px; font-size: 0.9em; }
+        .company-signature { margin-top: 30px;}
+        .logo { max-width: 140px; max-height: 60px; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>WARRANTY CERTIFICATE</h1>
+        </div>
+
+        <div class="warranty-details">
+            <p><strong>Certificate No:</strong> {{WARRANTY_CERTIFICATE_ID}}</p>
+            <p><strong>Date of Issue:</strong> {{DATE}}</p>
+            <p><strong>Issued By (Warrantor):</strong> {{SELLER_COMPANY_NAME}}</p>
+            <p>Address: {{SELLER_FULL_ADDRESS}}</p>
+        </div>
+
+        <div class="product-details">
+            <h3 class="section-title">Product Information</h3>
+            <p><strong>Product Name/Description:</strong> {{PRODUCT_NAME_WARRANTY}}</p>
+            <p><strong>Model No:</strong> {{PRODUCT_MODEL_WARRANTY}}</p>
+            <p><strong>Serial No(s):</strong> {{PRODUCT_SERIAL_NUMBERS_WARRANTY}}</p>
+            <p><strong>Date of Purchase/Supply:</strong> {{PURCHASE_SUPPLY_DATE}}</p>
+            <p><strong>Original Invoice No:</strong> {{ORIGINAL_INVOICE_ID_WARRANTY}}</p>
+        </div>
+
+        <div class="beneficiary-details">
+            <h3 class="section-title">Beneficiary Information</h3>
+            <p><strong>Beneficiary (Owner):</strong> {{CLIENT_NAME}} ({{CLIENT_COMPANY_NAME}})</p>
+            <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
+        </div>
+
+        <div class="terms">
+            <h3 class="section-title">Warranty Terms and Conditions</h3>
+            <p><strong>Warranty Period:</strong> This product is warranted against defects in materials and workmanship for a period of <strong>{{WARRANTY_PERIOD_TEXT}}</strong> (e.g., twelve (12) months) from the date of {{WARRANTY_START_POINT_TEXT}} (e.g., original purchase / installation).</p>
+
+            <p><strong>Coverage:</strong> During the warranty period, {{SELLER_COMPANY_NAME}} will repair or replace, at its option, any part found to be defective due to improper workmanship or materials, free of charge. This warranty covers {{WARRANTY_COVERAGE_DETAILS}}.</p>
+
+            <p><strong>Exclusions:</strong> This warranty does not cover:
+                <ul>
+                    <li>Damage resulting from accident, misuse, abuse, neglect, or improper installation or maintenance.</li>
+                    <li>Normal wear and tear, or cosmetic damage.</li>
+                    <li>Products whose serial numbers have been altered, defaced, or removed.</li>
+                    <li>Damage caused by use of non-original spare parts or accessories.</li>
+                    <li>{{OTHER_EXCLUSIONS_LIST}}</li>
+                </ul>
+            </p>
+
+            <p><strong>Claim Procedure:</strong> To make a warranty claim, please contact {{SELLER_COMPANY_NAME}} or an authorized service center at {{WARRANTY_CLAIM_CONTACT_INFO}}, providing proof of purchase and a description of the defect. {{WARRANTY_CLAIM_PROCEDURE_DETAIL}}</p>
+
+            <p><strong>Limitation of Liability:</strong> The liability of {{SELLER_COMPANY_NAME}} under this warranty is limited to the repair or replacement of defective parts. {{SELLER_COMPANY_NAME}} shall not be liable for any incidental or consequential damages.</p>
+
+            <p>This warranty gives you specific legal rights, and you may also have other rights which vary from country to country.</p>
+        </div>
+
+        <div class="company-signature">
+            <p>For and on behalf of <strong>{{SELLER_COMPANY_NAME}}</strong></p>
+            <br><br>
+            <p>_________________________</p>
+            <p>Authorized Signature</p>
+            <p>Name: {{SELLER_AUTHORIZED_SIGNATORY_NAME}}</p>
+            <p>Title: {{SELLER_AUTHORIZED_SIGNATORY_TITLE}}</p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; {{CURRENT_YEAR}} {{SELLER_COMPANY_NAME}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>""",
+    "cover_page_template.html": """<!DOCTYPE html>
+<html lang="{{LANGUAGE_CODE}}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{doc.document_title}} - Cover Page</title> <!-- Adjusted placeholder -->
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f4f8; color: #333; text-align: center; }
+        .cover-container { width: 80%; max-width: 800px; background-color: #fff; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 10px solid #005ea5; }
+        .logo { max-width: 200px; max-height: 100px; margin-bottom: 30px; }
+        h1 { font-size: 2.8em; color: #005ea5; margin-bottom: 15px; text-transform: uppercase; }
+        h2 { font-size: 1.8em; color: #555; margin-bottom: 25px; font-weight: normal; }
+        .meta-info { margin-top: 40px; margin-bottom: 40px; }
+        .meta-info p { font-size: 1.1em; margin: 8px 0; }
+        .meta-info strong { color: #005ea5; }
+        .prepared-for, .prepared-by { margin-top: 30px; }
+        .footer { margin-top: 50px; font-size: 0.9em; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="cover-container">
+        <img src="{{seller_company_logo_path}}" alt="Company Logo" class="logo"> <!-- Adjusted placeholder -->
+
+        <h1>{{doc.document_title}}</h1> <!-- Adjusted placeholder -->
+        {{#if doc.document_subtitle}}
+        <h2>{{doc.document_subtitle}}</h2> <!-- Adjusted placeholder -->
+        {{/if}}
+
+        <div class="meta-info">
+            <p><strong>Client:</strong> {{client_name}} ({{client_company_name}})</p> <!-- Adjusted placeholder -->
+            <p><strong>Project ID:</strong> {{project_id}}</p> <!-- Adjusted placeholder -->
+            <p><strong>Date:</strong> {{date}}</p> <!-- Adjusted placeholder -->
+            {{#if doc.document_version}}
+            <p><strong>Version:</strong> {{doc.document_version}}</p> <!-- Adjusted placeholder -->
+            {{/if}}
+        </div>
+
+        <div class="prepared-for">
+            <p><em>Prepared for:</em></p>
+            <p>{{client_name}}</p> <!-- Adjusted placeholder -->
+            <p>{{client_full_address}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="prepared-by">
+            <p><em>Prepared by:</em></p>
+            <p><strong>{{seller_company_name}}</strong></p> <!-- Adjusted placeholder -->
+            <p>{{seller_full_address}}</p> <!-- Adjusted placeholder -->
+            <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="footer">
+            <p>This document is confidential and intended solely for the use of the individual or entity to whom it is addressed.</p>
+            <p>&copy; {{current_year}} {{seller_company_name}}</p> <!-- Adjusted placeholder -->
+        </div>
+    </div>
+</body>
+</html>"""
+}
+
     html_template_languages = ["fr", "en", "ar", "tr", "pt"]
     # templates_root_dir is already defined above for Excel templates, can reuse
     
-    print("\n--- Starting HTML Template Registration ---")
+    print("\n--- Starting HTML Template File Creation & Registration ---") # Updated print
     html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.")
     if html_category_id is None:
         print("CRITICAL ERROR: Could not create or find the 'Documents HTML' category. HTML templates may not be added correctly.")
-        # Potentially exit or handle this error, for now, registration will likely fail if category_id is strictly needed by add_default_template_if_not_exists
 
+    # Logic to create HTML files on disk
+    for html_meta_for_file_creation in DEFAULT_HTML_TEMPLATES_METADATA:
+        base_fn = html_meta_for_file_creation['base_file_name']
+        if base_fn in HTML_TEMPLATE_CONTENTS:
+            html_content_to_write = HTML_TEMPLATE_CONTENTS[base_fn]
+            for lang_code_for_file in html_template_languages:
+                lang_specific_template_dir = os.path.join(templates_root_dir, lang_code_for_file)
+                os.makedirs(lang_specific_template_dir, exist_ok=True)
+
+                template_file_full_path = os.path.join(lang_specific_template_dir, base_fn)
+
+                if not os.path.exists(template_file_full_path):
+                    try:
+                        # Replace LANGUAGE_CODE placeholder for the specific language file
+                        # This makes the <html lang="..."> attribute correct per file
+                        # Other placeholders {{PLACEHOLDER}} are for runtime population by HtmlEditor
+                        # Note: The main.py placeholders are like {{CLIENT_NAME}}, db.py context uses client.name
+                        # The render_html_template function (from html_to_pdf_util) will handle the context mapping.
+                        # Here, we only replace the {{LANGUAGE_CODE}} specific to the file instance.
+                        lang_specific_content = html_content_to_write.replace("{{LANGUAGE_CODE}}", lang_code_for_file)
+
+                        # Adjustments for Proforma Invoice product rows
+                        if base_fn == "proforma_invoice_template.html":
+                            lang_specific_content = lang_specific_content.replace(
+                                "<tbody>\n                {{PRODUCTS_TABLE_ROWS}}\n                <!-- Example Row (to be replaced by HtmlEditor):",
+                                "<tbody>\n                {{doc.products_table_rows}} <!-- Populated by db.py -->\n                <!-- Example Row (to be replaced by HtmlEditor):"
+                            )
+                        # Adjustments for Packing List items (if similar pattern)
+                        elif base_fn == "packing_list_template.html":
+                             lang_specific_content = lang_specific_content.replace(
+                                "<tbody>\n                {{PACKING_LIST_ITEMS}}\n                <!-- Example Row:",
+                                "<tbody>\n                {{doc.packing_list_items}} <!-- Populated by db.py -->\n                <!-- Example Row:"
+                            )
+
+                        with open(template_file_full_path, "w", encoding="utf-8") as f:
+                            f.write(lang_specific_content)
+                        print(f"CREATED Default HTML Template File: {template_file_full_path}")
+                    except IOError as e_io:
+                        print(f"ERROR creating HTML template file {template_file_full_path}: {e_io}")
+                # else: # File already exists
+                    # print(f"SKIP existing HTML Template File: {template_file_full_path}")
+
+    # Original logic for DB registration (should now find the files created above)
     for html_meta in DEFAULT_HTML_TEMPLATES_METADATA:
         for lang_code in html_template_languages:
             template_file_path = os.path.join(templates_root_dir, lang_code, html_meta['base_file_name'])
             
-            if os.path.exists(template_file_path):
-                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
+            if os.path.exists(template_file_path): # Check again, in case creation failed
+                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})" # Keep display name consistent
                 
                 template_data_for_db = {
                     'template_name': db_template_name,
@@ -4117,32 +5027,28 @@ def main():
                     'language_code': lang_code,
                     'base_file_name': html_meta['base_file_name'],
                     'description': html_meta['description_fr'],
-                    'category_name': html_meta['category_name'], # add_default_template_if_not_exists handles resolving this to category_id
-                    'is_default_for_type_lang': True if lang_code == 'fr' else False
+                    # category_id is preferred if html_category_id is valid
+                    'category_id': html_category_id if html_category_id else None,
+                    # Fallback to category_name if ID is None, add_default_template_if_not_exists should handle this
+                    'category_name': html_meta['category_name'] if not html_category_id else None,
+                    'is_default_for_type_lang': True if lang_code == 'fr' else False # Default French ones
                 }
-                
+                # Clean up None values from dict to avoid passing them if not desired by add_default_template_if_not_exists
+                template_data_for_db = {k:v for k,v in template_data_for_db.items() if v is not None}
+
                 template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
                 if template_id:
-                    print(f"SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processed. DB ID: {template_id}")
-                else:
-                    print(f"INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) processing complete (may already exist or error).")
+                    print(f"DB REGISTRATION SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}). DB ID: {template_id}")
+                # else: # add_default_template_if_not_exists now handles "already exists" by returning existing ID, or None for other errors.
+                    # print(f"DB REGISTRATION INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) may already exist or error during registration.")
             else:
-                print(f"SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
-    print("--- HTML Template Registration Finished ---")
+                # This message means the file wasn't found for DB registration, which is an issue if it was supposed to be created.
+                print(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
+    print("--- HTML Template File Creation & Registration Finished ---") # Updated print
        
     main_window = DocumentManager() 
     main_window.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    setup_logging() # Call to setup logging
-    logging.info("Application starting...")
-    try:
-        main()
-    except Exception as e_main:
-        logging.critical("Unhandled exception in main execution loop", exc_info=True)
-        # Optionally, show a user-facing message for critical failures before exit,
-        # though if Qt loop fails, this might not be visible.
-        # QMessageBox.critical(None, "Critical Error", f"A critical error occurred: {e_main}\nPlease check logs.")
-        sys.exit(1) # Exit with an error code
-    logging.info("Application finished.")
+    main()
