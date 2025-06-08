@@ -891,17 +891,6 @@ def add_company(company_data: dict) -> str | None:
     """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
     conn = None
     try:
-        product_name = product_data.get('product_name')
-        base_unit_price = product_data.get('base_unit_price')
-        language_code = product_data.get('language_code', 'fr') # Default to 'fr'
-
-        if not product_name:
-            print("Error in add_product: 'product_name' is required.")
-            return None
-        if base_unit_price is None: # Explicitly check for None, as 0.0 is a valid price
-            print("Error in add_product: 'base_unit_price' is required.")
-            return None
-
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
@@ -2621,6 +2610,18 @@ def add_product(product_data: dict) -> int | None:
     """Adds a new product. Returns product_id or None."""
     conn = None
     try:
+        product_name = product_data.get('product_name')
+        base_unit_price = product_data.get('base_unit_price')
+        language_code = product_data.get('language_code', 'fr') # Default to 'fr'
+
+        if not product_name:
+            print("Error in add_product: 'product_name' is required.")
+            # Consider raising an error or returning a more specific indicator of failure
+            return None
+        if base_unit_price is None: # Price can be 0.0, so check for None explicitly
+            print("Error in add_product: 'base_unit_price' is required.")
+            # Consider raising an error or returning a more specific indicator of failure
+            return None
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
