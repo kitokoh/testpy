@@ -669,10 +669,14 @@ class EditClientDialog(QDialog):
         current_country_id = self.client_info.get('country_id')
         if current_country_id is not None:
             index = self.country_select_combo.findData(current_country_id)
-            if index >= 0: self.country_select_combo.setCurrentIndex(index)
-            else: current_country_name = self.client_info.get('country');
-                  if current_country_name: index_name=self.country_select_combo.findText(current_country_name);
-                                           if index_name >=0: self.country_select_combo.setCurrentIndex(index_name)
+            if index >= 0:
+                self.country_select_combo.setCurrentIndex(index)
+            else:
+                current_country_name = self.client_info.get('country')
+                if current_country_name:
+                    index_name = self.country_select_combo.findText(current_country_name)
+                    if index_name >= 0:
+                        self.country_select_combo.setCurrentIndex(index_name)
         self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country_edit); layout.addRow(self.tr("Pays Client:"), self.country_select_combo)
         self.city_select_combo = QComboBox(); self.city_select_combo.setEditable(True); self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
         self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
@@ -680,10 +684,14 @@ class EditClientDialog(QDialog):
         current_city_id = self.client_info.get('city_id')
         if current_city_id is not None:
             index = self.city_select_combo.findData(current_city_id)
-            if index >= 0: self.city_select_combo.setCurrentIndex(index)
-            else: current_city_name = self.client_info.get('city');
-                  if current_city_name: index_name = self.city_select_combo.findText(current_city_name);
-                                        if index_name >= 0: self.city_select_combo.setCurrentIndex(index_name)
+            if index >= 0:
+                self.city_select_combo.setCurrentIndex(index)
+            else:
+                current_city_name = self.client_info.get('city')
+                if current_city_name:
+                    index_name = self.city_select_combo.findText(current_city_name)
+                    if index_name >= 0:
+                        self.city_select_combo.setCurrentIndex(index_name)
         layout.addRow(self.tr("Ville Client:"), self.city_select_combo)
         self.language_select_combo = QComboBox()
         self.lang_display_to_codes_map = {self.tr("Français uniquement (fr)"): ["fr"], self.tr("Arabe uniquement (ar)"): ["ar"], self.tr("Turc uniquement (tr)"): ["tr"], self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]}
