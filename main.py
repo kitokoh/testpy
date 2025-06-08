@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout, QTextEdit
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QBrush, QPixmap
-from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer
+from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer, QFile, QTextStream
 from PyPDF2 import PdfWriter, PdfReader, PdfMerger
 from reportlab.pdfgen import canvas
 import io
@@ -42,6 +42,8 @@ from projectManagement import MainDashboard as ProjectManagementDashboard # Adde
 from html_to_pdf_util import convert_html_to_pdf # For PDF generation from HTML
 
 import sqlite3
+import logging
+import logging.handlers
 
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
@@ -83,6 +85,68 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app'): #
     if __name__ != "__main__": # Avoid setting attribute during test runs if module is imported
         # Use a unique attribute name to avoid conflict if db_manager is imported elsewhere too
         db_manager._initialized_main_app = True
+
+def setup_logging():
+    """Configures logging for the application."""
+    log_file_name = "client_manager_app.log"
+    log_format = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
+
+    # Configure root logger
+    logging.basicConfig(level=logging.DEBUG, format=log_format, stream=sys.stderr) # Basic config for console (stderr)
+
+    # File Handler - Rotate through 3 files of 1MB each
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file_name, maxBytes=1024*1024, backupCount=3, encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO) # Log INFO and above to file
+    file_handler.setFormatter(logging.Formatter(log_format))
+
+    # Console Handler - Only for ERROR and CRITICAL
+    console_handler = logging.StreamHandler(sys.stderr) # Explicitly use stderr for errors
+    console_handler.setLevel(logging.ERROR) # Log ERROR and CRITICAL to console
+    console_handler.setFormatter(logging.Formatter(log_format))
+
+    # Add handlers to the root logger
+    # Check if handlers already exist to avoid duplication if this function is called multiple times
+    # (though it should only be called once)
+    root_logger = logging.getLogger()
+    if not any(isinstance(h, logging.handlers.RotatingFileHandler) and h.baseFilename.endswith(log_file_name) for h in root_logger.handlers):
+        root_logger.addHandler(file_handler)
+    if not any(isinstance(h, logging.StreamHandler) and h.stream == sys.stderr for h in root_logger.handlers):
+        # Remove basicConfig's default stream handler if it exists and we are adding our own stderr
+        for handler in root_logger.handlers[:]: # Iterate over a copy
+            if isinstance(handler, logging.StreamHandler) and handler.stream in (sys.stdout, sys.stderr) and handler.formatter._fmt == logging.BASIC_FORMAT:
+                root_logger.removeHandler(handler)
+        root_logger.addHandler(console_handler)
+
+    logging.info("Logging configured.")
+
+def load_stylesheet_global(app):
+    """Loads the global stylesheet."""
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    qss_file_path = os.path.join(script_dir, "style.qss")
+
+    if not os.path.exists(qss_file_path):
+        print(f"Stylesheet file not found: {qss_file_path}")
+        # Create an empty style.qss if it doesn't exist to avoid crashing
+        # In a real scenario, this might be handled differently (e.g., error message, default style)
+        try:
+            with open(qss_file_path, "w", encoding="utf-8") as f:
+                f.write("/* Default empty stylesheet. Will be populated by the application. */")
+            print(f"Created an empty default stylesheet: {qss_file_path}")
+        except IOError as e:
+            print(f"Error creating default stylesheet {qss_file_path}: {e}")
+            return # Cannot proceed if stylesheet cannot be created or read
+
+    file = QFile(qss_file_path)
+    if file.open(QFile.ReadOnly | QFile.Text):
+        stream = QTextStream(file)
+        stylesheet = stream.readAll()
+        app.setStyleSheet(stylesheet)
+        print(f"Stylesheet loaded successfully from {qss_file_path}")
+        file.close()
+    else:
+        print(f"Failed to open stylesheet file: {qss_file_path}, Error: {file.errorString()}")
 
 def load_config():
     config_path = get_config_file_path()
@@ -1481,29 +1545,56 @@ class CompilePdfDialog(QDialog):
         msg = MIMEMultipart()
         msg['From'] = config["smtp_user"]
         msg['To'] = email
-        # Subject and body content are email content, not UI, so direct tr() might be too simple.
-        # These might need a more complex templating system if they need to be multilingual based on recipient preference.
-        # For now, translating as if it's for the user sending the email.
         msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info['client_name'])
         
-        body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier'])
-        msg.attach(MIMEText(body, 'plain'))
-        
-        with open(pdf_path, 'rb') as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
-        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
-        msg.attach(part)
-        
+        body_text = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier'])
+        msg.attach(MIMEText(body_text, 'plain'))
+
         try:
-            server = smtplib.SMTP(config["smtp_server"], config.get("smtp_port", 587))
+            with open(pdf_path, 'rb') as f_attach:
+                part = MIMEApplication(f_attach.read(), Name=os.path.basename(pdf_path))
+            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
+            msg.attach(part)
+        except (OSError, IOError) as e_file:
+            logging.error(f"Error attaching PDF file {pdf_path} to email.", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur Fichier Pièce Jointe"),
+                                 self.tr("Impossible de lire le fichier PDF pour la pièce jointe.\n{0}\n\nL'email n'a pas été envoyé.").format(str(e_file)))
+            return # Stop if attachment cannot be read
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            server = smtplib.SMTP(config["smtp_server"], config.get("smtp_port", 587), timeout=10) # Added timeout
+            server.ehlo()
             if config.get("smtp_port", 587) == 587:
                 server.starttls()
+                server.ehlo()
             server.login(config["smtp_user"], config["smtp_password"])
             server.send_message(msg)
             server.quit()
-            QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))
+            QMessageBox.information(self, self.tr("Email Envoyé"), self.tr("Le document a été envoyé avec succès."))
+            logging.info(f"Email sent successfully to {email} for client {self.client_info.get('client_id')}, PDF: {pdf_path}")
+        except smtplib.SMTPAuthenticationError as e_auth:
+            logging.error("SMTP Authentication Error while sending email.", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur d'Authentification SMTP"),
+                                 self.tr("Impossible de s'authentifier auprès du serveur SMTP. Veuillez vérifier vos identifiants SMTP dans les paramètres.\n\nErreur: {0}").format(e_auth.smtp_error.decode('utf-8', 'ignore') if hasattr(e_auth, 'smtp_error') and e_auth.smtp_error else str(e_auth)))
+        except smtplib.SMTPConnectError as e_conn:
+            logging.error("SMTP Connection Error while sending email.", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur de Connexion SMTP"),
+                                 self.tr("Impossible de se connecter au serveur SMTP. Veuillez vérifier l'adresse du serveur et le port dans les paramètres, ainsi que votre connexion Internet.\n\nErreur: {0}").format(str(e_conn)))
+        except smtplib.SMTPServerDisconnected as e_disc:
+            logging.error("SMTP Server Disconnected Error while sending email.", exc_info=True)
+            QMessageBox.critical(self, self.tr("Déconnexion du Serveur SMTP"),
+                                 self.tr("La connexion au serveur SMTP a été perdue. Veuillez réessayer. Si le problème persiste, contactez votre administrateur.\n\nErreur: {0}").format(str(e_disc)))
+        except OSError as e_os:
+            logging.error("OS Error (e.g., socket error) while sending email.", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Réseau"),
+                                 self.tr("Une erreur réseau (par exemple, problème de socket) est survenue lors de la tentative d'envoi de l'email. Vérifiez votre connexion Internet et les paramètres du pare-feu.\n\nErreur: {0}").format(str(e_os)))
+        except Exception as e_general:
+            logging.error("Generic error while sending email.", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur d'Envoi"),
+                                 self.tr("Une erreur inattendue est survenue lors de l'envoi de l'email:\n{0}").format(str(e_general)))
+        finally:
+            QApplication.restoreOverrideCursor()
 
 class ClientWidget(QWidget):
     def __init__(self, client_info, config, parent=None): 
@@ -3260,19 +3351,50 @@ class DocumentManager(QMainWindow):
             self.open_client_tab_by_id(actual_new_client_id) # Open the new client's tab
             self.stats_widget.update_stats() # Refresh statistics
 
+        except sqlite3.IntegrityError as e_sqlite_integrity:
+            logging.error(f"Database integrity error during client creation: {client_name_val}", exc_info=True)
+            error_msg = str(e_sqlite_integrity).lower()
+            user_message = self.tr("Erreur de base de données lors de la création du client.")
+            if "unique constraint failed: clients.project_identifier" in error_msg:
+                user_message = self.tr("L'ID de Projet '{0}' existe déjà. Veuillez en choisir un autre.").format(project_identifier_val)
+            elif "unique constraint failed: clients.default_base_folder_path" in error_msg:
+                 user_message = self.tr("Un client avec un nom ou un chemin de dossier résultant similaire existe déjà. Veuillez modifier le nom du client ou l'ID de projet.")
+            # Add more specific checks if other UNIQUE constraints are relevant
+
+            QMessageBox.critical(self, self.tr("Erreur de Données"), user_message)
+            # No rollback needed here as db_manager.add_client should not have committed if IntegrityError occurred on its own transaction.
+            # If add_client doesn't manage its own transaction, this assumption is wrong.
+            # Assuming add_client is robust and handles its own atomicity for the client record itself.
+            # The project/tasks are separate transactions usually.
+
         except OSError as e_os:
-            QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
-            # Rollback: If client was added to DB but folder creation failed, delete client from DB
-            if actual_new_client_id:
-                 db_manager.delete_client(actual_new_client_id) # This will also cascade-delete related Project and Tasks if FKs are set up correctly
-                 QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
-        except Exception as e_db: # Catch other potential errors from db_manager calls or logic
-            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
-            # Rollback: If client or project was added before a subsequent error
+            logging.error(f"OS error during client folder creation for: {client_name_val}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Dossier"),
+                                 self.tr("Erreur de création du dossier client '{0}'.\nVérifiez les permissions ou l'espace disque.\n\nErreur: {1}").format(base_folder_full_path, str(e_os)))
+            # Rollback: If client was added to DB but folder creation failed
+            if actual_new_client_id: # Client might have been created in DB before folder error
+                if db_manager.get_client_by_id(actual_new_client_id): # Check if it really exists in DB
+                    db_manager.delete_client(actual_new_client_id) # This should cascade if FKs are set up
+                    logging.info(f"Rolled back client DB entry for {actual_new_client_id} due to OSError.")
+                    QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
+            # Also attempt to delete project if it was created before folder error
+            if new_project_id_central_db:
+                if db_manager.get_project_by_id(new_project_id_central_db):
+                    db_manager.delete_project(new_project_id_central_db) # This should cascade tasks
+                    logging.info(f"Rolled back project DB entry for {new_project_id_central_db} due to OSError.")
+
+
+        except Exception as e_general: # Catch other potential errors from db_manager calls or logic
+            logging.error(f"Unexpected error during client creation: {client_name_val}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"),
+                                 self.tr("Une erreur inattendue est survenue lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_general)))
+            # Rollback for general errors if partial creation might have occurred
             if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
-                db_manager.delete_project(new_project_id_central_db) # Cascade delete tasks
+                db_manager.delete_project(new_project_id_central_db)
+                logging.info(f"Rolled back project DB entry {new_project_id_central_db} due to general error.")
             if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
                  db_manager.delete_client(actual_new_client_id)
+                 logging.info(f"Rolled back client DB entry {actual_new_client_id} due to general error.")
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
             
     def load_clients_from_db(self):
@@ -3741,8 +3863,15 @@ def main():
     # Determine language for translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
 
+    app = QApplication(sys.argv)
+    app.setApplicationName("ClientDocManager")
+    app.setStyle("Fusion")
 
-def generate_pdf_for_document(source_file_path: str, client_info: dict, parent_widget=None) -> str | None:
+    # Load the global stylesheet
+    load_stylesheet_global(app)
+
+    # Setup translations
+    translator = QTranslator()
     """
     Generates a PDF for a given source document (HTML, XLSX, DOCX).
     For HTML, it converts the content to PDF.
@@ -3810,12 +3939,6 @@ def main():
     # Determine language for translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0]) # Default to system or 'en' if system locale is odd
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("ClientDocManager")
-    app.setStyle("Fusion")
-
-    # Setup translations
-    translator = QTranslator()
     translation_path = os.path.join(APP_ROOT_DIR, "translations", f"app_{language_code}.qm")
     if translator.load(translation_path):
         app.installTranslator(translator)
@@ -4012,4 +4135,14 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    main()
+    setup_logging() # Call to setup logging
+    logging.info("Application starting...")
+    try:
+        main()
+    except Exception as e_main:
+        logging.critical("Unhandled exception in main execution loop", exc_info=True)
+        # Optionally, show a user-facing message for critical failures before exit,
+        # though if Qt loop fails, this might not be visible.
+        # QMessageBox.critical(None, "Critical Error", f"A critical error occurred: {e_main}\nPlease check logs.")
+        sys.exit(1) # Exit with an error code
+    logging.info("Application finished.")
