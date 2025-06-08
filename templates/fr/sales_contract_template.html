@@ -2,118 +2,245 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Sales Contract</title>
+    <title>CONTRAT DE VENTE</title>
     <style>
-        body { font-family: 'Times New Roman', Times, serif; margin: 40px; line-height: 1.6; color: #000; }
-        .container { width: 85%; margin: auto; }
-        .header { text-align: center; margin-bottom: 40px; }
-        .contract-title { font-size: 24px; font-weight: bold; }
-        .party-details { margin-bottom: 30px; overflow: auto; }
-        .seller-details, .buyer-details { width: 48%; float: left; padding: 10px; }
-        .buyer-details { float: right; }
-        .article { margin-bottom: 20px; }
-        .article h3 { font-size: 16px; margin-bottom: 5px; }
-        .signatures { margin-top: 50px; overflow: auto; }
-        .signature-block { width: 45%; float: left; margin-top:30px;}
-        .signature-block p { margin-bottom: 40px; }
-        .footer { text-align: center; margin-top: 50px; font-size: 0.8em; color: #555; }
-        .logo { max-width: 120px; max-height: 60px; margin-bottom: 10px; }
+        body {
+            font-family: "Times New Roman", Times, serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #000;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm; /* A4 height */
+            padding: 20mm 25mm; /* Generous margins */
+            margin: 10mm auto;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            page-break-after: always;
+            box-sizing: border-box;
+        }
+        .page:last-child {
+            page-break-after: avoid;
+        }
+        .contract-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .company-logo {
+            max-width: 150px;
+            max-height: 75px;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+        .contract-title {
+            font-size: 22pt;
+            font-weight: bold;
+            color: #1a237e; /* Dark blue */
+            margin-bottom: 5px;
+        }
+        .contract-subtitle p {
+            font-size: 10pt;
+            color: #333;
+            margin: 2px 0;
+        }
+        .parties-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            font-size: 10pt;
+        }
+        .party-block {
+            width: 48%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .party-block h3 {
+            font-size: 12pt;
+            color: #1a237e;
+            margin-top: 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ced4da;
+            padding-bottom: 4px;
+        }
+        .party-block p {
+            margin: 4px 0;
+        }
+        .article {
+            margin-bottom: 18px;
+        }
+        .article h4 { /* Article titles */
+            font-size: 13pt;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .article p, .article ul {
+            text-align: justify;
+            margin-bottom: 8px;
+        }
+        .article ul {
+            padding-left: 25px;
+        }
+        .signatures-section {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-around;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+        }
+        .signature-block {
+            width: 45%;
+            text-align: center;
+        }
+        .signature-block p {
+            margin-bottom: 5px;
+            font-size: 10pt;
+        }
+        .signature-line {
+            display: inline-block;
+            width: 80%;
+            height: 1px;
+            background-color: #000;
+            margin-top: 40px;
+            margin-bottom: 5px;
+        }
+        .footer-contract {
+            text-align: center;
+            font-size: 9pt;
+            color: #555;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
-            <p class="contract-title">SALES CONTRACT</p>
-            <p>Contract No: {{CONTRACT_ID}}</p>
-            <p>Date: {{DATE}}</p>
+    <div class="page">
+        <div class="contract-header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Vendeur" class="company-logo">
+            <h1 class="contract-title">CONTRAT DE VENTE</h1>
+            <div class="contract-subtitle">
+                <p>Numéro de Contrat: {{CONTRACT_ID}}</p>
+                <p>Date d'''effet: {{DATE}}</p>
+            </div>
         </div>
 
-        <div class="party-details">
-            <div class="seller-details">
-                <h4>The Seller:</h4>
+        <p>Entre les soussignés:</p>
+
+        <div class="parties-section">
+            <div class="party-block">
+                <h3>LE VENDEUR:</h3>
                 <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
-                <p>Address: {{SELLER_FULL_ADDRESS}}</p>
-                <p>Represented by: {{SELLER_REPRESENTATIVE_NAME}}, {{SELLER_REPRESENTATIVE_TITLE}}</p>
+                <p>Adresse: {{SELLER_ADDRESS_LINE1}}, {{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>N° TVA: {{SELLER_VAT_ID}}</p>
+                <p>Représentée par: {{SELLER_REPRESENTATIVE_NAME}}, {{SELLER_REPRESENTATIVE_TITLE}}</p>
             </div>
-            <div class="buyer-details">
-                <h4>The Buyer:</h4>
-                <p><strong>{{CLIENT_NAME}}</strong> ({{CLIENT_COMPANY_NAME}})</p>
-                <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
-                <p>Represented by: {{PRIMARY_CONTACT_NAME}}, {{PRIMARY_CONTACT_POSITION}}</p>
+            <div class="party-block">
+                <h3>L'''ACHETEUR:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong> (Raison sociale: {{CLIENT_COMPANY_NAME}})</p>
+                <p>Adresse: {{CLIENT_ADDRESS_LINE1}}, {{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>N° TVA: {{CLIENT_VAT_ID}}</p>
+                <p>Représentée par: {{PRIMARY_CONTACT_NAME}}, {{PRIMARY_CONTACT_POSITION}}</p>
             </div>
         </div>
 
+        <p>Il a été convenu ce qui suit:</p>
+
         <div class="article">
-            <h3>Article 1: Subject of the Contract</h3>
-            <p>The Seller agrees to sell and the Buyer agrees to buy the goods specified in Annex 1 ("The Goods") attached hereto and forming an integral part of this Contract.</p>
+            <h4>Article 1: Objet du Contrat</h4>
+            <p>Le Vendeur s'''engage à vendre et l'''Acheteur s'''engage à acheter les biens (ci-après dénommés "les Marchandises") tels que décrits en détail dans l'''Annexe 1 (Spécifications Techniques et Liste des Produits), qui fait partie intégrante du présent contrat. {{PRODUCTS_DESCRIPTION_CONTRACT}}</p>
         </div>
 
         <div class="article">
-            <h3>Article 2: Price and Total Value</h3>
-            <p>The unit prices of the Goods are specified in {{CURRENCY_CODE}} as per Annex 1. The total value of this Contract is {{CURRENCY_CODE}} {{GRAND_TOTAL_AMOUNT}} ({{GRAND_TOTAL_AMOUNT_WORDS}}).</p>
+            <h4>Article 2: Prix et Valeur Totale</h4>
+            <p>Les prix unitaires des Marchandises sont fixés en {{CURRENCY_CODE}} et détaillés en Annexe 1. La valeur totale du présent contrat s'''élève à {{GRAND_TOTAL_AMOUNT}} {{CURRENCY_CODE}} ({{GRAND_TOTAL_AMOUNT_WORDS}}).</p>
         </div>
 
         <div class="article">
-            <h3>Article 3: Terms of Payment</h3>
-            <p>{{PAYMENT_TERMS_DETAIL}} (e.g., 30% advance payment, 70% upon shipment via Letter of Credit, etc.)</p>
+            <h4>Article 3: Conditions de Paiement</h4>
+            <p>{{PAYMENT_TERMS_CONTRACT}}</p>
+            <p>Exemple: 30% du montant total par virement bancaire à la signature du contrat, le solde de 70% par crédit documentaire irrévocable et confirmé, payable à vue contre présentation des documents d'''expédition conformes.</p>
         </div>
 
         <div class="article">
-            <h3>Article 4: Delivery Terms</h3>
-            <p>Delivery shall be made {{INCOTERMS}} {{NAMED_PLACE_OF_DELIVERY}} as per Incoterms 2020. Estimated date of shipment: {{ESTIMATED_SHIPMENT_DATE}}.</p>
+            <h4>Article 4: Conditions de Livraison</h4>
+            <p>La livraison des Marchandises sera effectuée {{DELIVERY_TERMS_CONTRACT_INCOTERMS}} ({{DELIVERY_TERMS_CONTRACT_NAMED_PLACE}}) conformément aux Incoterms® 2020. La date d'''expédition estimée est le {{ESTIMATED_SHIPMENT_DATE_CONTRACT}}. Le Vendeur notifiera l'''Acheteur de la date d'''expédition exacte au moins {{SHIPMENT_NOTICE_DAYS_CONTRACT}} jours à l'''avance.</p>
+        </div>
+
+        <!-- PAGE BREAK APPROXIMATION for content planning -->
+        <!-- Consider if more articles push to second page naturally -->
+
+        <div class="article">
+            <h4>Article 5: Emballage et Marquage</h4>
+            <p>Les Marchandises seront emballées de manière à assurer leur protection durant le transport international maritime/aérien/terrestre et manutentions subséquentes. {{PACKING_MARKING_INFO_CONTRACT}}. Le marquage sera conforme aux instructions de l'''Acheteur ou, à défaut, aux standards d'''exportation du Vendeur.</p>
         </div>
 
         <div class="article">
-            <h3>Article 5: Packing and Marking</h3>
-            <p>The Goods shall be packed in {{PACKING_TYPE_DESCRIPTION}}, suitable for international shipment and ensuring their safety during transit. Markings as per Buyer's instructions / Standard export markings.</p>
+            <h4>Article 6: Garantie</h4>
+            <p>Le Vendeur garantit que les Marchandises sont neuves, non utilisées, et conformes aux spécifications contractuelles pour une période de {{WARRANTY_PERIOD_MONTHS_CONTRACT}} mois à compter de {{WARRANTY_START_CONDITION_CONTRACT}}. {{WARRANTY_DETAILS_CONTRACT}}</p>
+        </div>
+    </div> <!-- End of Page 1 -->
+
+    <div class="page"> <!-- Start of Page 2 -->
+        <div class="article">
+            <h4>Article 7: Inspection</h4>
+            <p>L'''Acheteur a le droit d'''inspecter les Marchandises avant expédition. {{INSPECTION_CLAUSE_CONTRACT}}. Les frais d'''inspection par un organisme tiers désigné par l'''Acheteur sont à la charge de l'''Acheteur, sauf si les Marchandises s'''avèrent non conformes.</p>
         </div>
 
         <div class="article">
-            <h3>Article 6: Warranty</h3>
-            <p>The Seller warrants that the Goods are new, unused, and conform to the specifications agreed upon for a period of {{WARRANTY_PERIOD_MONTHS}} months from the date of {{WARRANTY_START_CONDITION e.g., arrival at destination/installation}}.</p>
+            <h4>Article 8: Réserve de Propriété</h4>
+            <p>Le Vendeur conserve la pleine propriété des Marchandises livrées jusqu'''au paiement intégral et effectif de leur prix par l'''Acheteur. En cas de non-paiement, le Vendeur pourra revendiquer les Marchandises.</p>
         </div>
 
         <div class="article">
-            <h3>Article 7: Inspection</h3>
-            <p>{{INSPECTION_CLAUSE_DETAIL}} (e.g., Inspection by Buyer's representative before shipment at Seller's premises / Inspection by {{INSPECTION_AGENCY_NAME}} at port of loading.)</p>
+            <h4>Article 9: Force Majeure</h4>
+            <p>Aucune des parties ne sera tenue responsable d'''un manquement à ses obligations contractuelles si ce manquement est dû à un événement de force majeure, tel que défini par la Chambre de Commerce Internationale (ICC Force Majeure Clause 2003/2020). {{FORCE_MAJEURE_DETAILS_CONTRACT}}</p>
         </div>
 
         <div class="article">
-            <h3>Article 8: Force Majeure</h3>
-            <p>Neither party shall be liable for any failure or delay in performing their obligations under this Contract if such failure or delay is due to Force Majeure events...</p>
+            <h4>Article 10: Confidentialité</h4>
+            <p>Chaque partie s'''engage à ne pas divulguer les informations confidentielles de l'''autre partie obtenues dans le cadre de l'''exécution de ce contrat, sauf obligation légale. {{CONFIDENTIALITY_DETAILS_CONTRACT}}</p>
         </div>
 
         <div class="article">
-            <h3>Article 9: Applicable Law and Dispute Resolution</h3>
-            <p>This Contract shall be governed by and construed in accordance with the laws of {{JURISDICTION_COUNTRY_NAME}}. Any dispute arising out of or in connection with this Contract shall be settled by arbitration in {{ARBITRATION_LOCATION}} under the rules of {{ARBITRATION_RULES_BODY}}.</p>
+            <h4>Article 11: Loi Applicable et Règlement des Litiges</h4>
+            <p>Le présent contrat est régi et interprété conformément au droit {{APPLICABLE_LAW_JURISDICTION_CONTRACT}}. Tout différend découlant du présent contrat ou en relation avec celui-ci sera tranché définitivement par arbitrage conformément au règlement de {{ARBITRATION_BODY_RULES_CONTRACT}} par un ou plusieurs arbitres nommés conformément audit règlement. Le lieu de l'''arbitrage sera {{ARBITRATION_LOCATION_CONTRACT}}.</p>
         </div>
 
         <div class="article">
-            <h3>Article 10: Entire Agreement</h3>
-            <p>This Contract, including any Annexes, constitutes the entire agreement between the parties and supersedes all prior negotiations, understandings, and agreements, whether written or oral.</p>
+            <h4>Article 12: Dispositions Diverses</h4>
+            <p>Le présent contrat, y compris ses annexes, constitue l'''intégralité de l'''accord entre les parties. Toute modification devra faire l'''objet d'''un avenant écrit et signé par les deux parties. La nullité d'''une clause n'''affecte pas la validité des autres clauses.</p>
         </div>
 
-        <div class="signatures">
+        <div class="signatures-section">
             <div class="signature-block">
-                <p><strong>For the Seller:</strong></p>
-                <p>_________________________</p>
-                <p>{{SELLER_COMPANY_NAME}}</p>
-                <p>Name: {{SELLER_REPRESENTATIVE_NAME}}</p>
-                <p>Title: {{SELLER_REPRESENTATIVE_TITLE}}</p>
+                <p><strong>Pour le Vendeur:</strong></p>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <div class="signature-line"></div>
+                <p>Nom: {{SELLER_REPRESENTATIVE_NAME}}</p>
+                <p>Titre: {{SELLER_REPRESENTATIVE_TITLE}}</p>
+                <p>Date: ______________</p>
             </div>
-            <div class="signature-block" style="float:right;">
-                <p><strong>For the Buyer:</strong></p>
-                <p>_________________________</p>
-                <p>{{CLIENT_COMPANY_NAME}}</p>
-                <p>Name: {{PRIMARY_CONTACT_NAME}}</p>
-                <p>Title: {{PRIMARY_CONTACT_POSITION}}</p>
+            <div class="signature-block">
+                <p><strong>Pour l'''Acheteur:</strong></p>
+                <p><strong>{{CLIENT_COMPANY_NAME}}</strong></p>
+                <div class="signature-line"></div>
+                <p>Nom: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Titre: {{PRIMARY_CONTACT_POSITION}}</p>
+                <p>Date: ______________</p>
             </div>
         </div>
 
-        <div class="footer">
-            <p>Annex 1: Specification and Price of Goods (to be attached)</p>
+        <div class="footer-contract">
+            <p>Annexe 1: Spécifications Techniques et Liste des Produits - Fait partie intégrante de ce contrat.</p>
+            <p>Contrat de Vente N° {{CONTRACT_ID}} - Page 2/2</p>
         </div>
-    </div>
+    </div> <!-- End of Page 2 -->
 </body>
 </html>
