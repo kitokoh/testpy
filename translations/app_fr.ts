@@ -848,7 +848,7 @@
     </message>
     <message>
         <source>Nom Entreprise:</source>
-        <translation>Nom Entreprise:</translation>
+        <translation>Entreprise du client</translation>
     </message>
     <message>
         <source>Nom Produit</source>
