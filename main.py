@@ -192,12 +192,14 @@ class ContactDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
-        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        ok_button.setObjectName("primaryButton") # Apply primary button style
+        # ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;") # Removed for global style
+
 
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
         cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_button.setStyleSheet("padding: 5px 15px;")
+        # cancel_button.setStyleSheet("padding: 5px 15px;") # Rely on global style
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -259,6 +261,7 @@ class TemplateDialog(QDialog):
         self.add_btn = QPushButton(self.tr("Ajouter")) # Text updated
         self.add_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle"))
+        self.add_btn.setObjectName("primaryButton") # Style as primary
         self.add_btn.clicked.connect(self.add_template)
         btn_layout.addWidget(self.add_btn)
         
@@ -272,6 +275,7 @@ class TemplateDialog(QDialog):
         self.delete_btn = QPushButton(self.tr("Supprimer")) # Text updated
         self.delete_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné"))
+        self.delete_btn.setObjectName("dangerButton") # Style as danger
         self.delete_btn.clicked.connect(self.delete_template)
         self.delete_btn.setEnabled(False)
         btn_layout.addWidget(self.delete_btn)
@@ -684,15 +688,51 @@ class ProductDialog(QDialog):
         # self.product_data = product_data or {} # Original single product data, not used for multi-line
         self.setWindowTitle(self.tr("Ajouter Produits au Client")) # Title for multi-line
         self.setMinimumSize(900, 800) # Adjusted for two-column layout
+        self.client_info = db_manager.get_client_by_id(self.client_id) # Fetch client info
         # Refactor: Multi-line product entry
-        self.setup_ui()
-        self._load_existing_products() # Call to load products initially
+        self.setup_ui() # Sets up UI, including language filter combo
+        self._set_initial_language_filter() # Sets default language
+        self._filter_products_by_language_and_search() # Initial load based on default lang and empty search
+
+    def _set_initial_language_filter(self):
+        primary_language = None
+        if self.client_info:
+            client_langs = self.client_info.get('selected_languages')
+            if client_langs: # This is expected to be a comma-separated string from DB
+                primary_language = client_langs.split(',')[0].strip()
+
+        if primary_language:
+            for i in range(self.product_language_filter_combo.count()):
+                if self.product_language_filter_combo.itemText(i) == primary_language:
+                    self.product_language_filter_combo.setCurrentText(primary_language)
+                    break
+        # else: it will default to "All" or the first item in the combo
 
     def _load_existing_products(self):
+        # This method's core logic has been moved to _filter_products_by_language_and_search
+        # and is triggered by __init__ after initial setup.
+        # This can be safely removed or left empty.
+        pass
+
+    def _filter_products_by_language_and_search(self):
         self.existing_products_list.clear()
+
+        selected_language = self.product_language_filter_combo.currentText()
+        if selected_language == self.tr("All"):
+            language_code_for_db = None
+        else:
+            language_code_for_db = selected_language
+
+        search_text = self.search_existing_product_input.text().lower()
+        name_pattern_for_db = f"%{search_text}%" if search_text else None
+
         try:
-            products = db_manager.get_all_products_for_selection() # This function was added in a previous step
-            if products is None: products = [] # Ensure products is iterable
+            # Assuming get_all_products_for_selection can handle language_code=None and name_pattern=None
+            products = db_manager.get_all_products_for_selection_filtered( # Changed to new function
+                language_code=language_code_for_db,
+                name_pattern=name_pattern_for_db
+            )
+            if products is None: products = []
 
             for product_data in products:
                 # product_id = product_data.get('product_id')
@@ -775,9 +815,18 @@ class ProductDialog(QDialog):
         # Left Column: Existing Product Search Group
         search_group_box = QGroupBox(self.tr("Rechercher Produit Existant"))
         search_layout = QVBoxLayout(search_group_box)
+
+        # Language Filter for Products
+        self.product_language_filter_label = QLabel(self.tr("Filtrer par langue:"))
+        search_layout.addWidget(self.product_language_filter_label)
+        self.product_language_filter_combo = QComboBox()
+        self.product_language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"]) # TODO: Use global lang list if available
+        self.product_language_filter_combo.currentTextChanged.connect(self._filter_products_by_language_and_search)
+        search_layout.addWidget(self.product_language_filter_combo)
+
         self.search_existing_product_input = QLineEdit()
         self.search_existing_product_input.setPlaceholderText(self.tr("Tapez pour rechercher..."))
-        self.search_existing_product_input.textChanged.connect(self._filter_existing_products_list)
+        self.search_existing_product_input.textChanged.connect(self._filter_products_by_language_and_search) # Changed connection
         search_layout.addWidget(self.search_existing_product_input)
         self.existing_products_list = QListWidget()
         self.existing_products_list.setMinimumHeight(150) # Increased height for better visibility in column
@@ -820,7 +869,7 @@ class ProductDialog(QDialog):
         # "Add Line" Button (remains below the two columns)
         self.add_line_btn = QPushButton(self.tr("Ajouter Produit à la Liste"))
         self.add_line_btn.setIcon(QIcon.fromTheme("list-add"))
-        self.add_line_btn.setStyleSheet("background-color: #3498db; color: white; padding: 5px 10px;")
+        self.add_line_btn.setObjectName("primaryButton") # Style as primary
         self.add_line_btn.clicked.connect(self._add_current_line_to_table)
         main_layout.addWidget(self.add_line_btn)
 
@@ -870,12 +919,14 @@ class ProductDialog(QDialog):
         ok_button = button_box.button(QDialogButtonBox.Ok)
         ok_button.setText(self.tr("OK"))
         ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"))
-        ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        ok_button.setObjectName("primaryButton") # Apply primary button style
+        # ok_button.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+
 
         cancel_button = button_box.button(QDialogButtonBox.Cancel)
         cancel_button.setText(self.tr("Annuler"))
         cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_button.setStyleSheet("padding: 5px 15px;")
+        # cancel_button.setStyleSheet("padding: 5px 15px;") # Rely on global style
 
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -912,7 +963,14 @@ class ProductDialog(QDialog):
         row_position = self.products_table.rowCount()
         self.products_table.insertRow(row_position)
 
-        self.products_table.setItem(row_position, 0, QTableWidgetItem(name))
+        name_item = QTableWidgetItem(name)
+        # Store the selected language for this product line
+        current_lang_code = self.product_language_filter_combo.currentText()
+        if current_lang_code == self.tr("All"): # Use a default if "All" is selected
+            current_lang_code = "fr" # Or get from client_info, or a global default
+        name_item.setData(Qt.UserRole + 1, current_lang_code) # Store lang_code
+
+        self.products_table.setItem(row_position, 0, name_item)
         self.products_table.setItem(row_position, 1, QTableWidgetItem(description))
 
         qty_item = QTableWidgetItem(f"{quantity:.2f}") # Format to 2 decimal places for consistency
@@ -974,13 +1032,18 @@ class ProductDialog(QDialog):
             line_total_str = self.products_table.item(row, 4).text().replace("€", "").replace(",", ".").strip()
             line_total = float(line_total_str) if line_total_str else 0.0
 
+            # Retrieve the stored language code
+            name_item = self.products_table.item(row, 0)
+            language_code = name_item.data(Qt.UserRole + 1) if name_item else "fr" # Default 'fr' if not found
+
             products_list.append({
                 "client_id": self.client_id, # This might be redundant if the caller already has client_id
                 "name": name,
                 "description": description,
                 "quantity": quantity,
-                "unit_price": unit_price,
-                "total_price": line_total
+                "unit_price": unit_price, # This is the line item unit price
+                "total_price": line_total,
+                "language_code": language_code # Add language code to the returned data
             })
         return products_list
 
@@ -1051,6 +1114,7 @@ class CreateDocumentDialog(QDialog):
         self.config = config
         self.setWindowTitle(self.tr("Créer des Documents"))
         self.setMinimumSize(600, 500) # Adjusted size for new filters
+        self._initial_load_complete = False # Flag for initial language setting
         self.setup_ui()
 
     def _create_icon_label_widget(self, icon_name, label_text): # Helper for icons
@@ -1138,13 +1202,13 @@ class CreateDocumentDialog(QDialog):
 
         create_btn = QPushButton(self.tr("Créer Documents"))
         create_btn.setIcon(QIcon.fromTheme("document-new"))
-        create_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 5px 15px;")
+        create_btn.setObjectName("primaryButton") # Apply primary button style
         create_btn.clicked.connect(self.create_documents)
         button_frame_layout.addWidget(create_btn) # Add directly to button_frame_layout
 
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
-        cancel_btn.setStyleSheet("padding: 5px 15px;")
+        # cancel_btn.setStyleSheet("padding: 5px 15px;") # Rely on global style
         cancel_btn.clicked.connect(self.reject)
         button_frame_layout.addWidget(cancel_btn) # Add directly to button_frame_layout
         
@@ -1152,6 +1216,23 @@ class CreateDocumentDialog(QDialog):
 
     def load_templates(self):
         self.templates_list.clear()
+
+        if not self._initial_load_complete:
+            primary_language = None
+            client_langs = self.client_info.get('selected_languages') # This is a list e.g. ['fr', 'en'] or a string "fr,en"
+            if client_langs:
+                if isinstance(client_langs, list) and client_langs:
+                    primary_language = client_langs[0]
+                elif isinstance(client_langs, str) and client_langs.strip():
+                    primary_language = client_langs.split(',')[0].strip()
+
+            if primary_language and self.language_filter_combo.currentText() == self.tr("All"):
+                # Check if primary_language is a valid option in the combo
+                for i in range(self.language_filter_combo.count()):
+                    if self.language_filter_combo.itemText(i) == primary_language:
+                        self.language_filter_combo.setCurrentText(primary_language)
+                        break
+            self._initial_load_complete = True
 
         selected_lang = self.language_filter_combo.currentText()
         selected_ext_display = self.extension_filter_combo.currentText()
@@ -1320,12 +1401,13 @@ class CompilePdfDialog(QDialog):
         action_layout = QHBoxLayout()
         compile_btn = QPushButton(self.tr("Compiler PDF"))
         compile_btn.setIcon(QIcon.fromTheme("document-export"))
-        compile_btn.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
+        compile_btn.setObjectName("primaryButton") # Apply primary button style
         compile_btn.clicked.connect(self.compile_pdf)
         action_layout.addWidget(compile_btn)
         
         cancel_btn = QPushButton(self.tr("Annuler"))
         cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        # No specific style needed if global QPushButton style is sufficient
         cancel_btn.clicked.connect(self.reject)
         action_layout.addWidget(cancel_btn)
         
@@ -1627,13 +1709,13 @@ class ClientWidget(QWidget):
         
         self.create_docs_btn = QPushButton(self.tr("Créer Documents"))
         self.create_docs_btn.setIcon(QIcon.fromTheme("document-new"))
-        self.create_docs_btn.setStyleSheet("background-color: #3498db; color: white;")
+        self.create_docs_btn.setObjectName("primaryButton")
         self.create_docs_btn.clicked.connect(self.open_create_docs_dialog)
         action_layout.addWidget(self.create_docs_btn)
         
         self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
         self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export"))
-        self.compile_pdf_btn.setStyleSheet("background-color: #27ae60; color: white;")
+        self.compile_pdf_btn.setProperty("primary", True) # Alternative way to mark as primary
         self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog)
         action_layout.addWidget(self.compile_pdf_btn)
         
@@ -1658,6 +1740,13 @@ class ClientWidget(QWidget):
 
         # Initial population
         self.populate_details_layout() # Call a method to populate for clarity
+
+        # Add Category display
+        self.category_label = QLabel(self.tr("Catégorie:"))
+        self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
+        self.details_layout.addRow(self.category_label, self.category_value_label)
+        self.detail_value_labels["category"] = self.category_value_label
+
 
         layout.addLayout(self.details_layout)
         
@@ -1713,21 +1802,22 @@ class ClientWidget(QWidget):
         contacts_layout.addWidget(self.contacts_list)
         
         contacts_btn_layout = QHBoxLayout()
-        self.add_contact_btn = QPushButton(self.tr("➕ Contact"))
-        # self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new")) # Icon removed
+        self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")) # Standardized text
+        self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add")))
         self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client"))
         self.add_contact_btn.clicked.connect(self.add_contact)
         contacts_btn_layout.addWidget(self.add_contact_btn)
         
-        self.edit_contact_btn = QPushButton(self.tr("✏️ Contact"))
-        # self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")) # Standardized text
+        self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit"))
         self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné"))
         self.edit_contact_btn.clicked.connect(self.edit_contact)
         contacts_btn_layout.addWidget(self.edit_contact_btn)
         
-        self.remove_contact_btn = QPushButton(self.tr("🗑️ Contact"))
-        # self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_contact_btn = QPushButton(self.tr("🗑️ Supprimer")) # Standardized text
+        self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client"))
+        self.remove_contact_btn.setObjectName("dangerButton") # Mark as danger
         self.remove_contact_btn.clicked.connect(self.remove_contact)
         contacts_btn_layout.addWidget(self.remove_contact_btn)
         
@@ -1749,21 +1839,22 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
         
         products_btn_layout = QHBoxLayout()
-        self.add_product_btn = QPushButton(self.tr("➕ Produit"))
-        # self.add_product_btn.setIcon(QIcon.fromTheme("list-add")) # Icon removed
+        self.add_product_btn = QPushButton(self.tr("➕ Ajouter")) # Standardized text
+        self.add_product_btn.setIcon(QIcon.fromTheme("list-add"))
         self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet"))
         self.add_product_btn.clicked.connect(self.add_product)
         products_btn_layout.addWidget(self.add_product_btn)
         
-        self.edit_product_btn = QPushButton(self.tr("✏️ Produit"))
-        # self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")) # Icon removed
+        self.edit_product_btn = QPushButton(self.tr("✏️ Modifier")) # Standardized text
+        self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit"))
         self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné"))
         self.edit_product_btn.clicked.connect(self.edit_product)
         products_btn_layout.addWidget(self.edit_product_btn)
         
-        self.remove_product_btn = QPushButton(self.tr("🗑️ Produit"))
-        # self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")) # Icon removed
+        self.remove_product_btn = QPushButton(self.tr("🗑️ Supprimer")) # Standardized text
+        self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete"))
         self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet"))
+        self.remove_product_btn.setObjectName("dangerButton") # Mark as danger
         self.remove_product_btn.clicked.connect(self.remove_product)
         products_btn_layout.addWidget(self.remove_product_btn)
         
@@ -1839,8 +1930,18 @@ class ClientWidget(QWidget):
 
             folder_path = self.client_info.get('base_folder_path','')
             self.detail_value_labels["base_folder_path"].setText(f"<a href='file:///{folder_path}'>{folder_path}</a>")
+
+            # Update Category if the label exists
+            if "category" in self.detail_value_labels:
+                 self.detail_value_labels["category"].setText(self.client_info.get("category", self.tr("N/A")))
+            elif hasattr(self, 'category_value_label'): # Fallback for direct attribute if detail_value_labels not fully populated yet
+                 self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
+
         else: # Fallback or if you choose to repopulate the whole layout
             self.populate_details_layout()
+            # Explicitly update category here too if populate_details_layout doesn't handle it fully initially
+            if hasattr(self, 'category_value_label'):
+                 self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
 
 
         # Update Notes
@@ -2500,7 +2601,33 @@ class EditClientDialog(QDialog):
         self.final_price_input.setPrefix("€ ")
         self.final_price_input.setRange(0, 10000000)
         self.final_price_input.setValue(float(self.client_info.get('price', 0.0)))
-        layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+        self.final_price_input.setReadOnly(True) # Make read-only
+        price_info_label = QLabel(self.tr("Le prix final est calculé à partir des produits et n'est pas modifiable ici."))
+        price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;")
+        price_layout = QHBoxLayout()
+        price_layout.addWidget(self.final_price_input)
+        price_layout.addWidget(price_info_label)
+        layout.addRow(self.tr("Prix Final:"), price_layout)
+
+        # Status (status_select_combo)
+        self.status_select_combo = QComboBox()
+        self.populate_statuses() # New method to populate statuses
+        current_status_id = self.client_info.get('status_id')
+        if current_status_id is not None:
+            index = self.status_select_combo.findData(current_status_id)
+            if index >= 0:
+                self.status_select_combo.setCurrentIndex(index)
+        layout.addRow(self.tr("Statut Client:"), self.status_select_combo)
+
+        # Category
+        self.category_input = QLineEdit(self.client_info.get('category', ''))
+        layout.addRow(self.tr("Catégorie:"), self.category_input)
+
+        # Notes
+        self.notes_edit = QTextEdit(self.client_info.get('notes', ''))
+        self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
+        self.notes_edit.setFixedHeight(80) # Set a reasonable height for notes
+        layout.addRow(self.tr("Notes:"), self.notes_edit)
 
         # Country (country_select_combo)
         self.country_select_combo = QComboBox()
@@ -2581,6 +2708,16 @@ class EditClientDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
 
+    def populate_statuses(self):
+        self.status_select_combo.clear()
+        try:
+            statuses = db_manager.get_all_status_settings(status_type='Client')
+            if statuses is None: statuses = []
+            for status_dict in statuses:
+                self.status_select_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts client:\n{0}").format(str(e)))
+
     def populate_countries(self):
         self.country_select_combo.clear()
         try:
@@ -2620,7 +2757,16 @@ class EditClientDialog(QDialog):
         data['company_name'] = self.company_name_input.text().strip()
         data['primary_need_description'] = self.client_need_input.text().strip()
         data['project_identifier'] = self.project_id_input_field.text().strip()
-        data['price'] = self.final_price_input.value()
+        data['price'] = self.final_price_input.value() # Although read-only, get current value
+
+        # Status ID
+        data['status_id'] = self.status_select_combo.currentData()
+
+        # Category
+        data['category'] = self.category_input.text().strip()
+
+        # Notes
+        data['notes'] = self.notes_edit.toPlainText().strip()
 
         # Country ID
         country_id = self.country_select_combo.currentData()
@@ -2914,12 +3060,16 @@ class DocumentManager(QMainWindow):
         creation_form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
         self.final_price_input = QDoubleSpinBox(); self.final_price_input.setPrefix("€ ") 
         self.final_price_input.setRange(0, 10000000); self.final_price_input.setValue(0)
+        self.final_price_input.setReadOnly(True) # Set to read-only
         creation_form_layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+        price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
+        price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;") # Optional: style the label
+        creation_form_layout.addRow("", price_info_label) # Add info label below price input, span if needed or adjust layout
         self.language_select_combo = QComboBox() 
         self.language_select_combo.addItems([self.tr("Français uniquement (fr)"), self.tr("Arabe uniquement (ar)"), self.tr("Turc uniquement (tr)"), self.tr("Toutes les langues (fr, ar, tr)")])
         creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
         self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon.fromTheme("list-add"))
-        self.create_client_button.setStyleSheet("QPushButton { background-color: #27ae60; color: white; font-weight: bold; padding: 10px; border-radius: 5px; } QPushButton:hover { background-color: #2ecc71; }")
+        self.create_client_button.setObjectName("primaryButton") # Use object name for global styling
         self.create_client_button.clicked.connect(self.execute_create_client) 
         creation_form_layout.addRow(self.create_client_button)
         form_vbox_layout.addLayout(creation_form_layout); left_layout.addWidget(form_group_box)
@@ -3309,13 +3459,15 @@ class DocumentManager(QMainWindow):
                                 new_global_product_id = db_manager.add_product({
                                     'product_name': product_item_data['name'],
                                     'description': product_item_data['description'],
-                                    'base_unit_price': product_item_data['unit_price'] # Use dialog price as base for new global product
+                                    'base_unit_price': product_item_data['unit_price'], # Use dialog price as base for new global product
+                                    'language_code': product_item_data.get('language_code', 'fr') # Added language code
                                 })
                                 if new_global_product_id:
                                     global_product_id = new_global_product_id
                                     current_base_unit_price = product_item_data['unit_price']
                                 else:
-                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}'.").format(product_item_data['name']))
+                                    # Error message from add_product (e.g. IntegrityError) will be printed to console from db.py
+                                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de créer le produit global '{0}' (lang: {1}). Vérifiez que le nom n'est pas déjà utilisé pour cette langue ou si un prix de base est manquant.").format(product_item_data['name'], product_item_data.get('language_code', 'fr')))
                                     continue # Skip to next product in list
 
                             if global_product_id:
@@ -3341,6 +3493,24 @@ class DocumentManager(QMainWindow):
                     # 3. Create Document Dialog
                     # Ensure ui_map_data is available and correctly structured for client_info
                     if ui_map_data:
+                        # After ProductDialog, calculate and update price
+                        linked_products = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                        if linked_products is None: linked_products = []
+
+                        calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
+
+                        db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum})
+
+                        # Update ui_map_data and self.clients_data_map for immediate UI consistency
+                        ui_map_data['price'] = calculated_total_sum
+                        if actual_new_client_id in self.clients_data_map:
+                             self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+
+                        # Refresh client list display to reflect new price potentially if it's shown there
+                        # self.add_client_to_list_widget might need to be called again or the item updated
+                        # For now, the list widget primarily shows name and status color.
+                        # The critical part is that clients_data_map is updated before open_client_tab_by_id.
+
                         create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
                         if create_document_dialog.exec_() == QDialog.Accepted:
                             # All dialogs completed successfully
@@ -3352,11 +3522,43 @@ class DocumentManager(QMainWindow):
                                             self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
                 else:
                     print("ProductDialog cancelled.")
+                    # If ProductDialog is cancelled, we should still calculate the price based on any products
+                    # that might have been added if the dialog allowed partial additions before cancel.
+                    # However, current ProductDialog only returns data on Accept.
+                    # So, if cancelled, linked_products would be empty or from a previous state.
+                    # For safety, recalculate and update price even if ProductDialog is cancelled,
+                    # based on whatever products are linked to the client at this stage.
+                    if actual_new_client_id and ui_map_data: # Ensure client and map exist
+                        linked_products_on_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                        if linked_products_on_cancel is None: linked_products_on_cancel = []
+                        calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
+                        db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
+                        ui_map_data['price'] = calculated_total_sum_on_cancel
+                        if actual_new_client_id in self.clients_data_map:
+                             self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
+
             else:
                 print("ContactDialog cancelled.")
+                # Similar to above, if ContactDialog is cancelled, calculate price based on current state.
+                if actual_new_client_id and ui_map_data:
+                    linked_products_on_contact_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+                    if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
+                    calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
+                    db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
+                    ui_map_data['price'] = calculated_total_sum_on_contact_cancel
+                    if actual_new_client_id in self.clients_data_map:
+                         self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
+
 
             # END of new dialog sequence
             
+            # Ensure client_dict_from_db and ui_map_data are refreshed with the latest price before opening tab
+            # This is important if the tab display relies on the price from these maps.
+            # The price calculation logic has already updated ui_map_data and self.clients_data_map.
+            # The call to self.add_client_to_list_widget uses ui_map_data.
+            # The call to self.open_client_tab_by_id uses self.clients_data_map.
+            # So, the price should be correctly reflected if these maps are the source of truth for those UI elements.
+
             QMessageBox.information(self, self.tr("Client Créé"),
                                     self.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
             self.open_client_tab_by_id(actual_new_client_id) # Open the new client's tab
@@ -3689,10 +3891,13 @@ class DocumentManager(QMainWindow):
                 'project_identifier': updated_form_data.get('project_identifier'),
                 'country_id': updated_form_data.get('country_id'),
                 'city_id': updated_form_data.get('city_id'),
-                'price': updated_form_data.get('price'),
-                'selected_languages': updated_form_data.get('selected_languages')
-                # status_id and notes are not in EditClientDialog, so they won't be updated
-                # default_base_folder_path is also not part of this dialog's update scope for now.
+                # 'price': updated_form_data.get('price'), # Price is read-only in dialog, not updated directly
+                'selected_languages': updated_form_data.get('selected_languages'),
+                'status_id': updated_form_data.get('status_id'),
+                'notes': updated_form_data.get('notes'),
+                'category': updated_form_data.get('category')
+                # default_base_folder_path is not part of this dialog's update scope.
+                # price is handled by product updates.
             }
 
             # Filter out any keys with None values if db_manager.update_client expects only non-null fields for update
@@ -3815,8 +4020,14 @@ class SettingsDialog(QDialog):
         tabs_widget.addTab(self.company_tab, self.tr("Company Details")) # Add it as a tab
         
         dialog_button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        dialog_button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK"))
-        dialog_button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        ok_settings_button = dialog_button_box.button(QDialogButtonBox.Ok)
+        ok_settings_button.setText(self.tr("OK"))
+        ok_settings_button.setObjectName("primaryButton")
+
+        cancel_settings_button = dialog_button_box.button(QDialogButtonBox.Cancel)
+        cancel_settings_button.setText(self.tr("Annuler"))
+        # Standard cancel button styling will apply from global stylesheet
+
         dialog_button_box.accepted.connect(self.accept); dialog_button_box.rejected.connect(self.reject)
         layout.addWidget(dialog_button_box)
         
@@ -3915,6 +4126,135 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("ClientDocManager")
     app.setStyle("Fusion")
+
+    # Set a default font (example: Segoe UI for Windows, fallback to a common sans-serif)
+    default_font = QFont("Segoe UI", 9) # Adjust size as needed
+    if sys.platform != "win32": # Basic platform check for font
+        default_font = QFont("Arial", 10) # Or "Helvetica", "DejaVu Sans" etc.
+    app.setFont(default_font)
+
+    # Basic global stylesheet
+    app.setStyleSheet("""
+        QWidget {
+            /* General spacing and font settings for all widgets if needed */
+        }
+        QPushButton {
+            padding: 6px 12px;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            background-color: #f8f9fa; /* Light gray, good for general buttons */
+            min-width: 80px; /* Ensure buttons have a decent minimum width */
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+        QPushButton:pressed {
+            background-color: #dee2e6;
+            border-color: #adb5bd;
+        }
+        QPushButton:disabled {
+            background-color: #e9ecef;
+            color: #6c757d;
+            border-color: #ced4da;
+        }
+        QPushButton#primaryButton, QPushButton[primary="true"] { /* Selector for primary buttons */
+            background-color: #007bff; /* Blue */
+            color: white;
+            border-color: #007bff;
+        }
+        QPushButton#primaryButton:hover, QPushButton[primary="true"]:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+        QPushButton#primaryButton:pressed, QPushButton[primary="true"]:pressed {
+            background-color: #005cbf;
+            border-color: #005cbf;
+        }
+        QPushButton#dangerButton, QPushButton[danger="true"] { /* Selector for danger buttons */
+            background-color: #dc3545; /* Red */
+            color: white;
+            border-color: #dc3545;
+        }
+        QPushButton#dangerButton:hover, QPushButton[danger="true"]:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+        }
+        QPushButton#dangerButton:pressed, QPushButton[danger="true"]:pressed {
+            background-color: #b21f2d;
+            border-color: #b21f2d;
+        }
+        QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border-color: #80bdff; /* Light blue, common focus indicator */
+        }
+        QGroupBox {
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin-top: 10px;
+            padding: 10px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            padding: 0 3px 0 3px;
+            left: 10px;
+            background-color: transparent;
+        }
+        QTabWidget::pane {
+            border-top: 1px solid #ced4da;
+            padding: 10px;
+        }
+        QTabBar::tab {
+            padding: 8px 15px;
+            border: 1px solid #ced4da;
+            border-bottom: none;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            background-color: #e9ecef;
+            margin-right: 2px;
+        }
+        QTabBar::tab:selected {
+            background-color: #ffffff;
+            border-color: #ced4da;
+        }
+        QTabBar::tab:hover:!selected {
+            background-color: #f8f9fa;
+        }
+        QTableWidget {
+            border: 1px solid #dee2e6;
+            gridline-color: #dee2e6;
+            alternate-background-color: #f8f9fa; /* For alternating rows */
+        }
+        QHeaderView::section {
+            background-color: #e9ecef; /* Slightly darker than table row hover for distinction */
+            padding: 4px;
+            border: 1px solid #dee2e6;
+            font-weight: bold;
+        }
+        QListWidget {
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        QListWidget::item {
+            padding: 5px;
+        }
+        QListWidget::item:alternate {
+            background-color: #f8f9fa; /* For alternating rows if enabled */
+        }
+        QListWidget::item:hover {
+            background-color: #e9ecef;
+        }
+        QListWidget::item:selected {
+            background-color: #007bff; /* Blue for selection */
+            color: white;
+        }
+    """)
 
     # Setup translations
     translator = QTranslator()

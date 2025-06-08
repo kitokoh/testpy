@@ -253,14 +253,16 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT NOT NULL UNIQUE,
+        product_name TEXT NOT NULL, -- UNIQUE constraint might be per language later
         description TEXT,
         category TEXT, 
+        language_code TEXT DEFAULT 'fr', -- Added language_code
         base_unit_price REAL NOT NULL,
         unit_of_measure TEXT, 
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (product_name, language_code) -- Product name should be unique per language
     )
     """)
 
@@ -889,6 +891,17 @@ def add_company(company_data: dict) -> str | None:
     """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
     conn = None
     try:
+        product_name = product_data.get('product_name')
+        base_unit_price = product_data.get('base_unit_price')
+        language_code = product_data.get('language_code', 'fr') # Default to 'fr'
+
+        if not product_name:
+            print("Error in add_product: 'product_name' is required.")
+            return None
+        if base_unit_price is None: # Explicitly check for None, as 0.0 is a valid price
+            print("Error in add_product: 'base_unit_price' is required.")
+            return None
+
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
@@ -2613,22 +2626,35 @@ def add_product(product_data: dict) -> int | None:
         now = datetime.utcnow().isoformat() + "Z"
         sql = """
             INSERT INTO Products (
-                product_name, description, category, base_unit_price, unit_of_measure, 
-                is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                product_name, description, category, language_code, base_unit_price,
+                unit_of_measure, is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            product_data.get('product_name'), product_data.get('description'),
+            product_name, product_data.get('description'),
             product_data.get('category'),
-            product_data.get('base_unit_price') if product_data.get('base_unit_price') is not None else 0.0,
+            language_code,
+            base_unit_price,
             product_data.get('unit_of_measure'), product_data.get('is_active', True),
             now, now
         )
         cursor.execute(sql, params)
         conn.commit()
         return cursor.lastrowid
+    except sqlite3.IntegrityError as e:
+        # This will catch the UNIQUE constraint violation for (product_name, language_code)
+        print(f"IntegrityError in add_product for name '{product_name}' and lang '{language_code}': {e}")
+        if conn:
+            conn.rollback()
+        # Optionally, here you could query for the existing product_id if needed:
+        # cursor.execute("SELECT product_id FROM Products WHERE product_name = ? AND language_code = ?", (product_name, language_code))
+        # existing_product = cursor.fetchone()
+        # if existing_product: return existing_product['product_id']
+        return None # Indicates "add failed" or "already exists"
     except sqlite3.Error as e:
         print(f"Database error in add_product: {e}")
+        if conn:
+            conn.rollback()
         return None
     finally:
         if conn: conn.close()
@@ -2765,23 +2791,39 @@ def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
         if conn:
             conn.close()
 
-def get_all_products_for_selection() -> list[dict]:
+def get_all_products_for_selection(language_code: str = None, name_pattern: str = None) -> list[dict]:
     """
-    Retrieves active products (product_id, product_name, description, base_unit_price)
-    for selection, ordered by product_name.
+    Retrieves active products for selection, optionally filtered by language_code
+    and/or name_pattern (searches product_name and description).
+    Orders by product_name.
     """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Filter by is_active = TRUE (or 1 for boolean in SQLite)
-        sql = """
-            SELECT product_id, product_name, description, base_unit_price
+
+        sql_params = []
+        # Start with base selection of active products
+        sql_where_clauses = ["is_active = TRUE"]
+
+        if language_code:
+            sql_where_clauses.append("language_code = ?")
+            sql_params.append(language_code)
+
+        if name_pattern:
+            # The name_pattern should be passed with wildcards already, e.g., "%search_term%"
+            sql_where_clauses.append("(product_name LIKE ? OR description LIKE ?)")
+            sql_params.append(name_pattern)
+            sql_params.append(name_pattern)
+
+        sql = f"""
+            SELECT product_id, product_name, description, base_unit_price, language_code
             FROM Products
-            WHERE is_active = TRUE
+            WHERE {' AND '.join(sql_where_clauses)}
             ORDER BY product_name
         """
-        cursor.execute(sql)
+
+        cursor.execute(sql, tuple(sql_params))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
@@ -2816,8 +2858,11 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         else:
             effective_unit_price = product_info.get('base_unit_price')
 
+        # Ensure effective_unit_price is not None before multiplication
         if effective_unit_price is None:
-            print(f"Warning: `effective_unit_price` was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0 to prevent TypeError.")
+            # This case should ideally not be reached if base_unit_price is NOT NULL in DB
+            # and product_info is correctly fetched.
+            print(f"Warning: effective_unit_price was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0.")
             effective_unit_price = 0.0
 
         total_price_calculated = quantity * effective_unit_price
@@ -4455,6 +4500,48 @@ def get_templates_by_category_id(category_id: int) -> list[dict]:
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
         print(f"Database error in get_templates_by_category_id: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_products_for_selection_filtered(language_code: str = None, name_pattern: str = None) -> list[dict]:
+    """
+    Retrieves active products for selection, optionally filtered by language_code
+    and/or name_pattern (searches product_name and description).
+    Orders by product_name.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql_params = []
+        # Start with base selection of active products
+        sql_where_clauses = ["is_active = TRUE"]
+
+        if language_code:
+            sql_where_clauses.append("language_code = ?")
+            sql_params.append(language_code)
+
+        if name_pattern:
+            # The name_pattern should be passed with wildcards already, e.g., "%search_term%"
+            sql_where_clauses.append("(product_name LIKE ? OR description LIKE ?)")
+            sql_params.append(name_pattern)
+            sql_params.append(name_pattern)
+
+        sql = f"""
+            SELECT product_id, product_name, description, base_unit_price, language_code
+            FROM Products
+            WHERE {' AND '.join(sql_where_clauses)}
+            ORDER BY product_name
+        """
+
+        cursor.execute(sql, tuple(sql_params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_products_for_selection_filtered: {e}")
         return []
     finally:
         if conn:
