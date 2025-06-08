@@ -2616,12 +2616,25 @@ class ClientWidget(QWidget):
                 qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.products_table.setItem(row_idx, 3, qty_item)
                 
-                effective_unit_price = prod_link_data.get('unit_price_override', prod_link_data.get('base_unit_price', 0.0))
+                unit_price_override = prod_link_data.get('unit_price_override')
+                base_price = prod_link_data.get('base_unit_price')
+
+                if unit_price_override is not None:
+                    effective_unit_price = unit_price_override
+                elif base_price is not None:
+                    effective_unit_price = base_price
+                else:
+                    effective_unit_price = 0.0
+
+                effective_unit_price = float(effective_unit_price) if effective_unit_price is not None else 0.0
                 unit_price_item = QTableWidgetItem(f"€ {effective_unit_price:.2f}")
                 unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.products_table.setItem(row_idx, 4, unit_price_item)
                 
-                total_price_item = QTableWidgetItem(f"€ {prod_link_data.get('total_price_calculated', 0.0):.2f}")
+                total_price_calculated_val = prod_link_data.get('total_price_calculated')
+                if total_price_calculated_val is None:
+                    total_price_calculated_val = 0.0
+                total_price_item = QTableWidgetItem(f"€ {float(total_price_calculated_val):.2f}")
                 total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.products_table.setItem(row_idx, 5, total_price_item)
                 
