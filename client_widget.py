@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
+import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog
+    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont # Added QFont
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
@@ -125,9 +126,25 @@ class ClientWidget(QWidget):
         self.doc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
-        refresh_btn = QPushButton(self.tr("Actualiser")); refresh_btn.setIcon(QIcon.fromTheme("view-refresh")); refresh_btn.clicked.connect(self.populate_doc_table); doc_btn_layout.addWidget(refresh_btn)
-        open_btn = QPushButton(self.tr("Ouvrir")); open_btn.setIcon(QIcon.fromTheme("document-open")); open_btn.clicked.connect(self.open_selected_doc); doc_btn_layout.addWidget(open_btn)
-        delete_btn = QPushButton(self.tr("Supprimer")); delete_btn.setIcon(QIcon.fromTheme("edit-delete")); delete_btn.clicked.connect(self.delete_selected_doc); doc_btn_layout.addWidget(delete_btn)
+        self.add_doc_btn = QPushButton(self.tr("Ajouter"))
+        self.add_doc_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_doc_btn.clicked.connect(self.add_document) # Connect the signal
+        doc_btn_layout.addWidget(self.add_doc_btn)
+
+        self.refresh_docs_btn = QPushButton(self.tr("Actualiser"))
+        self.refresh_docs_btn.setIcon(QIcon.fromTheme("view-refresh"))
+        self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
+        doc_btn_layout.addWidget(self.refresh_docs_btn)
+
+        self.open_doc_btn = QPushButton(self.tr("Ouvrir"))
+        self.open_doc_btn.setIcon(QIcon.fromTheme("document-open"))
+        self.open_doc_btn.clicked.connect(self.open_selected_doc)
+        doc_btn_layout.addWidget(self.open_doc_btn)
+
+        self.delete_doc_btn = QPushButton(self.tr("Supprimer"))
+        self.delete_doc_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.delete_doc_btn.clicked.connect(self.delete_selected_doc)
+        doc_btn_layout.addWidget(self.delete_doc_btn)
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
@@ -150,6 +167,69 @@ class ClientWidget(QWidget):
         self.tab_widget.addTab(products_tab, self.tr("Produits"))
         layout.addWidget(self.tab_widget)
         self.populate_doc_table(); self.load_contacts(); self.load_products()
+
+    def add_document(self):
+        # Get the base path for the client's documents
+        # The initial directory for the file dialog can be the general clients_dir or user's home
+        # Using self.config which should be available.
+        initial_dir = self.config.get("clients_dir", os.path.expanduser("~")) # Fallback to home directory
+
+        selected_file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Sélectionner un document"),
+            initial_dir, # Use a sensible default directory
+            self.tr("Tous les fichiers (*.*)")
+        )
+
+        if selected_file_path: # Proceed if a file was selected
+            try:
+                # Determine the target directory
+                # Use the first language from selected_languages, default to 'fr'
+                client_languages = self.client_info.get("selected_languages", ["fr"])
+                if isinstance(client_languages, str): # If it's a comma-separated string
+                    client_languages = [lang.strip() for lang in client_languages.split(',') if lang.strip()]
+
+                target_lang_folder = client_languages[0] if client_languages else "fr"
+
+                target_dir = os.path.join(self.client_info["base_folder_path"], target_lang_folder)
+
+                # Create the target directory if it doesn't exist
+                os.makedirs(target_dir, exist_ok=True)
+
+                # Construct the target file path
+                file_name = os.path.basename(selected_file_path)
+                target_file_path = os.path.join(target_dir, file_name)
+
+                # Check if file already exists
+                if os.path.exists(target_file_path):
+                    reply = QMessageBox.question(
+                        self,
+                        self.tr("Fichier Existant"),
+                        self.tr("Un fichier du même nom existe déjà à cet emplacement. Voulez-vous le remplacer?"),
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.No
+                    )
+                    if reply == QMessageBox.No:
+                        QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée."))
+                        return # User chose not to replace
+
+                # Copy the selected file
+                shutil.copy(selected_file_path, target_file_path)
+
+                # Refresh the document table
+                self.populate_doc_table()
+
+                QMessageBox.information(
+                    self,
+                    self.tr("Succès"),
+                    self.tr("Document '{0}' ajouté avec succès.").format(file_name)
+                )
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    self.tr("Erreur"),
+                    self.tr("Impossible d'ajouter le document : {0}").format(str(e))
+                )
 
     def _handle_open_pdf_action(self, file_path):
         if not self.client_info or 'client_id' not in self.client_info:
