@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QStyledItemDelegate, QStyle, QStyleOptionViewItem, QGridLayout, QTextEdit
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QBrush, QPixmap
-from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer
+from PyQt5.QtCore import Qt, QUrl, QStandardPaths, QSettings, QDir, QDate, QTimer, QFile, QTextStream
 from PyPDF2 import PdfWriter, PdfReader, PdfMerger
 from reportlab.pdfgen import canvas
 import io
@@ -42,6 +42,8 @@ from projectManagement import MainDashboard as ProjectManagementDashboard # Adde
 from html_to_pdf_util import convert_html_to_pdf # For PDF generation from HTML
 
 import sqlite3
+import logging
+import logging.handlers
 
 # --- Configuration & Database ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
@@ -83,6 +85,69 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app'): #
     if __name__ != "__main__": # Avoid setting attribute during test runs if module is imported
         # Use a unique attribute name to avoid conflict if db_manager is imported elsewhere too
         db_manager._initialized_main_app = True
+
+
+def setup_logging():
+    """Configures logging for the application."""
+    log_file_name = "client_manager_app.log"
+    log_format = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
+    
+    # Configure root logger
+    logging.basicConfig(level=logging.DEBUG, format=log_format, stream=sys.stderr) # Basic config for console (stderr)
+
+    # File Handler - Rotate through 3 files of 1MB each
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file_name, maxBytes=1024*1024, backupCount=3, encoding='utf-8'
+    )
+    file_handler.setLevel(logging.INFO) # Log INFO and above to file
+    file_handler.setFormatter(logging.Formatter(log_format))
+    
+    # Console Handler - Only for ERROR and CRITICAL
+    console_handler = logging.StreamHandler(sys.stderr) # Explicitly use stderr for errors
+    console_handler.setLevel(logging.ERROR) # Log ERROR and CRITICAL to console
+    console_handler.setFormatter(logging.Formatter(log_format))
+
+    # Add handlers to the root logger
+    # Check if handlers already exist to avoid duplication if this function is called multiple times
+    # (though it should only be called once)
+    root_logger = logging.getLogger()
+    if not any(isinstance(h, logging.handlers.RotatingFileHandler) and h.baseFilename.endswith(log_file_name) for h in root_logger.handlers):
+        root_logger.addHandler(file_handler)
+    if not any(isinstance(h, logging.StreamHandler) and h.stream == sys.stderr for h in root_logger.handlers):
+        # Remove basicConfig's default stream handler if it exists and we are adding our own stderr
+        for handler in root_logger.handlers[:]: # Iterate over a copy
+            if isinstance(handler, logging.StreamHandler) and handler.stream in (sys.stdout, sys.stderr) and handler.formatter._fmt == logging.BASIC_FORMAT:
+                root_logger.removeHandler(handler)
+        root_logger.addHandler(console_handler)
+
+    logging.info("Logging configured.")
+
+def load_stylesheet_global(app):
+    """Loads the global stylesheet."""
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    qss_file_path = os.path.join(script_dir, "style.qss")
+    
+    if not os.path.exists(qss_file_path):
+        print(f"Stylesheet file not found: {qss_file_path}")
+        # Create an empty style.qss if it doesn't exist to avoid crashing
+        # In a real scenario, this might be handled differently (e.g., error message, default style)
+        try:
+            with open(qss_file_path, "w", encoding="utf-8") as f:
+                f.write("/* Default empty stylesheet. Will be populated by the application. */")
+            print(f"Created an empty default stylesheet: {qss_file_path}")
+        except IOError as e:
+            print(f"Error creating default stylesheet {qss_file_path}: {e}")
+            return # Cannot proceed if stylesheet cannot be created or read
+
+    file = QFile(qss_file_path)
+    if file.open(QFile.ReadOnly | QFile.Text):
+        stream = QTextStream(file)
+        stylesheet = stream.readAll()
+        app.setStyleSheet(stylesheet)
+        print(f"Stylesheet loaded successfully from {qss_file_path}")
+        file.close()
+    else:
+        print(f"Failed to open stylesheet file: {qss_file_path}, Error: {file.errorString()}")
 
 def load_config():
     config_path = get_config_file_path()
@@ -3564,11 +3629,28 @@ class DocumentManager(QMainWindow):
             self.open_client_tab_by_id(actual_new_client_id) # Open the new client's tab
             self.stats_widget.update_stats() # Refresh statistics
 
+        except sqlite3.IntegrityError as e_sqlite_integrity:
+            logging.error(f"Database integrity error during client creation: {client_name_val}", exc_info=True)
+            error_msg = str(e_sqlite_integrity).lower()
+            user_message = self.tr("Erreur de base de données lors de la création du client.")
+            if "unique constraint failed: clients.project_identifier" in error_msg:
+                user_message = self.tr("L'ID de Projet '{0}' existe déjà. Veuillez en choisir un autre.").format(project_identifier_val)
+            elif "unique constraint failed: clients.default_base_folder_path" in error_msg:
+                 user_message = self.tr("Un client avec un nom ou un chemin de dossier résultant similaire existe déjà. Veuillez modifier le nom du client ou l'ID de projet.")
+            # Add more specific checks if other UNIQUE constraints are relevant
+
+            QMessageBox.critical(self, self.tr("Erreur de Données"), user_message)
+            # No rollback needed here as db_manager.add_client should not have committed if IntegrityError occurred on its own transaction.
+            # If add_client doesn't manage its own transaction, this assumption is wrong.
+            # Assuming add_client is robust and handles its own atomicity for the client record itself.
+            # The project/tasks are separate transactions usually.
+
         except OSError as e_os:
             QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
             # Rollback: If client was added to DB but folder creation failed, delete client from DB
             if actual_new_client_id:
                  db_manager.delete_client(actual_new_client_id) # This will also cascade-delete related Project and Tasks if FKs are set up correctly
+                
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
         except Exception as e_db: # Catch other potential errors from db_manager calls or logic
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
