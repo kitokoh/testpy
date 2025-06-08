@@ -643,54 +643,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") 
+        title.setStyleSheet(self.get_page_title_style())
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
-        self.date_picker.setStyleSheet("""
-            QDateEdit {
-                padding: 8px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QDateEdit:focus {
-                border-color: #80bdff;
-            }
-            QDateEdit::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QDateEdit::down-arrow {
-                image: url({self.resource_path('icons/calendar.png')}); /* Needs a calendar icon */
-            }
-        """)
+        # Removed specific QDateEdit stylesheet, global style applies
         self.date_picker.dateChanged.connect(self.update_dashboard)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png'))) # Icon can be kept or removed
-        # Consistent style with "Generate Report" button
-        refresh_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #007bff; /* Blue - Primary Action */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0069d9;
-            }
-            QPushButton:pressed {
-                background-color: #005cbf;
-            }
-        """)
+        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png')))
+        refresh_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet to inherit global style
         refresh_btn.clicked.connect(self.update_dashboard)
 
         header_layout.addWidget(title)
@@ -727,25 +690,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Recent activities
         activities_widget = QGroupBox("Recent Activities")
-        activities_widget.setStyleSheet("""
-            QGroupBox {
-                font-size: 12pt; /* Consistent font size */
-                font-weight: bold;
-                color: #343a40; /* Updated title color */
-                border: 1px solid #dee2e6; /* Softer border */
-                border-radius: 6px; /* Slightly more rounded */
-                margin-top: 15px; /* Adjusted margin */
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left; /* Position title at top-left */
-                padding: 5px 10px; /* Padding around title */
-                background-color: #e9ecef; /* Light background for title area */
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                border-bottom: 1px solid #dee2e6;
-            }
-        """)
+        # Removed specific QGroupBox stylesheet, global style applies
 
         activities_layout = QVBoxLayout(activities_widget)
         activities_layout.setContentsMargins(10, 10, 10, 10) # Padding inside groupbox
@@ -753,28 +698,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.activities_table = QTableWidget()
         self.activities_table.setColumnCount(4)
         self.activities_table.setHorizontalHeaderLabels(["Date", "Member", "Action", "Details"])
-        self.activities_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6; /* Table border */
-                border-radius: 5px; /* Rounded corners for table */
-            }
-            QHeaderView::section {
-                background-color: #e9ecef; /* Light gray header */
-                color: #495057; /* Dark text for header */
-                padding: 10px; /* Increased padding */
-                font-weight: bold;
-                border: none; /* Remove default border */
-                border-bottom: 2px solid #dee2e6; /* Bottom border for separation */
-            }
-            QTableWidget::item {
-                padding: 8px; /* Cell padding */
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-        """)
+        # Removed specific QTableWidget stylesheet, global style applies
         self.activities_table.verticalHeader().setVisible(False)
         self.activities_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.activities_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -800,25 +724,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Team Management")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title.setStyleSheet(self.get_page_title_style())
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png'))) # Icon can be kept
-        self.add_member_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #28a745; /* Green */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-        """)
+        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png')))
+        self.add_member_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet to inherit global style
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
 
         header_layout.addWidget(title)
@@ -831,73 +742,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         self.team_search = QLineEdit()
         self.team_search.setPlaceholderText("Search a member...")
-        self.team_search.setStyleSheet("""
-            QLineEdit {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border-color: #80bdff;
-            }
-        """)
+        # Removed specific QLineEdit stylesheet, global style applies
         self.team_search.textChanged.connect(self.filter_team_members)
 
         self.role_filter = QComboBox()
         self.role_filter.addItems(["All Roles", "Project Manager", "Developer", "Designer", "HR", "Marketing", "Finance"])
-        self.role_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')}); /* Needs a down arrow icon */
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.role_filter.currentIndexChanged.connect(self.filter_team_members)
 
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All Statuses", "Active", "Inactive", "On Leave"])
-        self.status_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.status_filter.currentIndexChanged.connect(self.filter_team_members)
 
         filters_layout.addWidget(self.team_search)
@@ -912,29 +767,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             "Name", "Email", "Role/Title", "Department", "Hire Date",
             "Performance", "Skills", "Active", "Tasks", "Actions"
         ])
-        self.team_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                gridline-color: #e9ecef; /* Lighter grid lines */
-            }
-            QHeaderView::section {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #dee2e6;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-        """)
+        # Removed specific QTableWidget stylesheet, global style applies
         self.team_table.verticalHeader().setVisible(False)
         self.team_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.team_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -958,25 +791,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Project Management")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title.setStyleSheet(self.get_page_title_style())
 
         self.add_project_btn = QPushButton("New Project")
-        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png'))) # Icon can be kept
-        self.add_project_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #28a745; /* Green */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-        """)
+        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png')))
+        self.add_project_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet to inherit global style
         self.add_project_btn.clicked.connect(self.show_add_project_dialog)
 
         header_layout.addWidget(title)
@@ -989,73 +809,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         self.project_search = QLineEdit()
         self.project_search.setPlaceholderText("Search a project...")
-        self.project_search.setStyleSheet("""
-            QLineEdit {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border-color: #80bdff;
-            }
-        """)
+        # Removed specific QLineEdit stylesheet, global style applies
         self.project_search.textChanged.connect(self.filter_projects)
 
         self.status_filter_proj = QComboBox()
         self.status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Late", "Completed", "Archived"])
-        self.status_filter_proj.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.status_filter_proj.currentIndexChanged.connect(self.filter_projects)
 
         self.priority_filter = QComboBox()
         self.priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
-        self.priority_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.priority_filter.currentIndexChanged.connect(self.filter_projects)
 
         filters_layout.addWidget(self.project_search)
@@ -1066,29 +830,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table = QTableWidget()
         self.projects_table.setColumnCount(8)
         self.projects_table.setHorizontalHeaderLabels(["Name", "Status", "Progress", "Priority", "Deadline", "Budget", "Manager", "Actions"])
+        # QProgressBar styling is specific and needs to remain if not covered globally.
+        # Global QTableWidget and QHeaderView styles will apply.
         self.projects_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                gridline-color: #e9ecef;
-            }
-            QHeaderView::section {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #dee2e6;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-            /* Progress bar specific styling within table */
             QProgressBar {
                 border: 1px solid #ced4da;
                 border-radius: 4px;
@@ -1124,25 +868,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Task Management")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title.setStyleSheet(self.get_page_title_style())
 
         self.add_task_btn = QPushButton("New Task")
-        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png'))) # Icon can be kept
-        self.add_task_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #28a745; /* Green */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-        """)
+        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png')))
+        self.add_task_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet to inherit global style
         self.add_task_btn.clicked.connect(self.show_add_task_dialog)
 
         header_layout.addWidget(title)
@@ -1155,101 +886,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         self.task_search = QLineEdit()
         self.task_search.setPlaceholderText("Search a task...")
-        self.task_search.setStyleSheet("""
-            QLineEdit {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QLineEdit:focus {
-                border-color: #80bdff;
-            }
-        """)
+        # Removed specific QLineEdit stylesheet, global style applies
         self.task_search.textChanged.connect(self.filter_tasks)
 
         self.task_status_filter = QComboBox()
         self.task_status_filter.addItems(["All Statuses", "To Do", "In Progress", "In Review", "Completed"])
-        self.task_status_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.task_status_filter.currentIndexChanged.connect(self.filter_tasks)
 
         self.task_priority_filter = QComboBox()
         self.task_priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
-        self.task_priority_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.task_priority_filter.currentIndexChanged.connect(self.filter_tasks)
 
         self.task_project_filter = QComboBox()
         self.task_project_filter.addItem("All Projects")
-        self.task_project_filter.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
         self.task_project_filter.currentIndexChanged.connect(self.filter_tasks)
 
         filters_layout.addWidget(self.task_search)
@@ -1261,29 +913,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.tasks_table = QTableWidget()
         self.tasks_table.setColumnCount(7)
         self.tasks_table.setHorizontalHeaderLabels(["Name", "Project", "Status", "Priority", "Assigned To", "Deadline", "Actions"])
-        self.tasks_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                gridline-color: #e9ecef;
-            }
-            QHeaderView::section {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #dee2e6;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-        """)
+        # Removed specific QTableWidget stylesheet, global style applies
         self.tasks_table.verticalHeader().setVisible(False)
         self.tasks_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tasks_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -1303,7 +933,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Reports and Analytics")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title.setStyleSheet(self.get_page_title_style())
 
         # Report options
         report_options = QWidget()
@@ -1311,94 +941,20 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         self.report_type = QComboBox()
         self.report_type.addItems(["Team Performance", "Project Progress", "Workload", "Key Indicators", "Budget Analysis"])
-        self.report_type.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
 
         self.report_period = QComboBox()
         self.report_period.addItems(["Last 7 Days", "Last 30 Days", "Current Quarter", "Current Year", "Custom..."])
-        self.report_period.setStyleSheet("""
-            QComboBox {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-            }
-            QComboBox:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """)
+        # Removed specific QComboBox stylesheet, global style applies
 
         generate_btn = QPushButton("Generate Report")
         generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png'))) # Icon can be kept
-        generate_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #007bff; /* Blue */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0069d9;
-            }
-            QPushButton:pressed {
-                background-color: #005cbf;
-            }
-        """)
+        generate_btn.setObjectName("primaryButton") # Use global primary style
         generate_btn.clicked.connect(self.generate_report)
 
         export_btn = QPushButton("Export PDF")
         export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png'))) # Icon can be kept
-        export_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #dc3545; /* Red */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
+        export_btn.setObjectName("dangerButton") # Use global danger style
         export_btn.clicked.connect(self.export_report)
 
         options_layout.addWidget(QLabel("Type:"))
@@ -1410,33 +966,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Report area
         self.report_view = QTabWidget()
-        self.report_view.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #dee2e6; /* Softer border */
-                border-top: none; /* Remove top border as tabs cover it */
-                border-radius: 0 0 5px 5px; /* Round bottom corners */
-                padding: 10px;
-            }
-            QTabBar::tab {
-                padding: 10px 18px;
-                background: #e9ecef; /* Light gray for inactive tabs */
-                border: 1px solid #dee2e6;
-                border-bottom: none; /* Remove bottom border for tab, pane has top */
-                border-top-left-radius: 5px;
-                border-top-right-radius: 5px;
-                color: #495057;
-                font-weight: bold;
-                margin-right: 2px; /* Space between tabs */
-            }
-            QTabBar::tab:selected {
-                background: #007bff; /* Primary accent */
-                color: white;
-                border-color: #007bff;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #d8dde2; /* Slightly darker for hover on inactive */
-            }
-        """)
+        # Removed specific QTabWidget stylesheet, global style applies
 
         # Chart tab
         self.graph_tab = QWidget()
@@ -1447,28 +977,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.data_layout = QVBoxLayout(self.data_tab)
 
         self.report_data_table = QTableWidget()
-        self.report_data_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6; /* Table border */
-                border-radius: 5px;
-            }
-            QHeaderView::section {
-                background-color: #e9ecef; /* Light gray header */
-                color: #495057; /* Dark text for header */
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #dee2e6;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-        """)
+        # Removed specific QTableWidget stylesheet, global style applies
         self.report_data_table.verticalHeader().setVisible(False)
         self.report_data_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
@@ -1490,68 +999,23 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title.setStyleSheet(self.get_page_title_style())
 
         # Tabs
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #dee2e6;
-                border-top: none;
-                border-radius: 0 0 5px 5px;
-                padding: 15px; /* Padding for content within tab pane */
-            }
-            QTabBar::tab {
-                padding: 10px 18px;
-                background: #e9ecef;
-                border: 1px solid #dee2e6;
-                border-bottom: none;
-                border-top-left-radius: 5px;
-                border-top-right-radius: 5px;
-                color: #495057;
-                font-weight: bold;
-                margin-right: 2px;
-            }
-            QTabBar::tab:selected {
-                background: #007bff;
-                color: white;
-                border-color: #007bff;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #d8dde2;
-            }
-        """)
+        # Removed specific QTabWidget stylesheet, global style applies
 
         # General style for input fields and combo boxes in settings
-        settings_input_style = """
-            QLineEdit, QComboBox, QDateEdit {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-                min-height: 20px; /* Ensure consistent height */
-            }
-            QLineEdit:focus, QComboBox:focus, QDateEdit:focus {
-                border-color: #80bdff;
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left-width: 1px;
-                border-left-color: #ced4da;
-                border-left-style: solid;
-                border-top-right-radius: 3px;
-                border-bottom-right-radius: 3px;
-            }
-            QComboBox::down-arrow {
-                image: url({self.resource_path('icons/arrow_down.png')});
-            }
-        """
+        # This will be inherited from the global stylesheet or can be removed if not needed
+        # settings_input_style = """
+        #     QLineEdit, QComboBox, QDateEdit { /* Keep if specific adjustments needed, else remove */
+        #          min-height: 20px;
+        #     }
+        # """ # Minimal example, may not be needed if global is sufficient.
 
         # Account tab
         account_tab = QWidget()
-        account_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
+        # account_tab.setStyleSheet(settings_input_style) # Global styles should apply.
         account_layout = QFormLayout(account_tab)
         account_layout.setSpacing(15)
         account_layout.setLabelAlignment(Qt.AlignRight)
@@ -1582,28 +1046,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         account_layout.addRow("Confirm:", self.confirm_pwd_edit)
 
         save_btn = QPushButton("Save Changes")
-        save_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #007bff; /* Blue */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-                margin-top: 10px; /* Add some margin above button */
-            }
-            QPushButton:hover {
-                background-color: #0069d9;
-            }
-            QPushButton:pressed {
-                background-color: #005cbf;
-            }
-        """)
+        save_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet
         save_btn.clicked.connect(self.save_account_settings)
         account_layout.addRow(save_btn)
 
         # Preferences tab
         pref_tab = QWidget()
-        pref_tab.setStyleSheet(settings_input_style) # Apply common style to inputs
+        # pref_tab.setStyleSheet(settings_input_style) # Global styles should apply
         pref_layout = QFormLayout(pref_tab)
         pref_layout.setSpacing(15)
         pref_layout.setLabelAlignment(Qt.AlignRight)
@@ -1635,22 +1085,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         pref_layout.addRow(self.sms_notif)
 
         save_pref_btn = QPushButton("Save Preferences")
-        save_pref_btn.setStyleSheet("""
-            QPushButton {
-                padding: 10px 18px;
-                background-color: #007bff; /* Blue */
-                color: white;
-                border-radius: 5px;
-                font-weight: bold;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #0069d9;
-            }
-            QPushButton:pressed {
-                background-color: #005cbf;
-            }
-        """)
+        save_pref_btn.setObjectName("primaryButton") # Use global primary style
+        # Removed specific setStyleSheet
         save_pref_btn.clicked.connect(self.save_preferences)
         pref_layout.addRow(save_pref_btn)
 
@@ -1661,29 +1097,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.access_table = QTableWidget()
         self.access_table.setColumnCount(4)
         self.access_table.setHorizontalHeaderLabels(["Name", "Role", "Access", "Actions"])
-        self.access_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                gridline-color: #e9ecef;
-            }
-            QHeaderView::section {
-                background-color: #e9ecef;
-                color: #495057;
-                padding: 10px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 2px solid #dee2e6;
-            }
-            QTableWidget::item {
-                padding: 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #007bff;
-                color: white;
-            }
-        """)
+        # Removed specific QTableWidget stylesheet, global style applies
         self.access_table.verticalHeader().setVisible(False)
         self.access_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.access_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
@@ -1742,7 +1156,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         password_edit.setEchoMode(QLineEdit.Password)
 
         login_btn = QPushButton("Login")
-        login_btn.setObjectName("login_btn")
+        login_btn.setObjectName("primaryButton")
         login_btn.clicked.connect(lambda: self.handle_login(username_edit.text(), password_edit.text(), dialog))
 
         layout.addWidget(logo)
@@ -1992,13 +1406,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
 
             delete_btn = QPushButton("🗑️")
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.setStyleSheet(self.get_table_action_button_style())
             delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
 
             action_layout.addWidget(edit_btn)
@@ -2102,19 +1516,19 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             details_btn = QPushButton("ℹ️")
             details_btn.setToolTip("Details")
             details_btn.setFixedSize(30,30)
-            details_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            details_btn.setStyleSheet(self.get_table_action_button_style())
             details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
 
             edit_btn = QPushButton("✏️")
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
 
             delete_btn = QPushButton("🗑️")
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            delete_btn.setStyleSheet(self.get_table_action_button_style())
             delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
 
             action_layout.addWidget(details_btn)
@@ -2123,482 +1537,6 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             self.projects_table.setCellWidget(row_idx, 7, action_widget)
 
         self.projects_table.resizeColumnsToContents()
-
-    def load_tasks(self):
-        # Fetch all tasks (or active ones as per new helper)
-        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
-        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
-
-        # Using the new helper to get only active tasks by default
-        all_tasks_data = db_manager.get_all_tasks(active_only=True)
-        if all_tasks_data is None: all_tasks_data = []
-
-        self.tasks_table.setRowCount(len(all_tasks_data))
-
-        for row_idx, task_dict in enumerate(all_tasks_data):
-            task_id_val = task_dict.get('task_id') # This is INT
-            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
-
-            # Project Name
-            project_name_display = "N/A"
-            project_id_for_task = task_dict.get('project_id')
-            if project_id_for_task:
-                project_info = db_manager.get_project_by_id(project_id_for_task)
-                if project_info:
-                    project_name_display = project_info.get('project_name', 'N/A')
-            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
-
-            # Status
-            status_id_for_task = task_dict.get('status_id')
-            status_name_display = "Unknown"
-            status_color_hex = "#7f8c8d" # Default
-            if status_id_for_task is not None:
-                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
-                if status_setting:
-                    status_name_display = status_setting.get('status_name', 'Unknown')
-                    color_from_db = status_setting.get('color_hex')
-                    if color_from_db: status_color_hex = color_from_db
-                    else: # Fallback colors
-                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
-                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
-                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
-                        # Add more specific fallbacks if needed
-            status_item = QTableWidgetItem(status_name_display)
-            status_item.setForeground(QColor(status_color_hex))
-            self.tasks_table.setItem(row_idx, 2, status_item)
-
-            # Priority
-            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
-            priority_item = QTableWidgetItem()
-            if priority_val_for_task == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
-                priority_item.setText("High")
-            elif priority_val_for_task == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
-                priority_item.setText("Medium")
-            else: # Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
-                priority_item.setText("Low")
-            self.tasks_table.setItem(row_idx, 3, priority_item)
-
-            # Assignee Name
-            assignee_name_display = "Unassigned"
-            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
-            if assignee_tm_id is not None:
-                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
-                if assignee_member_info:
-                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
-            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
-
-            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
-
-            # Action buttons
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(0, 0, 0, 0)
-            action_layout.setSpacing(5)
-
-            # Dependency Check
-            unmet_dependency = False
-            predecessors = db_manager.get_predecessor_tasks(task_id_val) # Conceptual
-            if predecessors:
-                for pred_task_dict in predecessors:
-                    pred_status_id = pred_task_dict.get('status_id')
-                    if pred_status_id:
-                        status_info = db_manager.get_status_setting_by_id(pred_status_id)
-                        if status_info and not status_info.get('is_completion_status'):
-                            unmet_dependency = True
-                            # Visual cue for task name item
-                            name_item = self.tasks_table.item(row_idx, 0) # Get the name item
-                            if name_item: # Ensure item exists
-                                name_item.setForeground(QColor("gray"))
-                                name_item.setToolTip(self.tr("Blocked by predecessor task(s)"))
-                            break
-
-            complete_btn = QPushButton("✅")
-            complete_btn.setToolTip("Mark as Completed")
-            complete_btn.setFixedSize(30, 30)
-            complete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
-
-            if unmet_dependency:
-                complete_btn.setEnabled(False)
-                complete_btn.setToolTip(self.tr("Blocked by predecessor task(s)"))
-
-            edit_btn = QPushButton("✏️")
-            edit_btn.setToolTip("Edit")
-            edit_btn.setFixedSize(30, 30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
-
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setToolTip("Delete")
-            delete_btn.setFixedSize(30, 30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
-
-            action_layout.addWidget(complete_btn)
-            action_layout.addWidget(edit_btn)
-            action_layout.addWidget(delete_btn)
-
-            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
-
-        self.tasks_table.resizeColumnsToContents()
-
-    def load_activities(self):
-        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
-        # For now, preventing crash
-        # with self.db.get_connection() as conn:
-        #     cursor = conn.cursor()
-        #     cursor.execute('''
-        #         SELECT a.timestamp, u.full_name, a.action, a.details
-        #         FROM activities a
-        #         LEFT JOIN users u ON a.user_id = u.id
-        #         ORDER BY a.timestamp DESC
-        #         LIMIT 50
-        #     ''')
-        #     activities = cursor.fetchall()
-        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
-        if activities_data is None: activities_data = []
-
-        self.activities_table.setRowCount(len(activities_data))
-
-        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
-            # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
-            # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
-
-            user_name_display = "System" # Default if user_id is None or user not found
-            user_id_for_log = log_entry.get('user_id')
-            if user_id_for_log:
-                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
-                if user_info:
-                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
-
-            self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
-            self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
-            self.activities_table.setItem(row_idx, 2, QTableWidgetItem(log_entry.get('action_type', 'N/A')))
-            self.activities_table.setItem(row_idx, 3, QTableWidgetItem(log_entry.get('details', '')))
-
-        self.activities_table.resizeColumnsToContents()
-
-    def load_team_members(self):
-        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
-        # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
-        # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
-
-        members_data = db_manager.get_all_team_members()
-        if members_data is None: members_data = []
-
-        self.team_table.setRowCount(len(members_data))
-
-        for row_idx, member in enumerate(members_data):
-            self.team_table.setItem(row_idx, 0, QTableWidgetItem(member.get('full_name', 'N/A')))
-            self.team_table.setItem(row_idx, 1, QTableWidgetItem(member.get('email', 'N/A')))
-            self.team_table.setItem(row_idx, 2, QTableWidgetItem(member.get('role_or_title', 'N/A')))
-            self.team_table.setItem(row_idx, 3, QTableWidgetItem(member.get('department', 'N/A')))
-            self.team_table.setItem(row_idx, 4, QTableWidgetItem(member.get('hire_date', 'N/A')))
-
-            performance_val = member.get('performance', 0)
-            perf_item = QTableWidgetItem(f"{performance_val}%")
-            if performance_val >= 90: perf_item.setForeground(QColor('#27ae60'))
-            elif performance_val >= 80: perf_item.setForeground(QColor('#f39c12'))
-            else: perf_item.setForeground(QColor('#e74c3c'))
-            self.team_table.setItem(row_idx, 5, perf_item)
-
-            self.team_table.setItem(row_idx, 6, QTableWidgetItem(member.get('skills', 'N/A')))
-
-            is_active_val = member.get('is_active', False)
-            active_item = QTableWidgetItem()
-            if is_active_val: # Ensure it's treated as boolean
-                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
-                active_item.setText("Active")
-            else:
-                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
-                active_item.setText("Inactive")
-            self.team_table.setItem(row_idx, 7, active_item)
-
-            task_count = 0
-            member_id_for_tasks = member.get('team_member_id')
-            if member_id_for_tasks is not None:
-                # Use the new helper function, fetching only active tasks
-                tasks_for_member = db_manager.get_tasks_by_assignee_id(member_id_for_tasks, active_only=True)
-                if tasks_for_member:
-                    task_count = len(tasks_for_member)
-            self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
-
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(0,0,0,0)
-            action_layout.setSpacing(5)
-
-            current_member_id = member['team_member_id']
-
-            edit_btn = QPushButton("✏️")
-            edit_btn.setToolTip("Edit")
-            edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
-
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setToolTip("Delete")
-            delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            delete_btn.clicked.connect(lambda _, m_id=current_member_id: self.delete_member(m_id))
-
-            action_layout.addWidget(edit_btn)
-            action_layout.addWidget(delete_btn)
-            self.team_table.setCellWidget(row_idx, 9, action_widget)
-
-        self.team_table.resizeColumnsToContents()
-
-    def load_projects(self):
-        # db.py fields: project_id (TEXT PK), client_id, project_name, description, start_date, deadline_date,
-        # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
-        # priority (INTEGER), created_at, updated_at
-
-        projects_data = db_manager.get_all_projects()
-        if projects_data is None:
-            projects_data = []
-
-        self.projects_table.setRowCount(len(projects_data))
-
-        for row_idx, project_dict in enumerate(projects_data):
-            project_id_str = project_dict.get('project_id')
-            self.projects_table.setItem(row_idx, 0, QTableWidgetItem(project_dict.get('project_name', 'N/A')))
-
-            status_id = project_dict.get('status_id')
-            status_name_display = "Unknown"
-            status_color_hex = "#7f8c8d"
-            if status_id is not None:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
-                if status_setting:
-                    status_name_display = status_setting.get('status_name', 'Unknown')
-                    color_from_db = status_setting.get('color_hex')
-                    if color_from_db:
-                        status_color_hex = color_from_db
-                    else:
-                        if "completed" in status_name_display.lower(): status_color_hex = '#2ecc71'
-                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
-                        elif "planning" in status_name_display.lower(): status_color_hex = '#f1c40f'
-                        elif "late" in status_name_display.lower() or "overdue" in status_name_display.lower(): status_color_hex = '#e74c3c'
-                        elif "archived" in status_name_display.lower(): status_color_hex = '#95a5a6'
-
-            status_item = QTableWidgetItem(status_name_display)
-            status_item.setForeground(QColor(status_color_hex))
-            self.projects_table.setItem(row_idx, 1, status_item)
-
-            progress = project_dict.get('progress_percentage', 0)
-            progress_widget = QWidget()
-            progress_layout = QHBoxLayout(progress_widget)
-            progress_layout.setContentsMargins(5, 5, 5, 5)
-            progress_bar = QProgressBar()
-            progress_bar.setValue(progress if progress is not None else 0)
-            progress_bar.setAlignment(Qt.AlignCenter)
-            progress_bar.setFormat(f"{progress if progress is not None else 0}%")
-            progress_bar.setStyleSheet("""
-                QProgressBar { border: 1px solid #bdc3c7; border-radius: 5px; text-align: center; height: 20px; }
-                QProgressBar::chunk { background-color: #3498db; border-radius: 4px; }
-            """)
-            progress_layout.addWidget(progress_bar)
-            self.projects_table.setCellWidget(row_idx, 2, progress_widget)
-
-            priority_val = project_dict.get('priority', 0)
-            priority_item = QTableWidgetItem()
-            if priority_val == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
-                priority_item.setText("High")
-            elif priority_val == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
-                priority_item.setText("Medium")
-            else: # 0 or other = Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
-                priority_item.setText("Low")
-            self.projects_table.setItem(row_idx, 3, priority_item)
-
-            self.projects_table.setItem(row_idx, 4, QTableWidgetItem(project_dict.get('deadline_date', 'N/A')))
-            budget_val = project_dict.get('budget', 0.0)
-            self.projects_table.setItem(row_idx, 5, QTableWidgetItem(f"€{budget_val:,.2f}" if budget_val is not None else "€0.00"))
-
-            manager_user_id = project_dict.get('manager_team_member_id') # This is a user_id (TEXT from Users table)
-            manager_display_name = "Unassigned"
-            if manager_user_id:
-                # First, try to find a TeamMember linked to this user_id
-                team_members_list = db_manager.get_all_team_members(filters={'user_id': manager_user_id})
-                if team_members_list and len(team_members_list) > 0:
-                    manager_display_name = team_members_list[0].get('full_name', manager_user_id)
-                else:
-                    # If no direct TeamMember link, fall back to User's full_name
-                    user_as_manager = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
-                    if user_as_manager:
-                        manager_display_name = user_as_manager.get('full_name', manager_user_id) # Use user_id as last resort
-            self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
-
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(0,0,0,0)
-            action_layout.setSpacing(5)
-
-            details_btn = QPushButton("ℹ️")
-            details_btn.setToolTip("Details")
-            details_btn.setFixedSize(30,30)
-            details_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
-
-            edit_btn = QPushButton("✏️")
-            edit_btn.setToolTip("Edit")
-            edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
-
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setToolTip("Delete")
-            delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
-
-            action_layout.addWidget(details_btn)
-            action_layout.addWidget(edit_btn)
-            action_layout.addWidget(delete_btn)
-            self.projects_table.setCellWidget(row_idx, 7, action_widget)
-
-        self.projects_table.resizeColumnsToContents()
-
-    def load_tasks(self):
-        # Fetch all tasks (or active ones as per new helper)
-        # db.py fields: task_id (PK), project_id, task_name, description, status_id,
-        # assignee_team_member_id, reporter_team_member_id, due_date, priority, ...
-
-        # Using the new helper to get only active tasks by default
-        all_tasks_data = db_manager.get_all_tasks(active_only=True)
-        if all_tasks_data is None: all_tasks_data = []
-
-        self.tasks_table.setRowCount(len(all_tasks_data))
-
-        for row_idx, task_dict in enumerate(all_tasks_data):
-            task_id_val = task_dict.get('task_id') # This is INT
-            self.tasks_table.setItem(row_idx, 0, QTableWidgetItem(task_dict.get('task_name', 'N/A')))
-
-            # Project Name
-            project_name_display = "N/A"
-            project_id_for_task = task_dict.get('project_id')
-            if project_id_for_task:
-                project_info = db_manager.get_project_by_id(project_id_for_task)
-                if project_info:
-                    project_name_display = project_info.get('project_name', 'N/A')
-            self.tasks_table.setItem(row_idx, 1, QTableWidgetItem(project_name_display))
-
-            # Status
-            status_id_for_task = task_dict.get('status_id')
-            status_name_display = "Unknown"
-            status_color_hex = "#7f8c8d" # Default
-            if status_id_for_task is not None:
-                status_setting = db_manager.get_status_setting_by_id(status_id_for_task)
-                if status_setting:
-                    status_name_display = status_setting.get('status_name', 'Unknown')
-                    color_from_db = status_setting.get('color_hex')
-                    if color_from_db: status_color_hex = color_from_db
-                    else: # Fallback colors
-                        if "completed" in status_name_display.lower() or "done" in status_name_display.lower(): status_color_hex = '#2ecc71'
-                        elif "progress" in status_name_display.lower(): status_color_hex = '#3498db'
-                        elif "review" in status_name_display.lower(): status_color_hex = '#f39c12'
-                        # Add more specific fallbacks if needed
-            status_item = QTableWidgetItem(status_name_display)
-            status_item.setForeground(QColor(status_color_hex))
-            self.tasks_table.setItem(row_idx, 2, status_item)
-
-            # Priority
-            priority_val_for_task = task_dict.get('priority', 0) # 0:Low, 1:Medium, 2:High
-            priority_item = QTableWidgetItem()
-            if priority_val_for_task == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
-                priority_item.setText("High")
-            elif priority_val_for_task == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
-                priority_item.setText("Medium")
-            else: # Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
-                priority_item.setText("Low")
-            self.tasks_table.setItem(row_idx, 3, priority_item)
-
-            # Assignee Name
-            assignee_name_display = "Unassigned"
-            assignee_tm_id = task_dict.get('assignee_team_member_id') # This is team_member_id (INT)
-            if assignee_tm_id is not None:
-                assignee_member_info = db_manager.get_team_member_by_id(assignee_tm_id)
-                if assignee_member_info:
-                    assignee_name_display = assignee_member_info.get('full_name', 'N/A')
-            self.tasks_table.setItem(row_idx, 4, QTableWidgetItem(assignee_name_display))
-
-            self.tasks_table.setItem(row_idx, 5, QTableWidgetItem(task_dict.get('due_date', '-')))
-
-            # Action buttons
-            action_widget = QWidget()
-            action_layout = QHBoxLayout(action_widget)
-            action_layout.setContentsMargins(0, 0, 0, 0)
-            action_layout.setSpacing(5)
-
-            complete_btn = QPushButton("✅")
-            complete_btn.setToolTip("Mark as Completed")
-            complete_btn.setFixedSize(30, 30)
-            complete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            complete_btn.clicked.connect(lambda _, t_id=task_id_val: self.complete_task(t_id))
-
-            edit_btn = QPushButton("✏️")
-            edit_btn.setToolTip("Edit")
-            edit_btn.setFixedSize(30, 30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            edit_btn.clicked.connect(lambda _, t_id=task_id_val: self.edit_task(t_id))
-
-            delete_btn = QPushButton("🗑️")
-            delete_btn.setToolTip("Delete")
-            delete_btn.setFixedSize(30, 30)
-            delete_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
-            delete_btn.clicked.connect(lambda _, t_id=task_id_val: self.delete_task(t_id))
-
-            action_layout.addWidget(complete_btn)
-            action_layout.addWidget(edit_btn)
-            action_layout.addWidget(delete_btn)
-
-            self.tasks_table.setCellWidget(row_idx, 6, action_widget)
-
-        self.tasks_table.resizeColumnsToContents()
-
-
-    def load_activities(self):
-        # TODO: Refactor this method to use main_db_manager.get_activity_logs()
-        # For now, preventing crash
-        # with self.db.get_connection() as conn:
-        #     cursor = conn.cursor()
-        #     cursor.execute('''
-        #         SELECT a.timestamp, u.full_name, a.action, a.details
-        #         FROM activities a
-        #         LEFT JOIN users u ON a.user_id = u.id
-        #         ORDER BY a.timestamp DESC
-        #         LIMIT 50
-        #     ''')
-        #     activities = cursor.fetchall()
-        activities_data = db_manager.get_activity_logs(limit=50) # Changed main_db_manager to db_manager
-        if activities_data is None: activities_data = []
-
-        self.activities_table.setRowCount(len(activities_data))
-
-        for row_idx, log_entry in enumerate(activities_data): # log_entry is a dict
-            # Fields from db.py ActivityLog: log_id, user_id, action_type, details,
-            # related_entity_type, related_entity_id, related_client_id, ip_address, user_agent, created_at
-
-            user_name_display = "System" # Default if user_id is None or user not found
-            user_id_for_log = log_entry.get('user_id')
-            if user_id_for_log:
-                user_info = db_manager.get_user_by_id(user_id_for_log) # Changed main_db_manager
-                if user_info:
-                    user_name_display = user_info.get('full_name', user_id_for_log) # Fallback to user_id if name missing
-
-            self.activities_table.setItem(row_idx, 0, QTableWidgetItem(log_entry.get('created_at', 'N/A')))
-            self.activities_table.setItem(row_idx, 1, QTableWidgetItem(user_name_display))
-            self.activities_table.setItem(row_idx, 2, QTableWidgetItem(log_entry.get('action_type', 'N/A')))
-            self.activities_table.setItem(row_idx, 3, QTableWidgetItem(log_entry.get('details', '')))
-
-        self.activities_table.resizeColumnsToContents()
 
     def load_access_table(self):
         users_data = db_manager.get_all_users() # Already changed to db_manager, this is just a confirmation
@@ -2640,7 +1578,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             edit_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
             edit_btn.setToolTip("Edit User Access")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+            edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, u_id=user_id_str: self.edit_user_access(u_id))
 
             action_layout.addWidget(edit_btn)
@@ -4488,6 +3426,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     #         self.log_activity(f"Application closed by {self.current_user['full_name']}")
     #     event.accept()
 
+    def get_table_action_button_style(self):
+        return "background-color: transparent; border: none; font-size: 16px;"
+
     def setup_cover_page_management_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -4624,13 +3565,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     # Actions column
                     edit_action_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
                     edit_action_btn.setToolTip("Edit Cover Page")
-                    edit_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    edit_action_btn.setStyleSheet(self.get_table_action_button_style())
                     # Use a partial or a helper to capture current cp_data for the lambda
                     edit_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.edit_selected_cover_page_dialog(row_data=r_data))
 
                     delete_action_btn = QPushButton("🗑️") # Already an emoji, ensure it's just text
                     delete_action_btn.setToolTip("Delete Cover Page")
-                    delete_action_btn.setStyleSheet("background-color: transparent; border: none; font-size: 16px;")
+                    delete_action_btn.setStyleSheet(self.get_table_action_button_style())
                     delete_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.delete_selected_cover_page(row_data=r_data))
 
                     action_widget = QWidget()
