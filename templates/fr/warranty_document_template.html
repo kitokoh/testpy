@@ -2,82 +2,160 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Warranty Certificate</title>
+    <title>CERTIFICAT DE GARANTIE</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 30px; color: #333; }
-        .container { width: 80%; margin: auto; border: 2px solid #0056b3; padding: 30px; }
-        .header { text-align: center; margin-bottom: 25px; }
-        .header h1 { color: #0056b3; }
-        .warranty-details p, .product-details p, .terms p { margin: 8px 0; line-height: 1.5; }
-        .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #0056b3; border-bottom: 1px solid #eee; padding-bottom: 5px;}
-        .footer { text-align: center; margin-top: 40px; font-size: 0.9em; }
-        .company-signature { margin-top: 30px;}
-        .logo { max-width: 140px; max-height: 60px; margin-bottom: 10px;}
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #333;
+            font-size: 10pt;
+        }
+        .page {
+            width: 210mm;
+            max-height: 297mm; /* Ensure it tries to fit one page */
+            padding: 20mm;
+            margin: 10mm auto;
+            background-color: #fff;
+            border: 1px solid #d4d4d4;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+            overflow: hidden; /* Helps to prevent content from making page larger */
+        }
+        .certificate-container {
+            border: 2px solid #0056b3; /* Main border for certificate look */
+            padding: 25mm; /* Inner padding */
+            height: calc(297mm - 40mm - 4mm); /* Adjusting for page padding and container border */
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo {
+            max-width: 160px;
+            max-height: 70px;
+            margin-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 20pt;
+            color: #0056b3;
+            margin: 0;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .section {
+            margin-bottom: 15px;
+        }
+        .section h3 {
+            font-size: 12pt;
+            color: #004085;
+            border-bottom: 1px solid #bce8f1;
+            padding-bottom: 5px;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .section p {
+            margin: 4px 0;
+            line-height: 1.5;
+            font-size: 9.5pt;
+        }
+        .section strong {
+            font-weight: 500;
+        }
+        .terms-list {
+            padding-left: 18px;
+            font-size: 9pt;
+            list-style-type: disc;
+        }
+        .terms-list li {
+            margin-bottom: 5px;
+        }
+        .signature-section {
+            margin-top: 30px;
+        }
+        .signature-block {
+            margin-top: 15px;
+        }
+        .signature-line {
+            width: 250px;
+            height: 1px;
+            background-color: #333;
+            margin-top: 30px;
+            margin-bottom: 5px;
+        }
+        .footer-cert {
+            text-align: center;
+            font-size: 8pt;
+            color: #777;
+            margin-top: 25px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
-            <h1>WARRANTY CERTIFICATE</h1>
-        </div>
+    <div class="page">
+        <div class="certificate-container">
+            <div class="header">
+                <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo" />
+                <h1>Certificat de Garantie</h1>
+            </div>
 
-        <div class="warranty-details">
-            <p><strong>Certificate No:</strong> {{WARRANTY_CERTIFICATE_ID}}</p>
-            <p><strong>Date of Issue:</strong> {{DATE}}</p>
-            <p><strong>Issued By (Warrantor):</strong> {{SELLER_COMPANY_NAME}}</p>
-            <p>Address: {{SELLER_FULL_ADDRESS}}</p>
-        </div>
+            <div class="section warranty-info">
+                <h3>Informations Générales</h3>
+                <p><strong>Numéro du Certificat:</strong> {{WARRANTY_CERTIFICATE_ID}}</p>
+                <p><strong>Date d'''Émission:</strong> {{DATE}}</p>
+                <p><strong>Émis par (Garant):</strong> {{SELLER_COMPANY_NAME}}</p>
+                <p>Adresse: {{SELLER_ADDRESS_LINE1}}, {{SELLER_CITY_ZIP_COUNTRY}}</p>
+            </div>
 
-        <div class="product-details">
-            <h3 class="section-title">Product Information</h3>
-            <p><strong>Product Name/Description:</strong> {{PRODUCT_NAME_WARRANTY}}</p>
-            <p><strong>Model No:</strong> {{PRODUCT_MODEL_WARRANTY}}</p>
-            <p><strong>Serial No(s):</strong> {{PRODUCT_SERIAL_NUMBERS_WARRANTY}}</p>
-            <p><strong>Date of Purchase/Supply:</strong> {{PURCHASE_SUPPLY_DATE}}</p>
-            <p><strong>Original Invoice No:</strong> {{ORIGINAL_INVOICE_ID_WARRANTY}}</p>
-        </div>
+            <div class="section product-info">
+                <h3>Produit Garanti</h3>
+                <p><strong>Nom/Description du Produit:</strong> {{PRODUCT_NAME_WARRANTY}}</p>
+                <p><strong>Modèle:</strong> {{PRODUCT_MODEL_WARRANTY}}</p>
+                <p><strong>Numéro(s) de Série:</strong> {{PRODUCT_SERIAL_NUMBERS_WARRANTY}}</p>
+                <p><strong>Date d'''Achat/Fourniture:</strong> {{PURCHASE_SUPPLY_DATE_WARRANTY}}</p>
+                <p><strong>Facture Originale N°:</strong> {{ORIGINAL_INVOICE_ID_WARRANTY}}</p>
+            </div>
 
-        <div class="beneficiary-details">
-            <h3 class="section-title">Beneficiary Information</h3>
-            <p><strong>Beneficiary (Owner):</strong> {{CLIENT_NAME}} ({{CLIENT_COMPANY_NAME}})</p>
-            <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
-        </div>
+            <div class="section beneficiary-info">
+                <h3>Bénéficiaire</h3>
+                <p><strong>Nom du Bénéficiaire:</strong> {{CLIENT_NAME}}</p>
+                <p><strong>Société:</strong> {{CLIENT_COMPANY_NAME}}</p>
+                <p>Adresse: {{CLIENT_ADDRESS_LINE1}}, {{CLIENT_CITY_ZIP_COUNTRY}}</p>
+            </div>
 
-        <div class="terms">
-            <h3 class="section-title">Warranty Terms and Conditions</h3>
-            <p><strong>Warranty Period:</strong> This product is warranted against defects in materials and workmanship for a period of <strong>{{WARRANTY_PERIOD_TEXT}}</strong> (e.g., twelve (12) months) from the date of {{WARRANTY_START_POINT_TEXT}} (e.g., original purchase / installation).</p>
-
-            <p><strong>Coverage:</strong> During the warranty period, {{SELLER_COMPANY_NAME}} will repair or replace, at its option, any part found to be defective due to improper workmanship or materials, free of charge. This warranty covers {{WARRANTY_COVERAGE_DETAILS}}.</p>
-
-            <p><strong>Exclusions:</strong> This warranty does not cover:
-                <ul>
-                    <li>Damage resulting from accident, misuse, abuse, neglect, or improper installation or maintenance.</li>
-                    <li>Normal wear and tear, or cosmetic damage.</li>
-                    <li>Products whose serial numbers have been altered, defaced, or removed.</li>
-                    <li>Damage caused by use of non-original spare parts or accessories.</li>
-                    <li>{{OTHER_EXCLUSIONS_LIST}}</li>
+            <div class="section terms-conditions">
+                <h3>Termes et Conditions de la Garantie</h3>
+                <p><strong>Période de Garantie:</strong> Le produit susmentionné est garanti contre les défauts de matériaux et de fabrication pour une période de <strong>{{WARRANTY_PERIOD_TEXT}}</strong> (par exemple, douze (12) mois) à compter de la date de {{WARRANTY_START_CONDITION_TEXT}} (par exemple, achat original / installation).</p>
+                <p><strong>Couverture:</strong> {{WARRANTY_COVERAGE_DETAILS}}</p>
+                <p><strong>Exclusions:</strong> Cette garantie ne couvre pas :</p>
+                <ul class="terms-list">
+                    <li>Les dommages résultant d'''accident, de mauvaise utilisation, de négligence, ou d'''installation/maintenance incorrecte.</li>
+                    <li>L'''usure normale et les dommages cosmétiques.</li>
+                    <li>Les produits dont les numéros de série ont été altérés, effacés ou enlevés.</li>
+                    <li>{{OTHER_EXCLUSIONS_LIST_WARRANTY}}</li>
                 </ul>
-            </p>
+                <p><strong>Procédure de Réclamation:</strong> {{WARRANTY_CLAIM_PROCEDURE_WARRANTY}} Pour toute réclamation, veuillez contacter {{WARRANTY_CLAIM_CONTACT_INFO_WARRANTY}}.</p>
+            </div>
 
-            <p><strong>Claim Procedure:</strong> To make a warranty claim, please contact {{SELLER_COMPANY_NAME}} or an authorized service center at {{WARRANTY_CLAIM_CONTACT_INFO}}, providing proof of purchase and a description of the defect. {{WARRANTY_CLAIM_PROCEDURE_DETAIL}}</p>
+            <div class="signature-section">
+                <p>Pour et au nom de <strong>{{SELLER_COMPANY_NAME}}</strong>,</p>
+                <div class="signature-block">
+                    <div class="signature-line"></div>
+                    <p>Signature Autorisée</p>
+                    <p>Nom: {{SELLER_AUTHORIZED_SIGNATORY_NAME_WARRANTY}}</p>
+                    <p>Titre: {{SELLER_AUTHORIZED_SIGNATORY_TITLE_WARRANTY}}</p>
+                </div>
+            </div>
 
-            <p><strong>Limitation of Liability:</strong> The liability of {{SELLER_COMPANY_NAME}} under this warranty is limited to the repair or replacement of defective parts. {{SELLER_COMPANY_NAME}} shall not be liable for any incidental or consequential damages.</p>
-
-            <p>This warranty gives you specific legal rights, and you may also have other rights which vary from country to country.</p>
-        </div>
-
-        <div class="company-signature">
-            <p>For and on behalf of <strong>{{SELLER_COMPANY_NAME}}</strong></p>
-            <br><br>
-            <p>_________________________</p>
-            <p>Authorized Signature</p>
-            <p>Name: {{SELLER_AUTHORIZED_SIGNATORY_NAME}}</p>
-            <p>Title: {{SELLER_AUTHORIZED_SIGNATORY_TITLE}}</p>
-        </div>
-
-        <div class="footer">
-            <p>&copy; {{CURRENT_YEAR}} {{SELLER_COMPANY_NAME}}. All rights reserved.</p>
+            <div class="footer-cert">
+                <p>&copy; {{CURRENT_YEAR}} {{SELLER_COMPANY_NAME}}. Tous droits réservés.</p>
+                <p>Ce certificat est non transférable.</p>
+            </div>
         </div>
     </div>
 </body>
