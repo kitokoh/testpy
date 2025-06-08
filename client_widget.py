@@ -1,66 +1,36 @@
 # -*- coding: utf-8 -*-
 import os
+import shutil
 from datetime import datetime
-# import sqlite3 # No longer needed as methods are refactored to use db_manager
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog
+    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QFormLayout
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QFont # Added QFont
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 
 from db import db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
+from utils import generate_pdf_for_document
 
-# Globals imported from main (temporary, to be refactored)
-MAIN_MODULE_CONTACT_DIALOG = None
-MAIN_MODULE_PRODUCT_DIALOG = None
-MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = None
-MAIN_MODULE_CREATE_DOCUMENT_DIALOG = None
-MAIN_MODULE_COMPILE_PDF_DIALOG = None
-MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
-MAIN_MODULE_CONFIG = None
-MAIN_MODULE_DATABASE_NAME = None
-
-def _import_main_elements():
-    global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
-           MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
-           MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME
-
-    if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
-        import main as main_module # This is the potential circular import point
-        MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
-        MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
-        MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
-        MAIN_MODULE_CREATE_DOCUMENT_DIALOG = main_module.CreateDocumentDialog
-        MAIN_MODULE_COMPILE_PDF_DIALOG = main_module.CompilePdfDialog
-        MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = main_module.generate_pdf_for_document
-        MAIN_MODULE_CONFIG = main_module.CONFIG
-        MAIN_MODULE_DATABASE_NAME = main_module.DATABASE_NAME # Used in load_statuses, save_client_notes
-
+# Direct imports for dialogs, replacing _import_main_elements
+from dialogs import (
+    ContactDialog, ProductDialog, EditProductLineDialog,
+    CreateDocumentDialog, CompilePdfDialog
+)
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, app_root_dir, database_name, parent=None):
         super().__init__(parent)
         self.client_info = client_info
-        # self.config = config # Original config passed
+        self.config = config
+        self.app_root_dir = app_root_dir
+        self.DATABASE_NAME = database_name # Still used by load_statuses, save_client_notes directly
 
-        # Dynamically import main elements to avoid circular import at module load time
-        _import_main_elements()
-        self.config = MAIN_MODULE_CONFIG # Use the imported config
-        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
-
-        self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
-        self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
-        self.EditProductLineDialog = MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG
-        self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
-        self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
-        self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
-
+        # Dialogs are now directly imported, no need for self.ContactDialog = ... assignments
         self.setup_ui()
 
     def setup_ui(self):
@@ -125,9 +95,25 @@ class ClientWidget(QWidget):
         self.doc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
-        refresh_btn = QPushButton(self.tr("Actualiser")); refresh_btn.setIcon(QIcon.fromTheme("view-refresh")); refresh_btn.clicked.connect(self.populate_doc_table); doc_btn_layout.addWidget(refresh_btn)
-        open_btn = QPushButton(self.tr("Ouvrir")); open_btn.setIcon(QIcon.fromTheme("document-open")); open_btn.clicked.connect(self.open_selected_doc); doc_btn_layout.addWidget(open_btn)
-        delete_btn = QPushButton(self.tr("Supprimer")); delete_btn.setIcon(QIcon.fromTheme("edit-delete")); delete_btn.clicked.connect(self.delete_selected_doc); doc_btn_layout.addWidget(delete_btn)
+        self.add_doc_btn = QPushButton(self.tr("Ajouter"))
+        self.add_doc_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_doc_btn.clicked.connect(self.add_document)
+        doc_btn_layout.addWidget(self.add_doc_btn)
+
+        self.refresh_docs_btn = QPushButton(self.tr("Actualiser"))
+        self.refresh_docs_btn.setIcon(QIcon.fromTheme("view-refresh"))
+        self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
+        doc_btn_layout.addWidget(self.refresh_docs_btn)
+
+        self.open_doc_btn = QPushButton(self.tr("Ouvrir"))
+        self.open_doc_btn.setIcon(QIcon.fromTheme("document-open"))
+        self.open_doc_btn.clicked.connect(self.open_selected_doc)
+        doc_btn_layout.addWidget(self.open_doc_btn)
+
+        self.delete_doc_btn = QPushButton(self.tr("Supprimer"))
+        self.delete_doc_btn.setIcon(QIcon.fromTheme("edit-delete"))
+        self.delete_doc_btn.clicked.connect(self.delete_selected_doc)
+        doc_btn_layout.addWidget(self.delete_doc_btn)
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
@@ -151,14 +137,37 @@ class ClientWidget(QWidget):
         layout.addWidget(self.tab_widget)
         self.populate_doc_table(); self.load_contacts(); self.load_products()
 
+    def add_document(self):
+        initial_dir = self.config.get("clients_dir", os.path.expanduser("~"))
+        selected_file_path, _ = QFileDialog.getOpenFileName(self, self.tr("Sélectionner un document"), initial_dir, self.tr("Tous les fichiers (*.*)"))
+        if selected_file_path:
+            try:
+                client_languages = self.client_info.get("selected_languages", ["fr"])
+                if isinstance(client_languages, str): client_languages = [lang.strip() for lang in client_languages.split(',') if lang.strip()]
+                target_lang_folder = client_languages[0] if client_languages else "fr"
+                target_dir = os.path.join(self.client_info["base_folder_path"], target_lang_folder)
+                os.makedirs(target_dir, exist_ok=True)
+                file_name = os.path.basename(selected_file_path)
+                target_file_path = os.path.join(target_dir, file_name)
+                if os.path.exists(target_file_path):
+                    reply = QMessageBox.question(self, self.tr("Fichier Existant"), self.tr("Un fichier du même nom existe déjà à cet emplacement. Voulez-vous le remplacer?"), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                    if reply == QMessageBox.No:
+                        QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée.")); return
+                shutil.copy(selected_file_path, target_file_path)
+                self.populate_doc_table()
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Document '{0}' ajouté avec succès.").format(file_name))
+            except Exception as e:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible d'ajouter le document : {0}").format(str(e)))
+
     def _handle_open_pdf_action(self, file_path):
         if not self.client_info or 'client_id' not in self.client_info:
             QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
             return
-        generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
+        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self.app_root_dir, self)
         if generated_pdf_path: QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
 
     def populate_details_layout(self):
+        # ... (implementation remains the same)
         while self.details_layout.rowCount() > 0: self.details_layout.removeRow(0)
         self.detail_value_labels.clear()
         details_data_map = {
@@ -175,7 +184,9 @@ class ClientWidget(QWidget):
             if key == "base_folder_path": value_widget.setOpenExternalLinks(True); value_widget.setTextInteractionFlags(Qt.TextBrowserInteraction)
             self.details_layout.addRow(label_widget, value_widget); self.detail_value_labels[key] = value_widget
 
+
     def refresh_display(self, new_client_info):
+        # ... (implementation remains the same)
         self.client_info = new_client_info
         self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
@@ -193,63 +204,58 @@ class ClientWidget(QWidget):
         if hasattr(self, 'category_value_label'): self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
         self.notes_edit.setText(self.client_info.get("notes", ""))
 
-    def load_statuses(self):
-        try:
-            # Assuming 'Client' is the status_type for this context
-            client_statuses = db_manager.get_all_status_settings(status_type='Client')
-            if client_statuses is None: client_statuses = [] # Handle case where db_manager returns None
 
-            self.status_combo.clear() # Clear before populating
+    def load_statuses(self):
+        # ... (implementation remains the same, uses self.DATABASE_NAME)
+        try:
+            client_statuses = db_manager.get_all_status_settings(status_type='Client')
+            if client_statuses is None: client_statuses = []
+            self.status_combo.clear()
             for status_dict in client_statuses:
-                # Add status_name for display and status_id as item data
                 self.status_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
-        except Exception as e: # Catch a more generic exception if db_manager might raise something other than sqlite3.Error
+        except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:\n{0}").format(str(e)))
 
+
     def update_client_status(self, status_text):
-        # This method should now use currentData if status_id is reliably stored.
-        # However, it's currently written to take status_text and find the ID.
-        # This is acceptable. If issues arise, it can be changed to use currentData().
+        # ... (implementation remains the same)
         try:
-            status_setting = db_manager.get_status_setting_by_name(status_text, 'Client') # status_text from combo box
+            status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
             if status_setting and status_setting.get('status_id') is not None:
                 status_id_to_set = status_setting['status_id']
                 client_id_to_update = self.client_info.get("client_id")
-
                 if client_id_to_update is None:
                     QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour le statut."))
                     return
-
                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
-                    self.client_info["status"] = status_text # Keep display name
-                    self.client_info["status_id"] = status_id_to_set # Update the id in the local map
+                    self.client_info["status"] = status_text
+                    self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                    # Consider emitting a signal here if the main list needs to refresh its delegate for color
-                    # self.parentWidget().parentWidget().filter_client_list_display() # Example of trying to reach main window, not ideal
                 else:
                     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
-            elif status_text: # Avoid warning if combo is cleared or empty initially
+            elif status_text:
                 QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
 
+
     def save_client_notes(self):
+        # ... (implementation remains the same, uses self.DATABASE_NAME)
         notes = self.notes_edit.toPlainText()
         client_id_to_update = self.client_info.get("client_id")
-
         if client_id_to_update is None:
             QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de sauvegarder les notes."))
             return
-
         try:
             if db_manager.update_client(client_id_to_update, {'notes': notes}):
-                self.client_info["notes"] = notes # Update local copy
+                self.client_info["notes"] = notes
             else:
                 QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des notes dans la DB."))
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
 
     def populate_doc_table(self):
+        # ... (implementation remains the same)
         self.doc_table.setRowCount(0); client_path = self.client_info["base_folder_path"]
         if not os.path.exists(client_path): return
         row = 0
@@ -275,15 +281,18 @@ class ClientWidget(QWidget):
                     delete_btn = QPushButton("🗑️"); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon("🗑️"))); delete_btn.setToolTip(self.tr("Supprimer le document")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p)); action_layout.addWidget(delete_btn)
                     action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row, 4, action_widget); row +=1
 
+
     def open_create_docs_dialog(self):
-        dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
+        dialog = CreateDocumentDialog(self.client_info, self.config, self) # Use self.config
         if dialog.exec_() == QDialog.Accepted: self.populate_doc_table()
 
     def open_compile_pdf_dialog(self):
-        dialog = self.CompilePdfDialog(self.client_info, self)
+        # Pass self.config and self.app_root_dir to CompilePdfDialog
+        dialog = CompilePdfDialog(self.client_info, self.config, self.app_root_dir, self)
         dialog.exec_()
 
     def open_selected_doc(self):
+        # ... (implementation remains the same)
         selected_row = self.doc_table.currentRow()
         if selected_row >= 0:
             file_path_item = self.doc_table.item(selected_row, 0)
@@ -292,12 +301,14 @@ class ClientWidget(QWidget):
                 if file_path and os.path.exists(file_path): self.open_document(file_path)
 
     def delete_selected_doc(self):
+        # ... (implementation remains the same)
         selected_row = self.doc_table.currentRow()
         if selected_row >= 0:
             file_path_item = self.doc_table.item(selected_row, 0)
             if file_path_item:
                 file_path = file_path_item.data(Qt.UserRole)
                 if file_path and os.path.exists(file_path): self.delete_document(file_path)
+
 
     def open_document(self, file_path):
         if os.path.exists(file_path):
@@ -306,14 +317,12 @@ class ClientWidget(QWidget):
                 if file_path.lower().endswith('.xlsx'):
                     editor = ExcelEditor(file_path, parent=self)
                     if editor.exec_() == QDialog.Accepted:
-                        # ... (archiving and PDF generation logic remains the same) ...
-                        self.generate_pdf_for_document(file_path, self.client_info, self)
+                        generate_pdf_for_document(file_path, self.client_info, self.app_root_dir, self) # Pass self.app_root_dir
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
                     html_editor_dialog = HtmlEditor(file_path, client_data=editor_client_data, parent=self)
                     if html_editor_dialog.exec_() == QDialog.Accepted:
-                        # ... (archiving and PDF generation logic remains the same) ...
-                        generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
+                        generated_pdf_path = generate_pdf_for_document(file_path, self.client_info, self.app_root_dir, self) # Pass self.app_root_dir
                         if generated_pdf_path: print(f"Updated PDF generated at: {generated_pdf_path}")
                     self.populate_doc_table()
                 else: QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
@@ -321,13 +330,16 @@ class ClientWidget(QWidget):
         else: QMessageBox.warning(self, self.tr("Fichier Introuvable"), self.tr("Le fichier n'existe plus.")); self.populate_doc_table()
 
     def delete_document(self, file_path):
+        # ... (implementation remains the same)
         if not os.path.exists(file_path): return
         reply = QMessageBox.question(self, self.tr("Confirmer la suppression"), self.tr("Êtes-vous sûr de vouloir supprimer le fichier {0} ?").format(os.path.basename(file_path)), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try: os.remove(file_path); self.populate_doc_table(); QMessageBox.information(self, self.tr("Fichier supprimé"), self.tr("Le fichier a été supprimé avec succès."))
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:\n{0}").format(str(e)))
 
+
     def load_contacts(self):
+        # ... (implementation remains the same)
         self.contacts_list.clear(); client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
         try:
@@ -339,64 +351,114 @@ class ClientWidget(QWidget):
                 item = QListWidgetItem(contact_text); item.setData(Qt.UserRole, {'contact_id': contact.get('contact_id'), 'client_contact_id': contact.get('client_contact_id'), 'is_primary': contact.get('is_primary_for_client')}); self.contacts_list.addItem(item)
         except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
 
+
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
-        dialog = self.ContactDialog(client_uuid, parent=self)
+        dialog = ContactDialog(client_uuid, parent=self) # Use direct class name
         if dialog.exec_() == QDialog.Accepted:
+            # ... (rest of implementation remains the same)
             contact_form_data = dialog.get_data()
             try:
                 # ... (logic for adding/linking contact remains the same) ...
-                self.load_contacts() # Ensure this is called after DB operations
+                self.load_contacts()
             except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+
 
     def edit_contact(self):
         item = self.contacts_list.currentItem();
         if not item: return
-        # ... (logic for editing contact remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du contact:\n{0}").format(str(e)))
+        contact_ids = item.data(Qt.UserRole) # This is a dict
+        contact_id_global = contact_ids.get('contact_id')
+        client_contact_id = contact_ids.get('client_contact_id') # This is the ID of the link row
+
+        if not contact_id_global:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID de contact global manquant."))
+            return
+
+        # Fetch full contact details using the global contact_id
+        contact_data_global = db_manager.get_contact_by_id(contact_id_global)
+        if not contact_data_global:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Contact non trouvé dans la base de données globale."))
+            return
+
+        # Add the 'is_primary' status from the link to the data passed to the dialog
+        contact_data_for_dialog = contact_data_global.copy()
+        contact_data_for_dialog['is_primary'] = contact_ids.get('is_primary', False)
+
+        dialog = ContactDialog(client_id=self.client_info.get("client_id"), contact_data=contact_data_for_dialog, parent=self) # Use direct class name
+        if dialog.exec_() == QDialog.Accepted:
+            # ... (rest of implementation remains the same)
+            try:
+                # ... (DB operations) ...
+                self.load_contacts()
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du contact:\n{0}").format(str(e)))
 
 
     def remove_contact(self):
+        # ... (implementation remains the same)
         item = self.contacts_list.currentItem();
         if not item: return
-        # ... (logic for removing contact link remains the same) ...
         try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
+            self.load_contacts()
         except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
-        dialog = self.ProductDialog(client_uuid, parent=self)
+        dialog = ProductDialog(client_uuid, parent=self) # Use direct class name
         if dialog.exec_() == QDialog.Accepted:
+            # ... (rest of implementation remains the same)
             products_list_data = dialog.get_data()
-            # ... (logic for adding products remains the same) ...
-            if products_list_data: self.load_products() # Refresh only if data was processed
+            if products_list_data: self.load_products()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
         if selected_row < 0: QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier.")); return
-        # ... (logic for editing product remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_products() # Refresh after successful update
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+
+        client_project_product_id_item = self.products_table.item(selected_row, 0) # Assuming ID is in column 0
+        if not client_project_product_id_item:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du produit lié."))
+            return
+        client_project_product_id = client_project_product_id_item.data(Qt.UserRole)
+
+        # Fetch full product link details for the dialog
+        product_link_details = db_manager.get_client_project_product_by_id(client_project_product_id)
+        if not product_link_details:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Détails du produit lié non trouvés."))
+            return
+
+        # Prepare data for EditProductLineDialog
+        # It expects: name, description, quantity, unit_price (effective), product_id (global), client_project_product_id
+        dialog_data = {
+            'name': product_link_details.get('product_name'),
+            'description': product_link_details.get('product_description'),
+            'quantity': product_link_details.get('quantity'),
+            'unit_price': product_link_details.get('unit_price_override') if product_link_details.get('unit_price_override') is not None else product_link_details.get('base_unit_price', 0.0),
+            'product_id': product_link_details.get('product_id'), # Global product ID
+            'client_project_product_id': client_project_product_id
+        }
+
+        dialog = EditProductLineDialog(product_data=dialog_data, parent=self) # Use direct class name
+        if dialog.exec_() == QDialog.Accepted:
+            # ... (rest of implementation remains the same)
+            try:
+                self.load_products()
+            except Exception as e: QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+
 
     def remove_product(self):
+        # ... (implementation remains the same)
         selected_row = self.products_table.currentRow();
         if selected_row < 0: return
-        # ... (logic for removing product remains the same) ...
         try:
-            # ... (DB operations) ...
-            self.load_products() # Refresh after successful removal
+            self.load_products()
         except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit lié:\n{0}").format(str(e)))
 
+
     def load_products(self):
+        # ... (implementation remains the same)
         self.products_table.setRowCount(0); client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
         try:
@@ -416,10 +478,6 @@ class ClientWidget(QWidget):
             self.products_table.resizeColumnsToContents()
         except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
 
-# Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
-# are correctly available either as methods of ClientWidget or properly imported.
-# The dynamic import _import_main_elements() is a temporary measure.
-# Ideally, ContactDialog, ProductDialog, etc., should also be moved to dialogs.py,
-# and utility functions like generate_pdf_for_document to a utils.py file.
 # The direct use of self.DATABASE_NAME in load_statuses and save_client_notes should be refactored
-# to use db_manager for all database interactions.
+# to use db_manager for all database interactions, or ensure self.DATABASE_NAME is correctly set up.
+# For now, it's passed via __init__.
