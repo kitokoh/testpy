@@ -23,7 +23,7 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, QLocale, QLibraryInfo, QCoreApplicati
 from PyQt5.QtWidgets import QDoubleSpinBox
 
 # Imports for sequential dialogs
-from gui_components import ContactDialog, ProductDialog, CreateDocumentDialog
+from xxx import ContactDialog, ProductDialog, CreateDocumentDialog
 
 
 # Custom Notification Banner Class (copied from projectManagement.py)
@@ -170,7 +170,7 @@ def get_tab_widget_style():
 
 
 from projectManagement import MainDashboard as ProjectManagementDashboard
-from gui_components import ClientWidget, TemplateDialog
+from xxx import ClientWidget, TemplateDialog
 from app_config import (
     CONFIG, APP_ROOT_DIR, save_config, # load_config no longer needed here
     SPEC_TECH_TEMPLATE_NAME, PROFORMA_TEMPLATE_NAME,

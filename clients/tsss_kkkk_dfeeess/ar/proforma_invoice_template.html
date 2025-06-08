@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <title>Proforma Invoice</title>
@@ -24,38 +24,38 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <img src="" alt="Company Logo" class="logo" />
             <h1>PROFORMA INVOICE</h1>
         </div>
 
         <div class="details-section">
             <div class="company-details">
                 <h3>From:</h3>
-                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
-                <p>{{SELLER_ADDRESS_LINE1}}</p>
-                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
-                <p>Phone: {{SELLER_PHONE}}</p>
-                <p>Email: {{SELLER_EMAIL}}</p>
-                <p>VAT ID: {{SELLER_VAT_ID}}</p>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Phone: </p>
+                <p>Email: </p>
+                <p>VAT ID: </p>
             </div>
 
             <div class="client-details">
                 <h3>To:</h3>
-                <p><strong>{{CLIENT_NAME}}</strong></p>
-                <p>{{CLIENT_ADDRESS_LINE1}}</p>
-                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
-                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
-                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
-                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Contact: </p>
+                <p>Email: </p>
+                <p>VAT ID: </p>
             </div>
         </div>
 
         <div class="invoice-meta">
-            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
-            <p><strong>Date:</strong> {{DATE}}</p>
-            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
-            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
-            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
+            <p><strong>Proforma Invoice No:</strong> </p>
+            <p><strong>Date:</strong> </p>
+            <p><strong>Project ID:</strong> </p>
+            <p><strong>Payment Terms:</strong> </p>
+            <p><strong>Delivery Terms:</strong> </p>
         </div>
 
         <table>
@@ -69,7 +69,7 @@
                 </tr>
             </thead>
             <tbody>
-                {{doc.products_table_rows}} <!-- Populated by db.py -->
+                 <!-- Populated by db.py -->
                 <!-- Example Row (to be replaced by HtmlEditor):
                 <tr>
                     <td>1</td>
@@ -83,14 +83,14 @@
         </table>
 
         <div class="total-section">
-            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
-            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
-            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
-            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
+            <p>Subtotal: </p>
+            <p>Discount (%): </p>
+            <p>VAT (%): </p>
+            <h3><strong>Total Amount Due: </strong></h3>
         </div>
 
         <div class="footer">
-            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>Bank Details: , Account: , Swift/BIC: </p>
             <p>This is a proforma invoice and is not a demand for payment.</p>
             <p>Thank you for your business!</p>
         </div>

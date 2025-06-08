@@ -1,117 +1,55 @@
 <!DOCTYPE html>
-<html lang="{{doc_lang_code | default: 'fr'}}" dir="{{doc_direction | default: 'ltr'}}">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>{{document_title}}</title>
+    <title>{{doc.document_title}} - Cover Page</title> <!-- Adjusted placeholder -->
     <style>
-        @page {
-            size: A4;
-            margin: 2cm;
-        }
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: calc(100vh - 4cm); /* Ensure body takes at least viewport height minus A4 margins */
-            background-color: #fff;
-            font-size: 11pt; /* Base font size */
-            line-height: 1.5;
-            text-align: left; /* Default LTR */
-        }
-        html[dir="rtl"] body {
-            text-align: right;
-        }
-        html[dir="rtl"] .text-left { text-align: right !important; }
-        html[dir="rtl"] .text-right { text-align: left !important; }
-        html[dir="rtl"] ul, html[dir="rtl"] ol { margin-right: 40px; margin-left: 0; }
-
-
-        .cover-page-container { /* Renamed for clarity */
-            width: 100%;
-            max-width: 17cm; /* A4 width (21cm) - 2*2cm margins */
-            margin: auto; /* Centering within the page area */
-            padding: 1cm 0; /* Vertical padding, horizontal handled by page margin */
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between; /* Distribute space */
-            flex-grow: 1; /* Takes available vertical space */
-            border-top: 10px solid #3498db; /* Retained border for style */
-        }
-
-        .cover-header {
-            /* text-align: center; /* Default for .cover-page-container */
-            margin-bottom: 30px; /* More space after logo */
-        }
-        .company-logo {
-            max-height: 100px; /* Slightly smaller than previous 120px, adjust as needed */
-            margin-bottom: 20px;
-        }
-
-        .cover-main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* Vertically center the main block of text */
-            margin-bottom: 30px;
-        }
-        .document-title {
-            font-size: 26pt; /* Adjusted as per request */
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 20px; /* Spacing after title */
-        }
-        .document-subtitle {
-            font-size: 18pt; /* Adjusted */
-            color: #555;
-            margin-bottom: 40px; /* Spacing after subtitle */
-        }
-        .meta-details p { /* Changed from .meta-info p */
-            font-size: 12pt; /* Adjusted */
-            color: #444; /* Slightly darker for better readability */
-            margin: 8px 0;
-            line-height: 1.6;
-        }
-        .meta-details strong {
-            color: #222;
-        }
-
-        .cover-footer {
-            margin-top: auto; /* Push to bottom */
-            padding-top: 20px;
-            font-size: 10pt; /* Adjusted */
-            color: #777;
-            /* text-align: center; /* Default for .cover-page-container */
-        }
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f4f8; color: #333; text-align: center; }
+        .cover-container { width: 80%; max-width: 800px; background-color: #fff; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 10px solid #005ea5; }
+        .logo { max-width: 200px; max-height: 100px; margin-bottom: 30px; }
+        h1 { font-size: 2.8em; color: #005ea5; margin-bottom: 15px; text-transform: uppercase; }
+        h2 { font-size: 1.8em; color: #555; margin-bottom: 25px; font-weight: normal; }
+        .meta-info { margin-top: 40px; margin-bottom: 40px; }
+        .meta-info p { font-size: 1.1em; margin: 8px 0; }
+        .meta-info strong { color: #005ea5; }
+        .prepared-for, .prepared-by { margin-top: 30px; }
+        .footer { margin-top: 50px; font-size: 0.9em; color: #777; }
     </style>
 </head>
 <body>
-    <div class="cover-page-container">
-        <div class="cover-header">
-            {{#if company_logo_path}}
-            <img src="{{company_logo_path}}" alt="Company Logo" class="company-logo">
+    <div class="cover-container">
+        <img src="{{seller_company_logo_path}}" alt="Company Logo" class="logo"> <!-- Adjusted placeholder -->
+
+        <h1>{{doc.document_title}}</h1> <!-- Adjusted placeholder -->
+        {{#if doc.document_subtitle}}
+        <h2>{{doc.document_subtitle}}</h2> <!-- Adjusted placeholder -->
+        {{/if}}
+
+        <div class="meta-info">
+            <p><strong>Client:</strong> {{client_name}} ({{client_company_name}})</p> <!-- Adjusted placeholder -->
+            <p><strong>Project ID:</strong> {{project_id}}</p> <!-- Adjusted placeholder -->
+            <p><strong>Date:</strong> {{date}}</p> <!-- Adjusted placeholder -->
+            {{#if doc.document_version}}
+            <p><strong>Version:</strong> {{doc.document_version}}</p> <!-- Adjusted placeholder -->
             {{/if}}
         </div>
 
-        <div class="cover-main-content">
-            <h1 class="document-title">{{document_title}}</h1>
-            {{#if document_subtitle}}
-            <h2 class="document-subtitle">{{document_subtitle}}</h2>
-            {{/if}}
-
-            <div class="meta-details">
-                {{#if client_name}}<p><strong>Client:</strong> {{client_name}}</p>{{/if}}
-                {{#if project_name}}<p><strong>Projet:</strong> {{project_name}}</p>{{/if}}
-                {{#if document_date}}<p><strong>Date:</strong> {{document_date}}</p>{{/if}}
-                {{#if document_version}}<p><strong>Version:</strong> {{document_version}}</p>{{/if}}
-            </div>
+        <div class="prepared-for">
+            <p><em>Prepared for:</em></p>
+            <p>{{client_name}}</p> <!-- Adjusted placeholder -->
+            <p>{{client_full_address}}</p> <!-- Adjusted placeholder -->
         </div>
 
-        <div class="cover-footer">
-            {{#if author_name}}<p>{{author_name}}</p>{{/if}}
+        <div class="prepared-by">
+            <p><em>Prepared by:</em></p>
+            <p><strong>{{seller_company_name}}</strong></p> <!-- Adjusted placeholder -->
+            <p>{{seller_full_address}}</p> <!-- Adjusted placeholder -->
+            <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="footer">
+            <p>This document is confidential and intended solely for the use of the individual or entity to whom it is addressed.</p>
+            <p>&copy; {{current_year}} {{seller_company_name}}</p> <!-- Adjusted placeholder -->
         </div>
     </div>
 </body>

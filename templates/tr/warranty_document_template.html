@@ -1,263 +1,83 @@
 <!DOCTYPE html>
-<html lang="{{doc_lang_code | default: 'fr'}}" dir="{{doc_direction | default: 'ltr'}}">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>{{document_title}} - {{related_invoice_number}}</title>
+    <title>Warranty Certificate</title>
     <style>
-        @page {
-            size: A4;
-            margin: 2cm;
-        }
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            line-height: 1.5;
-            margin: 0;
-            padding: 0;
-            background-color: #fff;
-            color: #333;
-            font-size: 11pt;
-            text-align: left;
-        }
-        html[dir="rtl"] body {
-            text-align: right;
-        }
-        html[dir="rtl"] .text-left { text-align: right !important; }
-        html[dir="rtl"] .text-right { text-align: left !important; }
-        html[dir="rtl"] ul, html[dir="rtl"] ol { margin-right: 40px; margin-left: 0; }
-        html[dir="rtl"] th, html[dir="rtl"] td {
-            /* text-align: right; */
-        }
-        html[dir="rtl"] .products-table th, html[dir="rtl"] .products-table td {
-            text-align: right;
-        }
-
-        .warranty-container {
-            max-width: 17cm; /* A4 friendly */
-            margin: auto;
-            padding: 0;
-        }
-        .document-main-title {
-            text-align: center;
-            font-size: 16pt;
-            font-weight: bold;
-            margin-bottom: 25px;
-            color: #000;
-            text-transform: uppercase;
-        }
-        .section {
-            margin-bottom: 15px;
-        }
-        .section-title {
-            font-size: 13pt; /* Ensure distinct */
-            font-weight: bold;
-            margin-bottom: 10px; /* Increased spacing */
-            padding-bottom: 4px; /* Increased padding */
-            border-bottom: 1px solid #bbb; /* Slightly darker border */
-            color: #111; /* Darker title color */
-        }
-        .section-content p, .section-content ul, .section-content div {
-            margin-bottom: 8px;
-            line-height: 1.6; /* Improved line height for content */
-        }
-        .section-content ul {
-            list-style-type: disc;
-            margin-left: 30px;
-        }
-        html[dir="rtl"] .section-content ul {
-            margin-left: 0;
-            margin-right: 30px;
-        }
-        .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px; /* Increased gap */
-            margin-bottom: 25px; /* Increased spacing */
-        }
-        .details-box {
-            padding: 12px; /* Increased padding */
-            border: 1px solid #e0e0e0; /* Slightly softer border */
-            background-color: #f9f9f9;
-        }
-        .details-box .section-title { /* Title within a details box, e.g. "Bénéficiaire" */
-             font-size: 12pt;
-             border-bottom: none;
-             margin-bottom: 8px; /* Spacing after title in box */
-             color: #333;
-        }
-        .details-box p { margin: 5px 0; line-height: 1.5; }
-        .bold { font-weight: bold; }
-
-        .signature-section-container {
-             margin-top: 40px;
-             padding-top: 20px;
-             border-top: 1px solid #ccc;
-        }
-        .signature-block {
-            margin-top: 10px;
-        }
-        .signature-line {
-            width: 280px;
-            border-bottom: 1px solid #000;
-            margin-top: 40px;
-            margin-bottom: 8px;
-        }
-        .footer-info {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-            font-size: 9pt;
-            color: #777;
-        }
-        .products-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 8px; /* Spacing for table */
-            font-size: 10pt;
-        }
-        .products-table th, .products-table td {
-            border: 1px solid #ddd;
-            padding: 8px; /* Slightly more padding */
-            text-align: left;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-        }
-        .products-table th {
-            background-color: #f0f0f0; /* Lighter than default #f7f7f7 for less contrast if needed */
-            font-weight: bold;
-        }
+        body { font-family: Arial, sans-serif; margin: 30px; color: #333; }
+        .container { width: 80%; margin: auto; border: 2px solid #0056b3; padding: 30px; }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { color: #0056b3; }
+        .warranty-details p, .product-details p, .terms p { margin: 8px 0; line-height: 1.5; }
+        .section-title { font-weight: bold; margin-top: 20px; margin-bottom: 10px; color: #0056b3; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        .footer { text-align: center; margin-top: 40px; font-size: 0.9em; }
+        .company-signature { margin-top: 30px;}
+        .logo { max-width: 140px; max-height: 60px; margin-bottom: 10px;}
     </style>
 </head>
 <body>
-    <div class="warranty-container">
-        <div class="document-main-title">{{document_title}}</div>
-
-        <div class="section">
-            <p><span class="bold">Date d'Émission de la Garantie :</span> {{date_of_issue_of_warranty}}</p>
-            <p><span class="bold">Facture Associée N° :</span> {{related_invoice_number}}</p>
-            <p><span class="bold">Date d'Achat :</span> {{date_of_purchase}}</p>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>WARRANTY CERTIFICATE</h1>
         </div>
 
-        <div class="details-grid">
-            <div class="details-box text-left">
-                <h2 class="section-title">Bénéficiaire</h2>
-                <p><span class="bold">{{beneficiary_name}}</span></p>
-                <p>{{beneficiary_address}}</p>
-                {{#if beneficiary_contact_person}}<p>Attn: {{beneficiary_contact_person}}</p>{{/if}}
-                {{#if beneficiary_phone}}<p>Tel: {{beneficiary_phone}}</p>{{/if}}
-                {{#if beneficiary_email}}<p>Email: {{beneficiary_email}}</p>{{/if}}
-            </div>
-            <div class="details-box text-left">
-                <h2 class="section-title">Garant (Vendeur)</h2>
-                <p><span class="bold">{{warrantor_company_name}}</span></p>
-                <p>{{warrantor_address}}</p>
-                {{#if warrantor_contact_person}}<p>Attn: {{warrantor_contact_person}}</p>{{/if}}
-                {{#if warrantor_phone}}<p>Tel: {{warrantor_phone}}</p>{{/if}}
-                {{#if warrantor_email}}<p>Email: {{warrantor_email}}</p>{{/if}}
-            </div>
+        <div class="warranty-details">
+            <p><strong>Certificate No:</strong> {{WARRANTY_CERTIFICATE_ID}}</p>
+            <p><strong>Date of Issue:</strong> {{DATE}}</p>
+            <p><strong>Issued By (Warrantor):</strong> {{SELLER_COMPANY_NAME}}</p>
+            <p>Address: {{SELLER_FULL_ADDRESS}}</p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Produit(s) Couvert(s)</h2>
-            <div class="section-content">
-                {{#if products_covered}}
-                <table class="products-table">
-                    <thead>
-                        <tr>
-                            <th>Nom du Produit</th>
-                            <th>Numéro de Série / Identification</th>
-                            <th>Autre Info</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {{#each products_covered}}
-                        <tr>
-                            <td>{{product_name}}</td>
-                            <td>{{product_serial_number}}</td>
-                            <td>{{product_other_identifier}}</td>
-                        </tr>
-                        {{/each}}
-                         {{^if products_covered.length}} <!-- Handlebars: if array is empty, show placeholder -->
-                         <tr><td colspan="3" style="text-align:center; padding:10px;">[Aucun produit listé]</td></tr>
-                         {{/if}}
-                    </tbody>
-                </table>
-                {{else}}
-                <p><span class="bold">Nom du Produit :</span> {{product_name_single}}</p>
-                <p><span class="bold">Numéro de Série / Identification :</span> {{product_serial_number_single}}</p>
-                <p><span class="bold">Description Complémentaire :</span> {{product_description_single}}</p>
-                {{/if}}
-            </div>
+        <div class="product-details">
+            <h3 class="section-title">Product Information</h3>
+            <p><strong>Product Name/Description:</strong> {{PRODUCT_NAME_WARRANTY}}</p>
+            <p><strong>Model No:</strong> {{PRODUCT_MODEL_WARRANTY}}</p>
+            <p><strong>Serial No(s):</strong> {{PRODUCT_SERIAL_NUMBERS_WARRANTY}}</p>
+            <p><strong>Date of Purchase/Supply:</strong> {{PURCHASE_SUPPLY_DATE}}</p>
+            <p><strong>Original Invoice No:</strong> {{ORIGINAL_INVOICE_ID_WARRANTY}}</p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Période de Garantie</h2>
-            <div class="section-content">
-                <p>{{warranty_period_description}}</p>
-                <p><span class="bold">Date de Début :</span> {{warranty_start_date}}</p>
-                <p><span class="bold">Date de Fin :</span> {{warranty_end_date}}</p>
-            </div>
+        <div class="beneficiary-details">
+            <h3 class="section-title">Beneficiary Information</h3>
+            <p><strong>Beneficiary (Owner):</strong> {{CLIENT_NAME}} ({{CLIENT_COMPANY_NAME}})</p>
+            <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Couverture de la Garantie</h2>
-            <div class="section-content">
-                <p>{{warranty_coverage_details}}</p>
-            </div>
+        <div class="terms">
+            <h3 class="section-title">Warranty Terms and Conditions</h3>
+            <p><strong>Warranty Period:</strong> This product is warranted against defects in materials and workmanship for a period of <strong>{{WARRANTY_PERIOD_TEXT}}</strong> (e.g., twelve (12) months) from the date of {{WARRANTY_START_POINT_TEXT}} (e.g., original purchase / installation).</p>
+
+            <p><strong>Coverage:</strong> During the warranty period, {{SELLER_COMPANY_NAME}} will repair or replace, at its option, any part found to be defective due to improper workmanship or materials, free of charge. This warranty covers {{WARRANTY_COVERAGE_DETAILS}}.</p>
+
+            <p><strong>Exclusions:</strong> This warranty does not cover:
+                <ul>
+                    <li>Damage resulting from accident, misuse, abuse, neglect, or improper installation or maintenance.</li>
+                    <li>Normal wear and tear, or cosmetic damage.</li>
+                    <li>Products whose serial numbers have been altered, defaced, or removed.</li>
+                    <li>Damage caused by use of non-original spare parts or accessories.</li>
+                    <li>{{OTHER_EXCLUSIONS_LIST}}</li>
+                </ul>
+            </p>
+
+            <p><strong>Claim Procedure:</strong> To make a warranty claim, please contact {{SELLER_COMPANY_NAME}} or an authorized service center at {{WARRANTY_CLAIM_CONTACT_INFO}}, providing proof of purchase and a description of the defect. {{WARRANTY_CLAIM_PROCEDURE_DETAIL}}</p>
+
+            <p><strong>Limitation of Liability:</strong> The liability of {{SELLER_COMPANY_NAME}} under this warranty is limited to the repair or replacement of defective parts. {{SELLER_COMPANY_NAME}} shall not be liable for any incidental or consequential damages.</p>
+
+            <p>This warranty gives you specific legal rights, and you may also have other rights which vary from country to country.</p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Exclusions de la Garantie</h2>
-            <div class="section-content">
-                <p>{{exclusions_from_warranty_details}}</p>
-            </div>
+        <div class="company-signature">
+            <p>For and on behalf of <strong>{{SELLER_COMPANY_NAME}}</strong></p>
+            <br><br>
+            <p>_________________________</p>
+            <p>Authorized Signature</p>
+            <p>Name: {{SELLER_AUTHORIZED_SIGNATORY_NAME}}</p>
+            <p>Title: {{SELLER_AUTHORIZED_SIGNATORY_TITLE}}</p>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Procédure de Réclamation</h2>
-            <div class="section-content">
-                <p>{{claim_procedure_details}}</p>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Recours</h2>
-            <div class="section-content">
-                <p>{{remedies_details}}</p>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Limitation de Responsabilité</h2>
-            <div class="section-content">
-                <p>{{limitation_of_liability_details}}</p>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Droit Applicable</h2>
-            <div class="section-content">
-                <p>La présente garantie est régie et interprétée conformément aux lois de {{governing_law_jurisdiction}}.</p>
-            </div>
-        </div>
-
-        <div class="signature-section-container text-left">
-            <p class="bold">Pour et au nom de {{warrantor_company_name}} (le Garant) :</p>
-            <div class="signature-block">
-                <div class="signature-line"></div>
-                <p><span class="bold">Nom :</span> {{authorized_signature_name}}</p>
-                <p><span class="bold">Titre :</span> {{authorized_signature_title}}</p>
-                {{#if signature_date}}
-                <p><span class="bold">Date de Signature :</span> {{signature_date}}</p>
-                {{else}}
-                <p><span class="bold">Date de Signature :</span> {{date_of_issue_of_warranty}}</p>
-                {{/if}}
-            </div>
-        </div>
-
-        <div class="footer-info">
-            <p>{{warrantor_company_name}} - {{warrantor_address}}</p>
-            <p>Contact: {{warrantor_phone}} | {{warrantor_email}}</p>
+        <div class="footer">
+            <p>&copy; {{CURRENT_YEAR}} {{SELLER_COMPANY_NAME}}. All rights reserved.</p>
         </div>
     </div>
 </body>

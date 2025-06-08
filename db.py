@@ -185,6 +185,19 @@ def initialize_database():
     )
     """)
 
+    # Create ClientNotes table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ClientNotes (
+        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        note_text TEXT NOT NULL,
+        user_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
     # Create Projects table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Projects (
@@ -240,14 +253,16 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT NOT NULL UNIQUE,
+        product_name TEXT NOT NULL, -- UNIQUE constraint might be per language later
         description TEXT,
         category TEXT, 
+        language_code TEXT DEFAULT 'fr', -- Added language_code
         base_unit_price REAL NOT NULL,
         unit_of_measure TEXT, 
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (product_name, language_code) -- Product name should be unique per language
     )
     """)
 
@@ -819,11 +834,74 @@ def delete_client(client_id: str) -> bool:
         if conn:
             conn.close()
 
+def add_client_note(client_id: str, note_text: str, user_id: str = None) -> int | None:
+    """
+    Adds a new note for a client.
+    Returns the note_id if successful, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            INSERT INTO ClientNotes (client_id, note_text, user_id)
+            VALUES (?, ?, ?)
+        """
+        # timestamp is handled by DEFAULT CURRENT_TIMESTAMP
+        params = (client_id, note_text, user_id)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid  # Returns the note_id of the inserted row
+    except sqlite3.Error as e:
+        print(f"Database error in add_client_note: {e}")
+        if conn:
+            conn.rollback() # Rollback any changes if an error occurred
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_client_notes(client_id: str) -> list[dict]:
+    """
+    Retrieves all notes for a given client_id, ordered by timestamp (oldest first).
+    Returns a list of dictionaries, where each dictionary represents a note.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT note_id, client_id, timestamp, note_text, user_id
+            FROM ClientNotes
+            WHERE client_id = ?
+            ORDER BY timestamp ASC
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_notes: {e}")
+        return [] # Return an empty list in case of error
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Companies
 def add_company(company_data: dict) -> str | None:
     """Adds a new company. Generates UUID for company_id. Handles created_at, updated_at."""
     conn = None
     try:
+        product_name = product_data.get('product_name')
+        base_unit_price = product_data.get('base_unit_price')
+        language_code = product_data.get('language_code', 'fr') # Default to 'fr'
+
+        if not product_name:
+            print("Error in add_product: 'product_name' is required.")
+            return None
+        if base_unit_price is None: # Explicitly check for None, as 0.0 is a valid price
+            print("Error in add_product: 'base_unit_price' is required.")
+            return None
+
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
@@ -2548,22 +2626,35 @@ def add_product(product_data: dict) -> int | None:
         now = datetime.utcnow().isoformat() + "Z"
         sql = """
             INSERT INTO Products (
-                product_name, description, category, base_unit_price, unit_of_measure, 
-                is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                product_name, description, category, language_code, base_unit_price,
+                unit_of_measure, is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            product_data.get('product_name'), product_data.get('description'),
+            product_name, product_data.get('description'),
             product_data.get('category'),
-            product_data.get('base_unit_price') if product_data.get('base_unit_price') is not None else 0.0,
+            language_code,
+            base_unit_price,
             product_data.get('unit_of_measure'), product_data.get('is_active', True),
             now, now
         )
         cursor.execute(sql, params)
         conn.commit()
         return cursor.lastrowid
+    except sqlite3.IntegrityError as e:
+        # This will catch the UNIQUE constraint violation for (product_name, language_code)
+        print(f"IntegrityError in add_product for name '{product_name}' and lang '{language_code}': {e}")
+        if conn:
+            conn.rollback()
+        # Optionally, here you could query for the existing product_id if needed:
+        # cursor.execute("SELECT product_id FROM Products WHERE product_name = ? AND language_code = ?", (product_name, language_code))
+        # existing_product = cursor.fetchone()
+        # if existing_product: return existing_product['product_id']
+        return None # Indicates "add failed" or "already exists"
     except sqlite3.Error as e:
         print(f"Database error in add_product: {e}")
+        if conn:
+            conn.rollback()
         return None
     finally:
         if conn: conn.close()
@@ -2700,23 +2791,39 @@ def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
         if conn:
             conn.close()
 
-def get_all_products_for_selection() -> list[dict]:
+def get_all_products_for_selection(language_code: str = None, name_pattern: str = None) -> list[dict]:
     """
-    Retrieves active products (product_id, product_name, description, base_unit_price)
-    for selection, ordered by product_name.
+    Retrieves active products for selection, optionally filtered by language_code
+    and/or name_pattern (searches product_name and description).
+    Orders by product_name.
     """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Filter by is_active = TRUE (or 1 for boolean in SQLite)
-        sql = """
-            SELECT product_id, product_name, description, base_unit_price
+
+        sql_params = []
+        # Start with base selection of active products
+        sql_where_clauses = ["is_active = TRUE"]
+
+        if language_code:
+            sql_where_clauses.append("language_code = ?")
+            sql_params.append(language_code)
+
+        if name_pattern:
+            # The name_pattern should be passed with wildcards already, e.g., "%search_term%"
+            sql_where_clauses.append("(product_name LIKE ? OR description LIKE ?)")
+            sql_params.append(name_pattern)
+            sql_params.append(name_pattern)
+
+        sql = f"""
+            SELECT product_id, product_name, description, base_unit_price, language_code
             FROM Products
-            WHERE is_active = TRUE
+            WHERE {' AND '.join(sql_where_clauses)}
             ORDER BY product_name
         """
-        cursor.execute(sql)
+
+        cursor.execute(sql, tuple(sql_params))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
@@ -2751,8 +2858,11 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         else:
             effective_unit_price = product_info.get('base_unit_price')
 
+        # Ensure effective_unit_price is not None before multiplication
         if effective_unit_price is None:
-            print(f"Warning: `effective_unit_price` was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0 to prevent TypeError.")
+            # This case should ideally not be reached if base_unit_price is NOT NULL in DB
+            # and product_info is correctly fetched.
+            print(f"Warning: effective_unit_price was None for product ID {product_id} (Quantity: {quantity}, Override: {unit_price_override}, Base from DB: {product_info.get('base_unit_price') if product_info else 'N/A'}). Defaulting to 0.0.")
             effective_unit_price = 0.0
 
         total_price_calculated = quantity * effective_unit_price
@@ -4395,6 +4505,48 @@ def get_templates_by_category_id(category_id: int) -> list[dict]:
         if conn:
             conn.close()
 
+def get_all_products_for_selection_filtered(language_code: str = None, name_pattern: str = None) -> list[dict]:
+    """
+    Retrieves active products for selection, optionally filtered by language_code
+    and/or name_pattern (searches product_name and description).
+    Orders by product_name.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql_params = []
+        # Start with base selection of active products
+        sql_where_clauses = ["is_active = TRUE"]
+
+        if language_code:
+            sql_where_clauses.append("language_code = ?")
+            sql_params.append(language_code)
+
+        if name_pattern:
+            # The name_pattern should be passed with wildcards already, e.g., "%search_term%"
+            sql_where_clauses.append("(product_name LIKE ? OR description LIKE ?)")
+            sql_params.append(name_pattern)
+            sql_params.append(name_pattern)
+
+        sql = f"""
+            SELECT product_id, product_name, description, base_unit_price, language_code
+            FROM Products
+            WHERE {' AND '.join(sql_where_clauses)}
+            ORDER BY product_name
+        """
+
+        cursor.execute(sql, tuple(sql_params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_products_for_selection_filtered: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def get_all_tasks(active_only: bool = False, project_id_filter: str = None) -> list[dict]:
     """
     Retrieves all tasks, optionally filtering for active tasks only and/or by project_id.
@@ -4548,49 +4700,83 @@ def get_document_context_data(
     context["doc"]["current_year"] = str(now_dt.year)
     # Default currency, can be overridden by additional_context or seller settings later
     context["doc"]["currency_symbol"] = context["additional"].get("currency_symbol", "€")
+    context["doc"]["vat_rate_percentage"] = context["additional"].get("vat_rate_percentage", 20.0) # Default VAT rate
+    context["doc"]["discount_rate_percentage"] = context["additional"].get("discount_rate_percentage", 0.0) # Default discount rate
+
+    # Document specific IDs and terms - to be primarily filled from additional_context
+    context["doc"]["proforma_id"] = context["additional"].get("proforma_id", "PRO-" + now_dt.strftime("%Y%m%d-%H%M"))
+    context["doc"]["invoice_id"] = context["additional"].get("invoice_id", "INV-" + now_dt.strftime("%Y%m%d-%H%M"))
+    context["doc"]["packing_list_id"] = context["additional"].get("packing_list_id", "PL-" + now_dt.strftime("%Y%m%d-%H%M"))
+    context["doc"]["contract_id"] = context["additional"].get("contract_id", "CON-" + now_dt.strftime("%Y%m%d-%H%M"))
+    context["doc"]["warranty_certificate_id"] = context["additional"].get("warranty_id", "WAR-" + now_dt.strftime("%Y%m%d-%H%M"))
+    context["doc"]["payment_terms"] = context["additional"].get("payment_terms", "Net 30 Days")
+    context["doc"]["delivery_terms"] = context["additional"].get("delivery_terms", "FOB Port of Loading") # Incoterms related
+    context["doc"]["incoterms"] = context["additional"].get("incoterms", "FOB")
+    context["doc"]["named_place_of_delivery"] = context["additional"].get("named_place_of_delivery", "Port of Loading")
+    context["doc"]["port_of_loading"] = context["additional"].get("port_of_loading", "N/A")
+    context["doc"]["port_of_discharge"] = context["additional"].get("port_of_discharge", "N/A")
+    context["doc"]["final_destination_country"] = context["additional"].get("final_destination_country", "N/A")
+    context["doc"]["vessel_flight_no"] = context["additional"].get("vessel_flight_no", "N/A")
+    context["doc"]["estimated_shipment_date"] = context["additional"].get("estimated_shipment_date", "To be confirmed")
+    context["doc"]["packing_type_description"] = context["additional"].get("packing_type_description", "Standard Export Packing")
+    context["doc"]["warranty_period_months"] = context["additional"].get("warranty_period_months", "12")
+    context["doc"]["warranty_start_condition"] = context["additional"].get("warranty_start_condition", "date of delivery")
+    context["doc"]["inspection_clause_detail"] = context["additional"].get("inspection_clause_detail", "Inspection by Seller before shipment.")
+    context["doc"]["inspection_agency_name"] = context["additional"].get("inspection_agency_name", "N/A")
+    context["doc"]["jurisdiction_country_name"] = context["additional"].get("jurisdiction_country_name", "Seller's Country")
+    context["doc"]["arbitration_location"] = context["additional"].get("arbitration_location", "Seller's City")
+    context["doc"]["arbitration_rules_body"] = context["additional"].get("arbitration_rules_body", "International Chamber of Commerce (ICC)")
+    context["doc"]["notify_party_name"] = context["additional"].get("notify_party_name", context["client"].get("company_name", "Same as Consignee"))
+    context["doc"]["notify_party_address"] = context["additional"].get("notify_party_address", context["client"].get("address", "N/A"))
 
 
     # --- Fetch Seller (Our User's Company) Information ---
-    # This is 'company_id' passed to the function
     seller_company_data = get_company_by_id(company_id)
     if seller_company_data:
-        context["seller"]["name"] = seller_company_data.get('company_name')
-        context["seller"]["company_name"] = seller_company_data.get('company_name') # Alias for clarity
-        context["seller"]["address"] = seller_company_data.get('address') # Raw, may need parsing or structured fields
-        context["seller"]["payment_info"] = seller_company_data.get('payment_info') # Raw, for bank details
+        context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
+        context["seller"]["company_name"] = seller_company_data.get('company_name', "N/A")
+        raw_address = seller_company_data.get('address', "N/A")
+        context["seller"]["address"] = raw_address
+        context["seller"]["address_line1"] = raw_address # Simplistic, assumes address is single line
+        context["seller"]["city_zip_country"] = "N/A (Structure adr. manquante)" # Placeholder
+        # TODO: Parse raw_address or add structured fields (city, zip, country) to Companies table
+        context["seller"]["full_address"] = raw_address # For templates that use a single full address block
+
+        context["seller"]["payment_info"] = seller_company_data.get('payment_info')
         context["seller"]["other_info"] = seller_company_data.get('other_info')
 
         logo_path_relative = seller_company_data.get('logo_path')
         context["seller"]["logo_path_relative"] = logo_path_relative
         if logo_path_relative:
-            context["seller"]["logo_path_absolute"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
-            context["seller"]["company_logo_path"] = context["seller"]["logo_path_absolute"] # Common placeholder
+            abs_logo_path = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
+            if os.path.exists(abs_logo_path):
+                 context["seller"]["logo_path_absolute"] = abs_logo_path
+                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}"
+            else:
+                 context["seller"]["logo_path_absolute"] = None
+                 context["seller"]["company_logo_path"] = None # Or a default/placeholder logo URL
+                 print(f"Warning: Seller logo file not found at {abs_logo_path}")
         else:
             context["seller"]["logo_path_absolute"] = None
             context["seller"]["company_logo_path"] = None
 
-        # Placeholders for fields not directly in Companies schema (require schema change or parsing)
-        context["seller"]["phone"] = "N/A (Champ 'phone' manquant dans la table Companies)"
-        context["seller"]["email"] = "N/A (Champ 'email' manquant dans la table Companies)"
-        context["seller"]["vat_number"] = "N/A (Champ 'vat_number' manquant dans la table Companies)"
-        context["seller"]["registration_number"] = "N/A (Champ 'registration_number' manquant dans la table Companies)"
-        context["seller"]["city_zip_country"] = "N/A (Adresse structurée manquante)" # From seller_company_address
+        # More specific seller details (assuming they might be in 'other_info' or need new schema fields)
+        # For now, providing placeholders or deriving from existing if possible.
+        context["seller"]["phone"] = context["additional"].get("seller_phone", "N/A Seller Phone")
+        context["seller"]["email"] = context["additional"].get("seller_email", "N/A Seller Email")
+        context["seller"]["vat_id"] = context["additional"].get("seller_vat_id", "N/A Seller VAT ID")
+        context["seller"]["registration_number"] = context["additional"].get("seller_registration_number", "N/A Seller Reg No.")
 
-        # Bank details from payment_info (needs parsing or schema change)
-        # For now, providing the raw field for templates that might want to display it as is.
-        # Specific bank fields will be marked as needing schema change.
-        context["seller"]["bank_details_raw"] = seller_company_data.get('payment_info')
-        context["seller"]["bank_name"] = "N/A (Champ 'payment_info' non structuré)"
-        context["seller"]["bank_address"] = "N/A (Champ 'payment_info' non structuré)"
-        context["seller"]["bank_iban"] = "N/A (Champ 'payment_info' non structuré)"
-        context["seller"]["bank_swift"] = "N/A (Champ 'payment_info' non structuré)"
-        context["seller"]["bank_account_holder_name"] = "N/A (Champ 'payment_info' non structuré)"
+        context["seller"]["bank_details_raw"] = seller_company_data.get('payment_info', "N/A")
+        context["seller"]["bank_name"] = context["additional"].get("seller_bank_name", "N/A Bank")
+        context["seller"]["bank_account_number"] = context["additional"].get("seller_bank_account_number", "N/A Account No.")
+        context["seller"]["bank_swift_bic"] = context["additional"].get("seller_bank_swift_bic", "N/A SWIFT/BIC")
+        context["seller"]["bank_address"] = context["additional"].get("seller_bank_address", "N/A Bank Address")
+        context["seller"]["bank_account_holder_name"] = context["seller"]["company_name"] # Default to company name
 
-        # Footer information often comes from seller
-        context["seller"]["footer_company_name"] = seller_company_data.get('company_name')
-        context["seller"]["footer_contact_info"] = f"{context['seller']['phone']} | {context['seller']['email']}" # Will show N/A for now
-        context["seller"]["footer_additional_info"] = seller_company_data.get('other_info')
-
+        context["seller"]["footer_company_name"] = context["seller"]["company_name"]
+        context["seller"]["footer_contact_info"] = f"{context['seller']['phone']} | {context['seller']['email']}"
+        context["seller"]["footer_additional_info"] = seller_company_data.get('other_info', "")
 
     # --- Fetch Seller Personnel (from CompanyPersonnel) ---
     # Using a general personnel dictionary within seller context
@@ -4655,23 +4841,22 @@ def get_document_context_data(
 
         if primary_client_contact:
             # Override client.contact_person_name if a more specific primary contact exists
-            context["client"]["contact_person_name"] = primary_client_contact.get('name', context["client"]["contact_person_name"])
-            context["client"]["contact_email"] = primary_client_contact.get('email')
-            context["client"]["contact_phone"] = primary_client_contact.get('phone')
-            context["client"]["contact_position"] = primary_client_contact.get('position')
-            # If buyer_address should come from contact's company if different from client's main company
-            # context["client"]["address"] = primary_client_contact.get('company_address') or context["client"]["address"]
-        else: # No contacts found, use defaults or N/A
+            context["client"]["contact_person_name"] = primary_client_contact.get('name', client_data.get('client_name')) # Fallback to client_name if primary contact name is empty
+            context["client"]["contact_email"] = primary_client_contact.get('email', "N/A")
+            context["client"]["contact_phone"] = primary_client_contact.get('phone', "N/A")
+            context["client"]["contact_position"] = primary_client_contact.get('position', "N/A")
+        else:
             context["client"]["contact_email"] = "N/A"
             context["client"]["contact_phone"] = "N/A"
             context["client"]["contact_position"] = "N/A"
 
-        # Placeholders for fields not directly in Clients schema
-        context["client"]["vat_number"] = "N/A (Champ 'vat_number' manquant dans la table Clients)"
-        context["client"]["registration_number"] = "N/A (Champ 'registration_number' manquant dans la table Clients)"
+        context["client"]["vat_id"] = context["additional"].get("client_vat_id", "N/A Client VAT ID")
+        context["client"]["registration_number"] = context["additional"].get("client_registration_number", "N/A Client Reg No.")
+        context["client"]["full_address"] = context["client"]["address"] # For templates that use a single full address block
+
 
         # Buyer representative details (often the primary contact)
-        context["client"]["representative_name"] = context["client"]["contact_person_name"]
+        context["client"]["representative_name"] = context["client"].get("contact_person_name", client_data.get('client_name'))
         context["client"]["representative_title"] = context["client"]["contact_position"]
 
     # --- Fetch Project Information (if project_id is provided) ---
@@ -4692,126 +4877,213 @@ def get_document_context_data(
             status_info = get_status_setting_by_id(status_id) if status_id else None
             context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
     else: # No project_id, provide defaults for project fields
-        context["project"]["name"] = context["additional"].get("project_name", "N/A")
-        context["project"]["description"] = context["additional"].get("project_description", "")
+        context["project"]["name"] = context["additional"].get("project_name", client_data.get('project_identifier', "N/A")) # Fallback to project_identifier
+        context["project"]["description"] = context["additional"].get("project_description", client_data.get('primary_need_description', ""))
 
 
-    # --- Fetch Products ---
-    # (Logic for fetching products based on project_id, product_ids, or client_id remains similar)
+    # --- Fetch Products and Generate HTML Rows ---
     fetched_products_data = []
+    # ... (product fetching logic as before) ...
     if project_id:
         fetched_products_data = get_products_for_client_or_project(client_id, project_id)
-    elif product_ids:
+    elif product_ids: # product_ids could be passed via additional_context
         for pid in product_ids:
-            prod = get_product_by_id(pid)
+            prod = get_product_by_id(pid) # This gets base product info
+            # Need to find the specific link if quantity/override is important, or assume defaults
+            # For simplicity, if product_ids are passed, we might assume default quantity 1 and no override
+            # or that additional_context provides this per product_id.
             if prod:
+                 # Try to find this product in client's general products for quantity/override
+                client_specific_prod_info = None
+                client_general_prods = get_products_for_client_or_project(client_id, project_id=None)
+                if client_general_prods:
+                    client_specific_prod_info = next((p for p in client_general_prods if p['product_id'] == pid), None)
+
+                quantity_to_use = client_specific_prod_info.get('quantity', 1) if client_specific_prod_info else 1
+                override_to_use = client_specific_prod_info.get('unit_price_override') if client_specific_prod_info else None
+
                 fetched_products_data.append({
-                    **prod, 'quantity': 1, 'unit_price_override': None,
-                    'product_name': prod.get('product_name'), # Ensure these keys exist
+                    **prod,
+                    'quantity': quantity_to_use,
+                    'unit_price_override': override_to_use,
+                    'product_name': prod.get('product_name'),
                     'product_description': prod.get('description'),
                     'unit_of_measure': prod.get('unit_of_measure'),
                     'base_unit_price': prod.get('base_unit_price')
                 })
-    elif client_id:
+    elif client_id: # Default to client-general products if no project_id or product_ids specified
          fetched_products_data = get_products_for_client_or_project(client_id, project_id=None)
 
+
+    products_table_html_rows = ""
+    subtotal_amount_calculated = 0.0
+    item_counter = 0
+
     for prod_data in fetched_products_data:
+        item_counter += 1
         quantity = prod_data.get('quantity', 1)
         unit_price = prod_data.get('unit_price_override', prod_data.get('base_unit_price'))
-        total_price = (quantity * unit_price) if unit_price is not None else None
+
+        # Ensure unit_price is float for calculation
+        try:
+            unit_price_float = float(unit_price) if unit_price is not None else 0.0
+        except ValueError:
+            unit_price_float = 0.0
+            print(f"Warning: Could not convert unit_price '{unit_price}' to float for product '{prod_data.get('product_name')}'. Using 0.0.")
+
+        total_price = quantity * unit_price_float
+        subtotal_amount_calculated += total_price
+
+        products_table_html_rows += f"""<tr>
+            <td>{item_counter}</td>
+            <td>{prod_data.get('product_name', 'N/A')}</td>
+            <td>{quantity}</td>
+            <td>{format_currency(unit_price_float, context["doc"]["currency_symbol"])}</td>
+            <td>{format_currency(total_price, context["doc"]["currency_symbol"])}</td>
+        </tr>"""
+        # Add to context["products"] list for other uses (if any)
         context["products"].append({
             "id": prod_data.get('product_id'),
             "name": prod_data.get('product_name'),
             "description": prod_data.get('product_description', prod_data.get('description')),
             "quantity": quantity,
-            "unit_price_formatted": format_currency(unit_price, context["doc"]["currency_symbol"]),
+            "unit_price_formatted": format_currency(unit_price_float, context["doc"]["currency_symbol"]),
             "total_price_formatted": format_currency(total_price, context["doc"]["currency_symbol"]),
-            "raw_unit_price": unit_price,
+            "raw_unit_price": unit_price_float,
             "raw_total_price": total_price,
             "unit_of_measure": prod_data.get('unit_of_measure'),
-            # Placeholders for packing list / warranty, require schema change or additional_context
-            "item_number_or_code": prod_data.get('product_id'), # Default to product_id, can be overridden
-            "serial_number": "N/A (Champ 'serial_number' manquant)",
-            "other_identifier": "N/A",
-            "specifications": prod_data.get('product_description', prod_data.get('description')), # Default to description
+            "item_number_or_code": prod_data.get('product_id'),
+            "serial_number": "N/A", # Placeholder
+            "other_identifier": "N/A", # Placeholder
+            "specifications": prod_data.get('product_description', prod_data.get('description')),
         })
 
-    # --- Map to common template placeholder patterns ---
-    # Proforma Invoice / Sales Contract
-    context["buyer_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
-    context["buyer_address"] = context["client"].get("address")
-    context["buyer_city_zip_country"] = context["client"].get("city_zip_country")
-    context["buyer_phone"] = context["client"].get("contact_phone")
-    context["buyer_email"] = context["client"].get("contact_email")
-    context["buyer_vat_number"] = context["client"].get("vat_number") # Will be N/A
-    context["buyer_company_name"] = context["client"].get("company_name")
-    context["buyer_company_address"] = context["client"].get("address")
-    context["buyer_company_registration_number"] = context["client"].get("registration_number") # N/A
-    context["buyer_representative_name"] = context["client"].get("representative_name")
-    context["buyer_representative_title"] = context["client"].get("representative_title")
+    context["doc"]["products_table_rows"] = products_table_html_rows
+    context["doc"]["subtotal_amount"] = format_currency(subtotal_amount_calculated, context["doc"]["currency_symbol"])
 
-    context["seller_company_logo_path"] = context["seller"].get("company_logo_path")
-    context["seller_company_name"] = context["seller"].get("name")
-    context["seller_company_address"] = context["seller"].get("address")
-    context["seller_company_city_zip_country"] = context["seller"].get("city_zip_country") # N/A
-    context["seller_company_phone"] = context["seller"].get("phone") # N/A
-    context["seller_company_email"] = context["seller"].get("email") # N/A
-    context["seller_vat_number"] = context["seller"].get("vat_number") # N/A
-    context["seller_company_registration_number"] = context["seller"].get("registration_number") # N/A
-    context["seller_representative_name"] = context["seller"].get("personnel", {}).get("representative_name")
-    context["seller_representative_title"] = context["seller"].get("personnel", {}).get("representative_title")
-    context["seller_bank_name"] = context["seller"].get("bank_name") # N/A
-    context["seller_bank_address"] = context["seller"].get("bank_address") # N/A
-    context["seller_bank_iban"] = context["seller"].get("bank_iban") # N/A
-    context["seller_bank_swift"] = context["seller"].get("bank_swift") # N/A
-    context["seller_bank_account_holder_name"] = context["seller"].get("bank_account_holder_name") # N/A
+    discount_rate = context["doc"]["discount_rate_percentage"] / 100.0
+    discount_amount_calculated = subtotal_amount_calculated * discount_rate
+    context["doc"]["discount_amount"] = format_currency(discount_amount_calculated, context["doc"]["currency_symbol"])
 
-    context["project_description"] = context["project"].get("description")
+    amount_after_discount = subtotal_amount_calculated - discount_amount_calculated
 
-    # Packing List
-    context["company_logo_path_for_stamp"] = context["seller"].get("company_logo_path")
-    context["exporter_company_name"] = context["seller"].get("name")
-    context["exporter_address"] = context["seller"].get("address")
-    context["exporter_contact_person"] = context["seller"].get("personnel",{}).get("sales_person_name")
-    context["exporter_phone"] = context["seller"].get("phone") # N/A
-    context["exporter_email"] = context["seller"].get("email") # N/A
+    vat_rate = context["doc"]["vat_rate_percentage"] / 100.0
+    vat_amount_calculated = amount_after_discount * vat_rate
+    context["doc"]["vat_amount"] = format_currency(vat_amount_calculated, context["doc"]["currency_symbol"])
 
-    context["consignee_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
-    context["consignee_address"] = context["client"].get("address")
-    context["consignee_contact_person"] = context["client"].get("contact_person_name")
-    context["consignee_phone"] = context["client"].get("contact_phone")
-    context["consignee_email"] = context["client"].get("contact_email")
+    grand_total_amount_calculated = amount_after_discount + vat_amount_calculated
+    context["doc"]["grand_total_amount"] = format_currency(grand_total_amount_calculated, context["doc"]["currency_symbol"])
+    # For {{GRAND_TOTAL_AMOUNT_WORDS}}, this would require a number-to-words library, skipping for now.
+    context["doc"]["grand_total_amount_words"] = "N/A (Number to words not implemented)"
 
-    context["authorized_signature_name"] = context["seller"].get("personnel",{}).get("authorized_signature_name")
-    context["authorized_signature_title"] = context["seller"].get("personnel",{}).get("authorized_signature_title")
 
-    # Warranty Document
-    context["beneficiary_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
-    context["beneficiary_address"] = context["client"].get("address")
-    context["beneficiary_contact_person"] = context["client"].get("contact_person_name")
-    context["beneficiary_phone"] = context["client"].get("contact_phone")
-    context["beneficiary_email"] = context["client"].get("contact_email")
+    # Packing List specific totals (example, needs real data if fields differ)
+    context["doc"]["total_packages"] = context["additional"].get("total_packages", str(len(fetched_products_data))) # Simplistic
+    context["doc"]["total_net_weight"] = context["additional"].get("total_net_weight", "N/A kg")
+    context["doc"]["total_gross_weight"] = context["additional"].get("total_gross_weight", "N/A kg")
+    context["doc"]["total_volume_cbm"] = context["additional"].get("total_volume_cbm", "N/A CBM")
+    context["doc"]["packing_list_items"] = context["additional"].get("packing_list_items_html", "<tr><td colspan='7'>Packing details not specified.</td></tr>")
 
-    context["warrantor_company_name"] = context["seller"].get("name")
-    context["warrantor_address"] = context["seller"].get("address")
-    context["warrantor_contact_person"] = context["seller"].get("personnel",{}).get("technical_manager_name", context["seller"].get("personnel",{}).get("sales_person_name"))
-    context["warrantor_phone"] = context["seller"].get("phone") # N/A
-    context["warrantor_email"] = context["seller"].get("email") # N/A
 
-    # Cover Page
-    context["company_logo_path"] = context["seller"].get("company_logo_path")
-    context["client_name"] = context["client"].get("company_name", context["client"].get("contact_person_name"))
-    context["project_name"] = context["project"].get("name")
-    context["author_name"] = context["seller"].get("personnel",{}).get("sales_person_name", context["seller"].get("name"))
+    # Warranty specific placeholders (mostly from additional_context or defaults)
+    context["doc"]["product_name_warranty"] = context["additional"].get("product_name_warranty", "N/A")
+    context["doc"]["product_model_warranty"] = context["additional"].get("product_model_warranty", "N/A")
+    context["doc"]["product_serial_numbers_warranty"] = context["additional"].get("product_serial_numbers_warranty", "N/A")
+    context["doc"]["purchase_supply_date"] = context["additional"].get("purchase_supply_date", context["doc"]["current_date"])
+    context["doc"]["original_invoice_id_warranty"] = context["additional"].get("original_invoice_id_warranty", context["doc"]["invoice_id"])
+    context["doc"]["warranty_period_text"] = context["additional"].get("warranty_period_text", f"{context['doc']['warranty_period_months']} months")
+    context["doc"]["warranty_start_point_text"] = context["additional"].get("warranty_start_point_text", "date of purchase")
+    context["doc"]["warranty_coverage_details"] = context["additional"].get("warranty_coverage_details", "Standard parts and labor.")
+    context["doc"]["other_exclusions_list"] = context["additional"].get("other_exclusions_list", "<li>Damage due to natural disasters.</li>")
+    context["doc"]["warranty_claim_contact_info"] = context["additional"].get("warranty_claim_contact_info", context['seller'].get('email', 'N/A'))
+    context["doc"]["warranty_claim_procedure_detail"] = context["additional"].get("warranty_claim_procedure_detail", "Contact us with proof of purchase.")
+
+    # --- Map to common template placeholder patterns (already populated above or directly in context["doc"]) ---
+    context["buyer_name"] = context["client"].get("company_name", context["client"].get("contact_person_name", "N/A"))
+    context["buyer_address"] = context["client"].get("address", "N/A")
+    context["buyer_city_zip_country"] = context["client"].get("city_zip_country", "N/A")
+    context["buyer_phone"] = context["client"].get("contact_phone", "N/A")
+    context["buyer_email"] = context["client"].get("contact_email", "N/A")
+    context["buyer_vat_number"] = context["client"].get("vat_id", "N/A")
+    context["buyer_company_name"] = context["client"].get("company_name", "N/A")
+    context["buyer_company_address"] = context["client"].get("address", "N/A") # Assuming same as client address
+    context["buyer_company_registration_number"] = context["client"].get("registration_number", "N/A")
+    context["buyer_representative_name"] = context["client"].get("representative_name", "N/A")
+    context["buyer_representative_title"] = context["client"].get("representative_title", "N/A")
+
+    context["seller_company_logo_path"] = context["seller"].get("company_logo_path", "") # Default to empty if None
+    context["seller_company_name"] = context["seller"].get("name", "N/A")
+    context["seller_company_address"] = context["seller"].get("address", "N/A")
+    context["seller_address_line1"] = context["seller"].get("address_line1", context["seller"].get("address", "N/A")) # Use specific if available
+    context["seller_city_zip_country"] = context["seller"].get("city_zip_country", "N/A")
+    context["seller_company_phone"] = context["seller"].get("phone", "N/A")
+    context["seller_company_email"] = context["seller"].get("email", "N/A")
+    context["seller_vat_id"] = context["seller"].get("vat_id", "N/A")
+    context["seller_company_registration_number"] = context["seller"].get("registration_number", "N/A")
+    context["seller_representative_name"] = context["seller"].get("personnel", {}).get("representative_name", "N/A")
+    context["seller_representative_title"] = context["seller"].get("personnel", {}).get("representative_title", "N/A")
+    context["seller_bank_name"] = context["seller"].get("bank_name", "N/A")
+    context["seller_bank_address"] = context["seller"].get("bank_address", "N/A")
+    context["seller_bank_iban"] = context["seller"].get("bank_iban", "N/A")
+    context["seller_bank_swift_bic"] = context["seller"].get("bank_swift_bic", "N/A")
+    context["seller_bank_account_holder_name"] = context["seller"].get("bank_account_holder_name", context["seller"].get("name", "N/A"))
+    context["seller_full_address"] = context["seller"].get("address", "N/A")
+
+
+    context["project_description"] = context["project"].get("description", "")
+    context["project_id"] = context["project"].get("id", client_data.get("project_identifier", "N/A")) # Ensure PROJECT_ID is available
+
+    # Packing List specific mappings
+    context["company_logo_path_for_stamp"] = context["seller_company_logo_path"]
+    context["exporter_company_name"] = context["seller_company_name"]
+    context["exporter_address"] = context["seller_company_address"]
+    context["exporter_contact_person"] = context["seller_representative_name"]
+    context["exporter_phone"] = context["seller_company_phone"]
+    context["exporter_email"] = context["seller_company_email"]
+
+    context["consignee_name"] = context["buyer_name"]
+    context["consignee_address"] = context["buyer_address"]
+    context["consignee_contact_person"] = context["buyer_representative_name"]
+    context["consignee_phone"] = context["buyer_phone"]
+    context["consignee_email"] = context["buyer_email"]
+
+    context["primary_contact_name"] = context["client"].get("contact_person_name", "N/A") # For general use
+    context["primary_contact_email"] = context["client"].get("contact_email", "N/A")
+    context["primary_contact_position"] = context["client"].get("contact_position", "N/A")
+
+
+    context["authorized_signature_name"] = context["seller"].get("personnel",{}).get("authorized_signature_name", "N/A")
+    context["authorized_signature_title"] = context["seller"].get("personnel",{}).get("authorized_signature_title", "N/A")
+
+    # Warranty Document specific mappings
+    context["beneficiary_name"] = context["buyer_name"]
+    context["beneficiary_address"] = context["buyer_address"]
+    context["beneficiary_contact_person"] = context["buyer_representative_name"]
+    context["beneficiary_phone"] = context["buyer_phone"]
+    context["beneficiary_email"] = context["buyer_email"]
+
+    context["warrantor_company_name"] = context["seller_company_name"]
+    context["warrantor_address"] = context["seller_company_address"]
+    context["warrantor_contact_person"] = context["seller"].get("personnel",{}).get("technical_manager_name", context["seller_representative_name"])
+    context["warrantor_phone"] = context["seller_company_phone"]
+    context["warrantor_email"] = context["seller_company_email"]
+
+    # Cover Page specific mappings
+    context["company_logo_path"] = context["seller_company_logo_path"] # Already mapped
+    context["client_name"] = context["buyer_name"] # Already mapped for consistency
+    context["client_company_name"] = context["client"].get("company_name", "")
+    context["client_full_address"] = context["client"].get("full_address", "N/A")
+    context["project_name"] = context["project"].get("name", "N/A")
+    context["author_name"] = context["seller"].get("personnel",{}).get("sales_person_name", context["seller_company_name"])
+    context["date"] = context["doc"]["current_date"] # General date
+    context["current_year"] = context["doc"]["current_year"]
+
 
     # Fill from additional_context, providing defaults for some common ones
-    context["document_title"] = context["additional"].get("document_title", "Document")
-    context["document_subtitle"] = context["additional"].get("document_subtitle", "")
-    context["document_date"] = context["additional"].get("document_date", context["doc"]["current_date"])
-    context["document_version"] = context["additional"].get("document_version", "1.0")
-
-    # All other placeholders from the list that are not directly mapped above
-    # will rely on being present in `additional_context` or will be schema change requirements.
+    # These are already in context["doc"] or context["project"] etc.
+    # No need to re-assign unless overriding logic is intended.
+    # context["document_title"] = context["additional"].get("document_title", "Document")
+    # ... and so on
 
     return context
 

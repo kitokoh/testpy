@@ -21,7 +21,7 @@ QWidget {
     Error Color (Error Messages, Invalid Inputs): #e74c3c (Red)
 
     Border Color: #bdc3c7 (Light Grey Border)
-    Table Header Background: #dde3e6
+    Table Header Background: #dde3e6 
     Table Alternating Row: #f8f9f9
 */
 

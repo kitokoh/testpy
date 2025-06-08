@@ -1,282 +1,98 @@
 <!DOCTYPE html>
-<html lang="{{doc_lang_code | default: 'fr'}}" dir="{{doc_direction | default: 'ltr'}}">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>Facture Proforma - {{invoice_number}}</title>
+    <title>Proforma Invoice</title>
     <style>
-        @page {
-            size: A4;
-            margin: 2cm;
-        }
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            color: #555;
-            margin: 0;
-            padding: 0;
-            background-color: #fff;
-            font-size: 11pt; /* Base font size */
-            line-height: 1.5; /* Adjusted line height */
-            text-align: left;
-        }
-        html[dir="rtl"] body {
-            text-align: right;
-        }
-        html[dir="rtl"] .text-left { text-align: right !important; }
-        html[dir="rtl"] .text-right { text-align: left !important; }
-        html[dir="rtl"] ul, html[dir="rtl"] ol { margin-right: 40px; margin-left: 0; }
-        html[dir="rtl"] th, html[dir="rtl"] td {
-             /* text-align: right; */ /* Generally inherited */
-        }
-
-        .invoice-box {
-            max-width: 17cm; /* A4 friendly (21cm - 2*2cm margins) */
-            margin: auto;
-            padding: 0;
-            border: 1px solid #eee; /* Optional for screen view */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Optional for screen view */
-            background-color: #fff;
-        }
-        .invoice-box table {
-            width: 100%;
-            line-height: inherit;
-            text-align: left;
-            border-collapse: collapse;
-        }
-        html[dir="rtl"] .invoice-box table {
-            text-align: right;
-        }
-        .invoice-box table td {
-            padding: 5px;
-            vertical-align: top;
-            font-size: 10pt; /* Table content font size */
-        }
-
-        .invoice-box table tr.top table td {
-            padding-bottom: 20px;
-        }
-        .invoice-box table tr.top table td.title {
-            font-size: 35pt;
-            line-height: 1.2;
-            color: #333;
-        }
-         html[dir="ltr"] .invoice-box table tr.top table td.title {
-             text-align: left;
-        }
-        html[dir="rtl"] .invoice-box table tr.top table td.title {
-             text-align: right;
-        }
-
-        .invoice-box table tr.information table td {
-            padding-bottom: 30px;
-        }
-        .invoice-box table tr.heading td {
-            background: #eee;
-            border-bottom: 1px solid #ddd;
-            font-weight: bold;
-            font-size: 10pt;
-        }
-        .invoice-box table tr.details td {
-            padding-bottom: 15px;
-        }
-        .invoice-box table tr.item td {
-            border-bottom: 1px solid #eee;
-            font-size: 10pt;
-        }
-        .invoice-box table tr.item.last td {
-            border-bottom: none;
-        }
-        .invoice-box table tr.total td {
-            border-top: 2px solid #eee;
-            font-weight: bold;
-            text-align: right !important;
-            font-size: 10pt;
-        }
-        .invoice-box table tr.total td.label {
-            text-align: right !important;
-            padding-right: 20px;
-        }
-        html[dir="rtl"] .invoice-box table tr.total td.label {
-            text-align: left !important;
-            padding-left: 20px;
-            padding-right: 0;
-        }
-
-        .company-logo { max-width: 150px; max-height: 100px; margin-bottom: 20px; }
-        .mt-20 { margin-top: 20px; }
-        .mb-20 { margin-bottom: 20px; }
-        .bold { font-weight: bold; }
-        .subtle { color: #777; font-size: 0.9em; }
-
-        .footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-            font-size: 9pt;
-            text-align: center;
-            color: #888;
-        }
-         .section-title {
-            font-size: 13pt;
-            color: #333;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-            margin-top: 20px;
-        }
-        .terms, .bank-details, .validity-signature {
-            margin-top: 25px;
-            font-size: 10pt;
-            line-height: 1.5;
-        }
-        .terms p, .bank-details p, .validity-signature p {
-            margin-bottom: 5px;
-        }
-        .signature-area {
-            margin-top: 30px;
-            /* height: 100px; /* Removed fixed height */
-            min-height: 80px; /* Suggest min-height */
-            border-top: 1px solid #eee;
-            padding-top: 10px;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
-    <div class="invoice-box">
-        <table>
-            <tr class="top">
-                <td colspan="4">
-                    <table>
-                        <tr>
-                            <td class="title text-left">
-                                {{#if seller_company_logo_path}}
-                                <img src="{{seller_company_logo_path}}" alt="Company Logo" class="company-logo">
-                                {{else}}
-                                <span style="font-size: 20pt;">{{seller_company_name}}</span>
-                                {{/if}}
-                            </td>
-                            <td class="text-right" style="font-size: 10pt;">
-                                <strong style="font-size: 14pt; text-transform: uppercase;">FACTURE PROFORMA</strong><br>
-                                Numéro: {{invoice_number}}<br>
-                                Date d'émission: {{invoice_date_issue}}<br>
-                                Date d'échéance: {{invoice_date_due}}
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-
-            <tr class="information">
-                <td colspan="4">
-                    <table>
-                        <tr>
-                            <td style="width: 50%;" class="text-left">
-                                <div class="section-title">Vendeur</div>
-                                <strong>{{seller_company_name}}</strong><br>
-                                {{seller_company_address}}<br>
-                                {{seller_company_city_zip_country}}<br>
-                                Tel: {{seller_company_phone}}<br>
-                                Email: {{seller_company_email}}<br>
-                                {{#if seller_vat_number}}TVA: {{seller_vat_number}}{{/if}}
-                            </td>
-                            <td style="width: 50%;" class="text-left">
-                                <div class="section-title">Client</div>
-                                <strong>{{buyer_name}}</strong><br>
-                                {{buyer_address}}<br>
-                                {{buyer_city_zip_country}}<br>
-                                {{#if buyer_phone}}Tel: {{buyer_phone}}{{/if}}<br>
-                                {{#if buyer_email}}Email: {{buyer_email}}{{/if}}<br>
-                                {{#if buyer_vat_number}}TVA: {{buyer_vat_number}}{{/if}}
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-
-            {{#if project_description}}
-            <tr>
-                <td colspan="4" class="text-left">
-                    <div class="section-title">Description du Projet/Service</div>
-                    <p>{{project_description}}</p>
-                </td>
-            </tr>
-            {{/if}}
-
-            <tr class="heading">
-                <td style="width: 55%;">Description</td>
-                <td class="text-center" style="width: 15%;">Quantité</td>
-                <td class="text-right" style="width: 15%;">Prix Unitaire HT</td>
-                <td class="text-right" style="width: 15%;">Total HT</td>
-            </tr>
-            <!-- {{#each items}} -->
-            <tr class="item">
-                <td>{{item_description}}</td>
-                <td class="text-center">{{item_quantity}}</td>
-                <td class="text-right">{{item_unit_price_formatted}}</td>
-                <td class="text-right">{{item_total_price_formatted}}</td>
-            </tr>
-            <!-- {{/each}} -->
-            {{^items}}
-            <tr class="item">
-                <td colspan="4" class="text-center" style="padding: 20px;">Aucun article pour le moment.</td>
-            </tr>
-            {{/items}}
-
-
-            <tr class="total">
-                <td colspan="3" class="label">Sous-total HT:</td>
-                <td>{{subtotal_formatted}}</td>
-            </tr>
-            {{#if tax_description}}
-            <tr class="total">
-                <td colspan="3" class="label">{{tax_description}} ({{tax_rate}}%):</td>
-                <td>{{tax_amount_formatted}}</td>
-            </tr>
-            {{/if}}
-            {{#if discount_description}}
-            <tr class="total">
-                <td colspan="3" class="label">{{discount_description}} ({{discount_rate}}%):</td>
-                <td>-{{discount_amount_formatted}}</td>
-            </tr>
-            {{/if}}
-            <tr class="total" style="font-size: 1.1em;">
-                <td colspan="3" class="label bold">TOTAL TTC:</td>
-                <td class="bold">{{grand_total_formatted}} {{currency_symbol}}</td>
-            </tr>
-        </table>
-
-        <div class="terms text-left">
-            <div class="section-title">Termes et Conditions</div>
-            <p>{{payment_terms}}</p>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
         </div>
 
-        {{#if bank_details_iban}}
-        <div class="bank-details text-left">
-            <div class="section-title">Coordonnées Bancaires</div>
-            <p><strong>Banque:</strong> {{bank_details_name}}</p>
-            <p><strong>IBAN:</strong> {{bank_details_iban}}</p>
-            <p><strong>BIC/SWIFT:</strong> {{bank_details_swift}}</p>
-            {{#if bank_account_holder_name}}<p><strong>Titulaire du compte:</strong> {{bank_account_holder_name}}</p>{{/if}}
-        </div>
-        {{/if}}
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+                <p>Email: {{SELLER_EMAIL}}</p>
+                <p>VAT ID: {{SELLER_VAT_ID}}</p>
+            </div>
 
-        <div class="validity-signature text-left">
-            {{#if proforma_validity_days}}
-            <p><strong>Validité de l'offre:</strong> Cette proforma est valable {{proforma_validity_days}} jours à compter de sa date d'émission.</p>
-            {{/if}}
-            <div class="signature-area">
-                <p><strong>Signature / Cachet de l'entreprise:</strong></p>
-                {{#if signature_image_path}}
-                <img src="{{signature_image_path}}" alt="Signature" style="max-height: 80px; margin-top:10px;">
-                {{else}}
-                <div style="height: 60px; border: 1px dashed #ccc; margin-top:10px; background-color: #f9f9f9;"></div>
-                {{/if}}
-                <p style="margin-top:5px;">{{signature_name_and_title}}</p>
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
+                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
             </div>
         </div>
 
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
+            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{doc.products_table_rows}} <!-- Populated by db.py -->
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
+            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
+            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
+            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
+        </div>
+
         <div class="footer">
-            <p>{{footer_company_name}} - {{footer_contact_info}}</p>
-            <p>{{footer_additional_info}}</p>
+            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
         </div>
     </div>
 </body>
