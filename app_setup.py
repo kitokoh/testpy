@@ -749,21 +749,6 @@ def initialize_default_templates(config, app_root_dir):
     if email_category_id is None:
         logging.error("CRITICAL ERROR: 'Modèles Email' category not found. Cannot register default email templates.")
     else:
-        default_email_templates_data = [
-            {
-                "name_key": "EMAIL_GREETING",
-                "display_name_prefix": {"fr": "Salutation Générale", "en": "General Greeting", "ar": "تحية عامة", "tr": "Genel Selamlama", "pt": "Saudação Geral"},
-                "subject": {
-                    "fr": "Un message de {{seller.company_name}}", "en": "A message from {{seller.company_name}}",
-                    "ar": "رسالة من {{seller.company_name}}", "tr": "{{seller.company_name}} firmasından bir mesaj",
-                    "pt": "Uma mensagem de {{seller.company_name}}"
-                },
-                "html_content": { /* Content as in main.py, truncated for brevity */ },
-                "txt_content": { /* Content as in main.py, truncated for brevity */ },
-                "description_html": { /* ... */ }, "description_txt": { /* ... */ }
-            },
-            # ... other email templates (EMAIL_FOLLOWUP etc.)
-        ]
         # Full email template data here (from main.py)
         default_email_templates_data = [
             {
