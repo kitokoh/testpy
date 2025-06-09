@@ -501,9 +501,31 @@ class CreateDocumentDialog(QDialog):
                         populate_docx_template(target_path, self.client_info) # Uses global populate_docx_template
                     elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
-                        default_company_obj = db_manager.get_default_company(); default_company_id = default_company_obj['company_id'] if default_company_obj else None
-                        if default_company_id is None: QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id) # Uses imported HtmlEditor
+                        default_company_obj = db_manager.get_default_company()
+                        default_company_id = default_company_obj['company_id'] if default_company_obj else None
+
+                        if default_company_id is None:
+                            QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
+                            # Decide if to proceed with a potentially incomplete context or skip
+                            # For now, let's allow proceeding but the context will lack seller info.
+
+                        # Prepare document_context for HtmlEditor.populate_html_content
+                        client_id_for_context = self.client_info.get('client_id')
+                        # Attempt to get a project_id if available in client_info.
+                        # Common keys might be 'project_id', 'project_identifier', or 'project_id_db_uuid'.
+                        # Adjust if a more specific key is known for client_info's structure.
+                        project_id_for_context = self.client_info.get('project_id', self.client_info.get('project_identifier'))
+
+                        document_context = db_manager.get_document_context_data(
+                            client_id=client_id_for_context,
+                            company_id=default_company_id, # This is the seller company
+                            target_language_code=db_template_lang, # language of the current template
+                            project_id=project_id_for_context,
+                            # linked_product_ids_for_doc can be omitted if not relevant here, defaults to None
+                            additional_context=self.client_info # Pass full client_info for other details
+                        )
+
+                        populated_content = HtmlEditor.populate_html_content(template_content, document_context) # Now passing 2 arguments
                         with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
                     created_files_count += 1
                 except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
