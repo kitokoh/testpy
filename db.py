@@ -106,14 +106,31 @@ def initialize_database():
     )
     """)
 
-    # Create StatusSettings table
+    # --- StatusSettings Table ---
+    # Check if StatusSettings table exists and if icon_name column is present
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='StatusSettings'")
+    table_exists = cursor.fetchone()
+
+    if table_exists:
+        cursor.execute("PRAGMA table_info(StatusSettings)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'icon_name' not in columns:
+            print("StatusSettings table exists but icon_name column is missing. Adding it now.")
+            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
+            conn.commit() # Commit the schema change immediately
+        else:
+            print("StatusSettings table and icon_name column already exist.")
+    else:
+        print("StatusSettings table does not exist. It will be created.")
+
+    # Create StatusSettings table (IF NOT EXISTS handles the case where it was just created or existed)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS StatusSettings (
         status_id INTEGER PRIMARY KEY AUTOINCREMENT,
         status_name TEXT NOT NULL,
         status_type TEXT NOT NULL, -- e.g., 'Client', 'Project', 'Task'
         color_hex TEXT,
-        icon_name TEXT, -- Added for icon association
+        icon_name TEXT, -- Ensured by above logic or created here
         default_duration_days INTEGER,
         is_archival_status BOOLEAN DEFAULT FALSE,
         is_completion_status BOOLEAN DEFAULT FALSE,
@@ -122,6 +139,7 @@ def initialize_database():
     """)
 
     # --- Pre-populate StatusSettings ---
+    # Values include icon_name, ensuring it's populated.
     default_statuses = [
         # Client Statuses
         {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
@@ -150,16 +168,25 @@ def initialize_database():
     ]
 
     for status in default_statuses:
+        # Using INSERT OR REPLACE to ensure existing statuses are updated with latest values (e.g., icon_name, color_hex)
+        # The UNIQUE constraint (status_name, status_type) is used by REPLACE.
         cursor.execute("""
-            INSERT OR IGNORE INTO StatusSettings (
-                status_name, status_type, color_hex, icon_name, is_completion_status, is_archival_status
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO StatusSettings (
+                status_name, status_type, color_hex, icon_name,
+                is_completion_status, is_archival_status, default_duration_days -- Added default_duration_days if applicable
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
-            status['status_name'], status['status_type'], status['color_hex'],
-            status.get('icon_name'), # Add icon_name
+            status['status_name'],
+            status['status_type'],
+            status['color_hex'],
+            status.get('icon_name'),
             status.get('is_completion_status', False),
-            status.get('is_archival_status', False)
+            status.get('is_archival_status', False),
+            status.get('default_duration_days') # Ensure this key exists in your default_statuses or handle if missing
         ))
+    # Note: If default_duration_days is not always present in default_statuses,
+    # you might need to adjust the INSERT OR REPLACE or ensure the data structure is consistent.
+    # For now, assuming it might be there or defaults to NULL if not provided and column allows NULL.
 
     # Create Clients tabhhhle
     cursor.execute("""
