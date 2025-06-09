@@ -997,7 +997,7 @@ class DocumentManager(QMainWindow):
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
                 self.client_tabs_widget.setCurrentIndex(i); return
                 
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, APP_ROOT_DIR, CENTRAL_DATABASE_NAME, self)
+        client_detail_widget = ClientWidget(client_data_to_show, self.config, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
             
