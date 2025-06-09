@@ -298,6 +298,10 @@ class ContactDialog(QDialog):
         self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ ou MM-JJ"))
         additional_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
 
+        self.notes_input = QTextEdit(self.contact_data.get("notes", ""))
+        self.notes_input.setFixedHeight(60)
+        additional_form_layout.addRow(self.tr("Notes:"), self.notes_input)
+
         main_layout.addWidget(self.additional_fields_group)
 
         # Check if any additional field has data to expand the group box
@@ -305,7 +309,7 @@ class ContactDialog(QDialog):
             "givenName", "familyName", "displayName", "phone_type", "email_type",
             "address_formattedValue", "address_streetAddress", "address_city",
             "address_region", "address_postalCode", "address_country",
-            "organization_name", "organization_title", "birthday_date"
+            "organization_name", "organization_title", "birthday_date", "notes"
         ]
         # Also consider company_name and position if they were used as fallbacks and are different
         # from the main company_name/position fields, or if the specific fields are present.
@@ -355,6 +359,7 @@ class ContactDialog(QDialog):
                 "organization_name": self.organization_name_input.text().strip(),
                 "organization_title": self.organization_title_input.text().strip(),
                 "birthday_date": self.birthday_date_input.text().strip(),
+                "notes": self.notes_input.toPlainText().strip(),
             })
             # If displayName has content and main 'name' is different or empty, prioritize displayName for 'name' field in DB
             if data.get("displayName") and data.get("displayName") != data.get("name"):
