@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
@@ -374,9 +375,17 @@ class ClientWidget(QWidget):
 
         # app_root_dir should be available in self.config if main.py sets it up.
         # MAIN_MODULE_CONFIG should have app_root_dir if it's set in main.py's CONFIG
-        app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0])) # Fallback, might not be ideal for frozen apps
-        if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG: # Prefer this if available
-            app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
+        app_root_dir = self.app_root_dir # Directly use the stored app_root_dir
+        if app_root_dir is None: # As a safety, check if it's None
+            app_root_dir = self.config.get('app_root_dir')
+            if app_root_dir is None:
+                # Attempt to get the logger; if not available, this warning won't appear but code proceeds.
+                try:
+                    logger = logging.getLogger(__name__)
+                    logger.warning("app_root_dir not found in self.app_root_dir or self.config; falling back to path based on sys.argv[0]. This might not be reliable, especially for frozen applications.")
+                except NameError: # If logging itself isn't set up or available here.
+                    print("Warning: app_root_dir not found and logging module not available for detailed warning.")
+                app_root_dir = os.path.dirname(sys.argv[0])
 
         generated_pdf_path = self.generate_pdf_for_document(
             source_file_path=file_path,
