@@ -36,9 +36,9 @@ def _import_main_elements():
            MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
-        import main as main_module # This is the potential circular import point
-        from dialogs import SendEmailDialog # Direct import for SendEmailDialog
-        MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
+        import main as main_module
+        from dialogs import SendEmailDialog, ContactDialog # Import ContactDialog directly
+        MAIN_MODULE_CONTACT_DIALOG = ContactDialog # Assign directly
         MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
         MAIN_MODULE_CREATE_DOCUMENT_DIALOG = main_module.CreateDocumentDialog
