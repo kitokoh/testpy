@@ -365,9 +365,14 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
-        form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")); form_vbox_layout = QVBoxLayout(form_group_box)
-        creation_form_layout = QFormLayout(); creation_form_layout.setLabelAlignment(Qt.AlignRight) 
-        creation_form_layout.setSpacing(10) # Added spacing
+        form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client"))
+        form_vbox_layout = QVBoxLayout(form_group_box) # Main layout for the group box
+
+        # Create a container widget for the form elements
+        self.form_container_widget = QWidget()
+        creation_form_layout = QFormLayout(self.form_container_widget) # Set layout on the container
+        creation_form_layout.setLabelAlignment(Qt.AlignRight)
+        creation_form_layout.setSpacing(10)
         
         self.client_name_input = QLineEdit(); self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
         creation_form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
@@ -406,14 +411,29 @@ class DocumentManager(QMainWindow):
         price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
         price_info_label.setObjectName("priceInfoLabel") # Used existing QSS rule
         creation_form_layout.addRow("", price_info_label) # Add info label below price input, span if needed or adjust layout
-        self.language_select_combo = QComboBox() 
-        self.language_select_combo.addItems([self.tr("Français uniquement (fr)"), self.tr("Arabe uniquement (ar)"), self.tr("Turc uniquement (tr)"), self.tr("Toutes les langues (fr, ar, tr)")])
+        self.language_select_combo = QComboBox()
+        self.language_select_combo.addItems([
+            self.tr("English only (en)"),
+            self.tr("French only (fr)"),
+            self.tr("Arabic only (ar)"),
+            self.tr("Turkish only (tr)"),
+            self.tr("Portuguese only (pt)"),
+            self.tr("All supported languages (en, fr, ar, tr, pt)")
+        ])
         creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
         self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon(":/icons/user-plus.svg"))
         self.create_client_button.setObjectName("primaryButton") # Use object name for global styling
         self.create_client_button.clicked.connect(self.execute_create_client) 
         creation_form_layout.addRow(self.create_client_button)
-        form_vbox_layout.addLayout(creation_form_layout); left_layout.addWidget(form_group_box)
+
+        # Add the container widget (with creation_form_layout) to the group box's layout
+        form_vbox_layout.addWidget(self.form_container_widget)
+
+        form_group_box.setCheckable(True)
+        form_group_box.toggled.connect(self.form_container_widget.setVisible)
+        form_group_box.setChecked(False) # Initially collapsed
+
+        left_layout.addWidget(form_group_box)
         content_layout.addWidget(left_panel, 1)
         
         self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True) 
@@ -595,10 +615,14 @@ class DocumentManager(QMainWindow):
             QMessageBox.warning(self, self.tr("Champs Requis"), self.tr("Nom client, Pays et ID Projet sont obligatoires.")); return
             
         lang_map_from_display = {
-            self.tr("Français uniquement (fr)"): ["fr"], self.tr("Arabe uniquement (ar)"): ["ar"],
-            self.tr("Turc uniquement (tr)"): ["tr"], self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]
+            self.tr("English only (en)"): ["en"],
+            self.tr("French only (fr)"): ["fr"],
+            self.tr("Arabic only (ar)"): ["ar"],
+            self.tr("Turkish only (tr)"): ["tr"],
+            self.tr("Portuguese only (pt)"): ["pt"],
+            self.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
         }
-        selected_langs_list = lang_map_from_display.get(lang_option_text, ["fr"])
+        selected_langs_list = lang_map_from_display.get(lang_option_text, ["en"]) # Default to "en" if somehow not found
         
         folder_name_str = f"{client_name_val}_{country_name_for_folder}_{project_identifier_val}".replace(" ", "_").replace("/", "-")
         base_folder_full_path = os.path.join(self.config["clients_dir"], folder_name_str) 

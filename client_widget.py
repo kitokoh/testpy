@@ -78,13 +78,21 @@ class ClientWidget(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
+        # --- Collapsible Client Info Section ---
+        self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
+        self.client_info_group_box.setCheckable(True)
+        client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
+
+        self.info_container_widget = QWidget() # Container for all info elements
+        info_container_layout = QVBoxLayout(self.info_container_widget)
+        info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
+        info_container_layout.setSpacing(10) # Adjust spacing as needed
+
         self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
-        # self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Removed inline style
-        self.header_label.setObjectName("clientHeaderLabel") # Added object name
-        layout.addWidget(self.header_label)
+        self.header_label.setObjectName("clientHeaderLabel")
+        info_container_layout.addWidget(self.header_label)
 
         action_layout = QHBoxLayout()
-        # Repurpose create_docs_btn to Envoyer Mail
         self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
         self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using bell.svg as fallback
         self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
@@ -107,29 +115,37 @@ class ClientWidget(QWidget):
         self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
         self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
         self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
-        action_layout.addWidget(self.edit_save_client_btn) # Add the new button to the layout
-        layout.addLayout(action_layout)
+        action_layout.addWidget(self.edit_save_client_btn)
+        info_container_layout.addLayout(action_layout)
 
-        # status_layout = QHBoxLayout() # Removed, status_combo is now part of details_layout
-        status_label = QLabel(self.tr("Statut:"))
-        # status_layout.addWidget(status_label)
+        # Status combo (part of details, but initialized here due to load_statuses)
         self.status_combo = QComboBox()
         self.load_statuses()
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
         self.status_combo.currentTextChanged.connect(self.update_client_status)
 
+        # Details layout (QFormLayout)
         self.details_layout = QFormLayout()
-        self.details_layout.setLabelAlignment(Qt.AlignLeft) # Changed to AlignLeft for row labels like "Localisation:"
-        self.details_layout.setSpacing(10) # Increased spacing a bit
+        self.details_layout.setLabelAlignment(Qt.AlignLeft)
+        self.details_layout.setSpacing(10)
 
-        # Initialize category labels here as they are used in populate_details_layout
+        # Initialize category labels (used in populate_details_layout)
         self.category_label = QLabel(self.tr("Catégorie:"))
         self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
 
-        self.populate_details_layout() # This will now build the entire details section including status and category
-        layout.addLayout(self.details_layout)
+        self.populate_details_layout() # Builds the details_layout
+        info_container_layout.addLayout(self.details_layout)
 
-        # Initialize notes_edit here, before it's added to a tab
+        # Add the container widget to the group box's layout
+        client_info_group_layout.addWidget(self.info_container_widget)
+
+        # Connect toggled signal and set initial state
+        self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
+        self.client_info_group_box.setChecked(True) # Initially expanded
+
+        layout.addWidget(self.client_info_group_box) # Add the group box to the main layout
+        # --- End Collapsible Client Info Section ---
+
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
         self.notes_edit.textChanged.connect(self.save_client_notes)
@@ -170,8 +186,22 @@ class ClientWidget(QWidget):
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
-        contacts_tab = QWidget(); contacts_layout = QVBoxLayout(contacts_tab)
-        self.contacts_list = QListWidget(); self.contacts_list.setAlternatingRowColors(True); self.contacts_list.itemDoubleClicked.connect(self.edit_contact); contacts_layout.addWidget(self.contacts_list)
+        contacts_tab = QWidget()
+        contacts_layout = QVBoxLayout(contacts_tab)
+        self.contacts_table = QTableWidget()
+        self.contacts_table.setColumnCount(5) # Name, Email, Phone, Position, Primary
+        self.contacts_table.setHorizontalHeaderLabels([
+            self.tr("Nom"), self.tr("Email"), self.tr("Téléphone"),
+            self.tr("Position"), self.tr("Principal")
+        ])
+        self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive) # Example for specific column
+        self.contacts_table.setAlternatingRowColors(True)
+        self.contacts_table.cellDoubleClicked.connect(self.edit_contact) # row, column are passed
+        contacts_layout.addWidget(self.contacts_table)
+
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
         self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
@@ -211,38 +241,43 @@ class ClientWidget(QWidget):
         self.populate_doc_table(); self.load_contacts(); self.load_products()
 
     def add_document(self):
+        # Define available languages
+        available_languages = ["en", "fr", "ar", "tr", "pt"]
+
+        # Ask user to select language
+        selected_doc_language, ok = QInputDialog.getItem(
+            self,
+            self.tr("Sélectionner la langue"),
+            self.tr("Langue du document:"),
+            available_languages,
+            0,
+            False
+        )
+
+        if not ok or not selected_doc_language:
+            QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée."))
+            return
+
         # Get the base path for the client's documents
-        # The initial directory for the file dialog can be the general clients_dir or user's home
-        # Using self.config which should be available.
-        initial_dir = self.config.get("clients_dir", os.path.expanduser("~")) # Fallback to home directory
+        initial_dir = self.config.get("clients_dir", os.path.expanduser("~"))
 
         selected_file_path, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Sélectionner un document"),
-            initial_dir, # Use a sensible default directory
+            initial_dir,
             self.tr("Tous les fichiers (*.*)")
         )
 
-        if selected_file_path: # Proceed if a file was selected
+        if selected_file_path:
             try:
-                # Determine the target directory
-                # Use the first language from selected_languages, default to 'fr'
-                client_languages = self.client_info.get("selected_languages", ["fr"])
-                if isinstance(client_languages, str): # If it's a comma-separated string
-                    client_languages = [lang.strip() for lang in client_languages.split(',') if lang.strip()]
+                # Determine the target directory using the selected language
+                target_dir = os.path.join(self.client_info["base_folder_path"], selected_doc_language)
 
-                target_lang_folder = client_languages[0] if client_languages else "fr"
-
-                target_dir = os.path.join(self.client_info["base_folder_path"], target_lang_folder)
-
-                # Create the target directory if it doesn't exist
                 os.makedirs(target_dir, exist_ok=True)
 
-                # Construct the target file path
                 file_name = os.path.basename(selected_file_path)
                 target_file_path = os.path.join(target_dir, file_name)
 
-                # Check if file already exists
                 if os.path.exists(target_file_path):
                     reply = QMessageBox.question(
                         self,
@@ -253,18 +288,47 @@ class ClientWidget(QWidget):
                     )
                     if reply == QMessageBox.No:
                         QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée."))
-                        return # User chose not to replace
+                        return
 
-                # Copy the selected file
                 shutil.copy(selected_file_path, target_file_path)
 
-                # Refresh the document table
+                # Update client's selected languages if necessary
+                current_selected_languages = self.client_info.get("selected_languages", [])
+                # Ensure it's a list, as it might be a comma-separated string from DB
+                if isinstance(current_selected_languages, str):
+                    current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+
+                if not current_selected_languages: # Handle empty or None case
+                    current_selected_languages = []
+
+                if selected_doc_language not in current_selected_languages:
+                    add_lang_reply = QMessageBox.question(
+                        self,
+                        self.tr("Ajouter Langue"),
+                        self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    if add_lang_reply == QMessageBox.Yes:
+                        updated_languages_list = current_selected_languages + [selected_doc_language]
+                        updated_languages_str = ",".join(updated_languages_list)
+
+                        client_id_to_update = self.client_info.get("client_id")
+                        if client_id_to_update:
+                            if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
+                                self.client_info["selected_languages"] = updated_languages_list # Update local info
+                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                            else:
+                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
+                        else:
+                            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
+
                 self.populate_doc_table()
 
                 QMessageBox.information(
                     self,
                     self.tr("Succès"),
-                    self.tr("Document '{0}' ajouté avec succès.").format(file_name)
+                    self.tr("Document '{0}' ajouté avec succès en langue '{1}'.").format(file_name, selected_doc_language)
                 )
             except Exception as e:
                 QMessageBox.warning(
@@ -365,6 +429,10 @@ class ClientWidget(QWidget):
 
     def refresh_display(self, new_client_info):
         self.client_info = new_client_info
+        # Update GroupBox title if it includes client name
+        if hasattr(self, 'client_info_group_box'):
+            self.client_info_group_box.setTitle(self.client_info.get('client_name', self.tr("Client Information")))
+
         self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
 
         # Repopulate the details section with the new client_info
@@ -512,16 +580,35 @@ class ClientWidget(QWidget):
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:\n{0}").format(str(e)))
 
     def load_contacts(self):
-        self.contacts_list.clear(); client_uuid = self.client_info.get("client_id");
+        self.contacts_table.setRowCount(0) # Clear table
+        client_uuid = self.client_info.get("client_id")
         if not client_uuid: return
         try:
-            contacts = db_manager.get_contacts_for_client(client_uuid); contacts = contacts if contacts else []
-            for contact in contacts:
-                contact_text = f"{contact.get('name', 'N/A')}"
-                if contact.get('phone'): contact_text += f" ({contact.get('phone')})"
-                if contact.get('is_primary_for_client'): contact_text += f" [{self.tr('Principal')}]"
-                item = QListWidgetItem(contact_text); item.setData(Qt.UserRole, {'contact_id': contact.get('contact_id'), 'client_contact_id': contact.get('client_contact_id'), 'is_primary': contact.get('is_primary_for_client')}); self.contacts_list.addItem(item)
-        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
+            contacts = db_manager.get_contacts_for_client(client_uuid)
+            contacts = contacts if contacts else []
+            for row, contact in enumerate(contacts):
+                self.contacts_table.insertRow(row)
+
+                name_item = QTableWidgetItem(contact.get('name', 'N/A'))
+                # Store IDs in the first column's item for retrieval
+                name_item.setData(Qt.UserRole, {
+                    'contact_id': contact.get('contact_id'),
+                    'client_contact_id': contact.get('client_contact_id')
+                })
+                self.contacts_table.setItem(row, 0, name_item)
+
+                self.contacts_table.setItem(row, 1, QTableWidgetItem(contact.get('email', '')))
+                self.contacts_table.setItem(row, 2, QTableWidgetItem(contact.get('phone', '')))
+                self.contacts_table.setItem(row, 3, QTableWidgetItem(contact.get('position', '')))
+
+                primary_text = self.tr("Oui") if contact.get('is_primary_for_client') else self.tr("Non")
+                primary_item = QTableWidgetItem(primary_text)
+                # Optional: Center align this column
+                primary_item.setTextAlignment(Qt.AlignCenter)
+                self.contacts_table.setItem(row, 4, primary_item)
+
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
 
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
@@ -534,24 +621,62 @@ class ClientWidget(QWidget):
                 self.load_contacts() # Ensure this is called after DB operations
             except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
 
-    def edit_contact(self):
-        item = self.contacts_list.currentItem();
-        if not item: return
-        # ... (logic for editing contact remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du contact:\n{0}").format(str(e)))
+    def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
+        current_row = self.contacts_table.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
+            return
 
+        name_item = self.contacts_table.item(current_row, 0)
+        if not name_item: return # Should not happen if row is valid
+
+        item_data = name_item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id')
+        # client_contact_id is also available if needed for specific link properties
+        # client_contact_id = item_data.get('client_contact_id')
+
+        if not contact_id:
+            QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de contact non trouvé pour la ligne sélectionnée."))
+            return
+
+        client_uuid = self.client_info.get("client_id") # For the dialog's context
+        dialog = self.ContactDialog(client_id=client_uuid, contact_id_to_edit=contact_id, parent=self)
+
+        if dialog.exec_() == QDialog.Accepted:
+            # ContactDialog's accept method now handles DB update and linking.
+            self.load_contacts() # Refresh the table
 
     def remove_contact(self):
-        item = self.contacts_list.currentItem();
-        if not item: return
-        # ... (logic for removing contact link remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+        current_row = self.contacts_table.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à supprimer."))
+            return
+
+        name_item = self.contacts_table.item(current_row, 0)
+        if not name_item: return
+
+        item_data = name_item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id') # Global contact ID
+        client_contact_id = item_data.get('client_contact_id') # Link ID
+
+        contact_name = name_item.text()
+
+        if not client_contact_id: # Should have this to remove the link
+            QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de lien contact-client non trouvé."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer le lien vers le contact '{0}' pour ce client?").format(contact_name),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                if db_manager.unlink_contact_from_client(client_contact_id):
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Lien vers le contact '{0}' supprimé avec succès.").format(contact_name))
+                    self.load_contacts() # Refresh table
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression du lien vers le contact."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
