@@ -922,7 +922,8 @@ class SendEmailDialog(QDialog):
         try:
             all_templates_for_lang = []
             for template_type in self.email_template_types:
-                templates = db_manager.get_templates_by_type_and_language(
+                # Corrected function call: get_templates_by_type
+                templates = db_manager.get_templates_by_type(
                     template_type=template_type,
                     language_code=language_code
                 )
