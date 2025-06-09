@@ -330,10 +330,14 @@ class ProductDialog(QDialog):
         if current_lang_code==self.tr("All"):current_lang_code="fr"
         name_item.setData(Qt.UserRole+1,current_lang_code);self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
         self.name_input.clear();self.description_input.clear();self.quantity_input.setValue(0.0);self.unit_price_input.setValue(0.0);self._update_current_line_total_preview();self._update_overall_total();self.name_input.setFocus()
-    def _remove_selected_line_from_table(self):selected_rows=self.products_table.selectionModel().selectedRows();
-    if not selected_rows:QMessageBox.information(self,self.tr("Aucune Sélection"),self.tr("Veuillez sélectionner une ligne à supprimer."));return
-    for index in sorted(selected_rows,reverse=True):self.products_table.removeRow(index.row())
-    self._update_overall_total()
+    def _remove_selected_line_from_table(self):
+        selected_rows = self.products_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.information(self, self.tr("Aucune Sélection"), self.tr("Veuillez sélectionner une ligne à supprimer."))
+            return
+        for index in sorted(selected_rows, reverse=True):
+            self.products_table.removeRow(index.row())
+        self._update_overall_total()
     def _update_overall_total(self):
         total_sum=0.0
         for row in range(self.products_table.rowCount()):
