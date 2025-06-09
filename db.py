@@ -3,7 +3,10 @@ import uuid
 import hashlib
 from datetime import datetime
 import json
-import os # Added os import
+import os
+import shutil # For file operations if needed
+import docx # For reading .docx files
+from app_config import CONFIG # For accessing templates_dir
 
 # Global variable for the database name
 DATABASE_NAME = "app_data.db"
@@ -484,6 +487,23 @@ def initialize_database():
 
         # Decide if this is fatal or if migration can proceed without a fallback ID
         # For now, migration will use None if this fails, which _get_or_create_category_id handles.
+
+    # Ensure "Modèles Email" category exists
+    try:
+        email_category_name = "Modèles Email"
+        email_category_description = "Modèles pour les corps des emails et sujets."
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (email_category_name,))
+        email_cat_row = cursor.fetchone()
+        if not email_cat_row:
+            cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                           (email_category_name, email_category_description))
+            conn.commit() # Commit this change immediately
+            print(f"Created '{email_category_name}' category.")
+        else:
+            print(f"'{email_category_name}' category already exists.")
+    except sqlite3.Error as e_cat_email_init:
+        print(f"Error ensuring '{email_category_name}' category: {e_cat_email_init}")
+
 
     # Check if Templates table needs migration
     cursor.execute("PRAGMA table_info(Templates)")
@@ -4890,6 +4910,344 @@ def get_templates_by_category_id(category_id: int) -> list[dict]:
     finally:
         if conn:
             conn.close()
+
+# --- Email Body Template Specific Functions ---
+
+def add_email_body_template(
+    name: str,
+    template_type: str, # e.g., 'email_body_html', 'email_body_text'
+    language_code: str,
+    base_file_name: str,
+    description: str = None,
+    email_subject_template: str = None,
+    email_variables_info: str = None,
+    created_by_user_id: str = None
+) -> int | None:
+    """
+    Adds an email body template record to the Templates table, associating it
+    with the "Modèles Email" category.
+    Returns the template_id if successful, otherwise None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Get "Modèles Email" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Modèles Email",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Modèles Email' category not found. Cannot add email body template.")
+            return None
+        email_category_id = category_row['category_id']
+
+        template_data = {
+            'template_name': name,
+            'template_type': template_type, # Specific type like 'email_body_html'
+            'description': description,
+            'base_file_name': base_file_name,
+            'language_code': language_code,
+            'is_default_for_type_lang': False, # Email templates are usually not "default" in the same way as docs
+            'category_id': email_category_id,
+            'email_subject_template': email_subject_template,
+            'email_variables_info': email_variables_info, # JSON string or text describing placeholder variables
+            'created_by_user_id': created_by_user_id
+            # 'raw_template_file_data': None, # Not storing file content directly in DB for these
+            # 'version': '1.0' # Optional: could add versioning later
+        }
+        # Call the generic add_template function
+        return add_template(template_data)
+    except sqlite3.Error as e:
+        print(f"Database error in add_email_body_template: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_email_body_templates(language_code: str, template_type_filter: str = None) -> list[dict]:
+    """
+    Retrieves email body templates for a specific language, optionally filtered by template_type.
+    Fetches templates belonging to the "Modèles Email" category.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get "Modèles Email" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Modèles Email",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Modèles Email' category not found. Cannot retrieve email body templates.")
+            return []
+        email_category_id = category_row['category_id']
+
+        sql = """
+            SELECT template_id, template_name, template_type, base_file_name,
+                   language_code, description, email_subject_template, email_variables_info,
+                   created_at, updated_at, created_by_user_id
+            FROM Templates
+            WHERE category_id = ? AND language_code = ?
+        """
+        params = [email_category_id, language_code]
+
+        if template_type_filter:
+            sql += " AND template_type = ?"
+            params.append(template_type_filter)
+
+        sql += " ORDER BY template_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_email_body_templates: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+# --- Utility Document Template Specific Functions ---
+
+def add_utility_document_template(
+    name: str,
+    language_code: str,
+    base_file_name: str,
+    description: str = None,
+    # template_type is derived internally from base_file_name's extension
+    created_by_user_id: str = None
+) -> int | None:
+    """
+    Adds a utility document template record to the Templates table,
+    associating it with the "Documents Utilitaires" category.
+    template_type is derived from base_file_name's extension.
+    Returns the template_id if successful, otherwise None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Get "Documents Utilitaires" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Documents Utilitaires",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Documents Utilitaires' category not found. Attempting to create.")
+            # Attempt to create it if it's missing (should have been created by initialize_database)
+            util_category_id = add_template_category("Documents Utilitaires", "Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)")
+            if not util_category_id:
+                print("Critical Error: Could not create 'Documents Utilitaires' category.")
+                return None
+        else:
+            util_category_id = category_row['category_id']
+
+        # Determine template_type from file extension
+        file_ext = os.path.splitext(base_file_name)[1].lower()
+        # Example template_types: 'utility_document_pdf', 'utility_document_docx', 'utility_document_xlsx'
+        template_type = f"utility_document_{file_ext.replace('.', '')}" if file_ext else "utility_document_generic"
+
+        template_data = {
+            'template_name': name,
+            'template_type': template_type,
+            'description': description,
+            'base_file_name': base_file_name,
+            'language_code': language_code,
+            'is_default_for_type_lang': False,
+            'category_id': util_category_id,
+            'created_by_user_id': created_by_user_id
+        }
+        return add_template(template_data) # Uses the generic add_template function
+    except sqlite3.Error as e:
+        print(f"Database error in add_utility_document_template: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_utility_documents(language_code: str = None) -> list[dict]:
+    """
+    Retrieves utility documents, optionally filtered by language_code.
+    Fetches templates belonging to the "Documents Utilitaires" category.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Documents Utilitaires",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Documents Utilitaires' category not found.")
+            return []
+        util_category_id = category_row['category_id']
+
+        # Build query based on whether language_code is provided
+        sql = "SELECT * FROM Templates WHERE category_id = ?"
+        params = [util_category_id]
+
+        if language_code:
+            sql += " AND language_code = ?"
+            params.append(language_code)
+
+        sql += " ORDER BY template_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    except sqlite3.Error as e:
+        print(f"Database error in get_utility_documents: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+# --- General Document File Operations (for Utility Docs, Email Templates etc.) ---
+
+def save_general_document_file(
+    source_file_path: str,
+    document_type_subfolder: str, # e.g., "email_bodies", "utility_documents"
+    language_code: str,
+    target_base_name: str
+) -> str | None:
+    """
+    Saves a document file to a structured path under the main templates directory.
+    Path: CONFIG["templates_dir"] / document_type_subfolder / language_code / target_base_name
+    Returns the full path of the saved file if successful, None otherwise.
+    """
+    if not all([source_file_path, document_type_subfolder, language_code, target_base_name]):
+        print("Error: Missing one or more required parameters for saving general document file.")
+        return None
+
+    try:
+        templates_base_dir = CONFIG.get("templates_dir", "templates") # Default if not in CONFIG
+        # Ensure language_code is a string, as it's used in path construction
+        if not isinstance(language_code, str):
+            print(f"Warning: language_code '{language_code}' is not a string. Converting.")
+            language_code = str(language_code)
+
+        target_dir = os.path.join(templates_base_dir, document_type_subfolder, language_code)
+
+        os.makedirs(target_dir, exist_ok=True)
+
+        final_target_path = os.path.join(target_dir, target_base_name)
+
+        shutil.copy(source_file_path, final_target_path)
+
+        print(f"Document file saved successfully to: {final_target_path}")
+        return final_target_path
+
+    except FileNotFoundError:
+        print(f"Error: Source file not found at {source_file_path}")
+        return None
+    except Exception as e:
+        print(f"Error saving document file '{target_base_name}' to '{target_dir}': {str(e)}")
+        return None
+
+def delete_general_document_file(
+    document_type_subfolder: str,
+    language_code: str,
+    base_file_name: str
+) -> bool:
+    """
+    Deletes a general document file from the structured path.
+    Returns True if successful or if file was already deleted, False on error.
+    """
+    if not all([document_type_subfolder, language_code, base_file_name]):
+        print("Error: Missing one or more required parameters for deleting general document file.")
+        return False
+
+    try:
+        templates_base_dir = CONFIG.get("templates_dir", "templates")
+        if not isinstance(language_code, str):
+            language_code = str(language_code)
+
+        file_path = os.path.join(templates_base_dir, document_type_subfolder, language_code, base_file_name)
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"Document file deleted successfully: {file_path}")
+            return True
+        else:
+            print(f"Document file not found (already deleted?): {file_path}")
+            return True # Consider True as the desired state (not present) is achieved
+
+    except Exception as e:
+        print(f"Error deleting document file at '{file_path}': {str(e)}")
+        return False
+
+# --- Email Body Template File Operations (Kept for direct use by email template logic if needed) ---
+# Note: save_uploaded_email_template_file can be refactored to use save_general_document_file
+# save_uploaded_email_template_file can be potentially refactored to use save_general_document_file
+# by passing "email_bodies" as document_type_subfolder.
+
+def save_uploaded_email_template_file(
+    uploaded_file_source_path: str,
+    language_code: str,
+    target_base_file_name: str
+) -> str | None:
+    """
+    Saves an email template file to the 'email_bodies' subfolder.
+    Returns the target_base_file_name if successful, None otherwise.
+    """
+    # This now acts as a specific wrapper for save_general_document_file
+    full_path = save_general_document_file(
+        source_file_path=uploaded_file_source_path,
+        document_type_subfolder="email_bodies",
+        language_code=language_code,
+        target_base_name=target_base_file_name
+    )
+    return target_base_file_name if full_path else None
+
+
+def get_email_body_template_content(template_id: int) -> str | None:
+    """
+    Retrieves the content of an email body template file.
+    Handles .html, .txt, and .docx file types based on template_type.
+    """
+    template_info = get_template_by_id(template_id)
+    if not template_info:
+        print(f"Error: Template with ID {template_id} not found.")
+        return None
+
+    base_file_name = template_info.get('base_file_name')
+    language_code = template_info.get('language_code')
+    template_type = template_info.get('template_type') # e.g., 'email_body_html', 'email_body_word'
+
+    if not all([base_file_name, language_code, template_type]):
+        print(f"Error: Template metadata incomplete for ID {template_id} (missing file name, language, or type).")
+        return None
+
+    try:
+        # Construct the path: CONFIG["templates_dir"]/email_bodies/<language_code>/<template_file_name>
+        # Ensure CONFIG is accessible, might need to import app_config or pass templates_dir
+        templates_base_dir = CONFIG.get("templates_dir", "templates") # Default if not in CONFIG
+        file_path = os.path.join(templates_base_dir, "email_bodies", language_code, base_file_name)
+
+        if not os.path.exists(file_path):
+            print(f"Error: Template file not found at {file_path}")
+            return None
+
+        content = ""
+        if template_type in ['email_body_html', 'email_body_text']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        elif template_type == 'email_body_word':
+            if base_file_name.endswith('.docx'):
+                doc = docx.Document(file_path)
+                full_text = [para.text for para in doc.paragraphs]
+                content = '\n'.join(full_text)
+            else:
+                print(f"Error: Template type is 'email_body_word' but file extension is not .docx for {base_file_name}")
+                return None
+        else:
+            print(f"Error: Unsupported template_type '{template_type}' for content retrieval.")
+            return None
+
+        return content
+
+    except FileNotFoundError:
+        print(f"Error: Template file not found for ID {template_id} at path: {file_path}")
+        return None
+    except Exception as e:
+        print(f"Error reading template content for ID {template_id}: {str(e)}")
+        return None
 
 def get_all_products_for_selection_filtered(language_code: str = None, name_pattern: str = None) -> list[dict]:
     """
