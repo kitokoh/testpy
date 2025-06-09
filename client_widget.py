@@ -683,10 +683,38 @@ class ClientWidget(QWidget):
         dialog = self.ContactDialog(client_uuid, parent=self)
         if dialog.exec_() == QDialog.Accepted:
             contact_form_data = dialog.get_data()
+            is_primary = contact_form_data.pop('is_primary_for_client', False) # Extract before sending to add_contact
+
             try:
-                # ... (logic for adding/linking contact remains the same) ...
-                self.load_contacts() # Ensure this is called after DB operations
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+                # Attempt to add contact to global Contacts table
+                # db_manager.add_contact now handles all fields present in contact_form_data
+                new_contact_id = db_manager.add_contact(contact_form_data)
+
+                if new_contact_id:
+                    # Attempt to link contact to current client
+                    link_success = db_manager.link_contact_to_client(
+                        client_id=client_uuid,
+                        contact_id=new_contact_id,
+                        is_primary=is_primary
+                        # can_receive_documents is True by default in link_contact_to_client
+                    )
+                    if link_success:
+                        QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié avec succès."))
+                        self.load_contacts() # Refresh the table
+                    else:
+                        # Link failed: Inform user. Consider if global contact should be deleted or marked.
+                        # For now, just an error. The global contact exists but is not linked to this client.
+                        QMessageBox.warning(self, self.tr("Erreur de Liaison"), self.tr("Le contact a été ajouté globalement, mais n'a pas pu être lié à ce client."))
+                        # Optionally, still load contacts if partial success should refresh something,
+                        # but typically if the full operation isn't successful, a targeted refresh or specific state update is better.
+                        # self.load_contacts()
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur d'Ajout"), self.tr("Échec de l'ajout du contact à la base de données globale."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+            # self.load_contacts() was moved inside the success path of linking.
+            # If it should always refresh regardless of linking outcome (but after global add attempt),
+            # it could be placed here, but that might be confusing if linking failed.
 
     def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
         current_row = self.contacts_table.currentRow()
@@ -728,11 +756,25 @@ class ClientWidget(QWidget):
             updated_data_from_dialog = dialog.get_data()
             is_primary_for_client_from_dialog = updated_data_from_dialog.pop('is_primary_for_client', False)
 
+            # If the additional fields group was unchecked in the dialog,
+            # get_data() would have omitted them. We need to explicitly clear them.
+            # We know the dialog instance is `dialog`. We can check `dialog.additional_fields_group.isChecked()`.
+            if not dialog.additional_fields_group.isChecked():
+                additional_fields_keys = [
+                    "givenName", "familyName", "displayName", "phone_type", "email_type",
+                    "address_formattedValue", "address_streetAddress", "address_city",
+                    "address_region", "address_postalCode", "address_country",
+                    "organization_name", "organization_title", "birthday_date"
+                ]
+                for key_to_clear in additional_fields_keys:
+                    updated_data_from_dialog[key_to_clear] = "" # Set to empty string to clear in DB
+
+
             try:
                 # Update the main contact details
                 if db_manager.update_contact(contact_id, updated_data_from_dialog):
                     # Now, update the client-specific link (is_primary_for_client)
-                    # We need the client_contact_id for this.
+
                     client_contact_id_for_update = full_contact_details.get('client_contact_id')
                     if client_contact_id_for_update is not None:
                         db_manager.update_client_contact_link(
@@ -740,6 +782,7 @@ class ClientWidget(QWidget):
                             {'is_primary_for_client': is_primary_for_client_from_dialog}
                         )
                     else:
+
                         # This case should ideally not happen if the contact is linked.
                         # If it can, then we might need to re-link or handle error.
                         print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
