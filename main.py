@@ -304,8 +304,9 @@ class StatusDelegate(QStyledItemDelegate):
         painter.restore()
 
 class DocumentManager(QMainWindow):
-    def __init__(self):
+    def __init__(self, app_root_dir): # Add app_root_dir parameter
         super().__init__()
+        self.app_root_dir = app_root_dir # Store it
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
@@ -1072,7 +1073,7 @@ class DocumentManager(QMainWindow):
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
                 self.client_tabs_widget.setCurrentIndex(i); return
                 
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, parent=self)
+        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, parent=self) # Add self.app_root_dir
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
             
@@ -2215,7 +2216,8 @@ def main():
                 print(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
     print("--- HTML Template File Creation & Registration Finished ---") # Updated print
        
-    main_window = DocumentManager() 
+    # APP_ROOT_DIR is defined globally in main.py
+    main_window = DocumentManager(APP_ROOT_DIR) # Pass APP_ROOT_DIR
     main_window.show()
     sys.exit(app.exec_())
 
