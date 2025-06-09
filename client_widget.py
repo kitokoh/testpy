@@ -72,7 +72,8 @@ class ClientWidget(QWidget):
         layout.setSpacing(15)
 
         self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
-        self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        # self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Removed inline style
+        self.header_label.setObjectName("clientHeaderLabel") # Added object name
         layout.addWidget(self.header_label)
 
         action_layout = QHBoxLayout()
@@ -349,12 +350,12 @@ class ClientWidget(QWidget):
                     mod_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M')
                     self.doc_table.insertRow(row); self.doc_table.setItem(row, 0, name_item); self.doc_table.setItem(row, 1, QTableWidgetItem(file_type_str)); self.doc_table.setItem(row, 2, QTableWidgetItem(lang)); self.doc_table.setItem(row, 3, QTableWidgetItem(mod_time))
                     action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
-                    pdf_btn = QPushButton("PDF"); pdf_btn.setIcon(QIcon.fromTheme("application-pdf", QIcon("📄"))); pdf_btn.setToolTip(self.tr("Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
-                    source_btn = QPushButton("👁️"); source_btn.setIcon(QIcon.fromTheme("document-properties", QIcon("👁️"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
+                    pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+                    source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
                     if file_name.lower().endswith(('.xlsx', '.html')):
-                        edit_btn = QPushButton("✏️"); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon("✏️"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
+                        edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
                     else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
-                    delete_btn = QPushButton("🗑️"); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon("🗑️"))); delete_btn.setToolTip(self.tr("Supprimer le document")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p)); action_layout.addWidget(delete_btn)
+                    delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p)); action_layout.addWidget(delete_btn)
                     action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row, 4, action_widget); row +=1
 
     def open_create_docs_dialog(self):

@@ -37,30 +37,7 @@ class CustomNotificationBanner(QFrame):
         self.setFrameShape(QFrame.StyledPanel) # or QFrame.Box, QFrame.Panel
         self.setObjectName("customNotificationBanner")
 
-        # Initial styling - can be refined via main app stylesheet or here
-        self.setStyleSheet("""
-            #customNotificationBanner {
-                background-color: #333333;
-                color: white;
-                border-radius: 5px;
-                padding: 10px;
-            }
-            #customNotificationBanner QLabel {
-                color: white;
-                font-size: 10pt;
-            }
-            #customNotificationBanner QPushButton {
-                color: white;
-                background-color: #555555;
-                border: 1px solid #666666;
-                border-radius: 3px;
-                padding: 5px 8px;
-                font-size: 9pt;
-            }
-            #customNotificationBanner QPushButton:hover {
-                background-color: #666666;
-            }
-        """)
+        # Initial styling - MOVED to style.qss
 
         self.setFixedHeight(50)
         self.setFixedWidth(350)
@@ -69,25 +46,19 @@ class CustomNotificationBanner(QFrame):
         layout.setContentsMargins(5, 5, 5, 5) # Adjust margins as needed
 
         self.icon_label = QLabel("ℹ️") # Default icon
+        self.icon_label.setObjectName("notificationIconLabel")
         self.icon_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
         self.message_label = QLabel("Notification message will appear here.")
+        self.message_label.setObjectName("notificationMessageLabel")
         self.message_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.message_label.setWordWrap(True)
 
         self.close_button = QPushButton("X")
+        self.close_button.setObjectName("notificationCloseButton")
         self.close_button.setToolTip("Close")
         self.close_button.setFixedSize(25, 25) # Small fixed size for 'X' button
-        self.close_button.setStyleSheet("""
-            QPushButton {
-                font-weight: bold;
-                background-color: transparent;
-                border: none;
-                color: white;
-                font-size: 12pt;
-            }
-            QPushButton:hover { background-color: #c0392b; }
-        """)
+        # Stylesheet MOVED to style.qss
         self.close_button.clicked.connect(self.hide)
 
         layout.addWidget(self.icon_label)
@@ -240,7 +211,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # self.setStyleSheet(""" ... """) # Removed
 
         self._main_layout = QVBoxLayout(self) # Set layout directly on QWidget
-        self._main_layout.setContentsMargins(0, 0, 0, 0)
+        self._main_layout.setContentsMargins(0,0,0,0)
         self._main_layout.setSpacing(0)
 
         self.init_ui() # Initialize UI components
@@ -726,21 +697,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table = QTableWidget()
         self.projects_table.setColumnCount(8)
         self.projects_table.setHorizontalHeaderLabels(["Name", "Status", "Progress", "Priority", "Deadline", "Budget", "Manager", "Actions"])
-        # QProgressBar styling is specific and needs to remain if not covered globally.
+        # QProgressBar styling is now handled by the global style.qss: QTableWidget QProgressBar
         # Global QTableWidget and QHeaderView styles will apply.
-        self.projects_table.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                text-align: center;
-                height: 18px;
-                font-size: 9pt;
-            }
-            QProgressBar::chunk {
-                background-color: #007bff; /* Primary accent */
-                border-radius: 3px;
-            }
-        """)
+        # Removed inline self.projects_table.setStyleSheet(...)
         self.projects_table.verticalHeader().setVisible(False)
         self.projects_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.projects_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -1014,52 +973,36 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         dialog = QDialog(self)
         dialog.setWindowTitle("Login")
         dialog.setFixedSize(350, 250)
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #333333;
-            }
-            QLineEdit {
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-            QPushButton {
-                padding: 8px 15px;
-                border-radius: 4px;
-            }
-            QPushButton#login_btn {
-                background-color: #3498db;
-                color: white;
-            }
-            QPushButton#login_btn:hover {
-                background-color: #2980b9;
-            }
-        """)
+        dialog.setObjectName("loginDialog") # Added object name
+        # Stylesheet removed
 
         layout = QVBoxLayout(dialog)
 
-        logo = QLabel()
-        logo.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(80, 80))
-        logo.setAlignment(Qt.AlignCenter)
+        logo_label = QLabel() # Renamed
+        logo_label.setPixmap(QIcon(":/icons/logo.svg").pixmap(80, 80)) # Use resource
+        logo_label.setAlignment(Qt.AlignCenter)
+        logo_label.setObjectName("loginLogoLabel")
+
 
         username_edit = QLineEdit()
         username_edit.setPlaceholderText("Username")
+        username_edit.setObjectName("loginUsernameEdit")
+
 
         password_edit = QLineEdit()
         password_edit.setPlaceholderText("Password")
         password_edit.setEchoMode(QLineEdit.Password)
+        password_edit.setObjectName("loginPasswordEdit")
+
 
         login_btn = QPushButton("Login")
-        login_btn.setObjectName("primaryButton")
+        login_btn.setObjectName("loginDialogButton") # More specific name
         login_btn.clicked.connect(lambda: self.handle_login(username_edit.text(), password_edit.text(), dialog))
 
-        layout.addWidget(logo)
-        layout.addWidget(QLabel("Username:"))
+        layout.addWidget(logo_label)
+        layout.addWidget(QLabel("Username:")) # General QLabel style applies
         layout.addWidget(username_edit)
-        layout.addWidget(QLabel("Password:"))
+        layout.addWidget(QLabel("Password:")) # General QLabel style applies
         layout.addWidget(password_edit)
         layout.addItem(QSpacerItem(20, 20))
         layout.addWidget(login_btn)
@@ -1188,28 +1131,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             unit = kpi_dict.get('unit', '')
 
             frame = QFrame()
-            frame.setStyleSheet("""
-                QFrame {
-                    background-color: white;
-                    border-radius: 5px;
-                    padding: 15px;
-                    border: 1px solid #e0e0e0;
-                }
-                QLabel {
-                    font-size: 14px;
-                    color: #555555;
-                }
-                QLabel#kpi_title {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #2c3e50;
-                }
-                QLabel#kpi_value {
-                    font-size: 28px;
-                    font-weight: bold;
-                    color: #007bff; /* Updated to new primary accent blue */
-                }
-            """)
+            frame.setObjectName("kpiFrame") # Added object name
+            # Removed inline stylesheet, will be moved to style.qss
             frame.setFixedWidth(220)
 
             frame_layout = QVBoxLayout(frame)
@@ -1225,14 +1148,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             trend_icon_label = QLabel()
             if trend == "up":
-                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
+                trend_icon_label.setPixmap(QIcon(":/icons/trend_up.svg").pixmap(16, 16))
             elif trend == "down":
-                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
+                trend_icon_label.setPixmap(QIcon(":/icons/trend_down.svg").pixmap(16, 16))
             else: # "stable" or other
-                trend_icon_label.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
+                trend_icon_label.setPixmap(QIcon(":/icons/trend_stable.svg").pixmap(16, 16))
 
             trend_layout = QHBoxLayout()
-            trend_layout.addWidget(QLabel("Trend:"))
+            trend_layout.addWidget(QLabel(self.tr("Trend:"))) # Added self.tr for "Trend:"
             trend_layout.addWidget(trend_icon_label)
             trend_layout.addStretch()
 
@@ -1366,10 +1289,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             progress_bar.setValue(progress if progress is not None else 0)
             progress_bar.setAlignment(Qt.AlignCenter)
             progress_bar.setFormat(f"{progress if progress is not None else 0}%")
-            progress_bar.setStyleSheet("""
-                QProgressBar { border: 1px solid #bdc3c7; border-radius: 5px; text-align: center; height: 20px; }
-                QProgressBar::chunk { background-color: #3498db; border-radius: 4px; }
-            """)
+            # Removed inline progress_bar.setStyleSheet(...). Will use global QTableWidget QProgressBar style.
             progress_layout.addWidget(progress_bar)
             self.projects_table.setCellWidget(row_idx, 2, progress_widget)
 
@@ -1410,22 +1330,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             action_layout.setContentsMargins(0,0,0,0)
             action_layout.setSpacing(5)
 
-            details_btn = QPushButton("ℹ️")
+            details_btn = QPushButton(""); details_btn.setIcon(QIcon.fromTheme("dialog-information", QIcon(":/icons/eye.svg")))
             details_btn.setToolTip("Details")
             details_btn.setFixedSize(30,30)
-            details_btn.setStyleSheet(self.get_table_action_button_style())
+            details_btn.setObjectName("tableActionButton")
             details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_project_details(p_id))
 
-            edit_btn = QPushButton("✏️")
+            edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet(self.get_table_action_button_style())
+            edit_btn.setObjectName("tableActionButton")
             edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_project(p_id))
 
-            delete_btn = QPushButton("🗑️")
+            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg")))
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
-            delete_btn.setStyleSheet(self.get_table_action_button_style())
+            delete_btn.setObjectName("dangerButtonTable") # Specific for potential red color
             delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_project(p_id))
 
             action_layout.addWidget(details_btn)
@@ -1472,10 +1392,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             action_layout.setContentsMargins(0,0,0,0)
             action_layout.setSpacing(5)
 
-            edit_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
+            edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
             edit_btn.setToolTip("Edit User Access")
             edit_btn.setFixedSize(30,30)
-            edit_btn.setStyleSheet(self.get_table_action_button_style())
+            edit_btn.setObjectName("tableActionButton")
             edit_btn.clicked.connect(lambda _, u_id=user_id_str: self.edit_user_access(u_id))
 
             action_layout.addWidget(edit_btn)
@@ -3309,7 +3229,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
     def resizeEvent(self, event):
         super().resizeEvent(event) # Call parent's resizeEvent
-        if hasattr(self, 'notification_manager') and self.notification_manager.notification_banner.isVisible():
+        if hasattr(self, 'notification_manager') and hasattr(self.notification_manager, 'notification_banner') and self.notification_manager.notification_banner.isVisible():
             # Recalculate and move the banner to keep it in the top-right
             banner = self.notification_manager.notification_banner
             x = self.width() - banner.width() - 10
@@ -3323,8 +3243,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     #         self.log_activity(f"Application closed by {self.current_user['full_name']}")
     #     event.accept()
 
-    def get_table_action_button_style(self):
-        return "background-color: transparent; border: none; font-size: 16px;"
+    # Helper style methods removed as styles are now in QSS
+    # def get_table_action_button_style(self):
+    # def get_generic_input_style(self):
+    # def get_primary_button_style(self):
+    # def get_secondary_button_style(self):
+    # def get_danger_button_style(self):
+    # def get_table_style(self):
+    # def get_page_title_style(self):
 
     def setup_cover_page_management_page(self):
         page = QWidget()
@@ -3334,15 +3260,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Header
         title_label = QLabel("Cover Page Management")
-        # title_label.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
-        title_label.setObjectName("pageTitleLabel")
+        title_label.setObjectName("pageTitleLabel") # Style via QSS
         layout.addWidget(title_label)
 
         # Client Selection Area
         client_selection_layout = QHBoxLayout()
-        client_selection_layout.addWidget(QLabel("Select Client:"))
+        client_selection_layout.addWidget(QLabel("Select Client:")) # General QLabel style applies
         self.cp_client_combo = QComboBox()
-        self.cp_client_combo.setStyleSheet(self.get_generic_input_style()) # Use general style
+        self.cp_client_combo.setObjectName("coverPageClientCombo") # Specific styling if needed
         self.cp_client_combo.setMinimumWidth(250)
         self.cp_client_combo.currentIndexChanged.connect(self.load_cover_pages_for_selected_client)
         client_selection_layout.addWidget(self.cp_client_combo)
@@ -3463,15 +3388,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     self.cp_table.setItem(row, 2, QTableWidgetItem(cp_data.get('updated_at', 'N/A')))
 
                     # Actions column
-                    edit_action_btn = QPushButton("✏️") # Already an emoji, ensure it's just text
+                    edit_action_btn = QPushButton(""); edit_action_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
                     edit_action_btn.setToolTip("Edit Cover Page")
-                    edit_action_btn.setStyleSheet(self.get_table_action_button_style())
+                    edit_action_btn.setObjectName("tableActionButton")
                     # Use a partial or a helper to capture current cp_data for the lambda
                     edit_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.edit_selected_cover_page_dialog(row_data=r_data))
 
-                    delete_action_btn = QPushButton("🗑️") # Already an emoji, ensure it's just text
+                    delete_action_btn = QPushButton(""); delete_action_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg")))
                     delete_action_btn.setToolTip("Delete Cover Page")
-                    delete_action_btn.setStyleSheet(self.get_table_action_button_style())
+                    delete_action_btn.setObjectName("dangerButtonTable")
                     delete_action_btn.clicked.connect(lambda checked=False, r_data=cp_data: self.delete_selected_cover_page(row_data=r_data))
 
                     action_widget = QWidget()
@@ -3695,26 +3620,8 @@ class CoverPageEditorDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
 
-        # Consistent styling for inputs within the dialog
-        dialog_input_style = """
-            QLineEdit, QComboBox, QDateEdit, QTextEdit {
-                padding: 8px 10px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-                min-height: 20px;
-            }
-            QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {
-                border-color: #80bdff; /* Highlight focus */
-            }
-            QComboBox::drop-down {
-                subcontrol-origin: padding; subcontrol-position: top right; width: 20px;
-                border-left-width: 1px; border-left-color: #ced4da; border-left-style: solid;
-                border-top-right-radius: 3px; border-bottom-right-radius: 3px;
-            }
-            /* QComboBox::down-arrow styling might be needed if default is not good */
-        """
-        self.setStyleSheet(dialog_input_style) # Apply to the whole dialog
+        # Consistent styling for inputs within the dialog - MOVED to global QSS
+        # self.setStyleSheet(dialog_input_style) # Apply to the whole dialog
 
         form_layout = QFormLayout()
         form_layout.setLabelAlignment(Qt.AlignRight)
@@ -3761,15 +3668,17 @@ class CoverPageEditorDialog(QDialog):
         self.logo_preview_label = QLabel("No logo selected.")
         self.logo_preview_label.setFixedSize(150,150) # Slightly larger preview
         self.logo_preview_label.setAlignment(Qt.AlignCenter)
-        self.logo_preview_label.setStyleSheet("border: 1px dashed #ccc;")
+        self.logo_preview_label.setStyleSheet("border: 1px dashed #ccc;") # Keeping this specific one for now
         self.update_logo_preview()
 
         browse_logo_btn = QPushButton("Browse...")
-        browse_logo_btn.setStyleSheet(parent.get_secondary_button_style() if parent else "") # Apply style
+        browse_logo_btn.setObjectName("secondaryButton") # Use object name
+        browse_logo_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg")))
         browse_logo_btn.clicked.connect(self.browse_logo)
 
         clear_logo_btn = QPushButton("Clear Logo")
-        clear_logo_btn.setStyleSheet(parent.get_danger_button_style() if parent else "") # Apply style
+        clear_logo_btn.setObjectName("dangerButton") # Use object name
+        clear_logo_btn.setIcon(QIcon.fromTheme("edit-clear", QIcon(":/icons/trash.svg")))
         clear_logo_btn.clicked.connect(self.clear_logo)
 
         logo_btn_layout = QVBoxLayout()

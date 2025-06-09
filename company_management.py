@@ -78,8 +78,10 @@ class CompanyDialog(QDialog):
         self.logo_preview_label = QLabel(self.tr("No logo selected."))
         self.logo_preview_label.setFixedSize(DEFAULT_LOGO_SIZE, DEFAULT_LOGO_SIZE)
         self.logo_preview_label.setAlignment(Qt.AlignCenter)
-        self.logo_preview_label.setStyleSheet("border: 1px solid #ccc;")
+        # self.logo_preview_label.setStyleSheet("border: 1px solid #ccc;") # Moved to QSS
+        self.logo_preview_label.setObjectName("logoPreviewLabel")
         self.upload_logo_button = QPushButton(self.tr("Upload Logo"))
+        self.upload_logo_button.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))) # Example icon
         self.upload_logo_button.clicked.connect(self.handle_upload_logo)
 
         layout.addRow(self.tr("Company Name:"), self.company_name_edit)
@@ -301,7 +303,8 @@ class CompanyDetailsViewWidget(QWidget):
         self.logo_display = QLabel()
         self.logo_display.setFixedSize(DEFAULT_LOGO_SIZE + 20, DEFAULT_LOGO_SIZE + 20) # Slightly larger for padding
         self.logo_display.setAlignment(Qt.AlignCenter)
-        self.logo_display.setStyleSheet("border: 1px solid #ddd; padding: 5px;")
+        # self.logo_display.setStyleSheet("border: 1px solid #ddd; padding: 5px;") # Moved to QSS
+        self.logo_display.setObjectName("logoDisplayLabel")
 
         logo_rel_path = self.company_data.get('logo_path')
         if logo_rel_path:
@@ -354,17 +357,22 @@ class CompanyTabWidget(QWidget):
         self.company_list_widget.itemClicked.connect(self.on_company_selected) # Renamed for clarity
 
         self.add_company_button = QPushButton(self.tr("Add Company"))
+        self.add_company_button.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg")))
         self.add_company_button.clicked.connect(self.handle_add_company)
 
         self.edit_company_button = QPushButton(self.tr("Edit Company"))
+        self.edit_company_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
         self.edit_company_button.clicked.connect(self.handle_edit_company)
         self.edit_company_button.setEnabled(False)
 
         self.delete_company_button = QPushButton(self.tr("Delete Company"))
+        self.delete_company_button.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg")))
+        self.delete_company_button.setObjectName("dangerButton")
         self.delete_company_button.clicked.connect(self.handle_delete_company)
         self.delete_company_button.setEnabled(False)
 
         self.set_default_button = QPushButton(self.tr("Set as Default"))
+        self.set_default_button.setIcon(QIcon.fromTheme("object-select", QIcon(":/icons/check.svg"))) # Example, could be star
         self.set_default_button.clicked.connect(self.handle_set_default)
         self.set_default_button.setEnabled(False)
 
@@ -399,9 +407,9 @@ class CompanyTabWidget(QWidget):
         self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         sellers_layout.addWidget(self.sellers_table)
         seller_btn_layout = QHBoxLayout()
-        self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller'))
-        self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller'))
-        self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
+        self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller'))
+        self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller'))
+        self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); self.delete_seller_btn.setObjectName("dangerButton"); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
         seller_btn_layout.addWidget(self.add_seller_btn); seller_btn_layout.addWidget(self.edit_seller_btn); seller_btn_layout.addWidget(self.delete_seller_btn)
         sellers_layout.addLayout(seller_btn_layout)
         self.details_tabs.addTab(sellers_tab, self.tr("Sellers"))
@@ -416,9 +424,9 @@ class CompanyTabWidget(QWidget):
         self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         tech_managers_layout.addWidget(self.tech_managers_table)
         tech_btn_layout = QHBoxLayout()
-        self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager'))
-        self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager'))
-        self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
+        self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager'))
+        self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager'))
+        self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); self.delete_tech_btn.setObjectName("dangerButton"); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
         tech_btn_layout.addWidget(self.add_tech_btn); tech_btn_layout.addWidget(self.edit_tech_btn); tech_btn_layout.addWidget(self.delete_tech_btn)
         tech_managers_layout.addLayout(tech_btn_layout)
         self.details_tabs.addTab(tech_managers_tab, self.tr("Technical Managers"))
@@ -647,9 +655,9 @@ class CompanyTabWidget(QWidget):
             # Placeholder for action buttons in personnel table
             btn_widget = QWidget()
             btn_layout = QHBoxLayout(btn_widget)
-            edit_btn = QPushButton(self.tr("Edit"))
+            edit_btn = QPushButton(self.tr("Edit")); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
             # edit_btn.clicked.connect(lambda checked, p=personnel, t=table: self.handle_edit_personnel_from_table(p, t))
-            delete_btn = QPushButton(self.tr("Delete"))
+            delete_btn = QPushButton(self.tr("Delete")); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setObjectName("dangerButtonTable") # Different object name for specific table button styling if needed
             # delete_btn.clicked.connect(lambda checked, pid=personnel.get('personnel_id'), t=table: self.handle_delete_personnel_from_table(pid, t))
             btn_layout.addWidget(edit_btn)
             btn_layout.addWidget(delete_btn)

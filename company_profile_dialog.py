@@ -6,35 +6,17 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QObject, pyqtSignal, QCoreApplication
 
-# Mock db module for standalone execution if db.py is not available yet
-class MockDB:
-    def __init__(self):
-        self._settings = {}
-        print("Using MockDB. Database operations will be in-memory only.")
-
-    def initialize_database(self):
-        print("MockDB: Database initialized (in-memory).")
-
-    def get_setting(self, key, default=""):
-        # print(f"MockDB: Getting setting for {key}")
-        return self._settings.get(key, default)
-
-    def set_setting(self, key, value):
-        # print(f"MockDB: Setting {key} to {value}")
-        self._settings[key] = value
-
-    def close_connection(self):
-        print("MockDB: Connection closed (in-memory).")
-
 try:
-    import db
+    import db as db_manager
     # Ensure db.py has these functions, or adjust accordingly
-    if not all(hasattr(db, func_name) for func_name in ['get_setting', 'set_setting', 'initialize_database']):
-        print("db module does not have all required functions. Using MockDB.")
-        db = MockDB()
+    if not all(hasattr(db_manager, func_name) for func_name in ['get_setting', 'set_setting', 'initialize_database']):
+        raise ImportError("db module does not have all required functions.")
 except ImportError:
-    print("db module not found. Using MockDB.")
-    db = MockDB()
+    print("Critical: db_manager module not found or is missing required functions. Application may not work correctly.")
+    # Fallback or error handling can be more sophisticated here
+    # For now, let it fail if db_manager is not correctly set up.
+    # If a mock is absolutely needed for some standalone test, it should be explicitly injected.
+    sys.exit("Database module misconfiguration - exiting.") # Or raise an exception
 
 
 COMPANY_PROFILE_KEYS = [
@@ -105,7 +87,7 @@ class CompanyProfileDialog(QDialog):
 
     def load_settings(self):
         for key, widget in self.fields.items():
-            value = db.get_setting(key)
+            value = db_manager.get_setting(key)
             if isinstance(widget, QLineEdit):
                 widget.setText(value if value is not None else "")
             elif isinstance(widget, QTextEdit):
@@ -119,7 +101,7 @@ class CompanyProfileDialog(QDialog):
                     value = widget.text()
                 elif isinstance(widget, QTextEdit):
                     value = widget.toPlainText()
-                db.set_setting(key, value)
+                db_manager.set_setting(key, value)
 
             QMessageBox.information(self,
                                     self._("CompanyProfileDialog", "Success"),
@@ -152,25 +134,26 @@ if __name__ == '__main__':
 
     # Initialize database (important for settings table)
     # This might create the db file if it doesn't exist or set up tables
-    db.initialize_database()
+    db_manager.initialize_database()
 
     dialog = CompanyProfileDialog()
 
     # Example of setting a value programmatically (for testing)
-    # db.set_setting("company_legal_name", "Test Corp Ltd.")
+    # db_manager.set_setting("company_legal_name", "Test Corp Ltd.")
     # dialog.load_settings() # Reload to see the change
 
     if dialog.exec_() == QDialog.Accepted:
         print("Dialog accepted. Settings should be saved.")
         # You can retrieve and print all settings to verify
         # for key in COMPANY_PROFILE_KEYS:
-        #     print(f"{key}: {db.get_setting(key)}")
+        #     print(f"{key}: {db_manager.get_setting(key)}")
     else:
         print("Dialog cancelled.")
 
     # Proper cleanup if using a real DB connection pool or similar
-    if hasattr(db, 'close_connection'):
-        db.close_connection()
+    # db_manager itself does not have a close_connection method, connections are managed per function.
+    # if hasattr(db_manager, 'close_connection'):
+    #     db_manager.close_connection()
 
     # sys.exit(app.exec_()) # Not needed if only dialog.exec_() is used for the main loop
     # If the app should continue running after the dialog, then app.exec_() is needed.

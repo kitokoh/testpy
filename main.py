@@ -4,6 +4,7 @@ import os
 import json
 # import sqlite3 # Replaced by db_manager
 import db as db_manager
+import icons_rc # Import the compiled resources
 from db import get_default_company # Added for fetching default company
 from db import DATABASE_NAME as CENTRAL_DATABASE_NAME
 import pandas as pd
@@ -173,11 +174,21 @@ class StatisticsWidget(QWidget):
             (self.tr("Projets en Cours"), "ongoing_label", "0", None),
             (self.tr("Projets Urgents"), "urgent_label", "0", "color: #e74c3c;")
         ]
-        for title, attr_name, default_text, style in stat_items_data: 
-            group = QGroupBox(title); group_layout = QVBoxLayout(group) 
+        for title, attr_name, default_text, style_info in stat_items_data: # style renamed to style_info
+            group = QGroupBox(title); group.setObjectName("statisticsGroup")
+            group_layout = QVBoxLayout(group)
             label = QLabel(default_text) # Default text is data-like here (a number)
             label.setFont(QFont("Arial", 16, QFont.Bold)); label.setAlignment(Qt.AlignCenter)
-            if style: label.setStyleSheet(style)
+
+            if attr_name == "urgent_label":
+                label.setObjectName("urgentStatisticLabel")
+            else:
+                label.setObjectName("statisticValueLabel")
+
+            # Inline style previously applied via 'style' variable is now removed.
+            # Specific styling for urgent_label will be handled by QSS via its object name.
+            # General styling for statisticValueLabel can also be in QSS.
+
             setattr(self, attr_name, label) 
             group_layout.addWidget(label); layout.addWidget(group)
         
@@ -227,28 +238,68 @@ class StatusDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         status_name_for_delegate = index.data(Qt.UserRole) # This is the status name (text)
         bg_color_hex = "#95a5a6" # Default color
+        icon_name = None
 
         if status_name_for_delegate:
             try:
                 # Assuming status_type is 'Client' for this delegate context,
                 # as this delegate is used in the client list.
                 status_setting = db_manager.get_status_setting_by_name(status_name_for_delegate, 'Client')
-                if status_setting and status_setting.get('color_hex'):
-                    bg_color_hex = status_setting['color_hex']
+                if status_setting:
+                    if status_setting.get('color_hex'):
+                        bg_color_hex = status_setting['color_hex']
+                    if status_setting.get('icon_name'):
+                        icon_name = status_setting['icon_name']
             except Exception as e:
-                print(f"Error fetching status color for delegate: {e}")
-                # Keep default color if error
+                print(f"Error fetching status color/icon for delegate: {e}")
+                # Keep default color/no icon if error
         
         painter.save()
-        painter.fillRect(option.rect, QColor(bg_color_hex))
-        
+
+        # Draw background
         bg_qcolor = QColor(bg_color_hex)
+        if option.state & QStyle.State_Selected:
+            # If selected, use the view's selection color but perhaps blend or use a highlight border
+            # For simplicity, let's use the QSS selection color directly.
+            # The QListWidget::item:selected style in style.qss handles this.
+            # However, since we are manually painting the background, we might need to
+            # respect the selection state here or ensure QSS handles it over our paint.
+            # A common approach is to let the default paint handle selection, then paint custom content.
+            # For now, let's fill with status color, then let default selection paint over if needed.
+            # Alternatively, if we want full control:
+            painter.fillRect(option.rect, option.palette.highlight().color() if (option.state & QStyle.State_Selected) else bg_qcolor)
+        else:
+            painter.fillRect(option.rect, bg_qcolor)
+
+        # Determine text color based on background lightness
         text_qcolor = QColor(Qt.black) 
-        if bg_qcolor.lightnessF() < 0.5: 
+        # Use the effective background color for lightness check (selection or custom)
+        effective_bg_for_text = option.palette.highlight().color() if (option.state & QStyle.State_Selected) else bg_qcolor
+        if effective_bg_for_text.lightnessF() < 0.5:
             text_qcolor = QColor(Qt.white)
         painter.setPen(text_qcolor)
+        painter.setFont(option.font) # Use the font from the view/QSS
 
-        text_rect = option.rect.adjusted(5, 0, -5, 0) 
+        # Icon and Text Drawing
+        icon_size = 16 # Desired icon size
+        left_padding = 5
+        icon_text_spacing = 5
+
+        text_rect = option.rect.adjusted(left_padding, 0, -5, 0) # Initial text rect with left padding
+
+        if icon_name:
+            icon = QIcon.fromTheme(icon_name) # Try to load from theme
+            if not icon.isNull():
+                icon_y_offset = (option.rect.height() - icon_size) // 2
+                icon_rect = QRect(option.rect.left() + left_padding,
+                                  option.rect.top() + icon_y_offset,
+                                  icon_size, icon_size)
+                icon.paint(painter, icon_rect, Qt.AlignCenter,
+                           QIcon.Normal if (option.state & QStyle.State_Enabled) else QIcon.Disabled,
+                           QIcon.On if (option.state & QStyle.State_Selected) else QIcon.Off) # Respect selection state for icon
+
+                text_rect = option.rect.adjusted(left_padding + icon_size + icon_text_spacing, 0, -5, 0)
+
         painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, index.data(Qt.DisplayRole)) 
         painter.restore()
 
@@ -353,7 +404,7 @@ class DocumentManager(QMainWindow):
         self.final_price_input.setReadOnly(True) # Set to read-only
         creation_form_layout.addRow(self.tr("Prix Final:"), self.final_price_input)
         price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
-        price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;") # Optional: style the label
+        price_info_label.setObjectName("priceInfoLabel") # Used existing QSS rule
         creation_form_layout.addRow("", price_info_label) # Add info label below price input, span if needed or adjust layout
         self.language_select_combo = QComboBox() 
         self.language_select_combo.addItems([self.tr("Français uniquement (fr)"), self.tr("Arabe uniquement (ar)"), self.tr("Turc uniquement (tr)"), self.tr("Toutes les langues (fr, ar, tr)")])

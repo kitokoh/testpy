@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <polygon points="50,20 80,70 20,70" fill="#28A745"/>
+  <text x="50" y="90" font-size="15" fill="#000000" text-anchor="middle">UP</text>
+</svg>
