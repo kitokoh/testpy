@@ -772,4 +772,4 @@ class EditClientDialog(QDialog):
 
 # DIALOG CLASSES MOVED FROM MAIN.PY END HERE
 
-[end of dialogs.py]
+# [end of dialogs.py]
