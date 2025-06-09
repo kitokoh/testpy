@@ -5119,13 +5119,14 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
 def get_document_context_data(
     client_id: str,
     company_id: str, # For seller info
-    target_language_code: str,
+    target_language_code: str, # New parameter
     project_id: str = None,
-    linked_product_ids_for_doc: list[int] = None,
+    # product_ids: list[int] = None, # This might be ClientProjectProducts IDs if only specific items are part of the proforma
+    linked_product_ids_for_doc: list[int] = None, # Use this for specific ClientProjectProducts line items
     additional_context: dict = None
 ) -> dict:
     """
-    Gathers and structures data for document generation, with product language resolution
+    Gathers and structures data for document generation, with product language resolution.
     and specific handling for packing list details if provided in additional_context.
 
     """
