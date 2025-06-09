@@ -468,13 +468,20 @@ def initialize_database():
         try:
             cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)",
                            ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
-            # No need to fetch its ID for migration context here unless specifically required elsewhere
         except sqlite3.Error as e_cat_util:
             print(f"Error initializing 'Document Utilitaires' category: {e_cat_util}")
 
+            # Add "Modèles Email" category
+            try:
+                cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                               ('Modèles Email', 'Modèles pour les corps des emails'))
+            except sqlite3.Error as e_cat_email:
+                print(f"Error initializing 'Modèles Email' category: {e_cat_email}")
+
         conn.commit() # Commit category creation before potential DDL changes for Templates
     except sqlite3.Error as e_cat_init: # This specifically catches errors from the 'General' category block
-        print(f"Error initializing General category: {e_cat_init}")
+        print(f"Error initializing General category or other categories in this block: {e_cat_init}")
+
         # Decide if this is fatal or if migration can proceed without a fallback ID
         # For now, migration will use None if this fails, which _get_or_create_category_id handles.
 
@@ -1761,9 +1768,10 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
                 INSERT INTO Templates (
                     template_name, template_type, language_code, base_file_name,
                     description, category_id, is_default_for_type_lang,
+                    email_subject_template, -- Added email_subject_template
                     created_at, updated_at
                     -- created_by_user_id could be NULL or a system user ID
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) -- Added placeholder for email_subject_template
             """
             params = (
                 name,
@@ -1773,6 +1781,7 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
                 template_data.get('description', f"Default {name} template"),
                 category_id, # Use the fetched/created category_id
                 template_data.get('is_default_for_type_lang', True),
+                template_data.get('email_subject_template'), # Get email_subject_template
                 now,
                 now
             )
