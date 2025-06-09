@@ -19,56 +19,32 @@ import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 
-# Globals imported from main (temporary, to be refactored)
-MAIN_MODULE_CONTACT_DIALOG = None
-MAIN_MODULE_PRODUCT_DIALOG = None
-MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = None
-MAIN_MODULE_CREATE_DOCUMENT_DIALOG = None
-MAIN_MODULE_COMPILE_PDF_DIALOG = None
-MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
-MAIN_MODULE_CONFIG = None
-MAIN_MODULE_DATABASE_NAME = None
-MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
+# Globals imported from main are now removed. Direct imports will be used.
 
-def _import_main_elements():
-    global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
-           MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
-           MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
-
-    if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
-        import main as main_module # This is the potential circular import point
-        from dialogs import SendEmailDialog # Direct import for SendEmailDialog
-        MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
-        MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
-        MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
-        MAIN_MODULE_CREATE_DOCUMENT_DIALOG = main_module.CreateDocumentDialog
-        MAIN_MODULE_COMPILE_PDF_DIALOG = main_module.CompilePdfDialog
-        MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = main_module.generate_pdf_for_document
-        MAIN_MODULE_CONFIG = main_module.CONFIG
-        MAIN_MODULE_DATABASE_NAME = main_module.DATABASE_NAME # Used in load_statuses, save_client_notes
-        MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
-
+# Direct imports for dialogs and utilities
+from dialogs import (
+    ContactDialog, ProductDialog, EditProductLineDialog,
+    CreateDocumentDialog, CompilePdfDialog, SendEmailDialog
+)
+from utils import generate_pdf_for_document
+# CONFIG and APP_ROOT_DIR are passed to __init__
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
+    def __init__(self, client_info, config, app_root_dir, parent=None):
         super().__init__(parent)
         self.client_info = client_info
-        # self.config = config # Original config passed
-
-        # Dynamically import main elements to avoid circular import at module load time
-        _import_main_elements()
-        self.config = MAIN_MODULE_CONFIG # Use the imported config
+        self.config = config # Use the passed config directly
         self.app_root_dir = app_root_dir # Store it
-        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
+        # self.DATABASE_NAME is no longer needed if all db ops use db_manager
 
-        self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
-        self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
-        self.EditProductLineDialog = MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG
-        self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
-        self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
-        self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
-        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
+        # Dialogs are now directly imported
+        self.ContactDialog = ContactDialog
+        self.ProductDialog = ProductDialog
+        self.EditProductLineDialog = EditProductLineDialog
+        self.CreateDocumentDialog = CreateDocumentDialog
+        self.CompilePdfDialog = CompilePdfDialog
+        self.generate_pdf_for_document = generate_pdf_for_document # Function from utils
+        self.SendEmailDialog = SendEmailDialog
 
         self.is_editing_client = False
         self.edit_widgets = {}
