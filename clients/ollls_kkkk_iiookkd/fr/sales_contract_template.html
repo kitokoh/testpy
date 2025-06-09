@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>CONTRAT DE VENTE</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #000;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm; /* A4 height */
+            padding: 20mm 25mm; /* Generous margins */
+            margin: 10mm auto;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            page-break-after: always;
+            box-sizing: border-box;
+        }
+        .page:last-child {
+            page-break-after: avoid;
+        }
+        .contract-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .company-logo {
+            max-width: 150px;
+            max-height: 75px;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
+        .contract-title {
+            font-size: 22pt;
+            font-weight: bold;
+            color: #1a237e; /* Dark blue */
+            margin-bottom: 5px;
+        }
+        .contract-subtitle p {
+            font-size: 10pt;
+            color: #333;
+            margin: 2px 0;
+        }
+        .parties-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            font-size: 10pt;
+        }
+        .party-block {
+            width: 48%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .party-block h3 {
+            font-size: 12pt;
+            color: #1a237e;
+            margin-top: 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ced4da;
+            padding-bottom: 4px;
+        }
+        .party-block p {
+            margin: 4px 0;
+        }
+        .article {
+            margin-bottom: 18px;
+        }
+        .article h4 { /* Article titles */
+            font-size: 13pt;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .article p, .article ul {
+            text-align: justify;
+            margin-bottom: 8px;
+        }
+        .article ul {
+            padding-left: 25px;
+        }
+        .signatures-section {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-around;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+        }
+        .signature-block {
+            width: 45%;
+            text-align: center;
+        }
+        .signature-block p {
+            margin-bottom: 5px;
+            font-size: 10pt;
+        }
+        .signature-line {
+            display: inline-block;
+            width: 80%;
+            height: 1px;
+            background-color: #000;
+            margin-top: 40px;
+            margin-bottom: 5px;
+        }
+        .footer-contract {
+            text-align: center;
+            font-size: 9pt;
+            color: #555;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="contract-header">
+            <img src="" alt="Logo Vendeur" class="company-logo">
+            <h1 class="contract-title">CONTRAT DE VENTE</h1>
+            <div class="contract-subtitle">
+                <p>Numéro de Contrat: </p>
+                <p>Date d'''effet: </p>
+            </div>
+        </div>
+
+        <p>Entre les soussignés:</p>
+
+        <div class="parties-section">
+            <div class="party-block">
+                <h3>LE VENDEUR:</h3>
+                <p><strong></strong></p>
+                <p>Adresse: , </p>
+                <p>N° TVA: </p>
+                <p>Représentée par: , </p>
+            </div>
+            <div class="party-block">
+                <h3>L'''ACHETEUR:</h3>
+                <p><strong></strong> (Raison sociale: )</p>
+                <p>Adresse: , </p>
+                <p>N° TVA: </p>
+                <p>Représentée par: , </p>
+            </div>
+        </div>
+
+        <p>Il a été convenu ce qui suit:</p>
+
+        <div class="article">
+            <h4>Article 1: Objet du Contrat</h4>
+            <p>Le Vendeur s'''engage à vendre et l'''Acheteur s'''engage à acheter les biens (ci-après dénommés "les Marchandises") tels que décrits en détail dans l'''Annexe 1 (Spécifications Techniques et Liste des Produits), qui fait partie intégrante du présent contrat. </p>
+        </div>
+
+        <div class="article">
+            <h4>Article 2: Prix et Valeur Totale</h4>
+            <p>Les prix unitaires des Marchandises sont fixés en  et détaillés en Annexe 1. La valeur totale du présent contrat s'''élève à   ().</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 3: Conditions de Paiement</h4>
+            <p></p>
+            <p>Exemple: 30% du montant total par virement bancaire à la signature du contrat, le solde de 70% par crédit documentaire irrévocable et confirmé, payable à vue contre présentation des documents d'''expédition conformes.</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 4: Conditions de Livraison</h4>
+            <p>La livraison des Marchandises sera effectuée  () conformément aux Incoterms® 2020. La date d'''expédition estimée est le . Le Vendeur notifiera l'''Acheteur de la date d'''expédition exacte au moins  jours à l'''avance.</p>
+        </div>
+
+        <!-- PAGE BREAK APPROXIMATION for content planning -->
+        <!-- Consider if more articles push to second page naturally -->
+
+        <div class="article">
+            <h4>Article 5: Emballage et Marquage</h4>
+            <p>Les Marchandises seront emballées de manière à assurer leur protection durant le transport international maritime/aérien/terrestre et manutentions subséquentes. . Le marquage sera conforme aux instructions de l'''Acheteur ou, à défaut, aux standards d'''exportation du Vendeur.</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 6: Garantie</h4>
+            <p>Le Vendeur garantit que les Marchandises sont neuves, non utilisées, et conformes aux spécifications contractuelles pour une période de  mois à compter de . </p>
+        </div>
+    </div> <!-- End of Page 1 -->
+
+    <div class="page"> <!-- Start of Page 2 -->
+        <div class="article">
+            <h4>Article 7: Inspection</h4>
+            <p>L'''Acheteur a le droit d'''inspecter les Marchandises avant expédition. . Les frais d'''inspection par un organisme tiers désigné par l'''Acheteur sont à la charge de l'''Acheteur, sauf si les Marchandises s'''avèrent non conformes.</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 8: Réserve de Propriété</h4>
+            <p>Le Vendeur conserve la pleine propriété des Marchandises livrées jusqu'''au paiement intégral et effectif de leur prix par l'''Acheteur. En cas de non-paiement, le Vendeur pourra revendiquer les Marchandises.</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 9: Force Majeure</h4>
+            <p>Aucune des parties ne sera tenue responsable d'''un manquement à ses obligations contractuelles si ce manquement est dû à un événement de force majeure, tel que défini par la Chambre de Commerce Internationale (ICC Force Majeure Clause 2003/2020). </p>
+        </div>
+
+        <div class="article">
+            <h4>Article 10: Confidentialité</h4>
+            <p>Chaque partie s'''engage à ne pas divulguer les informations confidentielles de l'''autre partie obtenues dans le cadre de l'''exécution de ce contrat, sauf obligation légale. </p>
+        </div>
+
+        <div class="article">
+            <h4>Article 11: Loi Applicable et Règlement des Litiges</h4>
+            <p>Le présent contrat est régi et interprété conformément au droit . Tout différend découlant du présent contrat ou en relation avec celui-ci sera tranché définitivement par arbitrage conformément au règlement de  par un ou plusieurs arbitres nommés conformément audit règlement. Le lieu de l'''arbitrage sera .</p>
+        </div>
+
+        <div class="article">
+            <h4>Article 12: Dispositions Diverses</h4>
+            <p>Le présent contrat, y compris ses annexes, constitue l'''intégralité de l'''accord entre les parties. Toute modification devra faire l'''objet d'''un avenant écrit et signé par les deux parties. La nullité d'''une clause n'''affecte pas la validité des autres clauses.</p>
+        </div>
+
+        <div class="signatures-section">
+            <div class="signature-block">
+                <p><strong>Pour le Vendeur:</strong></p>
+                <p><strong></strong></p>
+                <div class="signature-line"></div>
+                <p>Nom: </p>
+                <p>Titre: </p>
+                <p>Date: ______________</p>
+            </div>
+            <div class="signature-block">
+                <p><strong>Pour l'''Acheteur:</strong></p>
+                <p><strong></strong></p>
+                <div class="signature-line"></div>
+                <p>Nom: </p>
+                <p>Titre: </p>
+                <p>Date: ______________</p>
+            </div>
+        </div>
+
+        <div class="footer-contract">
+            <p>Annexe 1: Spécifications Techniques et Liste des Produits - Fait partie intégrante de ce contrat.</p>
+            <p>Contrat de Vente N°  - Page 2/2</p>
+        </div>
+    </div> <!-- End of Page 2 -->
+</body>
+</html>

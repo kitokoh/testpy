@@ -2,136 +2,54 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>{{doc.document_title}} - Page de Garde</title>
+    <title>{{doc.document_title}} - Cover Page</title> <!-- Adjusted placeholder -->
     <style>
-        body {
-            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #e9e9e9; /* Light gray background for contrast with page */
-            display: flex;
-            justify-content: center; /* Center the page horizontally */
-            align-items: center; /* Center the page vertically if content is short */
-            min-height: 100vh;
-        }
-        .page-container {
-            width: 210mm;
-            height: 297mm; /* A4 size */
-            background-color: #ffffff;
-            padding: 15mm; /* Padding inside the border */
-            box-sizing: border-box; /* Include padding and border in the element'''s total width and height */
-            border: 1px solid #cccccc; /* Simple outer border for definition */
-            box-shadow: 0 0 20px rgba(0,0,0,0.15);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between; /* Pushes footer to bottom */
-        }
-        .cover-content-wrapper {
-            border: 2mm solid #005ea5; /* Decorative inner border */
-            padding: 20mm; /* Padding inside the decorative border */
-            box-sizing: border-box;
-            height: 100%; /* Take full height of page-container minus padding */
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* Vertically center main content block */
-            align-items: center; /* Horizontally center main content block */
-            text-align: center;
-        }
-        .logo-cover {
-            max-width: 220px;
-            max-height: 100px;
-            object-fit: contain;
-            margin-bottom: 30px;
-        }
-        .document-main-title {
-            font-size: 2.6em; /* 2.8em before */
-            color: #005ea5;
-            margin-bottom: 10px; /* 15px before */
-            text-transform: uppercase;
-            font-weight: 600;
-            letter-spacing: 1px;
-        }
-        .document-subtitle {
-            font-size: 1.6em; /* 1.8em before */
-            color: #444; /* #555 before */
-            margin-bottom: 25px;
-            font-weight: 300; /* Lighter weight */
-        }
-        .meta-info-cover {
-            margin-top: 25px; /* 40px before */
-            margin-bottom: 25px; /* 40px before */
-        }
-        .meta-info-cover p {
-            font-size: 1.0em; /* 1.1em before */
-            margin: 6px 0; /* 8px before */
-            color: #333;
-        }
-        .meta-info-cover strong {
-            color: #005ea5; /* Keep accent color */
-            font-weight: 500;
-        }
-        .prepared-for-by {
-            margin-top: 20px; /* 30px before */
-            font-size: 0.95em; /* Slightly smaller */
-            width: 100%;
-            max-width: 500px; /* Limit width for better readability */
-        }
-        .prepared-for-by p {
-            margin: 4px 0;
-            line-height: 1.5;
-        }
-        .prepared-for-by .label {
-            font-style: italic;
-            color: #555;
-            margin-bottom: 3px;
-        }
-        .cover-footer {
-            font-size: 0.8em; /* 0.9em before */
-            color: #666; /* #777 before */
-            padding-top: 15px;
-            margin-top: auto; /* Pushes to bottom if content is short */
-            text-align: center;
-        }
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f4f8; color: #333; text-align: center; }
+        .cover-container { width: 80%; max-width: 800px; background-color: #fff; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 10px solid #005ea5; }
+        .logo { max-width: 200px; max-height: 100px; margin-bottom: 30px; }
+        h1 { font-size: 2.8em; color: #005ea5; margin-bottom: 15px; text-transform: uppercase; }
+        h2 { font-size: 1.8em; color: #555; margin-bottom: 25px; font-weight: normal; }
+        .meta-info { margin-top: 40px; margin-bottom: 40px; }
+        .meta-info p { font-size: 1.1em; margin: 8px 0; }
+        .meta-info strong { color: #005ea5; }
+        .prepared-for, .prepared-by { margin-top: 30px; }
+        .footer { margin-top: 50px; font-size: 0.9em; color: #777; }
     </style>
 </head>
 <body>
-    <div class="page-container">
-        <div class="cover-content-wrapper">
-            <div> <!-- This extra div helps in centering content if it'''s not full height -->
-                <img src="{{seller_company_logo_path}}" alt="Logo Entreprise" class="logo-cover">
+    <div class="cover-container">
+        <img src="{{seller_company_logo_path}}" alt="Company Logo" class="logo"> <!-- Adjusted placeholder -->
 
-                <h1 class="document-main-title">{{doc.document_title}}</h1>
-                {{#if doc.document_subtitle}}
-                <h2 class="document-subtitle">{{doc.document_subtitle}}</h2>
-                {{/if}}
+        <h1>{{doc.document_title}}</h1> <!-- Adjusted placeholder -->
+        {{#if doc.document_subtitle}}
+        <h2>{{doc.document_subtitle}}</h2> <!-- Adjusted placeholder -->
+        {{/if}}
 
-                <div class="meta-info-cover">
-                    <p><strong>Client:</strong> {{client_name}} {{#if client_company_name}}({{client_company_name}}){{/if}}</p>
-                    <p><strong>Projet:</strong> {{project_id}}</p>
-                    <p><strong>Date:</strong> {{date}}</p>
-                    {{#if doc.document_version}}
-                    <p><strong>Version:</strong> {{doc.document_version}}</p>
-                    {{/if}}
-                </div>
+        <div class="meta-info">
+            <p><strong>Client:</strong> {{client_name}} ({{client_company_name}})</p> <!-- Adjusted placeholder -->
+            <p><strong>Project ID:</strong> {{project_id}}</p> <!-- Adjusted placeholder -->
+            <p><strong>Date:</strong> {{date}}</p> <!-- Adjusted placeholder -->
+            {{#if doc.document_version}}
+            <p><strong>Version:</strong> {{doc.document_version}}</p> <!-- Adjusted placeholder -->
+            {{/if}}
+        </div>
 
-                <div class="prepared-for-by">
-                    <div style="margin-bottom: 15px;">
-                        <p class="label">Préparé pour:</p>
-                        <p>{{client_name}}</p>
-                        <p>{{client_full_address}}</p>
-                    </div>
-                    <div>
-                        <p class="label">Préparé par:</p>
-                        <p><strong>{{seller_company_name}}</strong></p>
-                        <p>{{seller_full_address}}</p>
-                        <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="cover-footer">
-                <p>Ce document est confidentiel et destiné uniquement à l'''usage de la personne ou de l'''entité à laquelle il est adressé.</p>
-                <p>&copy; {{current_year}} {{seller_company_name}}</p>
-            </div>
+        <div class="prepared-for">
+            <p><em>Prepared for:</em></p>
+            <p>{{client_name}}</p> <!-- Adjusted placeholder -->
+            <p>{{client_full_address}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="prepared-by">
+            <p><em>Prepared by:</em></p>
+            <p><strong>{{seller_company_name}}</strong></p> <!-- Adjusted placeholder -->
+            <p>{{seller_full_address}}</p> <!-- Adjusted placeholder -->
+            <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p> <!-- Adjusted placeholder -->
+        </div>
+
+        <div class="footer">
+            <p>This document is confidential and intended solely for the use of the individual or entity to whom it is addressed.</p>
+            <p>&copy; {{current_year}} {{seller_company_name}}</p> <!-- Adjusted placeholder -->
         </div>
     </div>
 </body>

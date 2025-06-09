@@ -1292,8 +1292,8 @@ def main():
     load_stylesheet_global(app)
 
     # Basic global stylesheet
-    # app.setStyleSheet("""
-        # QWidget {
+    app.setStyleSheet("""
+        QWidget {
             # /* General spacing and font settings for all widgets if needed */
         }
         QPushButton {

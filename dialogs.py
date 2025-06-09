@@ -750,8 +750,8 @@ class EditClientDialog(QDialog):
         country_id = self.country_select_combo.currentData()
         if country_id is None:
             country_name = self.country_select_combo.currentText().strip()
-            if country_name: country_obj = db_manager.get_country_by_name(country_name);
-                             if country_obj: country_id = country_obj['country_id']
+            if country_name: country_obj = db_manager.get_country_by_name(country_name)
+                if country_obj: country_id = country_obj['country_id']
         data['country_id'] = country_id
         city_id = self.city_select_combo.currentData()
         if city_id is None:

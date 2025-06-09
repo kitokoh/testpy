@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title> - Page de Garde</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #e9e9e9; /* Light gray background for contrast with page */
+            display: flex;
+            justify-content: center; /* Center the page horizontally */
+            align-items: center; /* Center the page vertically if content is short */
+            min-height: 100vh;
+        }
+        .page-container {
+            width: 210mm;
+            height: 297mm; /* A4 size */
+            background-color: #ffffff;
+            padding: 15mm; /* Padding inside the border */
+            box-sizing: border-box; /* Include padding and border in the element'''s total width and height */
+            border: 1px solid #cccccc; /* Simple outer border for definition */
+            box-shadow: 0 0 20px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Pushes footer to bottom */
+        }
+        .cover-content-wrapper {
+            border: 2mm solid #005ea5; /* Decorative inner border */
+            padding: 20mm; /* Padding inside the decorative border */
+            box-sizing: border-box;
+            height: 100%; /* Take full height of page-container minus padding */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Vertically center main content block */
+            align-items: center; /* Horizontally center main content block */
+            text-align: center;
+        }
+        .logo-cover {
+            max-width: 220px;
+            max-height: 100px;
+            object-fit: contain;
+            margin-bottom: 30px;
+        }
+        .document-main-title {
+            font-size: 2.6em; /* 2.8em before */
+            color: #005ea5;
+            margin-bottom: 10px; /* 15px before */
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .document-subtitle {
+            font-size: 1.6em; /* 1.8em before */
+            color: #444; /* #555 before */
+            margin-bottom: 25px;
+            font-weight: 300; /* Lighter weight */
+        }
+        .meta-info-cover {
+            margin-top: 25px; /* 40px before */
+            margin-bottom: 25px; /* 40px before */
+        }
+        .meta-info-cover p {
+            font-size: 1.0em; /* 1.1em before */
+            margin: 6px 0; /* 8px before */
+            color: #333;
+        }
+        .meta-info-cover strong {
+            color: #005ea5; /* Keep accent color */
+            font-weight: 500;
+        }
+        .prepared-for-by {
+            margin-top: 20px; /* 30px before */
+            font-size: 0.95em; /* Slightly smaller */
+            width: 100%;
+            max-width: 500px; /* Limit width for better readability */
+        }
+        .prepared-for-by p {
+            margin: 4px 0;
+            line-height: 1.5;
+        }
+        .prepared-for-by .label {
+            font-style: italic;
+            color: #555;
+            margin-bottom: 3px;
+        }
+        .cover-footer {
+            font-size: 0.8em; /* 0.9em before */
+            color: #666; /* #777 before */
+            padding-top: 15px;
+            margin-top: auto; /* Pushes to bottom if content is short */
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="cover-content-wrapper">
+            <div> <!-- This extra div helps in centering content if it'''s not full height -->
+                <img src="" alt="Logo Entreprise" class="logo-cover">
+
+                <h1 class="document-main-title"></h1>
+                
+
+                <div class="meta-info-cover">
+                    <p><strong>Client:</strong> lllslsleo (lllslsleo)</p>
+                    <p><strong>Projet:</strong> iiookkd</p>
+                    <p><strong>Date:</strong> 2025-06-08</p>
+                    
+                </div>
+
+                <div class="prepared-for-by">
+                    <div style="margin-bottom: 15px;">
+                        <p class="label">Préparé pour:</p>
+                        <p>lllslsleo</p>
+                        <p>kkkk</p>
+                    </div>
+                    <div>
+                        <p class="label">Préparé par:</p>
+                        <p><strong>N/A</strong></p>
+                        <p>N/A</p>
+                        <p>Contact: N/A | N/A</p>
+                    </div>
+                </div>
+            </div>
+            <div class="cover-footer">
+                <p>Ce document est confidentiel et destiné uniquement à l'''usage de la personne ou de l'''entité à laquelle il est adressé.</p>
+                <p>&copy; 2025 N/A</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

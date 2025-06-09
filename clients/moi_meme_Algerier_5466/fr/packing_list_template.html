@@ -23,43 +23,43 @@
 <body>
     <div class="container">
         <div class="header">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <img src="" alt="Company Logo" class="logo" />
             <h1>PACKING LIST</h1>
         </div>
 
         <div class.details-section">
             <div class="shipper-details">
                 <h3>Shipper/Exporter:</h3>
-                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
-                <p>{{SELLER_ADDRESS_LINE1}}</p>
-                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
-                <p>Phone: {{SELLER_PHONE}}</p>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Phone: </p>
             </div>
 
             <div class="consignee-details">
                 <h3>Consignee:</h3>
-                <p><strong>{{CLIENT_NAME}}</strong></p>
-                <p>{{CLIENT_ADDRESS_LINE1}}</p>
-                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
-                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Contact: </p>
             </div>
 
             <div class="notify-party-details">
                 <h3>Notify Party:</h3>
-                <p>{{NOTIFY_PARTY_NAME}}</p>
-                <p>{{NOTIFY_PARTY_ADDRESS}}</p>
+                <p></p>
+                <p></p>
             </div>
         </div>
 
         <div class="shipment-info">
-            <p><strong>Packing List No:</strong> {{PACKING_LIST_ID}}</p>
-            <p><strong>Date:</strong> {{DATE}}</p>
-            <p><strong>Invoice No:</strong> {{INVOICE_ID}}</p>
-            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
-            <p><strong>Vessel/Flight No:</strong> {{VESSEL_FLIGHT_NO}}</p>
-            <p><strong>Port of Loading:</strong> {{PORT_OF_LOADING}}</p>
-            <p><strong>Port of Discharge:</strong> {{PORT_OF_DISCHARGE}}</p>
-            <p><strong>Final Destination:</strong> {{FINAL_DESTINATION_COUNTRY}}</p>
+            <p><strong>Packing List No:</strong> </p>
+            <p><strong>Date:</strong> </p>
+            <p><strong>Invoice No:</strong> </p>
+            <p><strong>Project ID:</strong> </p>
+            <p><strong>Vessel/Flight No:</strong> </p>
+            <p><strong>Port of Loading:</strong> </p>
+            <p><strong>Port of Discharge:</strong> </p>
+            <p><strong>Final Destination:</strong> </p>
         </div>
 
         <table>
@@ -75,7 +75,7 @@
                 </tr>
             </thead>
             <tbody>
-                {{doc.packing_list_items}} <!-- Populated by db.py -->
+                <tr><td colspan='7'>Packing details not specified.</td></tr> <!-- Populated by db.py -->
                 <!-- Example Row:
                 <tr>
                     <td>CS/NO. 1-10</td>
@@ -91,15 +91,15 @@
         </table>
 
         <div class="totals-summary">
-            <p><strong>Total Number of Packages:</strong> {{TOTAL_PACKAGES}}</p>
-            <p><strong>Total Net Weight:</strong> {{TOTAL_NET_WEIGHT}} kg</p>
-            <p><strong>Total Gross Weight:</strong> {{TOTAL_GROSS_WEIGHT}} kg</p>
-            <p><strong>Total Volume:</strong> {{TOTAL_VOLUME_CBM}} CBM</p>
+            <p><strong>Total Number of Packages:</strong> </p>
+            <p><strong>Total Net Weight:</strong>  kg</p>
+            <p><strong>Total Gross Weight:</strong>  kg</p>
+            <p><strong>Total Volume:</strong>  CBM</p>
         </div>
 
         <div class="footer">
             <p>Exporter's Signature: _________________________</p>
-            <p>Date: {{DATE}}</p>
+            <p>Date: </p>
         </div>
     </div>
 </body>
