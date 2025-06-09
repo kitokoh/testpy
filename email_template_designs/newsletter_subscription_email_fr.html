@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmez votre abonnement à la newsletter de {{company_name}}</title>
+    <style>
+        /* Basic Reset */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+
+        /* Main Styles */
+        body {
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #333333;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #dddddd;
+        }
+        .email-header {
+            background-color: #28a745; /* Example success color */
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .email-header img {
+            max-height: 50px;
+        }
+        .email-body {
+            padding: 30px;
+            text-align: left;
+        }
+        .email-body h1 {
+            font-size: 24px;
+            color: #333333;
+            margin-top: 0;
+        }
+        .email-body p {
+            margin-bottom: 15px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #28a745; /* Example success color */
+            color: #ffffff !important;
+            padding: 12px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .email-footer {
+            background-color: #eeeeee;
+            color: #777777;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .email-footer a {
+            color: #007bff; /* Example primary color for links in footer */
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4;">
+        <tr>
+            <td align="center">
+                <!-- Email Container -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #dddddd;">
+                    <!-- Header -->
+                    <tr>
+                        <td class="email-header" style="background-color: #28a745; color: #ffffff; padding: 20px; text-align: center;">
+                            <img src="{{logo_url}}" alt="{{company_name}} Logo" style="max-height: 50px; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none;">
+                            <h2 style="margin-top:10px; margin-bottom:0; font-size: 20px;">{{company_name}}</h2>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td class="email-body" style="padding: 30px; text-align: left;">
+                            <h1 style="font-size: 24px; color: #333333; margin-top: 0;">Confirmez votre abonnement</h1>
+                            <p style="margin-bottom: 15px;">Bonjour {{user_name}},</p>
+                            <p style="margin-bottom: 15px;">Merci de vous être inscrit à notre newsletter ! Veuillez cliquer sur le bouton ci-dessous pour confirmer votre abonnement et être le premier informé de nos dernières nouvelles et offres.</p>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-top: 15px; padding-bottom: 15px;">
+                                        <a href="{{call_to_action_button_link}}" class="button" style="display: inline-block; background-color: #28a745; color: #ffffff !important; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Confirmer l'abonnement</a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="margin-bottom: 15px;">Merci de vous être abonné à notre newsletter !</p>
+                            <p style="margin-bottom: 0;">Cordialement,<br>L'équipe {{company_name}}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td class="email-footer" style="background-color: #eeeeee; color: #777777; padding: 20px; text-align: center; font-size: 12px;">
+                            <p style="margin-bottom: 10px;">Contactez-nous : {{email_footer_contact_info}}</p>
+                            <p style="margin-bottom: 10px;">
+                                <a href="{{email_footer_terms_link}}" style="color: #007bff; text-decoration: none;">Conditions d'utilisation</a> |
+                                <a href="{{email_footer_privacy_policy_link}}" style="color: #007bff; text-decoration: none;">Politique de confidentialité</a> |
+                                <a href="{{email_footer_unsubscribe_link}}" style="color: #007bff; text-decoration: none;">Se désabonner</a>
+                            </p>
+                            <p style="margin-bottom: 0;">&copy; {{current_year}} {{company_name}}. Tous droits réservés.</p>
+                        </td>
+                    </tr>
+                </table>
+                <!-- End Email Container -->
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
