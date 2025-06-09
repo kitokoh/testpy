@@ -117,13 +117,13 @@ class TemplateDialog(QDialog):
         self.template_list.setAlternatingRowColors(True); font = self.template_list.font(); font.setPointSize(font.pointSize() + 1); self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         btn_layout = QHBoxLayout(); btn_layout.setSpacing(8)
-        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon.fromTheme("list-add")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
-        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
-        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon.fromTheme("edit-delete")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
-        self.default_btn = QPushButton(self.tr("Par Défaut")); self.default_btn.setIcon(QIcon.fromTheme("emblem-default")); self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue")); self.default_btn.clicked.connect(self.set_default_template); self.default_btn.setEnabled(False); btn_layout.addWidget(self.default_btn)
+        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon(":/icons/add.svg")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
+        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon(":/icons/edit.svg")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
+        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon(":/icons/delete.svg")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
+        self.default_btn = QPushButton(self.tr("Par Défaut")); self.default_btn.setIcon(QIcon.fromTheme("emblem-default")); self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue")); self.default_btn.clicked.connect(self.set_default_template); self.default_btn.setEnabled(False); btn_layout.addWidget(self.default_btn) # emblem-default not in list yet
         left_vbox_layout.addLayout(btn_layout); main_hbox_layout.addLayout(left_vbox_layout, 1)
         self.preview_area = QTextEdit(); self.preview_area.setReadOnly(True); self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
-        self.preview_area.setStyleSheet("QTextEdit { border: 1px solid #cccccc; background-color: #f9f9f9; padding: 5px; }")
+        self.preview_area.setObjectName("templatePreviewArea")
         main_hbox_layout.addWidget(self.preview_area, 2); main_hbox_layout.setContentsMargins(15,15,15,15); self.load_templates(); self.template_list.currentItemChanged.connect(self.handle_tree_item_selection)
 
     def handle_tree_item_selection(self,current_item,previous_item):
@@ -251,25 +251,29 @@ class ContactDialog(QDialog):
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
     def setup_ui(self):
         main_layout=QVBoxLayout(self);main_layout.setSpacing(15)
-        header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact"));header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;");main_layout.addWidget(header_label)
+        header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
         form_layout=QFormLayout();form_layout.setSpacing(10);form_layout.setContentsMargins(10,0,10,0)
-        self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }")
+        # self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }") # Prefer global styles
         self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet:")),self.name_input)
         self.email_input=QLineEdit(self.contact_data.get("email",""));form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
         self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone:")),self.phone_input)
         self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste:")),self.position_input)
         self.primary_check=QCheckBox(self.tr("Contact principal"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary",0)));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
         main_layout.addLayout(form_layout);main_layout.addStretch()
-        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame");button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
-        ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"));ok_button.setObjectName("primaryButton")
-        cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"))
+        ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton")
+        cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
         self.update_primary_contact_visuals(self.primary_check.checkState())
     def update_primary_contact_visuals(self,state):
-        if state==Qt.Checked:self.name_input.setStyleSheet("background-color: #e6ffe6; padding: 3px;")
-        else:self.name_input.setStyleSheet("padding: 3px;")
+        # Dynamic style based on state - kept inline
+        # Padding will be inherited from global QLineEdit style
+        if state==Qt.Checked:
+            self.name_input.setStyleSheet("background-color: #E8F5E9;") # Light Green from palette
+        else:
+            self.name_input.setStyleSheet("") # Reset to default QSS
     def get_data(self):return{"name":self.name_input.text().strip(),"email":self.email_input.text().strip(),"phone":self.phone_input.text().strip(),"position":self.position_input.text().strip(),"is_primary":1 if self.primary_check.isChecked() else 0}
 
 class ProductDialog(QDialog):
@@ -301,22 +305,22 @@ class ProductDialog(QDialog):
             self.quantity_input.setValue(1.0);self.quantity_input.setFocus();self._update_current_line_total_preview()
     def _create_icon_label_widget(self,icon_name,label_text):widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5);icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
     def setup_ui(self):
-        main_layout=QVBoxLayout(self);main_layout.setSpacing(15);header_label=QLabel(self.tr("Ajouter Lignes de Produits"));header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;");main_layout.addWidget(header_label)
+        main_layout=QVBoxLayout(self);main_layout.setSpacing(15);header_label=QLabel(self.tr("Ajouter Lignes de Produits")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
         two_columns_layout=QHBoxLayout();search_group_box=QGroupBox(self.tr("Rechercher Produit Existant"));search_layout=QVBoxLayout(search_group_box)
         self.product_language_filter_label=QLabel(self.tr("Filtrer par langue:"));search_layout.addWidget(self.product_language_filter_label);self.product_language_filter_combo=QComboBox();self.product_language_filter_combo.addItems([self.tr("All"),"fr","en","ar","tr","pt"]);self.product_language_filter_combo.currentTextChanged.connect(self._filter_products_by_language_and_search);search_layout.addWidget(self.product_language_filter_combo)
         self.search_existing_product_input=QLineEdit();self.search_existing_product_input.setPlaceholderText(self.tr("Tapez pour rechercher..."));self.search_existing_product_input.textChanged.connect(self._filter_products_by_language_and_search);search_layout.addWidget(self.search_existing_product_input)
         self.existing_products_list=QListWidget();self.existing_products_list.setMinimumHeight(150);self.existing_products_list.itemDoubleClicked.connect(self._populate_form_from_selected_product);search_layout.addWidget(self.existing_products_list);two_columns_layout.addWidget(search_group_box,1)
-        input_group_box=QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"));form_layout=QFormLayout(input_group_box);form_layout.setSpacing(10);self.setStyleSheet("QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }")
+        input_group_box=QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"));form_layout=QFormLayout(input_group_box);form_layout.setSpacing(10); # self.setStyleSheet("QLineEdit, QTextEdit, QDoubleSpinBox { padding: 3px; }") # Prefer global
         self.name_input=QLineEdit();form_layout.addRow(self._create_icon_label_widget("package-x-generic",self.tr("Nom du Produit:")),self.name_input);self.description_input=QTextEdit();self.description_input.setFixedHeight(80);form_layout.addRow(self.tr("Description:"),self.description_input)
         self.quantity_input=QDoubleSpinBox();self.quantity_input.setRange(0,1000000);self.quantity_input.setValue(0.0);self.quantity_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("format-list-numbered",self.tr("Quantité:")),self.quantity_input)
         self.unit_price_input=QDoubleSpinBox();self.unit_price_input.setRange(0,10000000);self.unit_price_input.setPrefix("€ ");self.unit_price_input.setValue(0.0);self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("cash",self.tr("Prix Unitaire:")),self.unit_price_input)
         current_line_total_title_label=QLabel(self.tr("Total Ligne Actuelle:"));self.current_line_total_label=QLabel("€ 0.00");font=self.current_line_total_label.font();font.setBold(True);self.current_line_total_label.setFont(font);form_layout.addRow(current_line_total_title_label,self.current_line_total_label);two_columns_layout.addWidget(input_group_box,2);main_layout.addLayout(two_columns_layout)
-        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon.fromTheme("list-add"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
+        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/list-add.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
         self.products_table=QTableWidget();self.products_table.setColumnCount(5);self.products_table.setHorizontalHeaderLabels([self.tr("Nom Produit"),self.tr("Description"),self.tr("Qté"),self.tr("Prix Unitaire"),self.tr("Total Ligne")]);self.products_table.setEditTriggers(QAbstractItemView.NoEditTriggers);self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows);self.products_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeToContents);main_layout.addWidget(self.products_table)
-        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon.fromTheme("list-remove"));self.remove_line_btn.setStyleSheet("padding: 5px 10px;");self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn)
-        self.overall_total_label=QLabel(self.tr("Total Général: € 0.00"));font=self.overall_total_label.font();font.setPointSize(font.pointSize()+3);font.setBold(True);self.overall_total_label.setFont(font);self.overall_total_label.setStyleSheet("color: #2c3e50; padding: 10px 0; margin-top: 5px;");self.overall_total_label.setAlignment(Qt.AlignRight);main_layout.addWidget(self.overall_total_label);main_layout.addStretch()
-        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame");button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }");button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
-        button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon.fromTheme("dialog-ok-apply"));ok_button.setObjectName("primaryButton");cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon.fromTheme("dialog-cancel"));button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
+        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon(":/icons/list-remove.svg")); self.remove_line_btn.setObjectName("removeProductLineButton"); self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn) # Added objectName
+        self.overall_total_label=QLabel(self.tr("Total Général: € 0.00")); font=self.overall_total_label.font();font.setPointSize(font.pointSize()+3);font.setBold(True);self.overall_total_label.setFont(font); self.overall_total_label.setObjectName("overallTotalLabel"); self.overall_total_label.setAlignment(Qt.AlignRight);main_layout.addWidget(self.overall_total_label);main_layout.addStretch()
+        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame"); button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0) # Style in QSS
+        button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton");cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"));button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
     def _update_current_line_total_preview(self):quantity=self.quantity_input.value();unit_price=self.unit_price_input.value();current_quantity=quantity if isinstance(quantity,(int,float)) else 0.0;current_unit_price=unit_price if isinstance(unit_price,(int,float)) else 0.0;line_total=current_quantity*current_unit_price;self.current_line_total_label.setText(f"€ {line_total:.2f}")
     def _add_current_line_to_table(self):
         name=self.name_input.text().strip();description=self.description_input.toPlainText().strip();quantity=self.quantity_input.value();unit_price=self.unit_price_input.value()
@@ -397,9 +401,9 @@ class CreateDocumentDialog(QDialog):
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self); main_layout.setSpacing(15)
-        header_label = QLabel(self.tr("Sélectionner Documents à Créer")); header_label.setStyleSheet("font-size: 16pt; font-weight: bold; margin-bottom: 10px; color: #333;")
+        header_label = QLabel(self.tr("Sélectionner Documents à Créer")); header_label.setObjectName("dialogHeaderLabel")
         main_layout.addWidget(header_label)
-        self.setStyleSheet("QComboBox, QListWidget, QLineEdit { padding: 3px; } QListWidget::item:hover { background-color: #e6f7ff; }")
+        # self.setStyleSheet("QComboBox, QListWidget, QLineEdit { padding: 3px; } QListWidget::item:hover { background-color: #e6f7ff; }") # Prefer global styles
         filters_layout = QGridLayout(); filters_layout.setSpacing(10)
         self.language_filter_label = QLabel(self.tr("Langue:")); self.language_filter_combo = QComboBox()
         self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"]); self.language_filter_combo.setCurrentText(self.tr("All"))
@@ -416,11 +420,11 @@ class CreateDocumentDialog(QDialog):
         self.extension_filter_combo.currentTextChanged.connect(self.load_templates)
         self.search_bar.textChanged.connect(self.load_templates)
         self.load_templates(); main_layout.addStretch()
-        button_frame = QFrame(self); button_frame.setObjectName("buttonFrame"); button_frame.setStyleSheet("#buttonFrame { border-top: 1px solid #cccccc; padding-top: 10px; margin-top: 10px; }")
+        button_frame = QFrame(self); button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout = QHBoxLayout(button_frame); button_frame_layout.setContentsMargins(0,0,0,0)
-        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon.fromTheme("document-new")); create_btn.setObjectName("primaryButton")
+        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/document-new.svg")); create_btn.setObjectName("primaryButton")
         create_btn.clicked.connect(self.create_documents); button_frame_layout.addWidget(create_btn)
-        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
+        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         cancel_btn.clicked.connect(self.reject); button_frame_layout.addWidget(cancel_btn)
         main_layout.addWidget(button_frame)
 
@@ -503,17 +507,17 @@ class CompilePdfDialog(QDialog):
         self.pdf_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.pdf_list.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.pdf_list)
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon.fromTheme("list-add")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
-        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon.fromTheme("edit-delete")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
-        move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn)
-        move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn)
+        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/list-add.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
+        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/delete.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
+        move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn) # go-up not in list
+        move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn) # go-down not in list
         layout.addLayout(btn_layout)
         options_layout = QHBoxLayout(); options_layout.addWidget(QLabel(self.tr("Nom du fichier compilé:")))
         self.output_name = QLineEdit(f"{self.tr('compilation')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"); options_layout.addWidget(self.output_name); layout.addLayout(options_layout)
         action_layout = QHBoxLayout()
-        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon.fromTheme("document-export")); compile_btn.setObjectName("primaryButton")
+        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/document-export.svg")); compile_btn.setObjectName("primaryButton")
         compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
-        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon.fromTheme("dialog-cancel")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
+        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
         layout.addLayout(action_layout)
         self.load_existing_pdfs()
 
@@ -653,7 +657,7 @@ class EditClientDialog(QDialog):
         self.client_need_input = QLineEdit(self.client_info.get('primary_need_description', self.client_info.get('need',''))); layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
         self.project_id_input_field = QLineEdit(self.client_info.get('project_identifier', '')); layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
         self.final_price_input = QDoubleSpinBox(); self.final_price_input.setPrefix("€ "); self.final_price_input.setRange(0,10000000); self.final_price_input.setValue(float(self.client_info.get('price',0.0))); self.final_price_input.setReadOnly(True)
-        price_info_label = QLabel(self.tr("Le prix final est calculé à partir des produits et n'est pas modifiable ici.")); price_info_label.setStyleSheet("font-style: italic; font-size: 9pt; color: grey;")
+        price_info_label = QLabel(self.tr("Le prix final est calculé à partir des produits et n'est pas modifiable ici.")); price_info_label.setObjectName("priceInfoLabel")
         price_layout = QHBoxLayout(); price_layout.addWidget(self.final_price_input); price_layout.addWidget(price_info_label); layout.addRow(self.tr("Prix Final:"), price_layout)
         self.status_select_combo = QComboBox(); self.populate_statuses()
         current_status_id = self.client_info.get('status_id')

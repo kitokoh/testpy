@@ -358,7 +358,7 @@ class DocumentManager(QMainWindow):
         self.language_select_combo = QComboBox() 
         self.language_select_combo.addItems([self.tr("Français uniquement (fr)"), self.tr("Arabe uniquement (ar)"), self.tr("Turc uniquement (tr)"), self.tr("Toutes les langues (fr, ar, tr)")])
         creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
-        self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon.fromTheme("list-add"))
+        self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon(":/icons/user-plus.svg"))
         self.create_client_button.setObjectName("primaryButton") # Use object name for global styling
         self.create_client_button.clicked.connect(self.execute_create_client) 
         creation_form_layout.addRow(self.create_client_button)
@@ -369,23 +369,30 @@ class DocumentManager(QMainWindow):
         self.client_tabs_widget.tabCloseRequested.connect(self.close_client_tab) 
         content_layout.addWidget(self.client_tabs_widget, 2)
 
+        # self.main_area_stack.addWidget(self.documents_page_widget) # Add original content as first page
+        # Correction: self.documents_page_widget is already added to the stack in setup_ui_main.
+        # This line is redundant if setup_ui_main is called before this part of the code.
+        # Ensure self.documents_page_widget is correctly added to the stack if it's not already.
+        # If main_layout.addWidget(self.main_area_stack) is the structure, then
+        # self.main_area_stack.addWidget(self.documents_page_widget) happens within setup_ui_main.
+
         self.main_area_stack.addWidget(self.documents_page_widget) # Add original content as first page
         # PM widget instantiated in __init__ and added to stack there
 
         self.load_countries_into_combo() 
         
     def create_actions_main(self): 
-        self.settings_action = QAction(self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog)
-        self.template_action = QAction(self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
-        self.status_action = QAction(self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog)
+        self.settings_action = QAction(QIcon(":/icons/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog)
+        self.template_action = QAction(QIcon(":/icons/document.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog) # Example icon
+        self.status_action = QAction(self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog) # No icon change requested
         self.exit_action = QAction(self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
         
         # Action for Project Management
-        self.project_management_action = QAction(QIcon.fromTheme("preferences-system"), self.tr("Gestion de Projet"), self) # Added icon
+        self.project_management_action = QAction(QIcon(":/icons/preferences-system.svg"), self.tr("Gestion de Projet"), self)
         self.project_management_action.triggered.connect(self.show_project_management_view)
 
         # Action to go back to Documents view (optional, but good for navigation)
-        self.documents_view_action = QAction(QIcon.fromTheme("folder-documents"), self.tr("Gestion Documents"), self)
+        self.documents_view_action = QAction(QIcon(":/icons/folder-documents.svg"), self.tr("Gestion Documents"), self)
         self.documents_view_action.triggered.connect(self.show_documents_view)
 
     def create_menus_main(self): 
@@ -1281,10 +1288,13 @@ def main():
         default_font = QFont("Arial", 10) # Or "Helvetica", "DejaVu Sans" etc.
     app.setFont(default_font)
 
+    # Load global stylesheet from style.qss
+    load_stylesheet_global(app)
+
     # Basic global stylesheet
-    app.setStyleSheet("""
-        QWidget {
-            /* General spacing and font settings for all widgets if needed */
+    # app.setStyleSheet("""
+        # QWidget {
+            # /* General spacing and font settings for all widgets if needed */
         }
         QPushButton {
             padding: 6px 12px;
@@ -1400,9 +1410,9 @@ def main():
         }
         QListWidget::item:selected {
             background-color: #007bff; /* Blue for selection */
-            color: white;
-        }
-    """)
+            # color: white;
+        # }
+    # """)
 
     # Setup translations
     translator = QTranslator()
