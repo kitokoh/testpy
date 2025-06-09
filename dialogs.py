@@ -314,6 +314,13 @@ class ProductDialog(QDialog):
         self.name_input=QLineEdit();form_layout.addRow(self._create_icon_label_widget("package-x-generic",self.tr("Nom du Produit:")),self.name_input);self.description_input=QTextEdit();self.description_input.setFixedHeight(80);form_layout.addRow(self.tr("Description:"),self.description_input)
         self.quantity_input=QDoubleSpinBox();self.quantity_input.setRange(0,1000000);self.quantity_input.setValue(0.0);self.quantity_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("format-list-numbered",self.tr("Quantité:")),self.quantity_input)
         self.unit_price_input=QDoubleSpinBox();self.unit_price_input.setRange(0,10000000);self.unit_price_input.setPrefix("€ ");self.unit_price_input.setValue(0.0);self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("cash",self.tr("Prix Unitaire:")),self.unit_price_input)
+
+        # Display for Weight and Dimensions (read-only from selected global product)
+        self.weight_display_label = QLabel(self.tr("N/A"))
+        form_layout.addRow(self.tr("Poids (Global):"), self.weight_display_label)
+        self.dimensions_display_label = QLabel(self.tr("N/A"))
+        form_layout.addRow(self.tr("Dimensions (Global):"), self.dimensions_display_label)
+
         current_line_total_title_label=QLabel(self.tr("Total Ligne Actuelle:"));self.current_line_total_label=QLabel("€ 0.00");font=self.current_line_total_label.font();font.setBold(True);self.current_line_total_label.setFont(font);form_layout.addRow(current_line_total_title_label,self.current_line_total_label);two_columns_layout.addWidget(input_group_box,2);main_layout.addLayout(two_columns_layout)
         self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/list-add.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
         self.products_table=QTableWidget();self.products_table.setColumnCount(5);self.products_table.setHorizontalHeaderLabels([self.tr("Nom Produit"),self.tr("Description"),self.tr("Qté"),self.tr("Prix Unitaire"),self.tr("Total Ligne")]);self.products_table.setEditTriggers(QAbstractItemView.NoEditTriggers);self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows);self.products_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeToContents);main_layout.addWidget(self.products_table)
@@ -369,6 +376,18 @@ class EditProductLineDialog(QDialog):
         self.description_input = QTextEdit(self.product_data.get('description', ''))
         self.description_input.setFixedHeight(80)
         form_layout.addRow(self.tr("Description:"), self.description_input)
+
+        # Display Weight and Dimensions (read-only) in EditProductLineDialog
+        # These values should be part of the product_data passed from ClientWidget.load_products
+        weight_val = self.product_data.get('weight')
+        weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+        self.weight_display = QLabel(weight_str)
+        form_layout.addRow(self.tr("Poids:"), self.weight_display)
+
+        dimensions_val = self.product_data.get('dimensions', self.tr("N/A"))
+        self.dimensions_display = QLabel(dimensions_val)
+        form_layout.addRow(self.tr("Dimensions:"), self.dimensions_display)
+
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setRange(0.01, 1000000)
         self.quantity_input.setValue(float(self.product_data.get('quantity', 1.0)))

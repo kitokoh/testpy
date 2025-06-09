@@ -78,13 +78,21 @@ class ClientWidget(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
+        # --- Collapsible Client Info Section ---
+        self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
+        self.client_info_group_box.setCheckable(True)
+        client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
+
+        self.info_container_widget = QWidget() # Container for all info elements
+        info_container_layout = QVBoxLayout(self.info_container_widget)
+        info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
+        info_container_layout.setSpacing(10) # Adjust spacing as needed
+
         self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
-        # self.header_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;") # Removed inline style
-        self.header_label.setObjectName("clientHeaderLabel") # Added object name
-        layout.addWidget(self.header_label)
+        self.header_label.setObjectName("clientHeaderLabel")
+        info_container_layout.addWidget(self.header_label)
 
         action_layout = QHBoxLayout()
-        # Repurpose create_docs_btn to Envoyer Mail
         self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
         self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using bell.svg as fallback
         self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
@@ -107,29 +115,37 @@ class ClientWidget(QWidget):
         self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
         self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
         self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
-        action_layout.addWidget(self.edit_save_client_btn) # Add the new button to the layout
-        layout.addLayout(action_layout)
+        action_layout.addWidget(self.edit_save_client_btn)
+        info_container_layout.addLayout(action_layout)
 
-        # status_layout = QHBoxLayout() # Removed, status_combo is now part of details_layout
-        status_label = QLabel(self.tr("Statut:"))
-        # status_layout.addWidget(status_label)
+        # Status combo (part of details, but initialized here due to load_statuses)
         self.status_combo = QComboBox()
         self.load_statuses()
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
         self.status_combo.currentTextChanged.connect(self.update_client_status)
 
+        # Details layout (QFormLayout)
         self.details_layout = QFormLayout()
-        self.details_layout.setLabelAlignment(Qt.AlignLeft) # Changed to AlignLeft for row labels like "Localisation:"
-        self.details_layout.setSpacing(10) # Increased spacing a bit
+        self.details_layout.setLabelAlignment(Qt.AlignLeft)
+        self.details_layout.setSpacing(10)
 
-        # Initialize category labels here as they are used in populate_details_layout
+        # Initialize category labels (used in populate_details_layout)
         self.category_label = QLabel(self.tr("Catégorie:"))
         self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
 
-        self.populate_details_layout() # This will now build the entire details section including status and category
-        layout.addLayout(self.details_layout)
+        self.populate_details_layout() # Builds the details_layout
+        info_container_layout.addLayout(self.details_layout)
 
-        # Initialize notes_edit here, before it's added to a tab
+        # Add the container widget to the group box's layout
+        client_info_group_layout.addWidget(self.info_container_widget)
+
+        # Connect toggled signal and set initial state
+        self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
+        self.client_info_group_box.setChecked(True) # Initially expanded
+
+        layout.addWidget(self.client_info_group_box) # Add the group box to the main layout
+        # --- End Collapsible Client Info Section ---
+
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
         self.notes_edit.textChanged.connect(self.save_client_notes)
@@ -170,8 +186,22 @@ class ClientWidget(QWidget):
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
-        contacts_tab = QWidget(); contacts_layout = QVBoxLayout(contacts_tab)
-        self.contacts_list = QListWidget(); self.contacts_list.setAlternatingRowColors(True); self.contacts_list.itemDoubleClicked.connect(self.edit_contact); contacts_layout.addWidget(self.contacts_list)
+        contacts_tab = QWidget()
+        contacts_layout = QVBoxLayout(contacts_tab)
+        self.contacts_table = QTableWidget()
+        self.contacts_table.setColumnCount(5) # Name, Email, Phone, Position, Primary
+        self.contacts_table.setHorizontalHeaderLabels([
+            self.tr("Nom"), self.tr("Email"), self.tr("Téléphone"),
+            self.tr("Position"), self.tr("Principal")
+        ])
+        self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive) # Example for specific column
+        self.contacts_table.setAlternatingRowColors(True)
+        self.contacts_table.cellDoubleClicked.connect(self.edit_contact) # row, column are passed
+        contacts_layout.addWidget(self.contacts_table)
+
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
         self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
@@ -179,11 +209,44 @@ class ClientWidget(QWidget):
         contacts_layout.addLayout(contacts_btn_layout)
         self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
 
-        products_tab = QWidget(); products_layout = QVBoxLayout(products_tab)
-        self.products_table = QTableWidget(); self.products_table.setColumnCount(6); self.products_table.setHorizontalHeaderLabels([self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"), self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")]);
-        self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked) # Make table editable on double click
-        self.products_table.itemChanged.connect(self.handle_product_item_changed) # Connect itemChanged signal
-        self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch); self.products_table.hideColumn(0); products_layout.addWidget(self.products_table)
+        products_tab = QWidget()
+        products_layout = QVBoxLayout(products_tab)
+
+        # Product Filters
+        product_filters_layout = QHBoxLayout()
+        product_filters_layout.addWidget(QLabel(self.tr("Filtrer par langue:")))
+        self.product_lang_filter_combo = QComboBox()
+        self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
+        # Language codes should match those in db and other parts of the app
+        self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
+        self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
+        self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
+        self.product_lang_filter_combo.addItem(self.tr("Turkish (tr)"), "tr")
+        self.product_lang_filter_combo.addItem(self.tr("Portuguese (pt)"), "pt")
+        self.product_lang_filter_combo.currentTextChanged.connect(self.load_products)
+        product_filters_layout.addWidget(self.product_lang_filter_combo)
+        product_filters_layout.addStretch()
+        products_layout.addLayout(product_filters_layout)
+
+        self.products_table = QTableWidget()
+        self.products_table.setColumnCount(8) # ID, Name, Desc, Weight, Dimensions, Qty, Unit Price, Total Price
+        self.products_table.setHorizontalHeaderLabels([
+            self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"),
+            self.tr("Poids"), self.tr("Dimensions"), # New Columns
+            self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")
+        ])
+        self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked)
+        self.products_table.itemChanged.connect(self.handle_product_item_changed)
+        self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.products_table.hideColumn(0) # Hide ID
+        # Example of interactive resizing for some columns:
+        # self.products_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
+        # self.products_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
+        # for i in range(3, 8): # Weight, Dimensions, Qty, Unit Price, Total Price
+        #     self.products_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        products_layout.addWidget(self.products_table)
+
         products_btn_layout = QHBoxLayout()
         self.add_product_btn = QPushButton(self.tr("➕ Ajouter")); self.add_product_btn.setIcon(QIcon.fromTheme("list-add")); self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
         self.edit_product_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
@@ -211,38 +274,43 @@ class ClientWidget(QWidget):
         self.populate_doc_table(); self.load_contacts(); self.load_products()
 
     def add_document(self):
+        # Define available languages
+        available_languages = ["en", "fr", "ar", "tr", "pt"]
+
+        # Ask user to select language
+        selected_doc_language, ok = QInputDialog.getItem(
+            self,
+            self.tr("Sélectionner la langue"),
+            self.tr("Langue du document:"),
+            available_languages,
+            0,
+            False
+        )
+
+        if not ok or not selected_doc_language:
+            QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée."))
+            return
+
         # Get the base path for the client's documents
-        # The initial directory for the file dialog can be the general clients_dir or user's home
-        # Using self.config which should be available.
-        initial_dir = self.config.get("clients_dir", os.path.expanduser("~")) # Fallback to home directory
+        initial_dir = self.config.get("clients_dir", os.path.expanduser("~"))
 
         selected_file_path, _ = QFileDialog.getOpenFileName(
             self,
             self.tr("Sélectionner un document"),
-            initial_dir, # Use a sensible default directory
+            initial_dir,
             self.tr("Tous les fichiers (*.*)")
         )
 
-        if selected_file_path: # Proceed if a file was selected
+        if selected_file_path:
             try:
-                # Determine the target directory
-                # Use the first language from selected_languages, default to 'fr'
-                client_languages = self.client_info.get("selected_languages", ["fr"])
-                if isinstance(client_languages, str): # If it's a comma-separated string
-                    client_languages = [lang.strip() for lang in client_languages.split(',') if lang.strip()]
+                # Determine the target directory using the selected language
+                target_dir = os.path.join(self.client_info["base_folder_path"], selected_doc_language)
 
-                target_lang_folder = client_languages[0] if client_languages else "fr"
-
-                target_dir = os.path.join(self.client_info["base_folder_path"], target_lang_folder)
-
-                # Create the target directory if it doesn't exist
                 os.makedirs(target_dir, exist_ok=True)
 
-                # Construct the target file path
                 file_name = os.path.basename(selected_file_path)
                 target_file_path = os.path.join(target_dir, file_name)
 
-                # Check if file already exists
                 if os.path.exists(target_file_path):
                     reply = QMessageBox.question(
                         self,
@@ -253,18 +321,47 @@ class ClientWidget(QWidget):
                     )
                     if reply == QMessageBox.No:
                         QMessageBox.information(self, self.tr("Annulé"), self.tr("L'opération d'ajout de document a été annulée."))
-                        return # User chose not to replace
+                        return
 
-                # Copy the selected file
                 shutil.copy(selected_file_path, target_file_path)
 
-                # Refresh the document table
+                # Update client's selected languages if necessary
+                current_selected_languages = self.client_info.get("selected_languages", [])
+                # Ensure it's a list, as it might be a comma-separated string from DB
+                if isinstance(current_selected_languages, str):
+                    current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+
+                if not current_selected_languages: # Handle empty or None case
+                    current_selected_languages = []
+
+                if selected_doc_language not in current_selected_languages:
+                    add_lang_reply = QMessageBox.question(
+                        self,
+                        self.tr("Ajouter Langue"),
+                        self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    if add_lang_reply == QMessageBox.Yes:
+                        updated_languages_list = current_selected_languages + [selected_doc_language]
+                        updated_languages_str = ",".join(updated_languages_list)
+
+                        client_id_to_update = self.client_info.get("client_id")
+                        if client_id_to_update:
+                            if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
+                                self.client_info["selected_languages"] = updated_languages_list # Update local info
+                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                            else:
+                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
+                        else:
+                            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
+
                 self.populate_doc_table()
 
                 QMessageBox.information(
                     self,
                     self.tr("Succès"),
-                    self.tr("Document '{0}' ajouté avec succès.").format(file_name)
+                    self.tr("Document '{0}' ajouté avec succès en langue '{1}'.").format(file_name, selected_doc_language)
                 )
             except Exception as e:
                 QMessageBox.warning(
@@ -277,8 +374,41 @@ class ClientWidget(QWidget):
         if not self.client_info or 'client_id' not in self.client_info:
             QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
             return
-        generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
-        if generated_pdf_path: QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+
+        # Extract target_language_code from the file_path
+        # Assumes path structure like .../base_folder/lang_code/filename.html
+        try:
+            target_language_code = os.path.basename(os.path.dirname(file_path))
+            # Basic validation if it's a known lang code, though db function will handle it more robustly
+            if target_language_code not in ["en", "fr", "ar", "tr", "pt"]: # Add other supported codes
+                # Fallback or error if lang code is not as expected
+                QMessageBox.warning(self, self.tr("Erreur Langue"), self.tr("Code langue non reconnu depuis le chemin du fichier: {0}").format(target_language_code))
+                # Decide on fallback: use client's primary language or abort? For now, let's try client's primary.
+                client_langs = self.client_info.get("selected_languages", [])
+                if isinstance(client_langs, str):
+                    client_langs = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+                target_language_code = client_langs[0] if client_langs else "fr" # Default to fr if no client lang
+                QMessageBox.information(self, self.tr("Info Langue"), self.tr("Utilisation de la langue par défaut '{0}' pour la génération du document.").format(target_language_code))
+
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur Chemin Fichier"), self.tr("Impossible d'extraire le code langue depuis le chemin:\n{0}\nErreur: {1}").format(file_path, str(e)))
+            return
+
+        # app_root_dir should be available in self.config if main.py sets it up.
+        # MAIN_MODULE_CONFIG should have app_root_dir if it's set in main.py's CONFIG
+        app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0])) # Fallback, might not be ideal for frozen apps
+        if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG: # Prefer this if available
+            app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
+
+        generated_pdf_path = self.generate_pdf_for_document(
+            source_file_path=file_path,
+            client_info=self.client_info,
+            app_root_dir=app_root_dir,
+            parent_widget=self,
+            target_language_code=target_language_code # Pass the new parameter
+        )
+        if generated_pdf_path:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
 
     def populate_details_layout(self):
         # Clear existing rows from the layout
@@ -365,6 +495,10 @@ class ClientWidget(QWidget):
 
     def refresh_display(self, new_client_info):
         self.client_info = new_client_info
+        # Update GroupBox title if it includes client name
+        if hasattr(self, 'client_info_group_box'):
+            self.client_info_group_box.setTitle(self.client_info.get('client_name', self.tr("Client Information")))
+
         self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
 
         # Repopulate the details section with the new client_info
@@ -512,16 +646,35 @@ class ClientWidget(QWidget):
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:\n{0}").format(str(e)))
 
     def load_contacts(self):
-        self.contacts_list.clear(); client_uuid = self.client_info.get("client_id");
+        self.contacts_table.setRowCount(0) # Clear table
+        client_uuid = self.client_info.get("client_id")
         if not client_uuid: return
         try:
-            contacts = db_manager.get_contacts_for_client(client_uuid); contacts = contacts if contacts else []
-            for contact in contacts:
-                contact_text = f"{contact.get('name', 'N/A')}"
-                if contact.get('phone'): contact_text += f" ({contact.get('phone')})"
-                if contact.get('is_primary_for_client'): contact_text += f" [{self.tr('Principal')}]"
-                item = QListWidgetItem(contact_text); item.setData(Qt.UserRole, {'contact_id': contact.get('contact_id'), 'client_contact_id': contact.get('client_contact_id'), 'is_primary': contact.get('is_primary_for_client')}); self.contacts_list.addItem(item)
-        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
+            contacts = db_manager.get_contacts_for_client(client_uuid)
+            contacts = contacts if contacts else []
+            for row, contact in enumerate(contacts):
+                self.contacts_table.insertRow(row)
+
+                name_item = QTableWidgetItem(contact.get('name', 'N/A'))
+                # Store IDs in the first column's item for retrieval
+                name_item.setData(Qt.UserRole, {
+                    'contact_id': contact.get('contact_id'),
+                    'client_contact_id': contact.get('client_contact_id')
+                })
+                self.contacts_table.setItem(row, 0, name_item)
+
+                self.contacts_table.setItem(row, 1, QTableWidgetItem(contact.get('email', '')))
+                self.contacts_table.setItem(row, 2, QTableWidgetItem(contact.get('phone', '')))
+                self.contacts_table.setItem(row, 3, QTableWidgetItem(contact.get('position', '')))
+
+                primary_text = self.tr("Oui") if contact.get('is_primary_for_client') else self.tr("Non")
+                primary_item = QTableWidgetItem(primary_text)
+                # Optional: Center align this column
+                primary_item.setTextAlignment(Qt.AlignCenter)
+                self.contacts_table.setItem(row, 4, primary_item)
+
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
 
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
@@ -534,24 +687,62 @@ class ClientWidget(QWidget):
                 self.load_contacts() # Ensure this is called after DB operations
             except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
 
-    def edit_contact(self):
-        item = self.contacts_list.currentItem();
-        if not item: return
-        # ... (logic for editing contact remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de modification du contact:\n{0}").format(str(e)))
+    def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
+        current_row = self.contacts_table.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
+            return
 
+        name_item = self.contacts_table.item(current_row, 0)
+        if not name_item: return # Should not happen if row is valid
+
+        item_data = name_item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id')
+        # client_contact_id is also available if needed for specific link properties
+        # client_contact_id = item_data.get('client_contact_id')
+
+        if not contact_id:
+            QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de contact non trouvé pour la ligne sélectionnée."))
+            return
+
+        client_uuid = self.client_info.get("client_id") # For the dialog's context
+        dialog = self.ContactDialog(client_id=client_uuid, contact_id_to_edit=contact_id, parent=self)
+
+        if dialog.exec_() == QDialog.Accepted:
+            # ContactDialog's accept method now handles DB update and linking.
+            self.load_contacts() # Refresh the table
 
     def remove_contact(self):
-        item = self.contacts_list.currentItem();
-        if not item: return
-        # ... (logic for removing contact link remains the same) ...
-        try:
-            # ... (DB operations) ...
-            self.load_contacts() # Ensure this is called after DB operations
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+        current_row = self.contacts_table.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à supprimer."))
+            return
+
+        name_item = self.contacts_table.item(current_row, 0)
+        if not name_item: return
+
+        item_data = name_item.data(Qt.UserRole)
+        contact_id = item_data.get('contact_id') # Global contact ID
+        client_contact_id = item_data.get('client_contact_id') # Link ID
+
+        contact_name = name_item.text()
+
+        if not client_contact_id: # Should have this to remove the link
+            QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de lien contact-client non trouvé."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer le lien vers le contact '{0}' pour ce client?").format(contact_name),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                if db_manager.unlink_contact_from_client(client_contact_id):
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Lien vers le contact '{0}' supprimé avec succès.").format(contact_name))
+                    self.load_contacts() # Refresh table
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression du lien vers le contact."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
@@ -581,17 +772,31 @@ class ClientWidget(QWidget):
         except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit lié:\n{0}").format(str(e)))
 
     def load_products(self):
-        self.products_table.blockSignals(True) # Block signals during population
-        self.products_table.setRowCount(0); client_uuid = self.client_info.get("client_id");
+        self.products_table.blockSignals(True)
+        self.products_table.setRowCount(0)
+        client_uuid = self.client_info.get("client_id")
         if not client_uuid:
             self.products_table.blockSignals(False)
             return
+
         try:
-            linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None); linked_products = linked_products if linked_products else []
-            for row_idx, prod_link_data in enumerate(linked_products):
+            all_linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
+            all_linked_products = all_linked_products if all_linked_products else []
+
+            selected_lang_code = self.product_lang_filter_combo.currentData()
+
+            filtered_products = []
+            if selected_lang_code: # If a specific language is selected (not "All Languages")
+                for prod in all_linked_products:
+                    # Ensure 'language_code' is available from the db_manager call for the product itself
+                    if prod.get('language_code') == selected_lang_code:
+                        filtered_products.append(prod)
+            else: # "All Languages" selected
+                filtered_products = all_linked_products
+
+            for row_idx, prod_link_data in enumerate(filtered_products):
                 self.products_table.insertRow(row_idx)
 
-                # ID item (Column 0 - Hidden)
                 id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
                 id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
                 id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
@@ -599,40 +804,52 @@ class ClientWidget(QWidget):
 
                 # Name (Column 1)
                 name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
                 self.products_table.setItem(row_idx, 1, name_item)
 
-                # Description (Column 2)
                 desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
-                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
                 self.products_table.setItem(row_idx, 2, desc_item)
 
-                # Quantity (Column 3 - Editable)
+                # Weight (Column 3 - Not Editable from this table)
+                weight_val = prod_link_data.get('weight')
+                weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+                weight_item = QTableWidgetItem(weight_str)
+                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.products_table.setItem(row_idx, 3, weight_item)
+
+                # Dimensions (Column 4 - Not Editable from this table)
+                dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
+                dimensions_item = QTableWidgetItem(dimensions_val)
+                dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 4, dimensions_item)
+
+                # Quantity (Column 5 - Editable)
                 qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
                 qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable) # Make editable
-                self.products_table.setItem(row_idx, 3, qty_item)
+                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 5, qty_item)
 
-                # Unit Price (Column 4 - Editable)
+                # Unit Price (Column 6 - Editable)
                 unit_price_override = prod_link_data.get('unit_price_override')
                 base_price = prod_link_data.get('base_unit_price')
                 effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
                 effective_unit_price = float(effective_unit_price)
-                # Store raw number for editing, display with currency symbol is tricky for direct editing
-                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}") # Store as plain number string
+                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
                 unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable) # Make editable
-                self.products_table.setItem(row_idx, 4, unit_price_item)
+                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 6, unit_price_item)
 
-                # Total Price (Column 5 - Not Editable)
+                # Total Price (Column 7 - Not Editable)
                 total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
                 total_price_calculated_val = float(total_price_calculated_val)
                 total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
                 total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable) # Not editable
-                self.products_table.setItem(row_idx, 5, total_price_item)
+                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 7, total_price_item)
 
-            self.products_table.resizeColumnsToContents()
+            # self.products_table.resizeColumnsToContents() # Can make UI jumpy, consider specific column resize modes
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
         finally:
@@ -662,15 +879,16 @@ class ClientWidget(QWidget):
         update_data = {}
 
         try:
-            if col == 3: # Quantity column
+            # ID (0, hidden), Name (1), Desc (2), Weight (3), Dimensions (4), Qty (5), UnitPrice (6), TotalPrice (7)
+            if col == 5: # Quantity column
                 new_quantity = float(new_value_str)
                 if new_quantity <= 0:
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("La quantité doit être positive."))
                     self.products_table.blockSignals(True); self.load_products(); self.products_table.blockSignals(False)
                     return
                 update_data['quantity'] = new_quantity
-            elif col == 4: # Unit Price column
-                new_unit_price_str = new_value_str.replace("€", "").strip() # Allow for currency symbol if pasted
+            elif col == 6: # Unit Price column
+                new_unit_price_str = new_value_str.replace("€", "").strip()
                 new_unit_price = float(new_unit_price_str)
                 if new_unit_price < 0:
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("Le prix unitaire ne peut être négatif."))
