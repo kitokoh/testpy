@@ -5,7 +5,7 @@ from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
 )
@@ -112,13 +112,11 @@ class ClientWidget(QWidget):
 
         # status_layout = QHBoxLayout() # Removed, status_combo is now part of details_layout
         status_label = QLabel(self.tr("Statut:"))
-        status_layout.addWidget(status_label)
+        # status_layout.addWidget(status_label)
         self.status_combo = QComboBox()
         self.load_statuses()
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
         self.status_combo.currentTextChanged.connect(self.update_client_status)
-        # status_layout.addWidget(self.status_combo) # self.status_combo will be added in populate_details_layout
-        # layout.addLayout(status_layout) # status_layout is removed
 
         self.details_layout = QFormLayout()
         self.details_layout.setLabelAlignment(Qt.AlignLeft) # Changed to AlignLeft for row labels like "Localisation:"
@@ -284,6 +282,12 @@ class ClientWidget(QWidget):
 
     def populate_details_layout(self):
         # Clear existing rows from the layout
+        if self.status_combo and self.status_combo.parent():
+            self.status_combo.setParent(None)
+        if hasattr(self, 'category_label') and self.category_label and self.category_label.parent():
+            self.category_label.setParent(None)
+        if hasattr(self, 'category_value_label') and self.category_value_label and self.category_value_label.parent():
+            self.category_value_label.setParent(None)
         while self.details_layout.rowCount() > 0:
             self.details_layout.removeRow(0)
 
@@ -759,7 +763,12 @@ class ClientWidget(QWidget):
             self.status_combo.currentTextChanged.disconnect(self.update_client_status)
         except TypeError:
             pass
-
+        if self.status_combo and self.status_combo.parent():
+            self.status_combo.setParent(None)
+        if hasattr(self, 'category_label') and self.category_label and self.category_label.parent():
+            self.category_label.setParent(None)
+        if hasattr(self, 'category_value_label') and self.category_value_label and self.category_value_label.parent():
+            self.category_value_label.setParent(None)
         while self.details_layout.rowCount() > 0:
             self.details_layout.removeRow(0)
         self.edit_widgets = {}
