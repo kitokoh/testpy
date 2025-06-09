@@ -474,6 +474,168 @@ QStatusBar::item {
     border: none;
 }
 
+/* Client Widget Header */
+QLabel#clientHeaderLabel {
+    font-size: 16pt; /* Approximates h2 */
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    background-color: transparent; /* Ensure no other background is inherited */
+}
+
+/* Company Management Specific Styles */
+QLabel#logoPreviewLabel {
+    border: 1px solid #ccc; /* From CompanyDialog */
+    /* alignment is set in code */
+}
+
+QLabel#logoDisplayLabel {
+    border: 1px solid #ddd; /* From CompanyDetailsViewWidget */
+    padding: 5px;
+    /* alignment is set in code */
+}
+
+/* Statistics Widget Styles (main.py) */
+QGroupBox#statisticsGroup {
+    /* Uses default QGroupBox style. Add specific styles here if needed: */
+    /* e.g., margin-bottom: 10px; */
+    /* The title (QGroupBox::title) is already styled globally. */
+}
+
+QLabel#statisticValueLabel {
+    /* Font and alignment are primarily set in Python code (QFont, setAlignment). */
+    /* QSS can override or add: e.g., color, padding, min-height. */
+    /* color: #263238; (default text color) */
+    padding: 5px; /* Example padding */
+}
+
+QLabel#urgentStatisticLabel {
+    /* Inherits font/alignment from statisticValueLabel's Python setup. */
+    color: #e74c3c; /* Specific color for urgent stats (Error Color) */
+    padding: 5px; /* Consistent padding */
+}
+
+/* KPI Frame Styles (projectManagement.py load_kpis) */
+QFrame#kpiFrame {
+    background-color: white;
+    border-radius: 5px;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+}
+
+QFrame#kpiFrame QLabel { /* General QLabel within kpiFrame */
+    font-size: 14px;
+    color: #555555;
+    background-color: transparent; /* Ensure transparency */
+}
+
+QFrame#kpiFrame QLabel#kpi_title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+QFrame#kpiFrame QLabel#kpi_value {
+    font-size: 28px;
+    font-weight: bold;
+    color: #007BFF; /* Primary Accent Color */
+}
+
+/* CustomNotificationBanner (projectManagement.py) */
+QFrame#customNotificationBanner {
+    background-color: #333333;
+    color: white;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+QFrame#customNotificationBanner QLabel#notificationIconLabel {
+    color: white; /* Icons are text emojis for now */
+    font-size: 14pt; /* Make icon a bit larger */
+    background-color: transparent;
+}
+
+QFrame#customNotificationBanner QLabel#notificationMessageLabel {
+    color: white;
+    font-size: 10pt;
+    background-color: transparent;
+}
+
+QFrame#customNotificationBanner QPushButton#notificationCloseButton {
+    color: white;
+    background-color: transparent; /* Main background from QFrame */
+    border: none;
+    border-radius: 3px;
+    padding: 0px; /* Adjust if needed */
+    font-size: 12pt;
+    font-weight: bold;
+    min-height: 0; /* Override default QPushButton min-height */
+}
+
+QFrame#customNotificationBanner QPushButton#notificationCloseButton:hover {
+    background-color: #c0392b; /* Dark red for hover */
+}
+
+/* Login Dialog (projectManagement.py show_login_dialog) */
+QDialog#loginDialog {
+    /* background-color: #ffffff; (already default QDialog) */
+}
+QDialog#loginDialog QLabel { /* General labels in login dialog */
+    /* color: #333333; (default text color) */
+    background-color: transparent;
+}
+QLabel#loginLogoLabel { /* Specific for logo if needed */
+    background-color: transparent;
+}
+QDialog#loginDialog QLineEdit#loginUsernameEdit,
+QDialog#loginDialog QLineEdit#loginPasswordEdit {
+    padding: 8px;
+    border: 1px solid #DDE2E6; /* Use theme border color */
+    border-radius: 4px;
+}
+QDialog#loginDialog QPushButton#loginDialogButton {
+    /* Inherits from global QPushButton. Can use #primaryButton if set in code */
+    /* e.g., background-color: #007BFF; color: white; */
+}
+/* QDialog#loginDialog QPushButton#loginDialogButton:hover { background-color: #0056b3; } */
+
+
+/* Table Action Buttons (projectManagement.py) */
+QPushButton#tableActionButton {
+    background-color: transparent;
+    border: none;
+    font-size: 16px; /* From get_table_action_button_style */
+    padding: 2px; /* Minimal padding for icon buttons */
+    color: #546E7A; /* Default secondary text color for icons */
+    min-width: 28px;
+    min-height: 28px;
+}
+QPushButton#tableActionButton:hover {
+    color: #007BFF;
+    background-color: #E3F2FD;
+}
+
+QPushButton#dangerButtonTable { /* For table delete buttons */
+    background-color: transparent;
+    border: none;
+    font-size: 16px; /* Consistent with tableActionButton */
+    padding: 2px;
+    color: #DC3545; /* Error/Danger color */
+    min-width: 28px;
+    min-height: 28px;
+}
+QPushButton#dangerButtonTable:hover {
+    color: #FFFFFF;
+    background-color: #C82333; /* Darker danger color */
+}
+
+/* CoverPageEditorDialog specific input styles (projectManagement.py) */
+/* QDialog#coverPageEditorDialog QLineEdit, ... {} (Global styles for QLineEdit etc. should apply) */
+
+/* CoverPage Management Client ComboBox (projectManagement.py) */
+/* QComboBox#coverPageClientCombo {} (Global QComboBox style should apply) */
+
+
 /* QToolTip */
 QToolTip {
     background-color: #263238;
@@ -722,3 +884,5 @@ QLabel#pageTitleLabel {
     :/icons/radio-checked-dot-disabled.svg, :/icons/chevron-right.svg, :/icons/x.svg,
     :/icons/chevron-down-light.svg (for dark topbar menu buttons)
 */
+
+[end of style.qss]

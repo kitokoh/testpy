@@ -113,6 +113,7 @@ def initialize_database():
         status_name TEXT NOT NULL,
         status_type TEXT NOT NULL, -- e.g., 'Client', 'Project', 'Task'
         color_hex TEXT,
+        icon_name TEXT, -- Added for icon association
         default_duration_days INTEGER,
         is_archival_status BOOLEAN DEFAULT FALSE,
         is_completion_status BOOLEAN DEFAULT FALSE,
@@ -123,38 +124,39 @@ def initialize_database():
     # --- Pre-populate StatusSettings ---
     default_statuses = [
         # Client Statuses
-        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
-        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False}, # Yellow
-        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'is_completion_status': False, 'is_archival_status': False}, # Green
-        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'is_completion_status': False, 'is_archival_status': True},  # Grey
-        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'is_completion_status': True, 'is_archival_status': False}, # Darker Green
-        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True},  # Darker Grey
-        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},   # Red
+        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True},
+        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
+        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True},
+        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False},
 
         # Project Statuses
-        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'is_completion_status': False, 'is_archival_status': False}, # Turquoise
-        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False}, # Blue
-        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'is_completion_status': False, 'is_archival_status': False},# Orange
-        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},  # Green
-        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'is_completion_status': False, 'is_archival_status': True},   # Dark Red
-        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'is_completion_status': False, 'is_archival_status': False}, # Purple
+        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
+        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
+        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False},
 
         # Task Statuses
-        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'is_completion_status': False, 'is_archival_status': False},      # Light Grey
-        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'is_completion_status': False, 'is_archival_status': False},# Blue
-        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'is_completion_status': True, 'is_archival_status': False},     # Green
-        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'is_completion_status': False, 'is_archival_status': False},    # Red
-        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'is_completion_status': False, 'is_archival_status': False},     # Yellow
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'is_completion_status': False, 'is_archival_status': True}   # Dark Grey
+        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
+        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True}
     ]
 
     for status in default_statuses:
         cursor.execute("""
             INSERT OR IGNORE INTO StatusSettings (
-                status_name, status_type, color_hex, is_completion_status, is_archival_status
-            ) VALUES (?, ?, ?, ?, ?)
+                status_name, status_type, color_hex, icon_name, is_completion_status, is_archival_status
+            ) VALUES (?, ?, ?, ?, ?, ?)
         """, (
             status['status_name'], status['status_type'], status['color_hex'],
+            status.get('icon_name'), # Add icon_name
             status.get('is_completion_status', False),
             status.get('is_archival_status', False)
         ))
@@ -4623,7 +4625,7 @@ def get_all_status_settings(status_type: str = None) -> list[dict]:
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = "SELECT * FROM StatusSettings"
+        sql = "SELECT status_id, status_name, status_type, color_hex, icon_name, default_duration_days, is_archival_status, is_completion_status FROM StatusSettings" # Ensure icon_name is fetched
         params = []
         if status_type:
             sql += " WHERE status_type = ?"
@@ -4643,7 +4645,7 @@ def get_status_setting_by_id(status_id: int) -> dict | None:
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM StatusSettings WHERE status_id = ?", (status_id,))
+        cursor.execute("SELECT status_id, status_name, status_type, color_hex, icon_name, default_duration_days, is_archival_status, is_completion_status FROM StatusSettings WHERE status_id = ?", (status_id,)) # Ensure icon_name is fetched
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
@@ -4657,7 +4659,7 @@ def get_status_setting_by_name(status_name: str, status_type: str) -> dict | Non
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?", (status_name, status_type))
+        cursor.execute("SELECT status_id, status_name, status_type, color_hex, icon_name, default_duration_days, is_archival_status, is_completion_status FROM StatusSettings WHERE status_name = ? AND status_type = ?", (status_name, status_type)) # Ensure icon_name is fetched
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
