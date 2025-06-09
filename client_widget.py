@@ -50,7 +50,7 @@ def _import_main_elements():
 
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
         # self.config = config # Original config passed
@@ -58,6 +58,7 @@ class ClientWidget(QWidget):
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
         self.config = MAIN_MODULE_CONFIG # Use the imported config
+        self.app_root_dir = app_root_dir # Store it
         self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
@@ -598,7 +599,7 @@ class ClientWidget(QWidget):
         if dialog.exec_() == QDialog.Accepted: self.populate_doc_table()
 
     def open_compile_pdf_dialog(self):
-        dialog = self.CompilePdfDialog(self.client_info, self)
+        dialog = self.CompilePdfDialog(self.client_info, self.config, self.app_root_dir, self)
         dialog.exec_()
 
     def open_selected_doc(self):
@@ -721,6 +722,7 @@ class ClientWidget(QWidget):
             QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
             return
 
+
         name_item = self.contacts_table.item(current_row, 0)
         if not name_item: return # Should not happen if row is valid
 
@@ -767,10 +769,12 @@ class ClientWidget(QWidget):
                 for key_to_clear in additional_fields_keys:
                     updated_data_from_dialog[key_to_clear] = "" # Set to empty string to clear in DB
 
+
             try:
                 # Update the main contact details
                 if db_manager.update_contact(contact_id, updated_data_from_dialog):
                     # Now, update the client-specific link (is_primary_for_client)
+
                     client_contact_id_for_update = full_contact_details.get('client_contact_id')
                     if client_contact_id_for_update is not None:
                         db_manager.update_client_contact_link(
@@ -778,7 +782,10 @@ class ClientWidget(QWidget):
                             {'is_primary_for_client': is_primary_for_client_from_dialog}
                         )
                     else:
-                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update of link.")
+
+                        # This case should ideally not happen if the contact is linked.
+                        # If it can, then we might need to re-link or handle error.
+                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
 
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
                 else:

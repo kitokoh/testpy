@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 
 from PyQt5.QtCore import QStandardPaths, QCoreApplication, QUrl
+from PyQt5.QtGui import QDesktopServices # Added for generate_pdf_for_document
 from PyQt5.QtWidgets import QMessageBox
 
 from docx import Document
@@ -17,8 +18,8 @@ from html_to_pdf_util import convert_html_to_pdf # For generate_pdf_for_document
 # --- Configuration Constants ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
 CONFIG_FILE_NAME = "config.json"
-TEMPLATES_SUBDIR = "templates"
-CLIENTS_SUBDIR = "clients"
+# TEMPLATES_SUBDIR = "templates" # Removed as no longer used in utils.py
+# CLIENTS_SUBDIR = "clients"   # Removed as no longer used in utils.py
 
 # --- Configuration Functions ---
 def get_config_dir():

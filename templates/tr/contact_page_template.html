@@ -1,128 +1,119 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>PAGE DE CONTACTS - Projet {{PROJECT_ID}}</title>
+    <title>{{ doc.document_title }}</title>
     <style>
         body {
-            font-family: "Segoe UI", Arial, sans-serif;
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f7fc;
+            background-color: #f4f4f4;
             color: #333;
-            font-size: 10pt;
+            font-size: 12px; /* Base font size */
         }
-        .page {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 20mm;
-            margin: 10mm auto;
+        .container {
+            width: 80%;
+            margin: 20px auto;
             background-color: #fff;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            box-sizing: border-box;
+            padding: 20px;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        .header-container-contact {
+        .header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid #28a745; /* Green accent */
-            padding-bottom: 15px;
-            margin-bottom: 25px;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
         }
-        .logo-contact {
-            max-width: 160px;
+        .header img {
             max-height: 70px;
-            object-fit: contain;
+            max-width: 200px;
         }
-        .document-title-contact {
+        .header-title {
+            font-size: 24px;
+            font-weight: bold;
             text-align: right;
         }
-        .document-title-contact h1 {
-            font-size: 20pt;
-            color: #28a745;
-            margin: 0 0 5px 0;
-            font-weight: 600;
-        }
-        .document-title-contact p {
-            font-size: 9pt;
+        .document-meta {
+            text-align: right;
+            font-size: 0.9em;
             color: #555;
-            margin: 2px 0;
+            margin-bottom:20px;
         }
-        .intro-contact {
-            margin-bottom: 20px;
-            font-size: 11pt;
-            text-align: center;
+        .intro-section {
+            padding: 15px 0;
+            font-size: 1.1em;
         }
         .contacts-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
+            margin-top: 20px;
         }
         .contacts-table th, .contacts-table td {
-            border: 1px solid #dee2e6;
-            padding: 10px 12px;
+            border: 1px solid #ddd;
+            padding: 10px; /* Increased padding */
             text-align: left;
-            font-size: 9.5pt;
-            vertical-align: top;
+            font-size: 0.95em; /* Slightly larger font in table */
         }
         .contacts-table th {
-            background-color: #28a745; /* Green accent */
-            color: #fff;
-            font-weight: 500;
-            text-transform: uppercase;
+            background-color: #f0f0f0; /* Light grey for header */
+            font-weight: bold;
+            color: #333;
         }
         .contacts-table tr:nth-child(even) {
-            background-color: #f8f9fa;
+            background-color: #f9f9f9; /* Zebra striping for rows */
         }
-        .contacts-table td a {
-            color: #007bff;
-            text-decoration: none;
-        }
-        .contacts-table td a:hover {
-            text-decoration: underline;
-        }
-        .footer-contact {
-            border-top: 1px solid #28a745;
-            padding-top: 10px;
-            margin-top: 30px;
+        .footer {
             text-align: center;
-            font-size: 8.5pt;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.8em;
             color: #777;
+            margin-top: 30px;
         }
     </style>
 </head>
 <body>
-    <div class="page">
-        <div class="header-container-contact">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-contact">
-            <div class="document-title-contact">
-                <h1>PAGE DE CONTACTS</h1>
-                <p>Projet: {{PROJECT_ID}} - {{PROJECT_NAME_CONTACT_PAGE}}</p>
-                <p>Date d'''impression: {{DATE_CONTACT_PAGE}}</p>
+    <div class="container">
+        <div class="header">
+            <div>
+                {{#if seller_company_logo_path}}
+                    <img src="{{ seller_company_logo_path }}" alt="Şirket Logosu">
+                {{else}}
+                    <span>{{ seller_company_name }}</span>
+                {{/if}}
             </div>
+            <div class="header-title">İLETİŞİM SAYFASI</div>
+        </div>
+        <div class="document-meta">
+            Belge Tarihi: {{ doc.current_date }}
         </div>
 
-        <div class="intro-contact">
-            <p>Voici la liste des principaux intervenants et contacts pour le projet <strong>{{PROJECT_NAME_CONTACT_PAGE}}</strong>.</p>
+        <div class="intro-section">
+            <p>Bu belge, projeyle ilişkili kilit kişileri listeler:</p>
+            <p><strong>Proje:</strong> {{ project.name }}</p>
+            <p><strong>Proje ID:</strong> {{ project.id }}</p>
         </div>
 
         <table class="contacts-table">
             <thead>
                 <tr>
-                    <th style="width:25%;">Rôle / Organisation</th>
-                    <th style="width:20%;">Nom du Contact</th>
-                    <th style="width:20%;">Fonction / Titre</th>
-                    <th style="width:20%;">Email</th>
-                    <th style="width:15%;">Téléphone</th>
+                    <th>Rol/Kuruluş</th>
+                    <th>Ad Soyad</th>
+                    <th>Unvan/Görev</th>
+                    <th>E-posta</th>
+                    <th>Telefon</th>
                 </tr>
             </thead>
             <tbody>
-                {{CONTACTS_TABLE_ROWS_CONTACT_PAGE}}
+                {{{ doc.contact_list_items_html }}}
             </tbody>
         </table>
-        
-        <div class="footer-contact">
-            <p>{{SELLER_COMPANY_NAME}} - Facilitant la communication pour votre projet.</p>
+
+        <div class="footer">
+            <p>&copy; {{ doc.current_year }} {{ seller_company_name }}. Tüm hakları saklıdır.</p>
         </div>
     </div>
 </body>
