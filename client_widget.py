@@ -51,7 +51,7 @@ def _import_main_elements():
 
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
         # self.config = config # Original config passed
@@ -59,6 +59,7 @@ class ClientWidget(QWidget):
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
         self.config = MAIN_MODULE_CONFIG # Use the imported config
+        self.app_root_dir = app_root_dir # Store it
         self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
@@ -599,7 +600,7 @@ class ClientWidget(QWidget):
         if dialog.exec_() == QDialog.Accepted: self.populate_doc_table()
 
     def open_compile_pdf_dialog(self):
-        dialog = self.CompilePdfDialog(self.client_info, self)
+        dialog = self.CompilePdfDialog(self.client_info, self.config, self.app_root_dir, self)
         dialog.exec_()
 
     def open_selected_doc(self):
