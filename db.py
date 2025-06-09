@@ -448,8 +448,17 @@ def initialize_database():
         general_row = cursor.fetchone()
         if general_row:
             general_category_id_for_migration = general_row[0]
+
+        # Pre-populate "Document Utilitaires" category
+        try:
+            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                           ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
+            # No need to fetch its ID for migration context here unless specifically required elsewhere
+        except sqlite3.Error as e_cat_util:
+            print(f"Error initializing 'Document Utilitaires' category: {e_cat_util}")
+
         conn.commit() # Commit category creation before potential DDL changes for Templates
-    except sqlite3.Error as e_cat_init:
+    except sqlite3.Error as e_cat_init: # This specifically catches errors from the 'General' category block
         print(f"Error initializing General category: {e_cat_init}")
         # Decide if this is fatal or if migration can proceed without a fallback ID
         # For now, migration will use None if this fails, which _get_or_create_category_id handles.
