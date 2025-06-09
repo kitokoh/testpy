@@ -305,8 +305,9 @@ class StatusDelegate(QStyledItemDelegate):
         painter.restore()
 
 class DocumentManager(QMainWindow):
-    def __init__(self):
+    def __init__(self, app_root_dir): # Add app_root_dir parameter
         super().__init__()
+        self.app_root_dir = app_root_dir # Store it
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
@@ -1084,7 +1085,7 @@ class DocumentManager(QMainWindow):
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
                 self.client_tabs_widget.setCurrentIndex(i); return
                 
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, parent=self)
+        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, parent=self) # Add self.app_root_dir
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
             
@@ -2225,9 +2226,159 @@ def main():
             else:
                 # This message means the file wasn't found for DB registration, which is an issue if it was supposed to be created.
                 print(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
-    print("--- HTML Template File Creation & Registration Finished ---") # Updated print
+    print("--- HTML Template File Creation & Registration Finished ---")
+
+    # --- Default Email Templates Setup ---
+    print("\n--- Starting Default Email Template File Creation & Registration ---")
+    email_category_obj = db_manager.get_template_category_by_name("Modèles Email")
+    email_category_id = email_category_obj['category_id'] if email_category_obj else None
+
+    if email_category_id is None:
+        print("CRITICAL ERROR: 'Modèles Email' category not found. Cannot register default email templates.")
+    else:
+        print(f"Found 'Modèles Email' category with ID: {email_category_id}")
+
+        default_email_templates_data = [
+            {
+                "name_key": "EMAIL_GREETING",
+                "display_name_prefix": {"fr": "Salutation Générale", "en": "General Greeting", "ar": "تحية عامة", "tr": "Genel Selamlama", "pt": "Saudação Geral"},
+                "subject": {
+                    "fr": "Un message de {{seller.company_name}}", "en": "A message from {{seller.company_name}}",
+                    "ar": "رسالة من {{seller.company_name}}", "tr": "{{seller.company_name}} firmasından bir mesaj",
+                    "pt": "Uma mensagem de {{seller.company_name}}"
+                },
+                "html_content": {
+                    "fr": "<p>Cher/Chère {{client.contact_person_name}},</p><p>Merci pour votre intérêt pour nos services.</p><p>Cordialement,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "en": "<p>Dear {{client.contact_person_name}},</p><p>Thank you for your interest in our services.</p><p>Sincerely,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "ar": "<p>عزيزي/عزيزتي {{client.contact_person_name}}،</p><p>شكراً لاهتمامك بخدماتنا.</p><p>مع خالص التقدير،</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "tr": "<p>Sayın {{client.contact_person_name}},</p><p>Hizmetlerimize gösterdiğiniz ilgi için teşekkür ederiz.</p><p>Saygılarımla,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "pt": "<p>Prezado(a) {{client.contact_person_name}},</p><p>Obrigado pelo seu interesse em nossos serviços.</p><p>Atenciosamente,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>"
+                },
+                "txt_content": {
+                    "fr": "Cher/Chère {{client.contact_person_name}},\n\nMerci pour votre intérêt pour nos services.\n\nCordialement,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "en": "Dear {{client.contact_person_name}},\n\nThank you for your interest in our services.\n\nSincerely,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "ar": "عزيزي/عزيزتي {{client.contact_person_name}}،\n\nشكراً لاهتمامك بخدماتنا.\n\nمع خالص التقدير،\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "tr": "Sayın {{client.contact_person_name}},\n\nHizmetlerimize gösterdiğiniz ilgi için teşekkür ederiz.\n\nSaygılarımla,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "pt": "Prezado(a) {{client.contact_person_name}},\n\nObrigado pelo seu interesse em nossos serviços.\n\nAtenciosamente,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}"
+                },
+                "description_html": {
+                    "fr": "Modèle HTML de salutation générale.", "en": "General greeting HTML template.",
+                    "ar": "قالب HTML للتحية العامة.", "tr": "Genel selamlama HTML şablonu.",
+                    "pt": "Modelo HTML de saudação geral."
+                },
+                "description_txt": {
+                    "fr": "Modèle TXT de salutation générale.", "en": "General greeting TXT template.",
+                    "ar": "قالب TXT للتحية العامة.", "tr": "Genel selamlama TXT şablonu.",
+                    "pt": "Modelo TXT de saudação geral."
+                }
+            },
+            {
+                "name_key": "EMAIL_FOLLOWUP",
+                "display_name_prefix": {"fr": "Suivi de Discussion", "en": "Discussion Follow-up", "ar": "متابعة المناقشة", "tr": "Görüşme Takibi", "pt": "Acompanhamento da Discussão"},
+                "subject": {
+                    "fr": "Suivi concernant {{project.name}}", "en": "Following up regarding {{project.name}}",
+                    "ar": "متابعة بخصوص {{project.name}}", "tr": "{{project.name}} hakkında takip",
+                    "pt": "Acompanhamento sobre {{project.name}}"
+                },
+                "html_content": {
+                    "fr": "<p>Cher/Chère {{client.contact_person_name}},</p><p>Ceci est un email de suivi concernant notre récente discussion sur {{project.name}}.</p><p>N'hésitez pas à nous contacter pour toute question.</p><p>Cordialement,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "en": "<p>Dear {{client.contact_person_name}},</p><p>This is a follow-up email regarding our recent discussion about {{project.name}}.</p><p>Please feel free to contact us with any questions.</p><p>Sincerely,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "ar": "<p>عزيزي/عزيزتي {{client.contact_person_name}}،</p><p>هذه رسالة متابعة بخصوص مناقشتنا الأخيرة حول {{project.name}}.</p><p>لا تتردد في الاتصال بنا لأية أسئلة.</p><p>مع خالص التقدير،</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "tr": "<p>Sayın {{client.contact_person_name}},</p><p>{{project.name}} hakkındaki son görüşmemizle ilgili bir takip e-postasıdır.</p><p>Herhangi bir sorunuz olursa lütfen bizimle iletişime geçmekten çekinmeyin.</p><p>Saygılarımla,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>",
+                    "pt": "<p>Prezado(a) {{client.contact_person_name}},</p><p>Este é um e-mail de acompanhamento sobre nossa recente discussão sobre {{project.name}}.</p><p>Sinta-se à vontade para entrar em contato conosco com qualquer dúvida.</p><p>Atenciosamente,</p><p>{{seller.personnel.representative_name}}<br>{{seller.company_name}}</p>"
+                },
+                "txt_content": {
+                    "fr": "Cher/Chère {{client.contact_person_name}},\n\nCeci est un email de suivi concernant notre récente discussion sur {{project.name}}.\n\nN'hésitez pas à nous contacter pour toute question.\n\nCordialement,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "en": "Dear {{client.contact_person_name}},\n\nThis is a follow-up email regarding our recent discussion about {{project.name}}.\n\nPlease feel free to contact us with any questions.\n\nSincerely,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "ar": "عزيزي/عزيزتي {{client.contact_person_name}}،\n\nهذه رسالة متابعة بخصوص مناقشتنا الأخيرة حول {{project.name}}.\n\nلا تتردد في الاتصال بنا لأية أسئلة.\n\nمع خالص التقدير،\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "tr": "Sayın {{client.contact_person_name}},\n\n{{project.name}} hakkındaki son görüşmemizle ilgili bir takip e-postasıdır.\n\nHerhangi bir sorunuz olursa lütfen bizimle iletişime geçmekten çekinmeyin.\n\nSaygılarımla,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}",
+                    "pt": "Prezado(a) {{client.contact_person_name}},\n\nEste é um e-mail de acompanhamento sobre nossa recente discussão sobre {{project.name}}.\n\nSinta-se à vontade para entrar em contato conosco com qualquer dúvida.\n\nAtenciosamente,\n{{seller.personnel.representative_name}}\n{{seller.company_name}}"
+                },
+                "description_html": {
+                    "fr": "Modèle HTML de suivi de discussion.", "en": "Discussion follow-up HTML template.",
+                    "ar": "قالب HTML لمتابعة المناقشة.", "tr": "Görüşme takibi HTML şablonu.",
+                    "pt": "Modelo HTML de acompanhamento da discussão."
+                },
+                "description_txt": {
+                    "fr": "Modèle TXT de suivi de discussion.", "en": "Discussion follow-up TXT template.",
+                    "ar": "قالب TXT لمتابعة المناقشة.", "tr": "Görüşme takibi TXT şablonu.",
+                    "pt": "Modelo TXT de acompanhamento da discussão."
+                }
+            }
+        ]
+
+        target_languages = ["fr", "en", "ar", "tr", "pt"] # Same as all_supported_template_langs
+
+        for lang_code in target_languages:
+            lang_specific_template_dir = os.path.join(CONFIG["templates_dir"], lang_code)
+            os.makedirs(lang_specific_template_dir, exist_ok=True)
+
+            for template_set in default_email_templates_data:
+                name_key = template_set['name_key']
+
+                # Determine display name prefix (fallback to English if specific language not found)
+                display_name_prefix = template_set['display_name_prefix'].get(lang_code, template_set['display_name_prefix'].get('en', name_key))
+
+                # Common subject for HTML and TXT version of a template set and language
+                subject_content = template_set['subject'].get(lang_code, template_set['subject'].get('en', f"Message from {{{{seller.company_name}}}}"))
+
+                # Process HTML version
+                base_file_name_html = f"{name_key.lower()}_{lang_code}.html"
+                full_path_html = os.path.join(lang_specific_template_dir, base_file_name_html)
+                html_content_str = template_set['html_content'].get(lang_code, template_set['html_content'].get('en', "<p>Default HTML content.</p>"))
+                description_html_str = template_set['description_html'].get(lang_code, template_set['description_html'].get('en', "Default HTML email template."))
+
+                if not os.path.exists(full_path_html):
+                    try:
+                        with open(full_path_html, "w", encoding="utf-8") as f_html:
+                            f_html.write(html_content_str)
+                        print(f"CREATED Default Email Template File (HTML): {full_path_html}")
+                    except IOError as e_io_html:
+                        print(f"ERROR creating HTML email template file {full_path_html}: {e_io_html}")
+                        continue # Skip DB registration if file creation failed
+
+                template_name_html_db = f"{display_name_prefix} (HTML) {lang_code.upper()}"
+                db_manager.add_default_template_if_not_exists({
+                    'template_name': template_name_html_db,
+                    'template_type': 'EMAIL_BODY_HTML',
+                    'language_code': lang_code,
+                    'base_file_name': base_file_name_html,
+                    'email_subject_template': subject_content,
+                    'description': description_html_str,
+                    'category_id': email_category_id,
+                    'is_default_for_type_lang': False # Typically, users will set their own defaults
+                })
+
+                # Process TXT version
+                base_file_name_txt = f"{name_key.lower()}_{lang_code}.txt"
+                full_path_txt = os.path.join(lang_specific_template_dir, base_file_name_txt)
+                txt_content_str = template_set['txt_content'].get(lang_code, template_set['txt_content'].get('en', "Default TXT content."))
+                description_txt_str = template_set['description_txt'].get(lang_code, template_set['description_txt'].get('en', "Default TXT email template."))
+
+                if not os.path.exists(full_path_txt):
+                    try:
+                        with open(full_path_txt, "w", encoding="utf-8") as f_txt:
+                            f_txt.write(txt_content_str)
+                        print(f"CREATED Default Email Template File (TXT): {full_path_txt}")
+                    except IOError as e_io_txt:
+                        print(f"ERROR creating TXT email template file {full_path_txt}: {e_io_txt}")
+                        continue # Skip DB registration
+
+                template_name_txt_db = f"{display_name_prefix} (TXT) {lang_code.upper()}"
+                db_manager.add_default_template_if_not_exists({
+                    'template_name': template_name_txt_db,
+                    'template_type': 'EMAIL_BODY_TXT',
+                    'language_code': lang_code,
+                    'base_file_name': base_file_name_txt,
+                    'email_subject_template': subject_content, # Same subject for HTML/TXT pair
+                    'description': description_txt_str,
+                    'category_id': email_category_id,
+                    'is_default_for_type_lang': False
+                })
+        print("--- Default Email Template File Creation & Registration Finished ---")
        
-    main_window = DocumentManager() 
+    # APP_ROOT_DIR is defined globally in main.py
+    main_window = DocumentManager(APP_ROOT_DIR) # Pass APP_ROOT_DIR
     main_window.show()
     sys.exit(app.exec_())
 

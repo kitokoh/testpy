@@ -245,7 +245,7 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
-        self.setMinimumSize(450,380); self.setup_ui()
+        self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
@@ -254,12 +254,67 @@ class ContactDialog(QDialog):
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
         form_layout=QFormLayout();form_layout.setSpacing(10);form_layout.setContentsMargins(10,0,10,0)
         # self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }") # Prefer global styles
-        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet:")),self.name_input)
+        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet (ou affichage):")),self.name_input) # Changed label slightly
         self.email_input=QLineEdit(self.contact_data.get("email",""));form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
-        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone:")),self.phone_input)
-        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste:")),self.position_input)
-        self.primary_check=QCheckBox(self.tr("Contact principal"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary",0)));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
-        main_layout.addLayout(form_layout);main_layout.addStretch()
+        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone (principal):")),self.phone_input) # Changed label slightly
+        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste (général):")),self.position_input) # Changed label slightly
+        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
+        main_layout.addLayout(form_layout)
+
+        # Additional Fields GroupBox
+        self.additional_fields_group = QGroupBox(self.tr("Champs supplémentaires"))
+        self.additional_fields_group.setCheckable(True)
+        self.additional_fields_group.setChecked(False) # Default to collapsed
+        additional_form_layout = QFormLayout(self.additional_fields_group)
+        additional_form_layout.setSpacing(10)
+
+        self.givenName_input = QLineEdit(self.contact_data.get("givenName", ""))
+        additional_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
+        self.familyName_input = QLineEdit(self.contact_data.get("familyName", ""))
+        additional_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
+        self.displayName_input = QLineEdit(self.contact_data.get("displayName", ""))
+        additional_form_layout.addRow(self.tr("Nom affiché:"), self.displayName_input)
+        self.phone_type_input = QLineEdit(self.contact_data.get("phone_type", ""))
+        additional_form_layout.addRow(self.tr("Type téléphone (principal):"), self.phone_type_input)
+        self.email_type_input = QLineEdit(self.contact_data.get("email_type", ""))
+        additional_form_layout.addRow(self.tr("Type email (principal):"), self.email_type_input)
+        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
+        additional_form_layout.addRow(self.tr("Adresse complète formatée:"), self.address_formattedValue_input)
+        self.address_streetAddress_input = QLineEdit(self.contact_data.get("address_streetAddress", ""))
+        additional_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
+        self.address_city_input = QLineEdit(self.contact_data.get("address_city", ""))
+        additional_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
+        self.address_region_input = QLineEdit(self.contact_data.get("address_region", ""))
+        additional_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
+        self.address_postalCode_input = QLineEdit(self.contact_data.get("address_postalCode", ""))
+        additional_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
+        self.address_country_input = QLineEdit(self.contact_data.get("address_country", ""))
+        additional_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
+        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", self.contact_data.get("company_name", ""))) # Fallback to general company_name
+        additional_form_layout.addRow(self.tr("Nom Organisation:"), self.organization_name_input)
+        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", self.contact_data.get("position", ""))) # Fallback to general position
+        additional_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
+        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", "")) # Using QLineEdit for now
+        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ ou MM-JJ"))
+        additional_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
+
+        main_layout.addWidget(self.additional_fields_group)
+
+        # Check if any additional field has data to expand the group box
+        additional_fields_keys = [
+            "givenName", "familyName", "displayName", "phone_type", "email_type",
+            "address_formattedValue", "address_streetAddress", "address_city",
+            "address_region", "address_postalCode", "address_country",
+            "organization_name", "organization_title", "birthday_date"
+        ]
+        # Also consider company_name and position if they were used as fallbacks and are different
+        # from the main company_name/position fields, or if the specific fields are present.
+        if any(self.contact_data.get(key) for key in additional_fields_keys) or \
+           (self.contact_data.get("company_name") and self.organization_name_input.text() != self.contact_data.get("company_name")) or \
+           (self.contact_data.get("position") and self.organization_title_input.text() != self.contact_data.get("position")):
+            self.additional_fields_group.setChecked(True)
+
+        main_layout.addStretch()
         button_frame=QFrame(self);button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
@@ -274,7 +329,45 @@ class ContactDialog(QDialog):
             self.name_input.setStyleSheet("background-color: #E8F5E9;") # Light Green from palette
         else:
             self.name_input.setStyleSheet("") # Reset to default QSS
-    def get_data(self):return{"name":self.name_input.text().strip(),"email":self.email_input.text().strip(),"phone":self.phone_input.text().strip(),"position":self.position_input.text().strip(),"is_primary":1 if self.primary_check.isChecked() else 0}
+    def get_data(self):
+        data = {
+            "name": self.name_input.text().strip(), # Fallback name or displayName
+            "email": self.email_input.text().strip(),
+            "phone": self.phone_input.text().strip(), # Primary phone
+            "position": self.position_input.text().strip(), # General position
+            "is_primary_for_client": 1 if self.primary_check.isChecked() else 0,
+            # notes from main dialog is not here, assumed to be handled by ClientWidget's direct save for general notes.
+            # If notes were part of this dialog, it would be: "notes": self.notes_input.toPlainText().strip(),
+        }
+        if self.additional_fields_group.isChecked():
+            data.update({
+                "givenName": self.givenName_input.text().strip(),
+                "familyName": self.familyName_input.text().strip(),
+                "displayName": self.displayName_input.text().strip(),
+                "phone_type": self.phone_type_input.text().strip(),
+                "email_type": self.email_type_input.text().strip(),
+                "address_formattedValue": self.address_formattedValue_input.text().strip(),
+                "address_streetAddress": self.address_streetAddress_input.text().strip(),
+                "address_city": self.address_city_input.text().strip(),
+                "address_region": self.address_region_input.text().strip(),
+                "address_postalCode": self.address_postalCode_input.text().strip(),
+                "address_country": self.address_country_input.text().strip(),
+                "organization_name": self.organization_name_input.text().strip(),
+                "organization_title": self.organization_title_input.text().strip(),
+                "birthday_date": self.birthday_date_input.text().strip(),
+            })
+            # If displayName has content and main 'name' is different or empty, prioritize displayName for 'name' field in DB
+            if data.get("displayName") and data.get("displayName") != data.get("name"):
+                data["name"] = data["displayName"]
+            elif not data.get("name") and data.get("displayName"): # if name was empty but displayname is not
+                 data["name"] = data["displayName"]
+
+
+        # If the group is not checked, we might still want to save specific fields if they were pre-filled
+        # and are now different from their original values (e.g. user unchecked after editing).
+        # However, current logic is simpler: if unchecked, only main fields are saved.
+        # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
+        return data
 
 class ProductDialog(QDialog):
     def __init__(self,client_id,product_data=None,parent=None):super().__init__(parent);self.client_id=client_id;self.setWindowTitle(self.tr("Ajouter Produits au Client"));self.setMinimumSize(900,800);self.client_info=db_manager.get_client_by_id(self.client_id);self.setup_ui();self._set_initial_language_filter();self._filter_products_by_language_and_search()
@@ -501,9 +594,31 @@ class CreateDocumentDialog(QDialog):
                         populate_docx_template(target_path, self.client_info) # Uses global populate_docx_template
                     elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
-                        default_company_obj = db_manager.get_default_company(); default_company_id = default_company_obj['company_id'] if default_company_obj else None
-                        if default_company_id is None: QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id) # Uses imported HtmlEditor
+                        default_company_obj = db_manager.get_default_company()
+                        default_company_id = default_company_obj['company_id'] if default_company_obj else None
+
+                        if default_company_id is None:
+                            QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
+                            # Decide if to proceed with a potentially incomplete context or skip
+                            # For now, let's allow proceeding but the context will lack seller info.
+
+                        # Prepare document_context for HtmlEditor.populate_html_content
+                        client_id_for_context = self.client_info.get('client_id')
+                        # Attempt to get a project_id if available in client_info.
+                        # Common keys might be 'project_id', 'project_identifier', or 'project_id_db_uuid'.
+                        # Adjust if a more specific key is known for client_info's structure.
+                        project_id_for_context = self.client_info.get('project_id', self.client_info.get('project_identifier'))
+
+                        document_context = db_manager.get_document_context_data(
+                            client_id=client_id_for_context,
+                            company_id=default_company_id, # This is the seller company
+                            target_language_code=db_template_lang, # language of the current template
+                            project_id=project_id_for_context,
+                            # linked_product_ids_for_doc can be omitted if not relevant here, defaults to None
+                            additional_context=self.client_info # Pass full client_info for other details
+                        )
+
+                        populated_content = HtmlEditor.populate_html_content(template_content, document_context) # Now passing 2 arguments
                         with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
                     created_files_count += 1
                 except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
@@ -792,43 +907,306 @@ class EditClientDialog(QDialog):
 # DIALOG CLASSES MOVED FROM MAIN.PY END HERE
 
 class SendEmailDialog(QDialog):
-    def __init__(self, client_email, config, parent=None):
+    def __init__(self, client_email, config, client_id=None, parent=None): # Added client_id
         super().__init__(parent)
         self.client_email = client_email
         self.config = config
+        self.client_id = client_id # Store client_id
+        self.client_info = None
+        if self.client_id:
+            try:
+                self.client_info = db_manager.get_client_by_id(self.client_id)
+            except Exception as e:
+                print(f"Error fetching client_info in SendEmailDialog: {e}")
+                # Optionally, show a non-critical error to the user or log it
+                # QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Impossible de charger les informations du client."))
         self.attachments = []  # List to store paths of attachments
+        self.active_template_type = None # Initialize active template type
 
         self.setWindowTitle(self.tr("Envoyer un Email"))
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(600, 550) # Increased min height for new button
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
 
+        to_layout = QHBoxLayout() # Layout for "To" field and "Select Contacts" button
         self.to_edit = QLineEdit(self.client_email)
-        form_layout.addRow(self.tr("À:"), self.to_edit)
+        to_layout.addWidget(self.to_edit)
 
+        if self.client_id: # Only add button if client_id is available
+            self.select_contacts_btn = QPushButton(self.tr("Sélectionner Contacts"))
+            self.select_contacts_btn.setIcon(QIcon.fromTheme("address-book-new", QIcon(":/icons/user-plus.svg"))) # Example icon
+            self.select_contacts_btn.clicked.connect(self.open_select_contacts_dialog)
+            to_layout.addWidget(self.select_contacts_btn)
+
+        form_layout.addRow(self.tr("À:"), to_layout)
+
+        # Template Selection UI
+        template_selection_layout = QHBoxLayout()
+        form_layout.addRow(self.tr("Modèle d'Email:"), template_selection_layout)
+
+        self.language_combo = QComboBox()
+        self.language_combo.setPlaceholderText(self.tr("Langue..."))
+        template_selection_layout.addWidget(self.language_combo)
+
+        self.template_combo = QComboBox()
+        self.template_combo.setPlaceholderText(self.tr("Sélectionner un modèle..."))
+        template_selection_layout.addWidget(self.template_combo)
+
+        # Subject and Body
         self.subject_edit = QLineEdit()
         form_layout.addRow(self.tr("Sujet:"), self.subject_edit)
 
         self.body_edit = QTextEdit()
-        self.body_edit.setPlaceholderText(self.tr("Saisissez votre message ici..."))
+        self.body_edit.setPlaceholderText(self.tr("Saisissez votre message ici ou sélectionnez un modèle..."))
         form_layout.addRow(self.tr("Corps:"), self.body_edit)
 
         layout.addLayout(form_layout)
 
-        attachment_layout = QHBoxLayout()
-        self.add_attachment_btn = QPushButton(self.tr("Ajouter Pièce Jointe"))
-        self.add_attachment_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/plus.svg"))) # Using an existing icon
-        self.add_attachment_btn.clicked.connect(self.add_attachment)
-        attachment_layout.addWidget(self.add_attachment_btn)
+        # Initialize template related attributes
+        self.email_template_types = ['EMAIL_BODY_HTML', 'EMAIL_BODY_TXT'] # Define here for clarity
+        self.default_company_id = None
+        try:
+            default_company_obj = db_manager.get_default_company()
+            if default_company_obj:
+                self.default_company_id = default_company_obj.get('company_id')
+        except Exception as e:
+            print(f"Error fetching default company ID: {e}")
+
+        # Connect signals for template selection
+        self.language_combo.currentTextChanged.connect(self.load_email_templates)
+        self.template_combo.currentIndexChanged.connect(self.on_template_selected)
+
+        # Load initial template data
+        self.load_available_languages()
+        # self.load_email_templates() will be called by load_available_languages signal or explicitly if needed
+        # However, it's better to explicitly call it after languages are loaded if there's a default language.
+        if self.language_combo.count() > 0: # If languages were loaded and one is selected
+            self.load_email_templates(self.language_combo.currentText())
+
+
+    def load_available_languages(self):
+        self.language_combo.blockSignals(True)
+        self.language_combo.clear()
+
+        available_langs = set()
+        try:
+            for template_type in self.email_template_types:
+                langs = db_manager.get_distinct_languages_for_template_type(template_type)
+                if langs:
+                    available_langs.update(lang_tuple[0] for lang_tuple in langs if lang_tuple and lang_tuple[0])
+        except Exception as e:
+            print(f"Error loading available languages for email templates: {e}")
+            # Fallback to a default list or handle error
+            available_langs.update(["fr", "en"]) # Default fallback
+
+        sorted_langs = sorted(list(available_langs))
+        self.language_combo.addItems(sorted_langs)
+
+        preferred_lang_set = False
+        if self.client_info and self.client_info.get('selected_languages'):
+            client_langs_str = self.client_info['selected_languages']
+            client_langs_list = [lang.strip() for lang in client_langs_str.split(',') if lang.strip()]
+            if client_langs_list:
+                first_client_lang = client_langs_list[0]
+                if first_client_lang in sorted_langs:
+                    self.language_combo.setCurrentText(first_client_lang)
+                    preferred_lang_set = True
+
+        if not preferred_lang_set and sorted_langs: # Default to first available if client pref not set/found
+            self.language_combo.setCurrentIndex(0)
+
+        self.language_combo.blockSignals(False)
+        # Manually trigger template loading for the initially set language
+        if self.language_combo.currentText():
+             self.load_email_templates(self.language_combo.currentText())
+
+
+    def load_email_templates(self, language_code):
+        self.template_combo.blockSignals(True)
+        self.template_combo.clear()
+        self.template_combo.addItem(self.tr("--- Aucun Modèle ---"), None) # "None" option
+
+        if not language_code:
+            self.template_combo.blockSignals(False)
+            self.on_template_selected(0) # Trigger body clearing etc.
+            return
+
+        try:
+            all_templates_for_lang = []
+            for template_type in self.email_template_types:
+                # Corrected function call: get_templates_by_type
+                templates = db_manager.get_templates_by_type(
+                    template_type=template_type,
+                    language_code=language_code
+                )
+                if templates:
+                    all_templates_for_lang.extend(templates)
+
+            # Sort templates by name, for example
+            all_templates_for_lang.sort(key=lambda x: x.get('template_name', ''))
+
+            for template in all_templates_for_lang:
+                self.template_combo.addItem(template['template_name'], template['template_id'])
+        except Exception as e:
+            print(f"Error loading email templates for lang {language_code}: {e}")
+            QMessageBox.warning(self, self.tr("Erreur Modèles Email"),
+                                self.tr("Impossible de charger les modèles d'email pour la langue {0}:\n{1}").format(language_code, str(e)))
+
+        self.template_combo.blockSignals(False)
+        self.on_template_selected(self.template_combo.currentIndex()) # Ensure consistent state after loading
+
+
+    def on_template_selected(self, index):
+        template_id = self.template_combo.itemData(index)
+        self.active_template_type = None # Reset by default
+
+        if template_id is None: # "--- Aucun Modèle ---" selected
+            self.body_edit.setPlainText("")
+            self.body_edit.setReadOnly(False)
+            self.subject_edit.setText("") # Clear subject too
+            # self.subject_edit.setReadOnly(False) # If subject was also read-only
+            # self.active_template_type already None
+            return
+
+        try:
+            template_details = db_manager.get_template_details_by_id(template_id) # Ensure this method exists and fetches all needed details
+            if not template_details:
+                QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Détails du modèle non trouvés."))
+                self.body_edit.setPlainText("")
+                self.body_edit.setReadOnly(False)
+                return
+
+            template_lang = template_details.get('language_code')
+            base_file_name = template_details.get('base_file_name')
+            template_type = template_details.get('template_type')
+            self.active_template_type = template_type # Store active template type
+            email_subject_template = template_details.get('email_subject_template')
+
+            if not self.config or "templates_dir" not in self.config:
+                QMessageBox.critical(self, self.tr("Erreur Configuration"), self.tr("Le dossier des modèles n'est pas configuré."))
+                return
+
+            template_file_path = os.path.join(self.config["templates_dir"], template_lang, base_file_name)
+
+            if not os.path.exists(template_file_path):
+                QMessageBox.warning(self, self.tr("Erreur Fichier Modèle"),
+                                    self.tr("Fichier modèle introuvable:\n{0}").format(template_file_path))
+                self.body_edit.setPlainText("")
+                self.body_edit.setReadOnly(False)
+                return
+
+            with open(template_file_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+
+            # Fetch context data
+            context_data = {}
+            if self.client_info and self.client_info.get('client_id'):
+                # Ensure get_document_context_data can handle None for project_id if not always present
+                context_data = db_manager.get_document_context_data(
+                    client_id=self.client_info['client_id'],
+                    company_id=self.default_company_id, # Fetched in constructor
+                    target_language_code=template_lang,
+                    project_id=self.client_info.get('project_id') # Pass project_id if available
+                )
+            else: # Minimal context if no client_info (e.g. sending general email)
+                if self.default_company_id:
+                     company_details = db_manager.get_company_by_id(self.default_company_id)
+                     if company_details : context_data['seller'] = company_details
+                # Add other generic placeholders if needed
+
+            # Populate content
+            populated_body = ""
+            if template_type == 'EMAIL_BODY_HTML':
+                # HtmlEditor.populate_html_content expects client_info and company_id separately
+                # We should adapt or use a more generic placeholder replacement for context_data
+                # For now, let's assume HtmlEditor.populate_html_content can take a generic context_data dict
+                # OR, we reconstruct the specific expected dict for it.
+                # Let's try to make it work with a generic context_data for now.
+                # A simple string replacement is safer if HtmlEditor is too specific.
+                # For a robust solution, HtmlEditor.populate_html_content might need to be refactored
+                # or a new utility for generic context dict population created.
+
+                # Simple placeholder replacement for HTML (basic example)
+                # More complex logic might be needed from HtmlEditor if it does more (e.g. loops, conditions)
+                populated_body = template_content
+                for key, value in context_data.items(): # context_data might have nested dicts
+                    if isinstance(value, dict):
+                        for sub_key, sub_value in value.items():
+                             placeholder = f"{{{{{key}.{sub_key}}}}}"
+                             populated_body = populated_body.replace(placeholder, str(sub_value) if sub_value is not None else "")
+                    else:
+                        placeholder = f"{{{{{key}}}}}"
+                        populated_body = populated_body.replace(placeholder, str(value) if value is not None else "")
+                self.body_edit.setHtml(populated_body)
+
+            elif template_type == 'EMAIL_BODY_TXT':
+                populated_body = template_content
+                for key, value in context_data.items():
+                    if isinstance(value, dict):
+                        for sub_key, sub_value in value.items():
+                             placeholder = f"{{{{{key}.{sub_key}}}}}"
+                             populated_body = populated_body.replace(placeholder, str(sub_value) if sub_value is not None else "")
+                    else:
+                        placeholder = f"{{{{{key}}}}}"
+                        populated_body = populated_body.replace(placeholder, str(value) if value is not None else "")
+                self.body_edit.setPlainText(populated_body)
+            else:
+                self.body_edit.setPlainText(self.tr("Type de modèle non supporté pour l'aperçu."))
+
+            self.body_edit.setReadOnly(True) # Make read-only when template is active
+
+            # Populate Subject
+            if email_subject_template:
+                populated_subject = email_subject_template
+                for key, value in context_data.items():
+                     if isinstance(value, dict):
+                        for sub_key, sub_value in value.items():
+                             placeholder = f"{{{{{key}.{sub_key}}}}}"
+                             populated_subject = populated_subject.replace(placeholder, str(sub_value) if sub_value is not None else "")
+                     else:
+                        placeholder = f"{{{{{key}}}}}"
+                        populated_subject = populated_subject.replace(placeholder, str(value) if value is not None else "")
+                self.subject_edit.setText(populated_subject)
+            else:
+                # If template has no subject, clear it or leave as is? Let's clear.
+                self.subject_edit.setText("")
+            # self.subject_edit.setReadOnly(True) # Optionally make subject read-only
+
+        except Exception as e:
+            print(f"Error applying email template (ID: {template_id}): {e}")
+            QMessageBox.critical(self, self.tr("Erreur Application Modèle"),
+                                 self.tr("Une erreur est survenue lors de l'application du modèle:\n{0}").format(str(e)))
+            self.body_edit.setPlainText("")
+            self.body_edit.setReadOnly(False)
+            self.active_template_type = None # Reset on error
+
+
+        attachment_buttons_layout = QHBoxLayout() # Renamed for clarity
+        self.add_attachment_btn = QPushButton(self.tr("Ajouter Pièce Jointe (Fichier)"))
+        self.add_attachment_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/plus.svg")))
+        self.add_attachment_btn.clicked.connect(self.add_attachment_from_file_system) # Renamed method
+        attachment_buttons_layout.addWidget(self.add_attachment_btn)
+
+        if self.client_info: # Only add "Add Client Document" button if client_info is available
+            self.add_client_document_btn = QPushButton(self.tr("Ajouter Document Client"))
+            self.add_client_document_btn.setIcon(QIcon.fromTheme("folder-open", QIcon(":/icons/folder.svg")))
+            self.add_client_document_btn.clicked.connect(self.add_attachment_from_client_docs)
+            attachment_buttons_layout.addWidget(self.add_client_document_btn)
+
+        # Add Utility Document button
+        self.add_utility_document_btn = QPushButton(self.tr("Ajouter Document Utilitaire"))
+        self.add_utility_document_btn.setIcon(QIcon.fromTheme("document-properties", QIcon(":/icons/document.svg"))) # Example icon
+        self.add_utility_document_btn.clicked.connect(self.add_attachment_from_utility_docs)
+        attachment_buttons_layout.addWidget(self.add_utility_document_btn)
 
         self.remove_attachment_btn = QPushButton(self.tr("Supprimer Pièce Jointe"))
-        self.remove_attachment_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))) # Using an existing icon
+        self.remove_attachment_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg")))
         self.remove_attachment_btn.clicked.connect(self.remove_attachment)
-        attachment_layout.addWidget(self.remove_attachment_btn)
-        layout.addLayout(attachment_layout)
+        attachment_buttons_layout.addWidget(self.remove_attachment_btn)
+        layout.addLayout(attachment_buttons_layout) # Add the layout for attachment buttons
 
         self.attachments_list_widget = QListWidget()
         self.attachments_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -837,23 +1215,72 @@ class SendEmailDialog(QDialog):
 
         button_box = QDialogButtonBox()
         send_button = button_box.addButton(self.tr("Envoyer"), QDialogButtonBox.AcceptRole)
-        # cancel_button = button_box.addButton(QDialogButtonBox.Cancel) # This line is not strictly needed if a Role is used for accept/reject
-        # The following lines that try to get send_button and cancel_button are now incorrect / redundant
-        # send_button = button_box.button(QDialogButtonBox.Send)
-        # send_button.setText(self.tr("Envoyer")) # Already set by addButton
         send_button.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg")))
         send_button.setObjectName("primaryButton")
-        # cancel_button = button_box.button(QDialogButtonBox.Cancel)
-        # cancel_button.setText(self.tr("Annuler")) # Standard button text is usually handled by Qt based on role
 
-        # Add the standard Cancel button
         button_box.addButton(QDialogButtonBox.Cancel)
 
         button_box.accepted.connect(self.send_email_action)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-    def add_attachment(self):
+    def open_select_contacts_dialog(self):
+        if not self.client_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = SelectContactsDialog(self.client_id, self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_emails = dialog.get_selected_emails()
+            if selected_emails:
+                current_text = self.to_edit.text().strip()
+                current_emails = [email.strip() for email in current_text.split(',') if email.strip()]
+
+                new_emails_to_add = []
+                for email in selected_emails:
+                    if email not in current_emails:
+                        new_emails_to_add.append(email)
+
+                if new_emails_to_add:
+                    if current_text and not current_text.endswith(','):
+                        prefix = ", " if current_emails else ""
+                    elif not current_text:
+                         prefix = ""
+                    else:
+                        prefix = " " if current_text else ""
+
+
+                    self.to_edit.setText(current_text + prefix + ", ".join(new_emails_to_add))
+
+    def add_attachment_from_client_docs(self):
+        if not self.client_info:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Informations client non disponibles pour sélectionner des documents."))
+            return
+
+        dialog = SelectClientAttachmentDialog(self.client_info, self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_files = dialog.get_selected_files()
+            if selected_files:
+                for file_path in selected_files:
+                    if file_path not in self.attachments:
+                        self.attachments.append(file_path)
+                        self.attachments_list_widget.addItem(os.path.basename(file_path))
+                    else:
+                        QMessageBox.information(self, self.tr("Info"), self.tr("Le fichier '{0}' est déjà attaché.").format(os.path.basename(file_path)))
+
+    def add_attachment_from_utility_docs(self):
+        dialog = SelectUtilityAttachmentDialog(self.config, self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected_files = dialog.get_selected_files()
+            if selected_files:
+                for file_path in selected_files:
+                    if file_path not in self.attachments:
+                        self.attachments.append(file_path)
+                        self.attachments_list_widget.addItem(os.path.basename(file_path))
+                    else:
+                        QMessageBox.information(self, self.tr("Info"), self.tr("Le fichier '{0}' est déjà attaché.").format(os.path.basename(file_path)))
+
+    def add_attachment_from_file_system(self): # Renamed from add_attachment
         files, _ = QFileDialog.getOpenFileNames(self, self.tr("Sélectionner des fichiers à joindre"), "", self.tr("Tous les fichiers (*.*)"))
         if files:
             for file_path in files:
@@ -884,7 +1311,16 @@ class SendEmailDialog(QDialog):
     def send_email_action(self):
         to_email = self.to_edit.text().strip()
         subject = self.subject_edit.text().strip()
-        body = self.body_edit.toPlainText().strip()
+
+        body_content = ""
+        mime_subtype = 'plain' # Default to plain text
+
+        if self.active_template_type == 'EMAIL_BODY_HTML':
+            body_content = self.body_edit.toHtml()
+            mime_subtype = 'html'
+        else: # Covers 'EMAIL_BODY_TXT', None (manual), or any other case
+            body_content = self.body_edit.toPlainText().strip()
+            # mime_subtype remains 'plain'
 
         if not to_email:
             QMessageBox.warning(self, self.tr("Champ Requis"), self.tr("L'adresse email du destinataire est requise."))
@@ -908,7 +1344,7 @@ class SendEmailDialog(QDialog):
         msg['From'] = smtp_user
         msg['To'] = to_email
         msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(body_content, mime_subtype)) # Use determined content and subtype
 
         for attachment_path in self.attachments:
             try:
@@ -1163,5 +1599,350 @@ class ProductEquivalencyDialog(QDialog):
             QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout de l'équivalence: {0}").format(str(e)))
         finally:
             self._update_button_states()
+class SelectContactsDialog(QDialog):
+    def __init__(self, client_id, parent=None):
+        super().__init__(parent)
+        self.client_id = client_id
+        self.selected_emails = []
+
+        self.setWindowTitle(self.tr("Sélectionner des Contacts"))
+        self.setMinimumSize(400, 300)
+        self.setup_ui()
+        self.load_contacts()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        self.contacts_list_widget = QListWidget()
+        self.contacts_list_widget.setSelectionMode(QAbstractItemView.NoSelection) # Manage selection via checkboxes
+        layout.addWidget(QLabel(self.tr("Contacts disponibles :")))
+        layout.addWidget(self.contacts_list_widget)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setObjectName("primaryButton")
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+
+        button_box.accepted.connect(self.accept_selection)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def load_contacts(self):
+        contacts = db_manager.get_contacts_for_client(self.client_id)
+        if contacts:
+            for contact in contacts:
+                name = contact.get("name", self.tr("N/A"))
+                email = contact.get("email", self.tr("N/A"))
+                if email == self.tr("N/A") or not email.strip(): # Skip contacts without a valid email
+                    continue
+                item_text = f"{name} <{email}>"
+                list_item = QListWidgetItem(item_text)
+                list_item.setFlags(list_item.flags() | Qt.ItemIsUserCheckable)
+                list_item.setCheckState(Qt.Unchecked)
+                list_item.setData(Qt.UserRole, email) # Store email in UserRole
+                self.contacts_list_widget.addItem(list_item)
+
+    def accept_selection(self):
+        self.selected_emails = []
+        for i in range(self.contacts_list_widget.count()):
+            item = self.contacts_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                email = item.data(Qt.UserRole)
+                if email:
+                    self.selected_emails.append(email)
+        self.accept()
+
+    def get_selected_emails(self):
+        return self.selected_emails
+
+class SelectClientAttachmentDialog(QDialog):
+    def __init__(self, client_info, parent=None):
+        super().__init__(parent)
+        self.client_info = client_info
+        self.selected_files = []
+
+        self.setWindowTitle(self.tr("Sélectionner Pièces Jointes du Client"))
+        self.setMinimumSize(600, 400)
+        self.setup_ui()
+        self.load_documents()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Filter
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel(self.tr("Filtrer par extension:")))
+        self.extension_filter_combo = QComboBox()
+        self.extension_filter_combo.addItems([
+            self.tr("Tous (*.*)"),
+            self.tr("PDF (*.pdf)"),
+            self.tr("DOCX (*.docx)"),
+            self.tr("XLSX (*.xlsx)"),
+            self.tr("Images (*.png *.jpg *.jpeg)"),
+            self.tr("Autres")
+        ])
+        self.extension_filter_combo.currentTextChanged.connect(self.filter_documents)
+        filter_layout.addWidget(self.extension_filter_combo)
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
+
+        # Tree widget for documents
+        self.doc_tree_widget = QTreeWidget()
+        self.doc_tree_widget.setColumnCount(3) # Name, Type, Path (hidden)
+        self.doc_tree_widget.setHeaderLabels([self.tr("Nom du Fichier"), self.tr("Type"), self.tr("Date Modification")])
+        self.doc_tree_widget.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.doc_tree_widget.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.doc_tree_widget.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.doc_tree_widget.setSortingEnabled(True) # Enable sorting
+        self.doc_tree_widget.sortByColumn(0, Qt.AscendingOrder) # Default sort by name
+
+        layout.addWidget(self.doc_tree_widget)
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        ok_button = button_box.button(QDialogButtonBox.Ok)
+        ok_button.setText(self.tr("OK"))
+        ok_button.setObjectName("primaryButton")
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+
+        button_box.accepted.connect(self.accept_selection)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def load_documents(self):
+        self.doc_tree_widget.clear()
+        if not self.client_info or 'base_folder_path' not in self.client_info or 'selected_languages' not in self.client_info:
+            return
+
+        base_folder_path = self.client_info['base_folder_path']
+        selected_languages = self.client_info['selected_languages']
+        if isinstance(selected_languages, str): # Ensure it's a list
+             selected_languages = [lang.strip() for lang in selected_languages.split(',') if lang.strip()]
+
+
+        for lang_code in selected_languages:
+            lang_folder_path = os.path.join(base_folder_path, lang_code)
+            if os.path.isdir(lang_folder_path):
+                lang_item = QTreeWidgetItem(self.doc_tree_widget, [f"{self.tr('Langue')}: {lang_code.upper()}"])
+                lang_item.setData(0, Qt.UserRole, {"is_lang_folder": True}) # Mark as language folder
+                # lang_item.setExpanded(True) # Optionally expand language folders by default
+
+                for doc_name in os.listdir(lang_folder_path):
+                    doc_path = os.path.join(lang_folder_path, doc_name)
+                    if os.path.isfile(doc_path):
+                        _, ext = os.path.splitext(doc_name)
+                        ext = ext.lower()
+
+                        mod_timestamp = os.path.getmtime(doc_path)
+                        mod_date = datetime.fromtimestamp(mod_timestamp).strftime('%Y-%m-%d %H:%M')
+
+                        doc_item = QTreeWidgetItem(lang_item, [doc_name, ext.replace(".","").upper(), mod_date])
+                        doc_item.setFlags(doc_item.flags() | Qt.ItemIsUserCheckable)
+                        doc_item.setCheckState(0, Qt.Unchecked)
+                        doc_item.setData(0, Qt.UserRole, {"path": doc_path, "ext": ext, "is_lang_folder": False})
+
+                        # Prioritize PDFs in sorting by adding a sort key (e.g., prefix)
+                        # Or handle this in filter_documents if sorting is applied after filtering
+                        if ext == ".pdf":
+                            doc_item.setData(0, Qt.UserRole + 1, 0) # Lower number for higher priority
+                        else:
+                            doc_item.setData(0, Qt.UserRole + 1, 1)
+
+        self.doc_tree_widget.sortItems(0, self.doc_tree_widget.header().sortIndicatorOrder()) # Apply initial sort
+        self.filter_documents() # Apply initial filter
+
+    def filter_documents(self):
+        selected_filter_text = self.extension_filter_combo.currentText()
+
+        for i in range(self.doc_tree_widget.topLevelItemCount()):
+            lang_item = self.doc_tree_widget.topLevelItem(i)
+            if not lang_item: continue
+
+            has_visible_child = False
+            for j in range(lang_item.childCount()):
+                doc_item = lang_item.child(j)
+                if not doc_item: continue
+
+                item_data = doc_item.data(0, Qt.UserRole)
+                if not item_data or item_data.get("is_lang_folder"): continue # Should not happen for doc_item
+
+                doc_ext = item_data.get("ext", "")
+                visible = False
+
+                if self.tr("Tous (*.*)") in selected_filter_text:
+                    visible = True
+                elif self.tr("PDF (*.pdf)") in selected_filter_text and doc_ext == ".pdf":
+                    visible = True
+                elif self.tr("DOCX (*.docx)") in selected_filter_text and doc_ext == ".docx":
+                    visible = True
+                elif self.tr("XLSX (*.xlsx)") in selected_filter_text and doc_ext == ".xlsx":
+                    visible = True
+                elif self.tr("Images (*.png *.jpg *.jpeg)") in selected_filter_text and doc_ext in [".png", ".jpg", ".jpeg"]:
+                    visible = True
+                elif self.tr("Autres") in selected_filter_text and doc_ext not in [".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg"]:
+                    visible = True
+
+                doc_item.setHidden(not visible)
+                if visible:
+                    has_visible_child = True
+            lang_item.setHidden(not has_visible_child) # Hide lang folder if no children are visible
+
+        # Re-apply sorting after filtering might change visibility
+        # self.doc_tree_widget.sortItems(self.doc_tree_widget.sortColumn(), self.doc_tree_widget.header().sortIndicatorOrder())
+
+
+    def accept_selection(self):
+        self.selected_files = []
+        for i in range(self.doc_tree_widget.topLevelItemCount()):
+            lang_item = self.doc_tree_widget.topLevelItem(i)
+            if not lang_item or lang_item.isHidden(): continue
+            for j in range(lang_item.childCount()):
+                doc_item = lang_item.child(j)
+                if not doc_item or doc_item.isHidden(): continue
+
+                if doc_item.checkState(0) == Qt.Checked:
+                    item_data = doc_item.data(0, Qt.UserRole)
+                    if item_data and not item_data.get("is_lang_folder"):
+                        self.selected_files.append(item_data["path"])
+        self.accept()
+
+    def get_selected_files(self):
+        return self.selected_files
+
+class SelectUtilityAttachmentDialog(QDialog):
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self.config = config
+        self.selected_files = []
+        self.utility_category_name = "Document Utilitaires" # Or make this configurable
+
+        self.setWindowTitle(self.tr("Sélectionner Documents Utilitaires"))
+        self.setMinimumSize(500, 350)
+        self.setup_ui()
+        self.load_utility_documents()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        self.doc_table_widget = QTableWidget()
+        self.doc_table_widget.setColumnCount(4) # Checkbox, Name, Language, Filename
+        self.doc_table_widget.setHorizontalHeaderLabels([
+            "", # For checkbox
+            self.tr("Nom du Document"),
+            self.tr("Langue"),
+            self.tr("Nom de Fichier")
+        ])
+        self.doc_table_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.doc_table_widget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.doc_table_widget.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.doc_table_widget.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.doc_table_widget.setColumnWidth(0, 30) # Checkbox column width
+
+        layout.addWidget(QLabel(self.tr("Documents utilitaires disponibles :")))
+        layout.addWidget(self.doc_table_widget)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        ok_button = button_box.button(QDialogButtonBox.Ok); ok_button.setText(self.tr("OK")); ok_button.setObjectName("primaryButton")
+        cancel_button = button_box.button(QDialogButtonBox.Cancel); cancel_button.setText(self.tr("Annuler"))
+
+        button_box.accepted.connect(self.accept_selection)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def load_utility_documents(self):
+        self.doc_table_widget.setRowCount(0)
+        category = db_manager.get_template_category_by_name(self.utility_category_name)
+        if not category:
+            QMessageBox.warning(self, self.tr("Erreur Catégorie"),
+                                self.tr("La catégorie '{0}' est introuvable.").format(self.utility_category_name))
+            return
+
+        templates = db_manager.get_templates_by_category_id(category['category_id'])
+        if not templates:
+            QMessageBox.information(self, self.tr("Aucun Document"),
+                                    self.tr("Aucun document utilitaire trouvé dans la catégorie '{0}'.").format(self.utility_category_name))
+            return
+
+        templates_dir = self.config.get("templates_dir")
+        if not templates_dir:
+            QMessageBox.critical(self, self.tr("Erreur Configuration"), self.tr("Le dossier des modèles n'est pas configuré."))
+            return
+
+        for row_idx, template_data in enumerate(templates):
+            self.doc_table_widget.insertRow(row_idx)
+
+            # Checkbox
+            chk_item = QTableWidgetItem()
+            chk_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            chk_item.setCheckState(Qt.Unchecked)
+            self.doc_table_widget.setItem(row_idx, 0, chk_item)
+
+            # Document Name
+            name_item = QTableWidgetItem(template_data.get('template_name', self.tr('N/A')))
+            self.doc_table_widget.setItem(row_idx, 1, name_item)
+
+            # Language
+            lang_code = template_data.get('language_code', self.tr('N/A'))
+            self.doc_table_widget.setItem(row_idx, 2, QTableWidgetItem(lang_code))
+
+            # Filename
+            base_file_name = template_data.get('base_file_name', self.tr('N/A'))
+            self.doc_table_widget.setItem(row_idx, 3, QTableWidgetItem(base_file_name))
+
+            # Store full path in UserRole of the name item (column 1)
+            # Assuming 'common' as a potential subdirectory if language_code is generic or not applicable for some utility docs
+            # Or using language_code directly if utility docs are language-specific under templates/<lang>/
+            # For this subtask, we'll use the direct language_code from the template.
+            # If a template has 'common' as language_code, it should be in templates/common/
+            # If it has 'fr', it should be in templates/fr/
+            # The problem statement implies utility docs might be in templates/utility/fr or templates/utility/common
+            # This needs clarification. For now, let's assume templates_dir/language_code/base_file_name is the structure.
+            # If 'utility' is a fixed subfolder, the path construction needs adjustment.
+            # Based on "templates/utility/fr/" example, 'utility' seems like a sub-path within templates_dir
+            # Let's assume for now that 'language_code' in DB for utility might be 'utility/fr' or 'utility/common'
+            # OR that 'base_file_name' itself contains the 'utility/' prefix.
+            # For simplicity, this code will assume templates_dir / template_language_code / base_file_name.
+            # If 'utility' is a hardcoded part of the path for this category, it needs to be inserted.
+            # The current template system does not have a concept of subdirectories within a language folder based on category.
+            # Let's stick to the existing convention: templates_dir/language_code/base_file_name
+            # If 'Document Utilitaires' are truly global, they might have a special lang_code like 'common' or 'all'.
+
+            full_path = os.path.join(templates_dir, lang_code, base_file_name)
+            if not os.path.exists(full_path):
+                # Try a 'utility' subdirectory as a fallback, if that's the convention for these files
+                # This is an assumption based on the example "templates/utility/fr/"
+                alt_path = os.path.join(templates_dir, "utility", lang_code, base_file_name)
+                if os.path.exists(alt_path):
+                    full_path = alt_path
+                else:
+                    # Mark item as not selectable or indicate error
+                    name_item.setForeground(QColor("red"))
+                    name_item.setToolTip(self.tr("Fichier non trouvé: {0}").format(full_path))
+                    chk_item.setFlags(chk_item.flags() & ~Qt.ItemIsEnabled) # Disable checkbox
+                    full_path = None # Ensure it's not added if not found
+
+            if full_path:
+                 name_item.setData(Qt.UserRole, full_path)
+
+
+    def accept_selection(self):
+        self.selected_files = []
+        for row in range(self.doc_table_widget.rowCount()):
+            chk_item = self.doc_table_widget.item(row, 0)
+            if chk_item and chk_item.checkState() == Qt.Checked:
+                name_item = self.doc_table_widget.item(row, 1)
+                if name_item:
+                    file_path = name_item.data(Qt.UserRole)
+                    if file_path and os.path.exists(file_path): # Check again before adding
+                        self.selected_files.append(file_path)
+                    elif file_path: # Path was stored but file now missing
+                        QMessageBox.warning(self, self.tr("Fichier Manquant"), self.tr("Le fichier {0} n'a pas pu être trouvé au moment de la sélection.").format(os.path.basename(file_path)))
+        self.accept()
+
+    def get_selected_files(self):
+        return self.selected_files
 
 # [end of dialogs.py]

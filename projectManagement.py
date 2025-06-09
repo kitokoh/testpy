@@ -1562,6 +1562,74 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.project_progress_graph.setLabel('left', 'Progress (%)')
         self.project_progress_graph.setTitle("Project Progress (Ongoing)")
 
+    def load_activities(self):
+        try:
+            logs = db_manager.get_activity_logs(limit=20) # Fetch recent logs
+            if logs is None:
+                logs = []
+
+            self.activities_table.setSortingEnabled(False) # Disable sorting before clearing/repopulating
+            self.activities_table.setRowCount(0) # Clear existing rows
+            self.activities_table.setRowCount(len(logs))
+
+            for row_idx, log_entry in enumerate(logs):
+                # Date (Column 0)
+                created_at_str = log_entry.get('created_at', '')
+                display_date = 'N/A'
+                if created_at_str:
+                    try:
+                        # Handle potential 'Z' for UTC and microseconds if present
+                        if 'Z' in created_at_str:
+                            created_at_str = created_at_str.replace('Z', '+00:00')
+
+                        if '.' in created_at_str: # Contains microseconds
+                            dt_obj = datetime.fromisoformat(created_at_str)
+                        else: # No microseconds
+                             # Ensure timezone info if it was '+00:00'
+                            if '+' in created_at_str:
+                                dt_obj = datetime.fromisoformat(created_at_str)
+                            else: # Assume it's naive, treat as local or parse differently
+                                dt_obj = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S') # Example if no TZ info
+
+                        display_date = dt_obj.strftime('%Y-%m-%d %H:%M')
+                    except ValueError as ve_date:
+                        print(f"Date parsing error for '{created_at_str}': {ve_date}")
+                        display_date = created_at_str # Show as is if parsing fails
+
+                self.activities_table.setItem(row_idx, 0, QTableWidgetItem(display_date))
+
+                # Member (Column 1)
+                user_id = log_entry.get('user_id')
+                member_name = "System/Unknown"
+                if user_id:
+                    user = db_manager.get_user_by_id(user_id)
+                    if user:
+                        member_name = user.get('full_name', user.get('username', 'User ' + str(user_id)))
+                self.activities_table.setItem(row_idx, 1, QTableWidgetItem(member_name))
+
+                # Action (Column 2)
+                action_type = log_entry.get('action_type', 'N/A')
+                self.activities_table.setItem(row_idx, 2, QTableWidgetItem(action_type))
+
+                # Details (Column 3)
+                details = log_entry.get('details', '')
+                details_item = QTableWidgetItem(details)
+                if details and len(details) > 70: # Tooltip for long details
+                    details_item.setToolTip(details)
+                self.activities_table.setItem(row_idx, 3, details_item)
+
+            self.activities_table.resizeColumnsToContents()
+            self.activities_table.setSortingEnabled(True) # Re-enable sorting
+        except Exception as e:
+            print(f"Error loading activities into table: {e}")
+            # Optionally, display an error in the table or a QMessageBox
+            # For example, clear the table and show one row with the error:
+            # self.activities_table.setRowCount(1)
+            # error_item = QTableWidgetItem(f"Error loading activities: {e}")
+            # self.activities_table.setItem(0, 0, error_item)
+            # self.activities_table.setSpan(0, 0, 1, self.activities_table.columnCount())
+
+
     def generate_report(self):
         report_type = self.report_type.currentText()
         period = self.report_period.currentText()
