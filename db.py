@@ -21,6 +21,7 @@ def initialize_database():
     Initializes the database by creating tables if they don't already exist.
     """
     conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row # <-- ADD THIS LINE
     cursor = conn.cursor()
 
     # Create Users table
