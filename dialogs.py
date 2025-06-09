@@ -816,15 +816,21 @@ class SendEmailDialog(QDialog):
         layout.addWidget(QLabel(self.tr("Pièces jointes:")))
         layout.addWidget(self.attachments_list_widget)
 
-        button_box = QDialogButtonBox(QDialogButtonBox.Send | QDialogButtonBox.Cancel)
-        send_button = button_box.button(QDialogButtonBox.Send)
-        send_button.setText(self.tr("Envoyer"))
-        send_button.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using an existing icon
+        button_box = QDialogButtonBox()
+        send_button = button_box.addButton(self.tr("Envoyer"), QDialogButtonBox.AcceptRole)
+        # cancel_button = button_box.addButton(QDialogButtonBox.Cancel) # This line is not strictly needed if a Role is used for accept/reject
+        # The following lines that try to get send_button and cancel_button are now incorrect / redundant
+        # send_button = button_box.button(QDialogButtonBox.Send)
+        # send_button.setText(self.tr("Envoyer")) # Already set by addButton
+        send_button.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg")))
         send_button.setObjectName("primaryButton")
-        cancel_button = button_box.button(QDialogButtonBox.Cancel)
-        cancel_button.setText(self.tr("Annuler"))
+        # cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        # cancel_button.setText(self.tr("Annuler")) # Standard button text is usually handled by Qt based on role
 
-        button_box.accepted.connect(self.send_email_action) # Connect to send_email_action
+        # Add the standard Cancel button
+        button_box.addButton(QDialogButtonBox.Cancel)
+
+        button_box.accepted.connect(self.send_email_action)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
