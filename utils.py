@@ -114,10 +114,11 @@ def populate_docx_template(docx_path, client_data):
         raise
 
 # --- PDF Generation Logic ---
-def generate_pdf_for_document(source_file_path: str, client_info: dict, app_root_dir:str, parent_widget=None) -> str | None:
+def generate_pdf_for_document(source_file_path: str, client_info: dict, app_root_dir:str, parent_widget=None, target_language_code: str = "fr") -> str | None:
     """
     Generates a PDF for a given source document (HTML, XLSX, DOCX).
     Uses app_root_dir for resolving paths to resources like default logos if needed.
+    Includes logic to check for product language match for proforma invoices.
     """
     if not client_info or 'client_id' not in client_info:
         QMessageBox.warning(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Erreur Client"),
@@ -129,22 +130,47 @@ def generate_pdf_for_document(source_file_path: str, client_info: dict, app_root
     output_pdf_filename = f"{file_name}_{current_date_str}.pdf"
     output_pdf_path = os.path.join(os.path.dirname(source_file_path), output_pdf_filename)
 
+    # Fetch default company ID for context data
+    default_company_obj = db_manager.get_default_company()
+    default_company_id = default_company_obj['company_id'] if default_company_obj else None
+    if not default_company_id and file_ext.lower() == '.html': # Only warn if it's an HTML doc where seller info is crucial
+         QMessageBox.information(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Avertissement"),
+                                QCoreApplication.translate("utils.generate_pdf", "Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants."))
+
+    # Get document context data, now including target_language_code
+    # Assuming client_info contains 'client_id'
+    # The 'company_id' for get_document_context_data is the seller/our company.
+    document_context = db_manager.get_document_context_data(
+        client_id=client_info['client_id'],
+        company_id=default_company_id, # This should be the ID of "our" company
+        target_language_code=target_language_code,
+        project_id=client_info.get('project_id'), # Pass project_id if available in client_info
+        additional_context={'document_title': file_name} # Example additional context
+    )
+
     if file_ext.lower() == '.html':
+        # "No Products" Check for proforma invoices
+        # A more robust check might involve looking at a template type if available
+        if "proforma" in file_name.lower() or "invoice" in file_name.lower(): # Heuristic check
+            products_in_target_lang = [p for p in document_context.get('products', []) if p.get('is_language_match')]
+            if not document_context.get('products'): # No products linked at all
+                 QMessageBox.information(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Information"),
+                                        QCoreApplication.translate("utils.generate_pdf", f"Aucun produit n'est lié à ce client/projet. La génération du PDF pour '{file_name}' est annulée."))
+                 return None
+            elif not products_in_target_lang:
+                lang_name = target_language_code # Ideally, get full language name
+                QMessageBox.information(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Information"),
+                                        QCoreApplication.translate("utils.generate_pdf", f"Aucun produit trouvé en langue '{lang_name}' pour ce client/projet. La génération du PDF pour '{file_name}' est annulée."))
+                return None
+
         try:
             with open(source_file_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
-            default_company_obj = db_manager.get_default_company()
-            default_company_id = default_company_obj['company_id'] if default_company_obj else None
-            if not default_company_id:
-                 QMessageBox.information(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Avertissement"),
-                                        QCoreApplication.translate("utils.generate_pdf", "Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants."))
 
-            # HtmlEditor.populate_html_content is a static method.
-            # client_info should be comprehensive enough for placeholders.
-            processed_html = HtmlEditor.populate_html_content(html_content, client_info, default_company_id)
+            # HtmlEditor.populate_html_content now uses the enhanced context
+            processed_html = HtmlEditor.populate_html_content(html_content, document_context) # Pass the full context
 
             base_url = QUrl.fromLocalFile(os.path.dirname(source_file_path)).toString()
-            # Consider passing app_root_dir to convert_html_to_pdf if it needs to resolve global assets
             pdf_bytes = convert_html_to_pdf(processed_html, base_url=base_url)
 
             if pdf_bytes:

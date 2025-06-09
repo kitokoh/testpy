@@ -42,6 +42,7 @@ class HtmlEditor(QDialog):
         self.client_data = client_data
         self._current_pdf_export_path = None
         self.raw_html_content_from_editor = ""
+        self.target_language_code = "fr" # Default language for preview context
 
         self.web_view = None
         self.bridge = None
@@ -50,7 +51,23 @@ class HtmlEditor(QDialog):
         default_company_obj = get_default_company()
         self.default_company_id = default_company_obj['company_id'] if default_company_obj else None
         if not self.default_company_id:
-            print("WARNING: No default company found. Seller details may be missing.")
+            print("WARNING: No default company found. Seller details may be missing for preview.")
+
+        # Extract target_language_code from file_path for preview context
+        if self.file_path and os.path.exists(self.file_path):
+            try:
+                # Assumes path structure like .../base_folder/lang_code/filename.html
+                lang_from_path = os.path.basename(os.path.dirname(self.file_path))
+                # Basic validation if it's a known lang code
+                if lang_from_path in ["en", "fr", "ar", "tr", "pt"]: # Add other supported codes
+                    self.target_language_code = lang_from_path
+                    print(f"HtmlEditor: Target language for preview set to '{self.target_language_code}' from file path.")
+                else:
+                    print(f"Warning: HtmlEditor extracted language '{lang_from_path}' from path is not standard, defaulting to '{self.target_language_code}' for preview.")
+            except Exception as e_path:
+                print(f"HtmlEditor: Could not extract language from path '{self.file_path}', defaulting to '{self.target_language_code}' for preview. Error: {e_path}")
+        else:
+            print(f"HtmlEditor: file_path not provided or does not exist, defaulting to '{self.target_language_code}' for preview.")
 
         self._setup_ui()
         if self.bridge:
@@ -150,23 +167,37 @@ class HtmlEditor(QDialog):
         if not self.client_data or 'client_id' not in self.client_data:
             QMessageBox.warning(self, self.tr("Data Error"), self.tr("Client ID is missing. Cannot populate template fully."))
             return html_content
-        if not self.default_company_id:
-            print("WARNING: Default company ID is not set. Seller details may be missing.")
+        # self.default_company_id is used for seller info
 
         client_id = self.client_data.get('client_id')
-        project_id_for_context = self.client_data.get('project_id_db_uuid') or self.client_data.get('project_identifier')
+        # Use project_id if available in client_data (e.g. if document is project-specific)
+        project_id_for_context = self.client_data.get('project_id_db_uuid', self.client_data.get('project_identifier'))
+
 
         try:
+            # Use self.target_language_code for the live preview context
             context = get_document_context_data(
                 client_id=client_id,
                 company_id=self.default_company_id,
+                target_language_code=self.target_language_code,
                 project_id=project_id_for_context if project_id_for_context else None,
+                # Pass client_data as additional_context for any specific overrides or extra fields
                 additional_context=self.client_data
             )
+
+            # Optional: "No Products" check for preview (console warning only)
+            file_name_for_check = os.path.basename(self.file_path or "untitled.html").lower()
+            if "proforma" in file_name_for_check or "invoice" in file_name_for_check:
+                products_in_target_lang = [p for p in context.get('products', []) if p.get('is_language_match')]
+                if not context.get('products'):
+                    print(f"HtmlEditor Preview Info: No products linked for Proforma/Invoice '{file_name_for_check}'.")
+                elif not products_in_target_lang:
+                    print(f"HtmlEditor Preview Info: No products found in language '{self.target_language_code}' for Proforma/Invoice '{file_name_for_check}'.")
+
             return render_html_template(html_content, context)
         except Exception as e:
-            print(f"Error during placeholder replacement: {e}")
-            QMessageBox.critical(self, self.tr("Template Error"), self.tr("Could not process template placeholders: {0}").format(e))
+            print(f"Error during placeholder replacement for preview: {e}")
+            QMessageBox.critical(self, self.tr("Template Error"), self.tr("Could not process template placeholders for preview: {0}").format(e))
             return html_content
 
     _save_pending = False
@@ -251,28 +282,24 @@ class HtmlEditor(QDialog):
                  QMessageBox.warning(self, self.tr("PDF Export Error"), self.tr("Failed to generate PDF content."))
 
     @staticmethod
-    def populate_html_content(html_template_content: str, client_data_dict: dict,
-                              default_company_id_static: str) -> str:
-       client_id = client_data_dict.get("client_id")
-       project_id_for_context = client_data_dict.get('project_id_db_uuid') or client_data_dict.get('project_identifier')
-
-       if not client_id:
-           print("Static Populate Error: Client ID missing from client_data_dict.")
-           return html_template_content
-       if not default_company_id_static:
-           print("Static Populate Error: default_company_id_static not provided for seller context.")
-
-       try:
-            context = get_document_context_data(
-                client_id=client_id,
-                company_id=default_company_id_static,
-                project_id=project_id_for_context if project_id_for_context else None,
-                additional_context=client_data_dict
-            )
-            return render_html_template(html_template_content, context)
-       except Exception as e:
-            print(f"Error in static populate_html_content: {e}")
+    def populate_html_content(html_template_content: str, document_context: dict) -> str:
+        """
+        Populates HTML content using a pre-constructed document_context.
+        This method is intended for use by external callers like PDF generation utilities.
+        """
+        if not document_context:
+            print("Static Populate Error: document_context is missing or empty.")
+            # Consider returning html_template_content or raising an error
             return html_template_content
+        try:
+            # The document_context is now expected to be fully resolved by the caller
+            # (e.g., utils.generate_pdf_for_document which calls db.get_document_context_data)
+            return render_html_template(html_template_content, document_context)
+        except Exception as e:
+            print(f"Error in static populate_html_content with pre-built context: {e}")
+            # Potentially log the context for debugging, carefully avoiding sensitive data in logs
+            # print(f"Context was: {str(document_context)[:500]}...")
+            return html_template_content # Return original content on error
 
 
 if __name__ == '__main__':
