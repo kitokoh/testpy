@@ -4827,6 +4827,26 @@ def get_all_templates(template_type_filter: str = None, language_code_filter: st
     finally:
         if conn: conn.close()
 
+def get_distinct_languages_for_template_type(template_type: str) -> list[str]:
+    """
+    Retrieves a list of distinct language codes available for a given template type.
+    """
+    conn = None
+    languages = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT language_code FROM Templates WHERE template_type = ? ORDER BY language_code ASC", (template_type,))
+        rows = cursor.fetchall()
+        languages = [row['language_code'] for row in rows if row['language_code']] # Ensure not None
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_languages_for_template_type for type '{template_type}': {e}")
+        # Return empty list on error
+    finally:
+        if conn:
+            conn.close()
+    return languages
+
 def get_all_file_based_templates() -> list[dict]:
     """Retrieves all templates that have a base_file_name, suitable for document creation."""
     conn = None
