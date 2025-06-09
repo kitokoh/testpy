@@ -26,3 +26,42 @@ maintenant l envoie des  document par mail doit respectier un principe  de globa
 
 
 
+
+regarde dans ma gestion des contacts je vais te demander d ameliorer certains truc normalement doit avoir beaucop plus de champs meme si les champs que jes actuelement  suffisent largement met les autre chmps colpasble lors de l jout dun nouveua ccontact ou meme lors de sa modifcation pour le visuelle tu laisee le tableua tle quil est actulement mais la base de donne doit etre pretes cest de ca d il s agit donc pour ta gouverne je te montre un peu ce quil peu y a voir dans la table prend les nom de terme tout simplement ajoute les a la table sans les rend re obligatoire et mieux cahe les avec une case a coche qui par defut n est pas activee mais si activrer alors le modal s agrandit et donne la pooibilite d inserer tout les champs {
+  "names": [{
+    "givenName": "John",
+    "familyName": "Doe",
+    "displayName": "John Doe"
+  }],
+  "phoneNumbers": [{
+    "value": "+33612345678",
+    "type": "mobile"
+  }],
+  "emailAddresses": [{
+    "value": "john.doe@example.com",
+    "type": "home"
+  }],
+  "addresses": [{
+    "formattedValue": "123 Rue Exemple, Paris, France",
+    "streetAddress": "123 Rue Exemple",
+    "city": "Paris",
+    "region": "Île-de-France",
+    "postalCode": "75000",
+    "country": "France"
+  }],
+  "organizations": [{
+    "name": "Doorika",
+    "title": "Responsable Commercial"
+  }],
+  "birthdays": [{
+    "date": {
+      "year": 1990,
+      "month": 6,
+      "day": 15
+    }
+  }],
+  "notes": ["Client fidèle depuis 2018"]
+}
+
+
+

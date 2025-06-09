@@ -50,7 +50,7 @@ def _import_main_elements():
 
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
         # self.config = config # Original config passed
@@ -58,6 +58,7 @@ class ClientWidget(QWidget):
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
         self.config = MAIN_MODULE_CONFIG # Use the imported config
+        self.app_root_dir = app_root_dir # Store it
         self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
@@ -598,7 +599,7 @@ class ClientWidget(QWidget):
         if dialog.exec_() == QDialog.Accepted: self.populate_doc_table()
 
     def open_compile_pdf_dialog(self):
-        dialog = self.CompilePdfDialog(self.client_info, self)
+        dialog = self.CompilePdfDialog(self.client_info, self.config, self.app_root_dir, self)
         dialog.exec_()
 
     def open_selected_doc(self):
@@ -706,11 +707,49 @@ class ClientWidget(QWidget):
             return
 
         client_uuid = self.client_info.get("client_id") # For the dialog's context
-        dialog = self.ContactDialog(client_id=client_uuid, contact_id_to_edit=contact_id, parent=self)
+
+        # Fetch the full contact details to pass to the dialog
+        full_contact_details = db_manager.get_contact_by_id(contact_id)
+        if not full_contact_details:
+            QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("Détails du contact non trouvés dans la base de données."))
+            return
+
+        # Add the client-specific link information to the contact_data for the dialog
+        # This is crucial for the 'is_primary_for_client' checkbox
+        client_contact_link_info = db_manager.get_specific_client_contact_link_details(client_uuid, contact_id)
+        if client_contact_link_info:
+            full_contact_details['is_primary_for_client'] = client_contact_link_info.get('is_primary_for_client', False)
+            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id') # Store for update
+
+        dialog = self.ContactDialog(client_id=client_uuid, contact_data=full_contact_details, parent=self)
 
         if dialog.exec_() == QDialog.Accepted:
-            # ContactDialog's accept method now handles DB update and linking.
-            self.load_contacts() # Refresh the table
+            updated_data_from_dialog = dialog.get_data()
+            is_primary_for_client_from_dialog = updated_data_from_dialog.pop('is_primary_for_client', False)
+
+            try:
+                # Update the main contact details
+                if db_manager.update_contact(contact_id, updated_data_from_dialog):
+                    # Now, update the client-specific link (is_primary_for_client)
+                    # We need the client_contact_id for this.
+                    client_contact_id_for_update = full_contact_details.get('client_contact_id')
+                    if client_contact_id_for_update is not None:
+                        db_manager.update_client_contact_link(
+                            client_contact_id_for_update,
+                            {'is_primary_for_client': is_primary_for_client_from_dialog}
+                        )
+                    else:
+                        # This case should ideally not happen if the contact is linked.
+                        # If it can, then we might need to re-link or handle error.
+                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
+
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du contact."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la mise à jour du contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts() # Refresh the table
 
     def remove_contact(self):
         current_row = self.contacts_table.currentRow()

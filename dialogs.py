@@ -245,7 +245,7 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
-        self.setMinimumSize(450,380); self.setup_ui()
+        self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
@@ -254,12 +254,67 @@ class ContactDialog(QDialog):
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
         form_layout=QFormLayout();form_layout.setSpacing(10);form_layout.setContentsMargins(10,0,10,0)
         # self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }") # Prefer global styles
-        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet:")),self.name_input)
+        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet (ou affichage):")),self.name_input) # Changed label slightly
         self.email_input=QLineEdit(self.contact_data.get("email",""));form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
-        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone:")),self.phone_input)
-        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste:")),self.position_input)
-        self.primary_check=QCheckBox(self.tr("Contact principal"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary",0)));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
-        main_layout.addLayout(form_layout);main_layout.addStretch()
+        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone (principal):")),self.phone_input) # Changed label slightly
+        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste (général):")),self.position_input) # Changed label slightly
+        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
+        main_layout.addLayout(form_layout)
+
+        # Additional Fields GroupBox
+        self.additional_fields_group = QGroupBox(self.tr("Champs supplémentaires"))
+        self.additional_fields_group.setCheckable(True)
+        self.additional_fields_group.setChecked(False) # Default to collapsed
+        additional_form_layout = QFormLayout(self.additional_fields_group)
+        additional_form_layout.setSpacing(10)
+
+        self.givenName_input = QLineEdit(self.contact_data.get("givenName", ""))
+        additional_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
+        self.familyName_input = QLineEdit(self.contact_data.get("familyName", ""))
+        additional_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
+        self.displayName_input = QLineEdit(self.contact_data.get("displayName", ""))
+        additional_form_layout.addRow(self.tr("Nom affiché:"), self.displayName_input)
+        self.phone_type_input = QLineEdit(self.contact_data.get("phone_type", ""))
+        additional_form_layout.addRow(self.tr("Type téléphone (principal):"), self.phone_type_input)
+        self.email_type_input = QLineEdit(self.contact_data.get("email_type", ""))
+        additional_form_layout.addRow(self.tr("Type email (principal):"), self.email_type_input)
+        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
+        additional_form_layout.addRow(self.tr("Adresse complète formatée:"), self.address_formattedValue_input)
+        self.address_streetAddress_input = QLineEdit(self.contact_data.get("address_streetAddress", ""))
+        additional_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
+        self.address_city_input = QLineEdit(self.contact_data.get("address_city", ""))
+        additional_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
+        self.address_region_input = QLineEdit(self.contact_data.get("address_region", ""))
+        additional_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
+        self.address_postalCode_input = QLineEdit(self.contact_data.get("address_postalCode", ""))
+        additional_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
+        self.address_country_input = QLineEdit(self.contact_data.get("address_country", ""))
+        additional_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
+        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", self.contact_data.get("company_name", ""))) # Fallback to general company_name
+        additional_form_layout.addRow(self.tr("Nom Organisation:"), self.organization_name_input)
+        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", self.contact_data.get("position", ""))) # Fallback to general position
+        additional_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
+        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", "")) # Using QLineEdit for now
+        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ ou MM-JJ"))
+        additional_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
+
+        main_layout.addWidget(self.additional_fields_group)
+
+        # Check if any additional field has data to expand the group box
+        additional_fields_keys = [
+            "givenName", "familyName", "displayName", "phone_type", "email_type",
+            "address_formattedValue", "address_streetAddress", "address_city",
+            "address_region", "address_postalCode", "address_country",
+            "organization_name", "organization_title", "birthday_date"
+        ]
+        # Also consider company_name and position if they were used as fallbacks and are different
+        # from the main company_name/position fields, or if the specific fields are present.
+        if any(self.contact_data.get(key) for key in additional_fields_keys) or \
+           (self.contact_data.get("company_name") and self.organization_name_input.text() != self.contact_data.get("company_name")) or \
+           (self.contact_data.get("position") and self.organization_title_input.text() != self.contact_data.get("position")):
+            self.additional_fields_group.setChecked(True)
+
+        main_layout.addStretch()
         button_frame=QFrame(self);button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
@@ -274,7 +329,45 @@ class ContactDialog(QDialog):
             self.name_input.setStyleSheet("background-color: #E8F5E9;") # Light Green from palette
         else:
             self.name_input.setStyleSheet("") # Reset to default QSS
-    def get_data(self):return{"name":self.name_input.text().strip(),"email":self.email_input.text().strip(),"phone":self.phone_input.text().strip(),"position":self.position_input.text().strip(),"is_primary":1 if self.primary_check.isChecked() else 0}
+    def get_data(self):
+        data = {
+            "name": self.name_input.text().strip(), # Fallback name or displayName
+            "email": self.email_input.text().strip(),
+            "phone": self.phone_input.text().strip(), # Primary phone
+            "position": self.position_input.text().strip(), # General position
+            "is_primary_for_client": 1 if self.primary_check.isChecked() else 0,
+            # notes from main dialog is not here, assumed to be handled by ClientWidget's direct save for general notes.
+            # If notes were part of this dialog, it would be: "notes": self.notes_input.toPlainText().strip(),
+        }
+        if self.additional_fields_group.isChecked():
+            data.update({
+                "givenName": self.givenName_input.text().strip(),
+                "familyName": self.familyName_input.text().strip(),
+                "displayName": self.displayName_input.text().strip(),
+                "phone_type": self.phone_type_input.text().strip(),
+                "email_type": self.email_type_input.text().strip(),
+                "address_formattedValue": self.address_formattedValue_input.text().strip(),
+                "address_streetAddress": self.address_streetAddress_input.text().strip(),
+                "address_city": self.address_city_input.text().strip(),
+                "address_region": self.address_region_input.text().strip(),
+                "address_postalCode": self.address_postalCode_input.text().strip(),
+                "address_country": self.address_country_input.text().strip(),
+                "organization_name": self.organization_name_input.text().strip(),
+                "organization_title": self.organization_title_input.text().strip(),
+                "birthday_date": self.birthday_date_input.text().strip(),
+            })
+            # If displayName has content and main 'name' is different or empty, prioritize displayName for 'name' field in DB
+            if data.get("displayName") and data.get("displayName") != data.get("name"):
+                data["name"] = data["displayName"]
+            elif not data.get("name") and data.get("displayName"): # if name was empty but displayname is not
+                 data["name"] = data["displayName"]
+
+
+        # If the group is not checked, we might still want to save specific fields if they were pre-filled
+        # and are now different from their original values (e.g. user unchecked after editing).
+        # However, current logic is simpler: if unchecked, only main fields are saved.
+        # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
+        return data
 
 class ProductDialog(QDialog):
     def __init__(self,client_id,product_data=None,parent=None):super().__init__(parent);self.client_id=client_id;self.setWindowTitle(self.tr("Ajouter Produits au Client"));self.setMinimumSize(900,800);self.client_info=db_manager.get_client_by_id(self.client_id);self.setup_ui();self._set_initial_language_filter();self._filter_products_by_language_and_search()
@@ -501,9 +594,31 @@ class CreateDocumentDialog(QDialog):
                         populate_docx_template(target_path, self.client_info) # Uses global populate_docx_template
                     elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
-                        default_company_obj = db_manager.get_default_company(); default_company_id = default_company_obj['company_id'] if default_company_obj else None
-                        if default_company_id is None: QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-                        populated_content = HtmlEditor.populate_html_content(template_content, self.client_info, default_company_id) # Uses imported HtmlEditor
+                        default_company_obj = db_manager.get_default_company()
+                        default_company_id = default_company_obj['company_id'] if default_company_obj else None
+
+                        if default_company_id is None:
+                            QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
+                            # Decide if to proceed with a potentially incomplete context or skip
+                            # For now, let's allow proceeding but the context will lack seller info.
+
+                        # Prepare document_context for HtmlEditor.populate_html_content
+                        client_id_for_context = self.client_info.get('client_id')
+                        # Attempt to get a project_id if available in client_info.
+                        # Common keys might be 'project_id', 'project_identifier', or 'project_id_db_uuid'.
+                        # Adjust if a more specific key is known for client_info's structure.
+                        project_id_for_context = self.client_info.get('project_id', self.client_info.get('project_identifier'))
+
+                        document_context = db_manager.get_document_context_data(
+                            client_id=client_id_for_context,
+                            company_id=default_company_id, # This is the seller company
+                            target_language_code=db_template_lang, # language of the current template
+                            project_id=project_id_for_context,
+                            # linked_product_ids_for_doc can be omitted if not relevant here, defaults to None
+                            additional_context=self.client_info # Pass full client_info for other details
+                        )
+
+                        populated_content = HtmlEditor.populate_html_content(template_content, document_context) # Now passing 2 arguments
                         with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
                     created_files_count += 1
                 except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))

@@ -21,6 +21,7 @@ def initialize_database():
     Initializes the database by creating tables if they don't already exist.
     """
     conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row # <-- ADD THIS LINE
     cursor = conn.cursor()
 
     # Create Users table
@@ -253,12 +254,26 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Contacts (
         contact_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Changed to INTEGER for AUTOINCREMENT
-        name TEXT NOT NULL,
+        name TEXT NOT NULL, -- This will be used as a fallback if displayName is not available
         email TEXT UNIQUE,
-        phone TEXT,
-        position TEXT,
-        company_name TEXT,
-        notes TEXT,
+        phone TEXT, -- This will be the primary phone, specific type in phone_type
+        position TEXT, -- Kept for general position, specific title in organization_title
+        company_name TEXT, -- Kept for general company name, specific in organization_name
+        notes TEXT, -- Used for notes_text
+        givenName TEXT,
+        familyName TEXT,
+        displayName TEXT,
+        phone_type TEXT, -- e.g., 'work', 'mobile', 'home'
+        email_type TEXT, -- e.g., 'work', 'personal'
+        address_formattedValue TEXT,
+        address_streetAddress TEXT,
+        address_city TEXT,
+        address_region TEXT,
+        address_postalCode TEXT,
+        address_country TEXT,
+        organization_name TEXT,
+        organization_title TEXT,
+        birthday_date TEXT, -- Store as TEXT in ISO format e.g., YYYY-MM-DD or MM-DD
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -466,6 +481,7 @@ def initialize_database():
         conn.commit() # Commit category creation before potential DDL changes for Templates
     except sqlite3.Error as e_cat_init: # This specifically catches errors from the 'General' category block
         print(f"Error initializing General category or other categories in this block: {e_cat_init}")
+
         # Decide if this is fatal or if migration can proceed without a fallback ID
         # For now, migration will use None if this fails, which _get_or_create_category_id handles.
 
@@ -2454,18 +2470,41 @@ def add_contact(contact_data: dict) -> int | None:
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
+
+        # Fallback for 'name' if 'displayName' is not provided
+        name_to_insert = contact_data.get('displayName', contact_data.get('name'))
+
         sql = """
             INSERT INTO Contacts (
-                name, email, phone, position, company_name, notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                name, email, phone, position, company_name, notes,
+                givenName, familyName, displayName, phone_type, email_type,
+                address_formattedValue, address_streetAddress, address_city,
+                address_region, address_postalCode, address_country,
+                organization_name, organization_title, birthday_date,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            contact_data.get('name'),
+            name_to_insert,
             contact_data.get('email'),
             contact_data.get('phone'),
             contact_data.get('position'),
             contact_data.get('company_name'),
-            contact_data.get('notes'),
+            contact_data.get('notes'), # notes_text
+            contact_data.get('givenName'),
+            contact_data.get('familyName'),
+            contact_data.get('displayName'),
+            contact_data.get('phone_type'),
+            contact_data.get('email_type'),
+            contact_data.get('address_formattedValue'),
+            contact_data.get('address_streetAddress'),
+            contact_data.get('address_city'),
+            contact_data.get('address_region'),
+            contact_data.get('address_postalCode'),
+            contact_data.get('address_country'),
+            contact_data.get('organization_name'),
+            contact_data.get('organization_title'),
+            contact_data.get('birthday_date'),
             now, now
         )
         cursor.execute(sql, params)
@@ -2511,21 +2550,24 @@ def get_contact_by_email(email: str) -> dict | None:
 def get_all_contacts(filters: dict = None) -> list[dict]:
     """
     Retrieves all contacts. Filters by 'company_name' (exact) or 'name' (partial LIKE).
+    Now selects all new columns.
     """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = "SELECT * FROM Contacts"
+        sql = "SELECT * FROM Contacts" # Selects all columns including new ones
         params = []
         where_clauses = []
         if filters:
             if 'company_name' in filters:
                 where_clauses.append("company_name = ?")
                 params.append(filters['company_name'])
-            if 'name' in filters:
-                where_clauses.append("name LIKE ?")
+            if 'name' in filters: # This will search in 'name' or 'displayName'
+                where_clauses.append("(name LIKE ? OR displayName LIKE ?)")
                 params.append(f"%{filters['name']}%")
+                params.append(f"%{filters['name']}%")
+            # TODO: Add filters for new fields if needed
         
         if where_clauses:
             sql += " WHERE " + " AND ".join(where_clauses)
@@ -2548,9 +2590,41 @@ def update_contact(contact_id: int, contact_data: dict) -> bool:
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
         contact_data['updated_at'] = now
+
+        # Fallback for 'name' if 'displayName' is provided and 'name' is not
+        if 'displayName' in contact_data and 'name' not in contact_data:
+            contact_data['name'] = contact_data['displayName']
+        elif 'name' in contact_data and 'displayName' not in contact_data:
+             # If only 'name' is provided, ensure 'displayName' is also updated if it's meant to be the primary display
+             # This depends on application logic, for now, we'll update 'name' if 'displayName' isn't explicitly set to something else.
+             # A more robust approach might be to always set displayName = name if displayName is not in contact_data.
+             # For now, let's assume if 'displayName' is not in contact_data, it's not being changed.
+             pass
+
+
+        # Ensure only valid columns are updated
+        valid_columns = [
+            'name', 'email', 'phone', 'position', 'company_name', 'notes',
+            'givenName', 'familyName', 'displayName', 'phone_type', 'email_type',
+            'address_formattedValue', 'address_streetAddress', 'address_city',
+            'address_region', 'address_postalCode', 'address_country',
+            'organization_name', 'organization_title', 'birthday_date', 'updated_at'
+        ]
+
+        set_clauses = []
+        params = []
+
+        for key, value in contact_data.items():
+            if key in valid_columns: # Check if the key is a valid column to update
+                set_clauses.append(f"{key} = ?")
+                params.append(value)
+            elif key == 'contact_id': # Skip primary key
+                continue
         
-        set_clauses = [f"{key} = ?" for key in contact_data.keys()]
-        params = list(contact_data.values())
+        if not set_clauses:
+            print("Warning: No valid fields to update in update_contact.")
+            return False
+
         params.append(contact_id)
         
         sql = f"UPDATE Contacts SET {', '.join(set_clauses)} WHERE contact_id = ?"
@@ -2656,6 +2730,31 @@ def get_clients_for_contact(contact_id: int) -> list[dict]:
         return []
     finally:
         if conn: conn.close()
+
+def get_specific_client_contact_link_details(client_id: str, contact_id: int) -> dict | None:
+    """
+    Retrieves specific details (client_contact_id, is_primary_for_client, can_receive_documents)
+    for a single link between a client and a contact.
+    Returns a dict if the link is found, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT client_contact_id, is_primary_for_client, can_receive_documents
+            FROM ClientContacts
+            WHERE client_id = ? AND contact_id = ?
+        """
+        cursor.execute(sql, (client_id, contact_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_specific_client_contact_link_details: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 def update_client_contact_link(client_contact_id: int, details: dict) -> bool:
     """Updates details of a client-contact link (is_primary, can_receive_documents)."""
@@ -4736,6 +4835,26 @@ def get_all_templates(template_type_filter: str = None, language_code_filter: st
         return []
     finally:
         if conn: conn.close()
+
+def get_distinct_languages_for_template_type(template_type: str) -> list[str]:
+    """
+    Retrieves a list of distinct language codes available for a given template type.
+    """
+    conn = None
+    languages = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT language_code FROM Templates WHERE template_type = ? ORDER BY language_code ASC", (template_type,))
+        rows = cursor.fetchall()
+        languages = [row['language_code'] for row in rows if row['language_code']] # Ensure not None
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_languages_for_template_type for type '{template_type}': {e}")
+        # Return empty list on error
+    finally:
+        if conn:
+            conn.close()
+    return languages
 
 def get_all_file_based_templates() -> list[dict]:
     """Retrieves all templates that have a base_file_name, suitable for document creation."""
