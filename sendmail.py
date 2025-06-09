@@ -34,7 +34,10 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDateTime, QTimer, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QPalette, QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import QAction
-from imports import DB_PATH_mail
+
+# Define DB_PATH_mail directly as the database is in the root
+DB_PATH_mail = "mail_db.sqlite"
+
 class DatabaseManager:
     """Gestionnaire de base de données SQLite"""
     
