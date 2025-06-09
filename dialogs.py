@@ -772,4 +772,141 @@ class EditClientDialog(QDialog):
 
 # DIALOG CLASSES MOVED FROM MAIN.PY END HERE
 
+class SendEmailDialog(QDialog):
+    def __init__(self, client_email, config, parent=None):
+        super().__init__(parent)
+        self.client_email = client_email
+        self.config = config
+        self.attachments = []  # List to store paths of attachments
+
+        self.setWindowTitle(self.tr("Envoyer un Email"))
+        self.setMinimumSize(600, 500)
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        self.to_edit = QLineEdit(self.client_email)
+        form_layout.addRow(self.tr("À:"), self.to_edit)
+
+        self.subject_edit = QLineEdit()
+        form_layout.addRow(self.tr("Sujet:"), self.subject_edit)
+
+        self.body_edit = QTextEdit()
+        self.body_edit.setPlaceholderText(self.tr("Saisissez votre message ici..."))
+        form_layout.addRow(self.tr("Corps:"), self.body_edit)
+
+        layout.addLayout(form_layout)
+
+        attachment_layout = QHBoxLayout()
+        self.add_attachment_btn = QPushButton(self.tr("Ajouter Pièce Jointe"))
+        self.add_attachment_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/plus.svg"))) # Using an existing icon
+        self.add_attachment_btn.clicked.connect(self.add_attachment)
+        attachment_layout.addWidget(self.add_attachment_btn)
+
+        self.remove_attachment_btn = QPushButton(self.tr("Supprimer Pièce Jointe"))
+        self.remove_attachment_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))) # Using an existing icon
+        self.remove_attachment_btn.clicked.connect(self.remove_attachment)
+        attachment_layout.addWidget(self.remove_attachment_btn)
+        layout.addLayout(attachment_layout)
+
+        self.attachments_list_widget = QListWidget()
+        self.attachments_list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        layout.addWidget(QLabel(self.tr("Pièces jointes:")))
+        layout.addWidget(self.attachments_list_widget)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Send | QDialogButtonBox.Cancel)
+        send_button = button_box.button(QDialogButtonBox.Send)
+        send_button.setText(self.tr("Envoyer"))
+        send_button.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using an existing icon
+        send_button.setObjectName("primaryButton")
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        cancel_button.setText(self.tr("Annuler"))
+
+        button_box.accepted.connect(self.send_email_action) # Connect to send_email_action
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def add_attachment(self):
+        files, _ = QFileDialog.getOpenFileNames(self, self.tr("Sélectionner des fichiers à joindre"), "", self.tr("Tous les fichiers (*.*)"))
+        if files:
+            for file_path in files:
+                if file_path not in self.attachments:
+                    self.attachments.append(file_path)
+                    self.attachments_list_widget.addItem(os.path.basename(file_path))
+
+    def remove_attachment(self):
+        selected_items = self.attachments_list_widget.selectedItems()
+        if not selected_items:
+            return
+        for item in selected_items:
+            row = self.attachments_list_widget.row(item)
+            self.attachments_list_widget.takeItem(row)
+            # Remove from self.attachments by matching basename, less robust if multiple files with same name from different paths
+            # A more robust way would be to store full paths in item data or find by index if list order is guaranteed.
+            # For simplicity, let's find by index.
+            if 0 <= row < len(self.attachments):
+                del self.attachments[row]
+            else: # Fallback if index is out of sync (should not happen with SingleSelection)
+                try:
+                    # Attempt to remove by matching basename from the list
+                    file_to_remove = item.text()
+                    self.attachments = [att for att in self.attachments if os.path.basename(att) != file_to_remove]
+                except ValueError:
+                    pass # Item not found, already removed or error
+
+    def send_email_action(self):
+        to_email = self.to_edit.text().strip()
+        subject = self.subject_edit.text().strip()
+        body = self.body_edit.toPlainText().strip()
+
+        if not to_email:
+            QMessageBox.warning(self, self.tr("Champ Requis"), self.tr("L'adresse email du destinataire est requise."))
+            return
+        if not subject:
+            QMessageBox.warning(self, self.tr("Champ Requis"), self.tr("Le sujet de l'email est requis."))
+            return
+
+        # Use self.config for SMTP settings
+        smtp_server = self.config.get("smtp_server")
+        smtp_port = self.config.get("smtp_port", 587)
+        smtp_user = self.config.get("smtp_user")
+        smtp_password = self.config.get("smtp_password")
+
+        if not smtp_server or not smtp_user: # Password can be empty for some configs
+            QMessageBox.warning(self, self.tr("Configuration SMTP Manquante"),
+                                self.tr("Veuillez configurer les détails du serveur SMTP dans les paramètres de l'application."))
+            return
+
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        for attachment_path in self.attachments:
+            try:
+                with open(attachment_path, 'rb') as f:
+                    part = MIMEApplication(f.read(), Name=os.path.basename(attachment_path))
+                part['Content-Disposition'] = f'attachment; filename="{os.path.basename(attachment_path)}"'
+                msg.attach(part)
+            except Exception as e:
+                QMessageBox.warning(self, self.tr("Erreur Pièce Jointe"), self.tr("Impossible de joindre le fichier {0}:\
+{1}").format(os.path.basename(attachment_path), str(e)))
+                return # Stop if an attachment fails
+
+        try:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            if smtp_port == 587: # Standard port for TLS
+                server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+            server.quit()
+            QMessageBox.information(self, self.tr("Email Envoyé"), self.tr("L'email a été envoyé avec succès."))
+            self.accept() # Close dialog on success
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur d'Envoi Email"), self.tr("Une erreur est survenue lors de l'envoi de l'email:\
+{0}").format(str(e)))
+
 # [end of dialogs.py]

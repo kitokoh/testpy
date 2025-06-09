@@ -27,15 +27,17 @@ MAIN_MODULE_COMPILE_PDF_DIALOG = None
 MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
 MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
+MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
            MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
            MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME
+           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
         import main as main_module # This is the potential circular import point
+        from dialogs import SendEmailDialog # Direct import for SendEmailDialog
         MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
         MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
@@ -44,6 +46,7 @@ def _import_main_elements():
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = main_module.generate_pdf_for_document
         MAIN_MODULE_CONFIG = main_module.CONFIG
         MAIN_MODULE_DATABASE_NAME = main_module.DATABASE_NAME # Used in load_statuses, save_client_notes
+        MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
 
 
 class ClientWidget(QWidget):
@@ -63,6 +66,7 @@ class ClientWidget(QWidget):
         self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
         self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
         self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
+        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
 
         self.setup_ui()
 
@@ -77,10 +81,17 @@ class ClientWidget(QWidget):
         layout.addWidget(self.header_label)
 
         action_layout = QHBoxLayout()
-        self.create_docs_btn = QPushButton(self.tr("Créer Documents"))
-        self.create_docs_btn.setIcon(QIcon.fromTheme("document-new"))
-        self.create_docs_btn.setObjectName("primaryButton")
-        self.create_docs_btn.clicked.connect(self.open_create_docs_dialog)
+        # Repurpose create_docs_btn to Envoyer Mail
+        self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
+        self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using bell.svg as fallback
+        self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
+        self.create_docs_btn.setObjectName("primaryButton") # Keep primary styling for now
+        try:
+            # Disconnect previous connection if it exists
+            self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
+        except TypeError:
+            print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
+        self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
         action_layout.addWidget(self.create_docs_btn)
 
         self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
@@ -111,13 +122,11 @@ class ClientWidget(QWidget):
         self.detail_value_labels["category"] = self.category_value_label
         layout.addLayout(self.details_layout)
 
-        notes_group = QGroupBox(self.tr("Notes"))
-        notes_layout = QVBoxLayout(notes_group)
+        # Initialize notes_edit here, before it's added to a tab
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
         self.notes_edit.textChanged.connect(self.save_client_notes)
-        notes_layout.addWidget(self.notes_edit)
-        layout.addWidget(notes_group)
+        # The QGroupBox for notes is removed, notes_edit will be added to a tab later
 
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
@@ -144,9 +153,12 @@ class ClientWidget(QWidget):
         self.open_doc_btn.clicked.connect(self.open_selected_doc)
         doc_btn_layout.addWidget(self.open_doc_btn)
 
-        self.delete_doc_btn = QPushButton(self.tr("Supprimer"))
-        self.delete_doc_btn.setIcon(QIcon.fromTheme("edit-delete"))
-        self.delete_doc_btn.clicked.connect(self.delete_selected_doc)
+        self.delete_doc_btn = QPushButton(self.tr("Ajouter Modèle")) # New text
+        self.delete_doc_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # New icon
+        self.delete_doc_btn.setToolTip(self.tr("Ajouter un modèle de document pour ce client")) # New tooltip
+        # The original .connect(self.delete_selected_doc) is removed by replacing these lines.
+        # Now, connect to the new function.
+        self.delete_doc_btn.clicked.connect(self.open_create_docs_dialog)
         doc_btn_layout.addWidget(self.delete_doc_btn)
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
@@ -168,6 +180,23 @@ class ClientWidget(QWidget):
         self.remove_product_btn = QPushButton(self.tr("🗑️ Supprimer")); self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
         products_layout.addLayout(products_btn_layout)
         self.tab_widget.addTab(products_tab, self.tr("Produits"))
+
+        # Create and add Notes Tab
+        notes_content_tab = QWidget()
+        notes_tab_layout = QVBoxLayout(notes_content_tab)
+        # self.notes_edit is already initialized above where the groupbox was removed
+        notes_tab_layout.addWidget(self.notes_edit)
+
+        produits_tab_index = -1
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(i) == self.tr("Produits"):
+                produits_tab_index = i
+                break
+        if produits_tab_index != -1:
+            self.tab_widget.insertTab(produits_tab_index + 1, notes_content_tab, self.tr("Notes"))
+        else:
+            self.tab_widget.addTab(notes_content_tab, self.tr("Notes")) # Fallback if "Produits" tab not found
+
         layout.addWidget(self.tab_widget)
         self.populate_doc_table(); self.load_contacts(); self.load_products()
 
@@ -498,6 +527,36 @@ class ClientWidget(QWidget):
                 total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}"); total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter); self.products_table.setItem(row_idx, 5, total_price_item)
             self.products_table.resizeColumnsToContents()
         except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
+
+    def open_send_email_dialog(self):
+        client_uuid = self.client_info.get("client_id")
+        primary_email = ""
+        if client_uuid:
+            contacts = db_manager.get_contacts_for_client(client_uuid)
+            if contacts:
+                for contact in contacts:
+                    if contact.get('is_primary_for_client') and contact.get('email'):
+                        primary_email = contact['email']
+                        break
+                if not primary_email and contacts[0].get('email'): # Fallback to first contact's email
+                    primary_email = contacts[0]['email']
+
+        # Ensure self.config is the application config containing SMTP settings
+        if not hasattr(self, 'config') or not self.config:
+             QMessageBox.critical(self, self.tr("Erreur Configuration"), self.tr("La configuration de l'application (SMTP) n'est pas disponible."))
+             return
+
+        # Ensure self.SendEmailDialog is correctly initialized
+        if not hasattr(self, 'SendEmailDialog') or self.SendEmailDialog is None:
+             try:
+                 from dialogs import SendEmailDialog # Direct import as a fallback
+                 self.SendEmailDialog = SendEmailDialog
+             except ImportError:
+                  QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le composant SendEmailDialog n'a pas pu être chargé."))
+                  return
+
+        dialog = self.SendEmailDialog(client_email=primary_email, config=self.config, parent=self)
+        dialog.exec_()
 
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # are correctly available either as methods of ClientWidget or properly imported.
