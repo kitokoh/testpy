@@ -1,217 +1,190 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <title>SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}}</title>
+    <title>{{ doc.document_title }}</title>
     <style>
         body {
-            font-family: "Segoe UI", Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f7fc;
-            color: #333;
             font-size: 10pt;
+            color: #333;
+            background-color: #f4f4f4;
         }
-        .page {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 20mm;
-            margin: 10mm auto;
+        @page {
+            size: A4;
+            margin: 25mm;
+            counter-increment: page;
+            @bottom-center {
+                content: "Página " counter(page);
+                font-size: 8pt;
+                color: #777;
+            }
+        }
+        .container {
+            width: 100%; /* Full width within page margins */
             background-color: #fff;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            page-break-after: always;
-            box-sizing: border-box;
         }
-        .page:last-child {
-            page-break-after: avoid;
-        }
-        .header-container-tech {
+        .header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            border-bottom: 2px solid #3498db; /* Technical Blue */
             padding-bottom: 15px;
+            border-bottom: 3px solid #2c3e50; /* Darker, more technical color */
             margin-bottom: 25px;
         }
-        .logo-tech {
-            max-width: 160px;
+        .header .seller-logo img {
+            max-width: 150px;
             max-height: 70px;
             object-fit: contain;
         }
-        .document-title-tech {
+        .header .document-info {
             text-align: right;
         }
-        .document-title-tech h1 {
-            font-size: 20pt;
-            color: #3498db;
+        .document-info h1 {
+            font-size: 22pt;
+            color: #2c3e50;
             margin: 0 0 5px 0;
             font-weight: 600;
         }
-        .document-title-tech p {
+        .document-info p {
             font-size: 9pt;
-            color: #555;
             margin: 2px 0;
+            color: #555;
         }
-        .section-tech {
+        .client-project-info {
             margin-bottom: 20px;
-        }
-        .section-tech h2 {
-            font-size: 14pt;
-            color: #2980b9; /* Darker Technical Blue */
-            border-bottom: 1px solid #aed6f1;
-            padding-bottom: 6px;
-            margin-top: 0; /* For first section on a page */
-            margin-bottom: 15px;
-            font-weight: 500;
-        }
-        .section-tech h3 {
-            font-size: 12pt;
-            color: #2c3e50;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        .section-tech p, .section-tech ul, .section-tech table {
-            font-size: 9.5pt;
-            line-height: 1.6;
-            margin-bottom: 10px;
-        }
-        .section-tech ul {
-            padding-left: 20px;
-            list-style-type: disc;
-        }
-        .section-tech li {
-            margin-bottom: 5px;
-        }
-        .tech-image-container {
-            text-align: center;
-            margin-bottom: 20px;
-            border: 1px solid #e0e0e0;
-            padding: 15px;
+            padding: 10px;
             background-color: #f9f9f9;
+            border-left: 3px solid #2c3e50;
+            font-size: 9.5pt;
         }
-        .tech-image-container img {
-            max-width: 100%;
-            max-height: 400px; /* Adjust as needed */
-            object-fit: contain;
-            border: 1px solid #ccc;
+        .product-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #ccc;
         }
-        .dimensions-table {
+        .product-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .product-title {
+            font-size: 16pt;
+            color: #34495e; /* Slightly lighter than header border */
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .product-description {
+            font-size: 10pt;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .product-description p { /* Allow paragraphs within description */
+            margin-bottom: 0.5em;
+        }
+        .specifications-table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 9pt;
         }
-        .dimensions-table th, .dimensions-table td {
-            border: 1px solid #bdc3c7; /* Gray borders */
-            padding: 8px 10px;
+        .specifications-table th, .specifications-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
             text-align: left;
+            vertical-align: top;
         }
-        .dimensions-table th {
-            background-color: #ecf0f1; /* Light Gray Blue */
+        .specifications-table th {
+            background-color: #ecf0f1; /* Light grey-blue */
             font-weight: 500;
+            width: 30%;
         }
-        .footer-tech {
-            border-top: 1px solid #3498db;
-            padding-top: 10px;
+        .general-section { /* For Compliance, Environment etc. */
             margin-top: 30px;
-            text-align: center;
-            font-size: 8.5pt;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        .general-section h2 {
+            font-size: 14pt;
+            color: #34495e;
+            margin-bottom: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #2c3e50;
+            font-size: 8pt;
             color: #777;
-        }
-        .page-number::before {
-            content: "Page " counter(page);
-        }
-        @page {
-            counter-increment: page;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <!-- Page 1: Image and Dimensions -->
-    <div class="page">
-        <div class="header-container-tech">
-            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech">
-            <div class="document-title-tech">
-                <h1>SPECIFICATIONS TECHNIQUES</h1>
-                <p>Produit: {{PRODUCT_NAME_TECH_SPEC}}</p>
-                <p>Référence Projet: {{PROJECT_ID_TECH_SPEC}}</p>
-                <p>Date: {{DATE_TECH_SPEC}} | Version: {{VERSION_TECH_SPEC}}</p>
+    <div class="container">
+        <div class="header">
+            <div class="seller-logo">
+                {{#if seller.company_logo_path}}
+                <img src="{{ seller.company_logo_path }}" alt="Logo de {{ seller.company_name }}">
+                {{else}}
+                <h3>{{ seller.company_name }}</h3>
+                {{/if}}
+            </div>
+            <div class="document-info">
+                <h1>ESPECIFICAÇÕES TÉCNICAS</h1>
+                {{#if doc.document_subtitle}}<p>{{doc.document_subtitle}}</p>{{/if}}
+                <p><strong>Data do Documento:</strong> {{ doc.current_date }}</p>
+                {{#if doc.document_version}}<p><strong>Versão:</strong> {{ doc.document_version }}</p>{{/if}}
             </div>
         </div>
 
-        <div class="section-tech">
-            <h2>Aperçu Technique et Dimensions</h2>
-            <div class="tech-image-container">
-                <img src="{{TECHNICAL_IMAGE_PATH_OR_EMBED}}" alt="Image Technique du Produit">
-                <p><em>{{TECHNICAL_IMAGE_CAPTION}}</em></p>
-            </div>
-            <h3>Dimensions Principales</h3>
-            <table class="dimensions-table">
-                <thead>
+        <div class="client-project-info">
+            <p><strong>Cliente:</strong> {{ client.name }} {{#if client.company_name}}({{ client.company_name }}){{/if}}</p>
+            {{#if project.id}}<p><strong>Projeto:</strong> {{ project.name }} (ID: {{ project.id }})</p>{{/if}}
+        </div>
+
+        {{#if products}}
+            {{#each products}}
+            <div class="product-section">
+                <h2 class="product-title">{{this.name}}</h2>
+                {{#if this.is_language_match}}
+                    {{else}}
+                    <p style="font-size:8pt; color:red;">(Os detalhes seguintes estão no idioma original do produto e não em português.)</p>
+                {{/if}}
+
+                <div class="product-description">
+                    {{{ this.description }}}
+                </div>
+
+                <table class="specifications-table">
                     <tr>
-                        <th>Caractéristique</th>
-                        <th>Valeur</th>
-                        <th>Unité</th>
-                        <th>Tolérance</th>
+                        <th>Peso</th>
+                        <td>{{#if this.weight}}{{this.weight}} kg{{else}}N/D{{/if}}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    {{DIMENSIONS_TABLE_ROWS_TECH_SPEC}}
-                </tbody>
-            </table>
-        </div>
-        <div class="footer-tech">
-            <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
-        </div>
-    </div>
-
-    <!-- Page 2: Material Conditions and Performance -->
-    <div class="page">
-        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">
-             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">
-             <div class="document-title-tech" style="padding-top:10px;">
-                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>
+                    <tr>
+                        <th>Dimensões</th>
+                        <td>{{#if this.dimensions}}{{this.dimensions}}{{else}}N/D{{/if}}</td>
+                    </tr>
+                    <!-- Add more rows here if other structured product fields become available -->
+                </table>
             </div>
-        </div>
-        <div class="section-tech">
-            <h2>Conditions sur les Matériaux</h2>
-            <p>{{MATERIALS_GENERAL_OVERVIEW_TECH_SPEC}}</p>
-            {{MATERIALS_CONDITIONS_DETAILED_LIST_TECH_SPEC}}
-        </div>
-        <div class="section-tech">
-            <h2>Performances et Caractéristiques Opérationnelles</h2>
-            {{PERFORMANCE_SPECS_TECH_SPEC}}
-        </div>
-        <div class="footer-tech">
-             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
-        </div>
-    </div>
+            {{/each}}
+        {{else}}
+            <p>Nenhum produto para exibir neste documento.</p>
+        {{/if}}
 
-    <!-- Page 3: Compliance, Environment, Maintenance, Notes -->
-    <div class="page">
-        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">
-             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">
-             <div class="document-title-tech" style="padding-top:10px;">
-                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>
-            </div>
+        <div class="general-section">
+            <h2>Conformidade e Normas</h2>
+            <p>Os nossos produtos são concebidos para cumprir as normas industriais relevantes. Para declarações de conformidade específicas, por favor contacte o nosso departamento de vendas.</p>
+
+            <h2>Ambiente Operacional</h2>
+            <p>As condições ambientais ideais para utilização e armazenamento do produto estão detalhadas nos manuais de utilizador específicos do produto. Em geral, evite temperaturas extremas e humidade excessiva.</p>
         </div>
-        <div class="section-tech">
-            <h2>Conformité et Standards</h2>
-            {{COMPLIANCE_STANDARDS_TECH_SPEC}}
-        </div>
-        <div class="section-tech">
-            <h2>Environnement d'''Utilisation</h2>
-            {{OPERATING_ENVIRONMENT_TECH_SPEC}}
-        </div>
-        <div class="section-tech">
-            <h2>Maintenance et Entretien</h2>
-            {{MAINTENANCE_INFO_TECH_SPEC}}
-        </div>
-        <div class="section-tech">
-            <h2>Notes Complémentaires</h2>
-            <p>{{NOTES_TECH_SPEC}}</p>
-        </div>
-        <div class="footer-tech">
-             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
+
+        <div class="footer">
+            <p>{{ seller.company_name }}</p>
+            <p>Este documento contém informação confidencial. A distribuição ou reprodução não autorizada é proibida.</p>
+            <!-- Page number will be added by @page CSS -->
         </div>
     </div>
 </body>
