@@ -279,19 +279,57 @@ def initialize_database():
     """)
 
     # Create Products table (New)
+    # Idempotent ALTER TABLE for existing Products table
+    try:
+        cursor.execute("PRAGMA table_info(Products)")
+        columns_info = cursor.fetchall()
+        existing_column_names = {info['name'] for info in columns_info} # Assuming conn.row_factory = sqlite3.Row
+
+        altered = False
+        if 'weight' not in existing_column_names:
+            cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
+            print("Added 'weight' column to Products table.")
+            altered = True
+        if 'dimensions' not in existing_column_names:
+            cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
+            print("Added 'dimensions' column to Products table.")
+            altered = True
+
+        if altered:
+            conn.commit() # Commit ALTER TABLE statements immediately
+
+    except sqlite3.Error as e:
+        # This might happen if Products table doesn't exist yet, which is fine.
+        # The CREATE TABLE IF NOT EXISTS below will handle it.
+        print(f"Info: Checking columns for Products table, it might not exist yet or other error: {e}")
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT NOT NULL, -- UNIQUE constraint might be per language later
+        product_name TEXT NOT NULL,
         description TEXT,
         category TEXT, 
-        language_code TEXT DEFAULT 'fr', -- Added language_code
+        language_code TEXT DEFAULT 'fr',
         base_unit_price REAL NOT NULL,
         unit_of_measure TEXT, 
+        weight REAL, -- New column
+        dimensions TEXT, -- New column (e.g., "LxWxH cm")
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (product_name, language_code) -- Product name should be unique per language
+        UNIQUE (product_name, language_code)
+    )
+    """)
+
+    # Create ProductEquivalencies table (New)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ProductEquivalencies (
+        equivalence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id_a INTEGER NOT NULL,
+        product_id_b INTEGER NOT NULL,
+        FOREIGN KEY (product_id_a) REFERENCES Products (product_id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id_b) REFERENCES Products (product_id) ON DELETE CASCADE,
+        UNIQUE (product_id_a, product_id_b)
     )
     """)
 
@@ -2634,9 +2672,165 @@ def update_client_contact_link(client_contact_id: int, details: dict) -> bool:
     finally:
         if conn: conn.close()
 
+# CRUD functions for ProductEquivalencies
+def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
+    """
+    Adds a product equivalence pair.
+    Ensures product_id_a < product_id_b to maintain uniqueness.
+    Returns equivalence_id of the new or existing record.
+    """
+    if product_id_a == product_id_b:
+        print("Error: Cannot create equivalence for a product with itself.")
+        return None
+
+    p_a = min(product_id_a, product_id_b)
+    p_b = max(product_id_a, product_id_b)
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "INSERT INTO ProductEquivalencies (product_id_a, product_id_b) VALUES (?, ?)"
+        cursor.execute(sql, (p_a, p_b))
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Pair already exists
+        print(f"IntegrityError: Product equivalence pair ({p_a}, {p_b}) likely already exists.")
+        cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a, p_b))
+        row = cursor.fetchone()
+        return row['equivalence_id'] if row else None # Should find it if IntegrityError was due to this UNIQUE constraint
+    except sqlite3.Error as e:
+        print(f"Database error in add_product_equivalence: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_equivalent_products(product_id: int) -> list[dict]:
+    """
+    Retrieves all products equivalent to the given product_id.
+    Returns a list of product dictionaries.
+    """
+    conn = None
+    equivalent_product_ids = set()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Find pairs where product_id is product_id_a
+        cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
+        rows_a = cursor.fetchall()
+        for row in rows_a:
+            equivalent_product_ids.add(row['product_id_b'])
+
+        # Find pairs where product_id is product_id_b
+        cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
+        rows_b = cursor.fetchall()
+        for row in rows_b:
+            equivalent_product_ids.add(row['product_id_a'])
+
+        equivalent_products = []
+        if equivalent_product_ids:
+            # Fetch full details for each equivalent product ID
+            # Using a placeholder for multiple IDs to avoid complex IN clause for now, iterate instead.
+            # For larger sets, an IN clause would be more efficient.
+            for eq_id in equivalent_product_ids:
+                prod_details = get_product_by_id(eq_id) # This function now includes weight and dimensions
+                if prod_details:
+                    equivalent_products.append(prod_details)
+        return equivalent_products
+
+    except sqlite3.Error as e:
+        print(f"Database error in get_equivalent_products: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+# CRUD functions for ProductEquivalencies
+def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
+    """
+    Adds a product equivalence pair.
+    Ensures product_id_a < product_id_b to maintain uniqueness.
+    Returns equivalence_id of the new or existing record.
+    """
+    if product_id_a == product_id_b:
+        print("Error: Cannot create equivalence for a product with itself.")
+        return None
+
+    # Ensure p_a is always the smaller ID
+    p_a = min(product_id_a, product_id_b)
+    p_b = max(product_id_a, product_id_b)
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "INSERT INTO ProductEquivalencies (product_id_a, product_id_b) VALUES (?, ?)"
+        cursor.execute(sql, (p_a, p_b))
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Pair already exists
+        print(f"IntegrityError: Product equivalence pair ({p_a}, {p_b}) likely already exists.")
+        # Fetch the ID of the existing pair
+        try:
+            cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a, p_b))
+            row = cursor.fetchone()
+            if row:
+                return row['equivalence_id']
+            else:
+                # This case should be rare if IntegrityError was due to the unique constraint
+                print(f"Warning: IntegrityError for pair ({p_a}, {p_b}) but could not retrieve existing ID.")
+                return None
+        except sqlite3.Error as e_select:
+            print(f"Database error while trying to retrieve existing equivalence_id for ({p_a}, {p_b}): {e_select}")
+            return None
+    except sqlite3.Error as e:
+        print(f"Database error in add_product_equivalence: {e}")
+        if conn:
+            conn.rollback() # Rollback if not an integrity error on insert
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_equivalent_products(product_id: int) -> list[dict]:
+    """
+    Retrieves all products equivalent to the given product_id.
+    Returns a list of product dictionaries (including weight and dimensions).
+    """
+    conn = None
+    equivalent_product_ids = set()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Find pairs where product_id is product_id_a
+        cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
+        rows_a = cursor.fetchall()
+        for row in rows_a:
+            equivalent_product_ids.add(row['product_id_b'])
+
+        # Find pairs where product_id is product_id_b
+        cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
+        rows_b = cursor.fetchall()
+        for row in rows_b:
+            equivalent_product_ids.add(row['product_id_a'])
+
+        equivalent_products_details = []
+        if equivalent_product_ids:
+            for eq_id in equivalent_product_ids:
+                prod_details = get_product_by_id(eq_id) # get_product_by_id will be updated to include new fields
+                if prod_details:
+                    equivalent_products_details.append(prod_details)
+        return equivalent_products_details
+
+    except sqlite3.Error as e:
+        print(f"Database error in get_equivalent_products: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
 # CRUD functions for Products
 def add_product(product_data: dict) -> int | None:
-    """Adds a new product. Returns product_id or None."""
+    """Adds a new product, including weight and dimensions. Returns product_id or None."""
     conn = None
     try:
         product_name = product_data.get('product_name')
@@ -2657,15 +2851,18 @@ def add_product(product_data: dict) -> int | None:
         sql = """
             INSERT INTO Products (
                 product_name, description, category, language_code, base_unit_price,
-                unit_of_measure, is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                unit_of_measure, weight, dimensions, is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             product_name, product_data.get('description'),
             product_data.get('category'),
             language_code,
             base_unit_price,
-            product_data.get('unit_of_measure'), product_data.get('is_active', True),
+            product_data.get('unit_of_measure'),
+            product_data.get('weight'),
+            product_data.get('dimensions'),
+            product_data.get('is_active', True),
             now, now
         )
         cursor.execute(sql, params)
@@ -2690,12 +2887,13 @@ def add_product(product_data: dict) -> int | None:
         if conn: conn.close()
 
 def get_product_by_id(product_id: int) -> dict | None:
-    """Retrieves a product by ID."""
+    """Retrieves a product by ID, including weight and dimensions."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Products WHERE product_id = ?", (product_id,))
+        # Ensure all desired columns including new ones are selected
+        cursor.execute("SELECT product_id, product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at FROM Products WHERE product_id = ?", (product_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
@@ -2705,14 +2903,15 @@ def get_product_by_id(product_id: int) -> dict | None:
         if conn: conn.close()
 
 def get_product_by_name(product_name: str) -> dict | None:
-    """Retrieves a product by its exact name. Returns a dict or None if not found."""
+    """Retrieves a product by its exact name, including weight and dimensions. Returns a dict or None if not found."""
     conn = None
     if not product_name:
         return None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,))
+        # Ensure all desired columns including new ones are selected
+        cursor.execute("SELECT product_id, product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at FROM Products WHERE product_name = ?", (product_name,))
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
@@ -2723,12 +2922,13 @@ def get_product_by_name(product_name: str) -> dict | None:
             conn.close()
 
 def get_all_products(filters: dict = None) -> list[dict]:
-    """Retrieves all products. Filters by category (exact) or product_name (partial LIKE)."""
+    """Retrieves all products, including weight and dimensions. Filters by category (exact) or product_name (partial LIKE)."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        sql = "SELECT * FROM Products"
+        # Ensure all desired columns including new ones are selected
+        sql = "SELECT product_id, product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at FROM Products"
         params = []
         where_clauses = []
         if filters:
@@ -2752,20 +2952,37 @@ def get_all_products(filters: dict = None) -> list[dict]:
         if conn: conn.close()
 
 def update_product(product_id: int, product_data: dict) -> bool:
-    """Updates an existing product. Sets updated_at."""
+    """Updates an existing product, including weight and dimensions. Sets updated_at."""
     conn = None
-    if not product_data: return False
+    if not product_data:
+        return False
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
         product_data['updated_at'] = now
         
-        set_clauses = [f"{key} = ?" for key in product_data.keys()]
-        params = list(product_data.values())
-        params.append(product_id)
+        # Ensure only valid columns are updated
+        valid_columns = [
+            'product_name', 'description', 'category', 'language_code',
+            'base_unit_price', 'unit_of_measure', 'weight', 'dimensions',
+            'is_active', 'updated_at'
+        ]
         
+        set_clauses = []
+        params = []
+        for key, value in product_data.items():
+            if key in valid_columns: # Check if the key is a valid column to update
+                set_clauses.append(f"{key} = ?")
+                params.append(value)
+
+        if not set_clauses:
+            print("Warning: No valid fields to update in update_product.")
+            return False
+
+        params.append(product_id)
         sql = f"UPDATE Products SET {', '.join(set_clauses)} WHERE product_id = ?"
+
         cursor.execute(sql, params)
         conn.commit()
         return cursor.rowcount > 0
@@ -2801,8 +3018,9 @@ def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
         cursor = conn.cursor()
 
         search_pattern = f"%{pattern}%"
+        # Ensure all desired columns including new ones are selected
         sql = """
-            SELECT product_id, product_name, description, base_unit_price
+            SELECT product_id, product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at
             FROM Products
             WHERE product_name LIKE ?
             ORDER BY product_name
@@ -2847,7 +3065,7 @@ def get_all_products_for_selection(language_code: str = None, name_pattern: str 
             sql_params.append(name_pattern)
 
         sql = f"""
-            SELECT product_id, product_name, description, base_unit_price, language_code
+            SELECT product_id, product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at
             FROM Products
             WHERE {' AND '.join(sql_where_clauses)}
             ORDER BY product_name
@@ -2939,8 +3157,10 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None) -
         cursor = conn.cursor()
         
         sql = """
-            SELECT cpp.*, p.product_name, p.description as product_description, p.category as product_category, 
-                   p.base_unit_price, p.unit_of_measure
+            SELECT cpp.*,
+                   p.product_id as product_id_original_lang, p.product_name, p.description as product_description,
+                   p.category as product_category, p.base_unit_price, p.unit_of_measure,
+                   p.weight, p.dimensions, p.language_code
             FROM ClientProjectProducts cpp
             JOIN Products p ON cpp.product_id = p.product_id
             WHERE cpp.client_id = ?
@@ -4705,26 +4925,20 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
 
 def get_document_context_data(
     client_id: str,
-    company_id: str,
+    company_id: str, # For seller info
+    target_language_code: str, # New parameter
     project_id: str = None,
-    product_ids: list[int] = None,
+    # product_ids: list[int] = None, # This might be ClientProjectProducts IDs if only specific items are part of the proforma
+    linked_product_ids_for_doc: list[int] = None, # Use this for specific ClientProjectProducts line items
     additional_context: dict = None
 ) -> dict:
     """
-    Gathers and structures data from various database sources to provide a comprehensive
-    context dictionary for document generation.
+    Gathers and structures data for document generation, with product language resolution.
     """
-    # Initialize main context structure
     context = {
-        "doc": {},
-        "client": {}, # Represents the client of our user (the "buyer" or "consignee")
-        "seller": {}, # Represents our user's company (the "seller" or "exporter")
-        "project": {},
-        "products": [],
+        "doc": {}, "client": {}, "seller": {}, "project": {}, "products": [],
         "additional": additional_context if isinstance(additional_context, dict) else {}
     }
-
-    # --- Populate context["doc"] ---
     now_dt = datetime.now()
     context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
     context["doc"]["current_year"] = str(now_dt.year)
@@ -4913,83 +5127,155 @@ def get_document_context_data(
 
     # --- Fetch Products and Generate HTML Rows ---
     fetched_products_data = []
-    # ... (product fetching logic as before) ...
+    # ... (rest of the initial context["doc"] setup as before) ...
+    now_dt = datetime.now()
+    context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
+    context["doc"]["current_year"] = str(now_dt.year)
+    context["doc"]["currency_symbol"] = context["additional"].get("currency_symbol", "€")
+    context["doc"]["vat_rate_percentage"] = context["additional"].get("vat_rate_percentage", 20.0)
+    context["doc"]["discount_rate_percentage"] = context["additional"].get("discount_rate_percentage", 0.0)
+    # ... (other context["doc"] fields) ...
+
+    # --- Fetch Seller (Our User's Company) Information ---
+    # ... (seller info fetching as before) ...
+    seller_company_data = get_company_by_id(company_id)
+    if seller_company_data:
+        context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
+        # ... (populate rest of seller fields) ...
+        # Simplified for brevity
+        context["seller"]["company_logo_path"] = f"file:///{os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, seller_company_data.get('logo_path',''))}" if seller_company_data.get('logo_path') else ""
+
+
+    # --- Fetch Client Information (The Buyer/Consignee) ---
+    # ... (client info fetching as before) ...
+    client_data = get_client_by_id(client_id)
+    if client_data:
+        context["client"]["id"] = client_data.get('client_id')
+        # ... (populate rest of client fields) ...
+
+
+    # --- Fetch Project Information (if project_id is provided) ---
+    # ... (project info fetching as before) ...
     if project_id:
-        fetched_products_data = get_products_for_client_or_project(client_id, project_id)
-    elif product_ids: # product_ids could be passed via additional_context
-        for pid in product_ids:
-            prod = get_product_by_id(pid) # This gets base product info
-            # Need to find the specific link if quantity/override is important, or assume defaults
-            # For simplicity, if product_ids are passed, we might assume default quantity 1 and no override
-            # or that additional_context provides this per product_id.
-            if prod:
-                 # Try to find this product in client's general products for quantity/override
-                client_specific_prod_info = None
-                client_general_prods = get_products_for_client_or_project(client_id, project_id=None)
-                if client_general_prods:
-                    client_specific_prod_info = next((p for p in client_general_prods if p['product_id'] == pid), None)
+        project_data = get_project_by_id(project_id)
+        if project_data:
+            context["project"]["name"] = project_data.get('project_name')
+            # ... (populate rest of project fields) ...
+    else:
+        context["project"]["name"] = client_data.get('project_identifier', "N/A") if client_data else "N/A"
 
-                quantity_to_use = client_specific_prod_info.get('quantity', 1) if client_specific_prod_info else 1
-                override_to_use = client_specific_prod_info.get('unit_price_override') if client_specific_prod_info else None
 
-                fetched_products_data.append({
-                    **prod,
-                    'quantity': quantity_to_use,
-                    'unit_price_override': override_to_use,
-                    'product_name': prod.get('product_name'),
-                    'product_description': prod.get('description'),
-                    'unit_of_measure': prod.get('unit_of_measure'),
-                    'base_unit_price': prod.get('base_unit_price')
-                })
-    elif client_id: # Default to client-general products if no project_id or product_ids specified
-         fetched_products_data = get_products_for_client_or_project(client_id, project_id=None)
-
+    # --- Enhanced Product Fetching and Language Resolution ---
+    linked_products_query_result = []
+    if linked_product_ids_for_doc: # Fetch specific linked products if IDs are provided
+        conn_temp = get_db_connection()
+        cursor_temp = conn_temp.cursor()
+        for link_id in linked_product_ids_for_doc:
+            cursor_temp.execute("""
+                SELECT cpp.*, p.product_name AS original_product_name, p.description AS original_description,
+                       p.language_code AS original_language_code, p.weight, p.dimensions,
+                       p.base_unit_price, p.unit_of_measure
+                FROM ClientProjectProducts cpp
+                JOIN Products p ON cpp.product_id = p.product_id
+                WHERE cpp.client_project_product_id = ?
+            """, (link_id,))
+            row = cursor_temp.fetchone()
+            if row:
+                linked_products_query_result.append(dict(row))
+        conn_temp.close()
+    else: # Fetch all for client/project
+        linked_products_query_result = get_products_for_client_or_project(client_id, project_id)
+        # get_products_for_client_or_project already joins with Products and fetches its columns.
+        # We need to ensure it fetches original_language_code, original_product_name, original_description
+        # and the new weight/dimensions. The alias for Products table is 'p'.
+        # The previous subtask updated get_products_for_client_or_project to include p.weight, p.dimensions.
+        # It also implicitly included p.language_code, p.product_name, p.description.
 
     products_table_html_rows = ""
     subtotal_amount_calculated = 0.0
     item_counter = 0
 
-    for prod_data in fetched_products_data:
+    for linked_prod_data in linked_products_query_result:
         item_counter += 1
-        quantity = prod_data.get('quantity', 1)
-        unit_price = prod_data.get('unit_price_override', prod_data.get('base_unit_price'))
+        original_product_id = linked_prod_data['product_id'] # This is the ID of the product in its original language
+        original_lang_code = linked_prod_data.get('language_code') # Language of the product in Products table for this link
 
-        # Ensure unit_price is float for calculation
+        product_name_for_doc = linked_prod_data.get('product_name') # Default to original
+        product_description_for_doc = linked_prod_data.get('product_description') # Default to original
+        is_language_match = (original_lang_code == target_language_code)
+
+        if not is_language_match:
+            equivalents = get_equivalent_products(original_product_id)
+            found_equivalent_in_target_lang = False
+            for eq_prod in equivalents:
+                if eq_prod.get('language_code') == target_language_code:
+                    product_name_for_doc = eq_prod.get('product_name')
+                    product_description_for_doc = eq_prod.get('description')
+                    is_language_match = True # Now it's a match because we found an equivalent
+                    found_equivalent_in_target_lang = True
+                    break
+            if not found_equivalent_in_target_lang:
+                # No equivalent found in target language, is_language_match remains False.
+                # product_name_for_doc and product_description_for_doc retain original language values.
+                print(f"Warning: No equivalent found for product ID {original_product_id} in target language {target_language_code}.")
+
+
+        quantity = linked_prod_data.get('quantity', 1)
+        unit_price_override = linked_prod_data.get('unit_price_override')
+        base_unit_price = linked_prod_data.get('base_unit_price')
+
+        effective_unit_price = unit_price_override if unit_price_override is not None else base_unit_price
         try:
-            unit_price_float = float(unit_price) if unit_price is not None else 0.0
+            unit_price_float = float(effective_unit_price) if effective_unit_price is not None else 0.0
         except ValueError:
             unit_price_float = 0.0
-            print(f"Warning: Could not convert unit_price '{unit_price}' to float for product '{prod_data.get('product_name')}'. Using 0.0.")
 
         total_price = quantity * unit_price_float
         subtotal_amount_calculated += total_price
 
         products_table_html_rows += f"""<tr>
             <td>{item_counter}</td>
-            <td>{prod_data.get('product_name', 'N/A')}</td>
+            <td>{product_name_for_doc if product_name_for_doc else 'N/A'}</td>
             <td>{quantity}</td>
             <td>{format_currency(unit_price_float, context["doc"]["currency_symbol"])}</td>
             <td>{format_currency(total_price, context["doc"]["currency_symbol"])}</td>
         </tr>"""
-        # Add to context["products"] list for other uses (if any)
+
         context["products"].append({
-            "id": prod_data.get('product_id'),
-            "name": prod_data.get('product_name'),
-            "description": prod_data.get('product_description', prod_data.get('description')),
+            "id": original_product_id,
+            "name": product_name_for_doc,
+            "description": product_description_for_doc,
             "quantity": quantity,
             "unit_price_formatted": format_currency(unit_price_float, context["doc"]["currency_symbol"]),
             "total_price_formatted": format_currency(total_price, context["doc"]["currency_symbol"]),
             "raw_unit_price": unit_price_float,
             "raw_total_price": total_price,
-            "unit_of_measure": prod_data.get('unit_of_measure'),
-            "item_number_or_code": prod_data.get('product_id'),
-            "serial_number": "N/A", # Placeholder
-            "other_identifier": "N/A", # Placeholder
-            "specifications": prod_data.get('product_description', prod_data.get('description')),
+            "unit_of_measure": linked_prod_data.get('unit_of_measure'),
+            "weight": linked_prod_data.get('weight'), # From joined Products table
+            "dimensions": linked_prod_data.get('dimensions'), # From joined Products table
+            "is_language_match": is_language_match
         })
 
     context["doc"]["products_table_rows"] = products_table_html_rows
     context["doc"]["subtotal_amount"] = format_currency(subtotal_amount_calculated, context["doc"]["currency_symbol"])
+    # ... (rest of currency calculations and context population as before) ...
+
+    discount_rate = context["doc"]["discount_rate_percentage"] / 100.0
+    discount_amount_calculated = subtotal_amount_calculated * discount_rate
+    context["doc"]["discount_amount"] = format_currency(discount_amount_calculated, context["doc"]["currency_symbol"])
+
+    amount_after_discount = subtotal_amount_calculated - discount_amount_calculated
+
+    vat_rate = context["doc"]["vat_rate_percentage"] / 100.0
+    vat_amount_calculated = amount_after_discount * vat_rate
+    context["doc"]["vat_amount"] = format_currency(vat_amount_calculated, context["doc"]["currency_symbol"])
+
+    grand_total_amount_calculated = amount_after_discount + vat_amount_calculated
+    context["doc"]["grand_total_amount"] = format_currency(grand_total_amount_calculated, context["doc"]["currency_symbol"])
+    context["doc"]["grand_total_amount_words"] = "N/A (Number to words not implemented)" # Placeholder
+
+    # ... (packing list and warranty specific placeholders as before) ...
+    # ... (common template placeholder mappings as before) ...
 
     discount_rate = context["doc"]["discount_rate_percentage"] / 100.0
     discount_amount_calculated = subtotal_amount_calculated * discount_rate

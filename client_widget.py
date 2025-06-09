@@ -209,11 +209,44 @@ class ClientWidget(QWidget):
         contacts_layout.addLayout(contacts_btn_layout)
         self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
 
-        products_tab = QWidget(); products_layout = QVBoxLayout(products_tab)
-        self.products_table = QTableWidget(); self.products_table.setColumnCount(6); self.products_table.setHorizontalHeaderLabels([self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"), self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")]);
-        self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked) # Make table editable on double click
-        self.products_table.itemChanged.connect(self.handle_product_item_changed) # Connect itemChanged signal
-        self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch); self.products_table.hideColumn(0); products_layout.addWidget(self.products_table)
+        products_tab = QWidget()
+        products_layout = QVBoxLayout(products_tab)
+
+        # Product Filters
+        product_filters_layout = QHBoxLayout()
+        product_filters_layout.addWidget(QLabel(self.tr("Filtrer par langue:")))
+        self.product_lang_filter_combo = QComboBox()
+        self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
+        # Language codes should match those in db and other parts of the app
+        self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
+        self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
+        self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
+        self.product_lang_filter_combo.addItem(self.tr("Turkish (tr)"), "tr")
+        self.product_lang_filter_combo.addItem(self.tr("Portuguese (pt)"), "pt")
+        self.product_lang_filter_combo.currentTextChanged.connect(self.load_products)
+        product_filters_layout.addWidget(self.product_lang_filter_combo)
+        product_filters_layout.addStretch()
+        products_layout.addLayout(product_filters_layout)
+
+        self.products_table = QTableWidget()
+        self.products_table.setColumnCount(8) # ID, Name, Desc, Weight, Dimensions, Qty, Unit Price, Total Price
+        self.products_table.setHorizontalHeaderLabels([
+            self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"),
+            self.tr("Poids"), self.tr("Dimensions"), # New Columns
+            self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")
+        ])
+        self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked)
+        self.products_table.itemChanged.connect(self.handle_product_item_changed)
+        self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.products_table.hideColumn(0) # Hide ID
+        # Example of interactive resizing for some columns:
+        # self.products_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
+        # self.products_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
+        # for i in range(3, 8): # Weight, Dimensions, Qty, Unit Price, Total Price
+        #     self.products_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        products_layout.addWidget(self.products_table)
+
         products_btn_layout = QHBoxLayout()
         self.add_product_btn = QPushButton(self.tr("➕ Ajouter")); self.add_product_btn.setIcon(QIcon.fromTheme("list-add")); self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
         self.edit_product_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
@@ -341,8 +374,41 @@ class ClientWidget(QWidget):
         if not self.client_info or 'client_id' not in self.client_info:
             QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
             return
-        generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
-        if generated_pdf_path: QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+
+        # Extract target_language_code from the file_path
+        # Assumes path structure like .../base_folder/lang_code/filename.html
+        try:
+            target_language_code = os.path.basename(os.path.dirname(file_path))
+            # Basic validation if it's a known lang code, though db function will handle it more robustly
+            if target_language_code not in ["en", "fr", "ar", "tr", "pt"]: # Add other supported codes
+                # Fallback or error if lang code is not as expected
+                QMessageBox.warning(self, self.tr("Erreur Langue"), self.tr("Code langue non reconnu depuis le chemin du fichier: {0}").format(target_language_code))
+                # Decide on fallback: use client's primary language or abort? For now, let's try client's primary.
+                client_langs = self.client_info.get("selected_languages", [])
+                if isinstance(client_langs, str):
+                    client_langs = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+                target_language_code = client_langs[0] if client_langs else "fr" # Default to fr if no client lang
+                QMessageBox.information(self, self.tr("Info Langue"), self.tr("Utilisation de la langue par défaut '{0}' pour la génération du document.").format(target_language_code))
+
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur Chemin Fichier"), self.tr("Impossible d'extraire le code langue depuis le chemin:\n{0}\nErreur: {1}").format(file_path, str(e)))
+            return
+
+        # app_root_dir should be available in self.config if main.py sets it up.
+        # MAIN_MODULE_CONFIG should have app_root_dir if it's set in main.py's CONFIG
+        app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0])) # Fallback, might not be ideal for frozen apps
+        if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG: # Prefer this if available
+            app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
+
+        generated_pdf_path = self.generate_pdf_for_document(
+            source_file_path=file_path,
+            client_info=self.client_info,
+            app_root_dir=app_root_dir,
+            parent_widget=self,
+            target_language_code=target_language_code # Pass the new parameter
+        )
+        if generated_pdf_path:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
 
     def populate_details_layout(self):
         # Clear existing rows from the layout
@@ -706,17 +772,31 @@ class ClientWidget(QWidget):
         except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du produit lié:\n{0}").format(str(e)))
 
     def load_products(self):
-        self.products_table.blockSignals(True) # Block signals during population
-        self.products_table.setRowCount(0); client_uuid = self.client_info.get("client_id");
+        self.products_table.blockSignals(True)
+        self.products_table.setRowCount(0)
+        client_uuid = self.client_info.get("client_id")
         if not client_uuid:
             self.products_table.blockSignals(False)
             return
+
         try:
-            linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None); linked_products = linked_products if linked_products else []
-            for row_idx, prod_link_data in enumerate(linked_products):
+            all_linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
+            all_linked_products = all_linked_products if all_linked_products else []
+
+            selected_lang_code = self.product_lang_filter_combo.currentData()
+
+            filtered_products = []
+            if selected_lang_code: # If a specific language is selected (not "All Languages")
+                for prod in all_linked_products:
+                    # Ensure 'language_code' is available from the db_manager call for the product itself
+                    if prod.get('language_code') == selected_lang_code:
+                        filtered_products.append(prod)
+            else: # "All Languages" selected
+                filtered_products = all_linked_products
+
+            for row_idx, prod_link_data in enumerate(filtered_products):
                 self.products_table.insertRow(row_idx)
 
-                # ID item (Column 0 - Hidden)
                 id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
                 id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
                 id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
@@ -724,40 +804,52 @@ class ClientWidget(QWidget):
 
                 # Name (Column 1)
                 name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
                 self.products_table.setItem(row_idx, 1, name_item)
 
-                # Description (Column 2)
                 desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
-                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
                 self.products_table.setItem(row_idx, 2, desc_item)
 
-                # Quantity (Column 3 - Editable)
+                # Weight (Column 3 - Not Editable from this table)
+                weight_val = prod_link_data.get('weight')
+                weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+                weight_item = QTableWidgetItem(weight_str)
+                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.products_table.setItem(row_idx, 3, weight_item)
+
+                # Dimensions (Column 4 - Not Editable from this table)
+                dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
+                dimensions_item = QTableWidgetItem(dimensions_val)
+                dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 4, dimensions_item)
+
+                # Quantity (Column 5 - Editable)
                 qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
                 qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable) # Make editable
-                self.products_table.setItem(row_idx, 3, qty_item)
+                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 5, qty_item)
 
-                # Unit Price (Column 4 - Editable)
+                # Unit Price (Column 6 - Editable)
                 unit_price_override = prod_link_data.get('unit_price_override')
                 base_price = prod_link_data.get('base_unit_price')
                 effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
                 effective_unit_price = float(effective_unit_price)
-                # Store raw number for editing, display with currency symbol is tricky for direct editing
-                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}") # Store as plain number string
+                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
                 unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable) # Make editable
-                self.products_table.setItem(row_idx, 4, unit_price_item)
+                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 6, unit_price_item)
 
-                # Total Price (Column 5 - Not Editable)
+                # Total Price (Column 7 - Not Editable)
                 total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
                 total_price_calculated_val = float(total_price_calculated_val)
                 total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
                 total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable) # Not editable
-                self.products_table.setItem(row_idx, 5, total_price_item)
+                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
+                self.products_table.setItem(row_idx, 7, total_price_item)
 
-            self.products_table.resizeColumnsToContents()
+            # self.products_table.resizeColumnsToContents() # Can make UI jumpy, consider specific column resize modes
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
         finally:
@@ -787,15 +879,16 @@ class ClientWidget(QWidget):
         update_data = {}
 
         try:
-            if col == 3: # Quantity column
+            # ID (0, hidden), Name (1), Desc (2), Weight (3), Dimensions (4), Qty (5), UnitPrice (6), TotalPrice (7)
+            if col == 5: # Quantity column
                 new_quantity = float(new_value_str)
                 if new_quantity <= 0:
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("La quantité doit être positive."))
                     self.products_table.blockSignals(True); self.load_products(); self.products_table.blockSignals(False)
                     return
                 update_data['quantity'] = new_quantity
-            elif col == 4: # Unit Price column
-                new_unit_price_str = new_value_str.replace("€", "").strip() # Allow for currency symbol if pasted
+            elif col == 6: # Unit Price column
+                new_unit_price_str = new_value_str.replace("€", "").strip()
                 new_unit_price = float(new_unit_price_str)
                 if new_unit_price < 0:
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("Le prix unitaire ne peut être négatif."))
