@@ -236,22 +236,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.current_user = current_user # Use passed-in user
         self.template_manager = ProjectTemplateManager() # Initialize ProjectTemplateManager
 
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; /* Lighter background */
-                font-family: 'Segoe UI'; /* Ensure base font */
-                font-size: 10pt; /* Default font size */
-            }
-            QLabel {
-                color: #212529; /* Darker text for better contrast */
-            }
-            QPushButton { /* General button reset/base */
-                border: none;
-                padding: 8px 12px;
-                border-radius: 4px;
-                font-size: 10pt;
-            }
-        """)
+        # Stylesheet moved to global style.qss or specific object names
+        # self.setStyleSheet(""" ... """) # Removed
 
         self._main_layout = QVBoxLayout(self) # Set layout directly on QWidget
         self._main_layout.setContentsMargins(0, 0, 0, 0)
@@ -290,15 +276,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Topbar (replaces sidebar)
         self.setup_topbar()
+        self.topbar.setObjectName("mainDashboardTopbar") # Added object name for QSS
         self._main_layout.addWidget(self.topbar) # Add topbar to self._main_layout
 
         # Main content
         self.main_content = QStackedWidget()
-        self.main_content.setStyleSheet("""
-            QStackedWidget {
-                background-color: #ffffff;
-            }
-        """)
+        self.main_content.setObjectName("mainDashboardContentArea") # Added object name for QSS
+        # self.main_content.setStyleSheet("""
+            # QStackedWidget {
+                # background-color: #ffffff;
+            # }
+        # """) # Moved to QSS
 
         # Pages
         self.setup_dashboard_page()
@@ -322,84 +310,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
     def setup_topbar(self):
-        self.topbar = QFrame()
+        self.topbar = QFrame() # Object name set in init_ui
         self.topbar.setFixedHeight(70)
-        self.topbar.setStyleSheet("""
-            QFrame {
-                background-color: #343a40; /* Dark charcoal */
-                color: #ffffff;
-                border-bottom: 2px solid #007bff; /* Primary accent border */
-            }
-            QPushButton {
-                background-color: transparent;
-                color: #f8f9fa; /* Lighter text for topbar buttons */
-                padding: 10px 15px;
-                border: none;
-                font-size: 11pt; /* Slightly larger for nav */
-                border-radius: 5px;
-                min-width: 90px;
-            }
-            QPushButton:hover {
-                background-color: #495057; /* Slightly lighter dark for hover */
-            }
-            QPushButton#selected {
-                background-color: #007bff; /* Primary accent */
-                color: white;
-                font-weight: bold;
-            }
-            QPushButton#menu_button { /* Style for buttons with menus */
-                padding-right: 30px; /* More space for bigger arrow */
-            }
-            QPushButton#menu_button::indicator { /* Hide default menu indicator if any */
-                width: 0px;
-            }
-            /* Custom arrow using a pseudo-element (might not work on all Qt styles/platforms)
-               If not, a QLabel with a unicode arrow could be an alternative */
-            QPushButton#menu_button::after {
-                content: "▼"; /* Unicode arrow */
-                position: absolute;
-                right: 10px;
-                top: 50%;
-                transform: translateY(-50%);
-                font-size: 12px; /* Larger arrow */
-                color: #f8f9fa;
-            }
-            QLabel { /* Labels within topbar, e.g., user name, logo text */
-                color: #f8f9fa;
-                font-size: 10pt;
-            }
-            QLabel#UserFullNameLabel { /* Specific ID for user name if needed */
-                 font-weight: bold;
-                 font-size: 11pt;
-            }
-            QLabel#UserRoleLabel {
-                 font-size: 9pt;
-                 color: #adb5bd; /* Lighter gray for role */
-            }
-            QMenu {
-                background-color: #343a40; /* Match topbar */
-                color: #f8f9fa;
-                border: 1px solid #495057; /* Border for menu */
-                padding: 8px;
-                font-size: 10pt;
-            }
-            QMenu::item {
-                padding: 10px 20px;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #007bff; /* Primary accent for selected menu item */
-                color: white;
-            }
-            QMenu::icon {
-                padding-left: 10px;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #495057;
-                margin: 5px 0;
-            }
-        """)
+        # self.topbar.setStyleSheet(""" ... """) # Styles moved to QSS via #mainDashboardTopbar
 
         topbar_layout = QHBoxLayout(self.topbar)
         topbar_layout.setContentsMargins(15, 10, 15, 10)
@@ -410,15 +323,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         logo_container.setSpacing(10)
 
         logo_icon = QLabel()
-        logo_icon.setPixmap(QIcon(self.resource_path('icons/logo.png')).pixmap(45, 45))
+        logo_icon.setPixmap(QIcon(":/icons/logo.svg").pixmap(45, 45))
 
         logo_text = QLabel("Management Pro")
-        logo_text.setStyleSheet("""
-            font-size: 18pt; /* Adjusted size */
-            font-weight: bold;
-            color: #007bff; /* Primary accent */
-            font-family: 'Segoe UI', Arial, sans-serif;
-        """)
+        logo_text.setObjectName("dashboardLogoText")
+        # logo_text.setStyleSheet(""" ... """) # Moved to QSS
 
         logo_container.addWidget(logo_icon)
         logo_container.addWidget(logo_text)
@@ -432,7 +341,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Dashboard button (single)
         dashboard_btn = QPushButton("Dashboard")
-        dashboard_btn.setIcon(QIcon(self.resource_path('icons/dashboard.png')))
+        dashboard_btn.setIcon(QIcon(":/icons/dashboard.svg"))
         dashboard_btn.clicked.connect(lambda: self.change_page(0))
         self.nav_buttons.append(dashboard_btn)
         topbar_layout.addWidget(dashboard_btn)
@@ -440,44 +349,44 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # Management Menu (Team + Settings)
         management_menu = QMenu()
         management_menu.addAction(
-            QIcon(self.resource_path('icons/team.png')),
+            QIcon(":/icons/team.svg"),
             "Team",
             lambda: self.change_page(1)
         )
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/settings.svg"),
             "Settings",
             lambda: self.change_page(5)
         )
 
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/bell.svg"),
             "Notifications",
             lambda: self.gestion_notification()
         )
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/help-circle.svg"),
             "Client Support",
             lambda: self.gestion_sav()
         )
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/users.svg"),
             "Prospect",
             lambda: self.gestion_prospects()
         )
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/file-text.svg"),
             "Documents",
             lambda: self.gestion_documents()
         )
         management_menu.addAction(
-            QIcon(self.resource_path('icons/settings.png')),
+            QIcon(":/icons/book.svg"),
             "Contacts",
             lambda: self.gestion_contacts()
         )
 
         management_btn = QPushButton("Management")
-        management_btn.setIcon(QIcon(self.resource_path('icons/management.png')))
+        management_btn.setIcon(QIcon(":/icons/briefcase.svg"))
         management_btn.setMenu(management_menu)
         management_btn.setObjectName("menu_button")
         self.nav_buttons.append(management_btn)
@@ -486,28 +395,28 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # Projects Menu (Projects + Tasks + Reports)
         projects_menu = QMenu()
         projects_menu.addAction(
-            QIcon(self.resource_path('icons/projects.png')),
+            QIcon(":/icons/folder.svg"),
             "Projects",
             lambda: self.change_page(2)
         )
         projects_menu.addAction(
-            QIcon(self.resource_path('icons/tasks.png')),
+            QIcon(":/icons/check-square.svg"),
             "Tasks",
             lambda: self.change_page(3)
         )
         projects_menu.addAction(
-            QIcon(self.resource_path('icons/reports.png')),
+            QIcon(":/icons/bar-chart-2.svg"),
             "Reports",
             lambda: self.change_page(4)
         )
         projects_menu.addAction(
-            QIcon(self.resource_path('icons/document.png')), # Placeholder icon
+            QIcon(":/icons/layout.svg"),
             "Cover Pages",
-            lambda: self.change_page(6) # Assuming this will be the 7th page (index 6)
+            lambda: self.change_page(6)
         )
 
         projects_btn = QPushButton("Activities")
-        projects_btn.setIcon(QIcon(self.resource_path('icons/activities.png')))
+        projects_btn.setIcon(QIcon(":/icons/activity.svg"))
         projects_btn.setMenu(projects_menu)
         projects_btn.setObjectName("menu_button")
         self.nav_buttons.append(projects_btn)
@@ -515,7 +424,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Add-on button (single)
         add_on_btn = QPushButton("Add-on")
-        add_on_btn.setIcon(QIcon(self.resource_path('icons/add_on.png')))
+        add_on_btn.setIcon(QIcon(":/icons/plus-circle.svg"))
         add_on_btn.clicked.connect(lambda: self.add_on_page())
         self.nav_buttons.append(add_on_btn)
         topbar_layout.addWidget(add_on_btn)
@@ -528,27 +437,21 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # User avatar
         user_avatar = QLabel()
-        user_avatar.setPixmap(QIcon(self.resource_path('icons/user.png')).pixmap(35, 35))
-        user_avatar.setStyleSheet("border-radius: 17px; border: 2px solid #3498db;")
+        user_avatar.setPixmap(QIcon(":/icons/user.svg").pixmap(35, 35))
+        user_avatar.setObjectName("userAvatarLabel")
+        # user_avatar.setStyleSheet("border-radius: 17px; border: 2px solid #3498db;") # Moved to QSS
 
         # User info
         user_info = QVBoxLayout()
         user_info.setSpacing(0)
 
         self.user_name = QLabel("Guest")
-        self.user_name.setObjectName("UserFullNameLabel") # For specific styling if needed
-        self.user_name.setStyleSheet("""
-            font-weight: bold;
-            font-size: 11pt;
-            color: #f8f9fa;
-        """)
+        self.user_name.setObjectName("UserFullNameLabel")
+        # self.user_name.setStyleSheet("""...""") # Moved to QSS
 
         self.user_role = QLabel("Not logged in")
         self.user_role.setObjectName("UserRoleLabel")
-        self.user_role.setStyleSheet("""
-            font-size: 9pt;
-            color: #adb5bd; /* Lighter gray for role */
-        """)
+        # self.user_role.setStyleSheet("""...""") # Moved to QSS
 
         user_info.addWidget(self.user_name)
         user_info.addWidget(self.user_role)
@@ -558,19 +461,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Logout button
         logout_btn = QPushButton()
-        logout_btn.setIcon(QIcon(self.resource_path('icons/logout.png')))
+        logout_btn.setIcon(QIcon(":/icons/log-out.svg"))
         logout_btn.setIconSize(QSize(20, 20))
         logout_btn.setToolTip("Logout")
         logout_btn.setFixedSize(35, 35)
-        logout_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(231, 76, 60, 0.2);
-                border-radius: 17px;
-            }
-            QPushButton:hover {
-                background-color: rgba(231, 76, 60, 0.8);
-            }
-        """)
+        logout_btn.setObjectName("logoutButtonTopbar")
+        # logout_btn.setStyleSheet(""" ... """) # Moved to QSS
         logout_btn.clicked.connect(self.logout)
 
         user_container.addWidget(logout_btn)
@@ -643,17 +539,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Management Dashboard")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         self.date_picker = QDateEdit(QDate.currentDate())
         self.date_picker.setCalendarPopup(True)
-        # Removed specific QDateEdit stylesheet, global style applies
+        # Global style applies
         self.date_picker.dateChanged.connect(self.update_dashboard)
 
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setIcon(QIcon(self.resource_path('icons/refresh.png')))
-        refresh_btn.setObjectName("primaryButton") # Use global primary style
-        # Removed specific setStyleSheet to inherit global style
+        refresh_btn.setIcon(QIcon(":/icons/refresh-cw.svg"))
+        refresh_btn.setObjectName("primaryButton")
+        # Global style applies
         refresh_btn.clicked.connect(self.update_dashboard)
 
         header_layout.addWidget(title)
@@ -724,12 +620,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Team Management")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setIcon(QIcon(self.resource_path('icons/add_user.png')))
-        self.add_member_btn.setObjectName("primaryButton") # Use global primary style
-        # Removed specific setStyleSheet to inherit global style
+        self.add_member_btn.setIcon(QIcon(":/icons/user-plus.svg"))
+        self.add_member_btn.setObjectName("primaryButton")
+        # Global style applies
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
 
         header_layout.addWidget(title)
@@ -791,12 +687,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Project Management")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         self.add_project_btn = QPushButton("New Project")
-        self.add_project_btn.setIcon(QIcon(self.resource_path('icons/add_project.png')))
-        self.add_project_btn.setObjectName("primaryButton") # Use global primary style
-        # Removed specific setStyleSheet to inherit global style
+        self.add_project_btn.setIcon(QIcon(":/icons/plus-square.svg"))
+        self.add_project_btn.setObjectName("primaryButton")
+        # Global style applies
         self.add_project_btn.clicked.connect(self.show_add_project_dialog)
 
         header_layout.addWidget(title)
@@ -868,12 +764,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         header_layout = QHBoxLayout(header)
 
         title = QLabel("Task Management")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         self.add_task_btn = QPushButton("New Task")
-        self.add_task_btn.setIcon(QIcon(self.resource_path('icons/add_task.png')))
-        self.add_task_btn.setObjectName("primaryButton") # Use global primary style
-        # Removed specific setStyleSheet to inherit global style
+        self.add_task_btn.setIcon(QIcon(":/icons/plus.svg"))
+        self.add_task_btn.setObjectName("primaryButton")
+        # Global style applies
         self.add_task_btn.clicked.connect(self.show_add_task_dialog)
 
         header_layout.addWidget(title)
@@ -933,7 +829,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Reports and Analytics")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         # Report options
         report_options = QWidget()
@@ -946,15 +842,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_period = QComboBox()
         self.report_period.addItems(["Last 7 Days", "Last 30 Days", "Current Quarter", "Current Year", "Custom..."])
         # Removed specific QComboBox stylesheet, global style applies
+        self.report_period.currentIndexChanged.connect(self.generate_report) # Corrected connection
 
         generate_btn = QPushButton("Generate Report")
-        generate_btn.setIcon(QIcon(self.resource_path('icons/generate_report.png'))) # Icon can be kept
-        generate_btn.setObjectName("primaryButton") # Use global primary style
+        generate_btn.setIcon(QIcon(":/icons/bar-chart.svg"))
+        generate_btn.setObjectName("primaryButton")
         generate_btn.clicked.connect(self.generate_report)
 
         export_btn = QPushButton("Export PDF")
-        export_btn.setIcon(QIcon(self.resource_path('icons/export_pdf.png'))) # Icon can be kept
-        export_btn.setObjectName("dangerButton") # Use global danger style
+        export_btn.setIcon(QIcon(":/icons/download.svg"))
+        export_btn.setObjectName("secondaryButton") # Changed to use secondary button style
         export_btn.clicked.connect(self.export_report)
 
         options_layout.addWidget(QLabel("Type:"))
@@ -999,7 +896,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.setSpacing(20)
 
         title = QLabel("Settings")
-        title.setStyleSheet(self.get_page_title_style())
+        title.setObjectName("pageTitleLabel")
 
         # Tabs
         tabs = QTabWidget()
@@ -3437,8 +3334,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Header
         title_label = QLabel("Cover Page Management")
-        # title_label.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;") # Old direct style
-        title_label.setStyleSheet(self.get_page_title_style()) # Use helper method
+        # title_label.setStyleSheet("font-size: 22pt; font-weight: bold; color: #343a40;")
+        title_label.setObjectName("pageTitleLabel")
         layout.addWidget(title_label)
 
         # Client Selection Area
@@ -3457,18 +3354,21 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         action_buttons_layout.setSpacing(10)
 
         self.cp_create_new_btn = QPushButton("Create New Cover Page")
-        self.cp_create_new_btn.setStyleSheet(self.get_primary_button_style())
+        self.cp_create_new_btn.setObjectName("primaryButtonGreen")
+        self.cp_create_new_btn.setIcon(QIcon(":/icons/file-plus.svg"))
         self.cp_create_new_btn.clicked.connect(self.create_new_cover_page_dialog)
         action_buttons_layout.addWidget(self.cp_create_new_btn)
 
         self.cp_edit_selected_btn = QPushButton("View/Edit Selected")
-        self.cp_edit_selected_btn.setStyleSheet(self.get_secondary_button_style())
+        self.cp_edit_selected_btn.setObjectName("secondaryButtonBlue")
+        self.cp_edit_selected_btn.setIcon(QIcon(":/icons/edit-2.svg"))
         self.cp_edit_selected_btn.clicked.connect(self.edit_selected_cover_page_dialog)
         self.cp_edit_selected_btn.setEnabled(False) # Initially disabled
         action_buttons_layout.addWidget(self.cp_edit_selected_btn)
 
         self.cp_delete_selected_btn = QPushButton("Delete Selected")
-        self.cp_delete_selected_btn.setStyleSheet(self.get_danger_button_style())
+        self.cp_delete_selected_btn.setObjectName("dangerButton")
+        self.cp_delete_selected_btn.setIcon(QIcon(":/icons/trash.svg"))
         self.cp_delete_selected_btn.clicked.connect(self.delete_selected_cover_page)
         self.cp_delete_selected_btn.setEnabled(False) # Initially disabled
         action_buttons_layout.addWidget(self.cp_delete_selected_btn)
@@ -3479,7 +3379,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.cp_table = QTableWidget()
         self.cp_table.setColumnCount(4) # Name, Title, Last Modified, Actions
         self.cp_table.setHorizontalHeaderLabels(["Name", "Title", "Last Modified", "Actions"])
-        self.cp_table.setStyleSheet(self.get_table_style()) # Use general table style
+        # self.cp_table.setStyleSheet(self.get_table_style()) # Global style applies
         self.cp_table.verticalHeader().setVisible(False)
         self.cp_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.cp_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -3664,13 +3564,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             # If hidden: table_widget.setColumnCount(4) and remove "Actions" header.
             # For now, let it be, can be enhanced.
             # Example placeholder:
-            # edit_action_btn_placeholder = QPushButton("...")
-            # edit_action_btn_placeholder.setEnabled(False)
-            # action_widget_placeholder = QWidget()
-            # action_layout_placeholder = QHBoxLayout(action_widget_placeholder)
-            # action_layout_placeholder.addWidget(edit_action_btn_placeholder)
-            # action_layout_placeholder.setContentsMargins(0,0,0,0)
-            # table_widget.setCellWidget(row_idx, 4, action_widget_placeholder)
+            edit_action_btn_placeholder = QPushButton("...")
+            edit_action_btn_placeholder.setEnabled(False)
+            # Removed styleSheet call
+            action_widget_placeholder = QWidget()
+            action_layout_placeholder = QHBoxLayout(action_widget_placeholder)
+            action_layout_placeholder.addWidget(edit_action_btn_placeholder)
+            action_layout_placeholder.setContentsMargins(0,0,0,0)
+            table_widget.setCellWidget(row_idx, 4, action_widget_placeholder)
 
 
         table_widget.resizeColumnsToContents()
@@ -3688,7 +3589,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 else:
                     QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add milestone."))
 
-    def _handle_edit_milestone(self, project_id, parent_dialog_ref):
+    def _handle_edit_milestone(self, project_id, parent_dialog_ref): # Added project_id for logging
         selected_items = self.milestones_table_details_dialog.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, self.tr("No Selection"), self.tr("Please select a milestone to edit."))
