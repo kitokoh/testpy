@@ -953,7 +953,8 @@ class ClientWidget(QWidget):
                   QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le composant SendEmailDialog n'a pas pu être chargé."))
                   return
 
-        dialog = self.SendEmailDialog(client_email=primary_email, config=self.config, parent=self)
+        # Pass client_id to SendEmailDialog constructor
+        dialog = self.SendEmailDialog(client_email=primary_email, config=self.config, client_id=client_uuid, parent=self)
         dialog.exec_()
 
     def toggle_client_edit_mode(self):
