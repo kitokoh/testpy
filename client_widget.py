@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
-import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
@@ -20,32 +18,56 @@ import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 
-# Globals imported from main are now removed. Direct imports will be used.
+# Globals imported from main (temporary, to be refactored)
+MAIN_MODULE_CONTACT_DIALOG = None
+MAIN_MODULE_PRODUCT_DIALOG = None
+MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = None
+MAIN_MODULE_CREATE_DOCUMENT_DIALOG = None
+MAIN_MODULE_COMPILE_PDF_DIALOG = None
+MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
+MAIN_MODULE_CONFIG = None
+MAIN_MODULE_DATABASE_NAME = None
+MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
 
-# Direct imports for dialogs and utilities
-from dialogs import (
-    ContactDialog, ProductDialog, EditProductLineDialog,
-    CreateDocumentDialog, CompilePdfDialog, SendEmailDialog
-)
-from utils import generate_pdf_for_document
-# CONFIG and APP_ROOT_DIR are passed to __init__
+def _import_main_elements():
+    global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
+           MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
+           MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
+           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
+
+    if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
+        import main as main_module # This is the potential circular import point
+        from dialogs import SendEmailDialog # Direct import for SendEmailDialog
+        MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
+        MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
+        MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
+        MAIN_MODULE_CREATE_DOCUMENT_DIALOG = main_module.CreateDocumentDialog
+        MAIN_MODULE_COMPILE_PDF_DIALOG = main_module.CompilePdfDialog
+        MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = main_module.generate_pdf_for_document
+        MAIN_MODULE_CONFIG = main_module.CONFIG
+        MAIN_MODULE_DATABASE_NAME = main_module.DATABASE_NAME # Used in load_statuses, save_client_notes
+        MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
+
 
 class ClientWidget(QWidget):
-    def __init__(self, client_info, config, app_root_dir, parent=None):
+    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
-        self.config = config # Use the passed config directly
-        self.app_root_dir = app_root_dir # Store it
-        # self.DATABASE_NAME is no longer needed if all db ops use db_manager
+        # self.config = config # Original config passed
 
-        # Dialogs are now directly imported
-        self.ContactDialog = ContactDialog
-        self.ProductDialog = ProductDialog
-        self.EditProductLineDialog = EditProductLineDialog
-        self.CreateDocumentDialog = CreateDocumentDialog
-        self.CompilePdfDialog = CompilePdfDialog
-        self.generate_pdf_for_document = generate_pdf_for_document # Function from utils
-        self.SendEmailDialog = SendEmailDialog
+        # Dynamically import main elements to avoid circular import at module load time
+        _import_main_elements()
+        self.config = MAIN_MODULE_CONFIG # Use the imported config
+        self.app_root_dir = app_root_dir # Store it
+        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
+
+        self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
+        self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
+        self.EditProductLineDialog = MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG
+        self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
+        self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
+        self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
+        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
 
         self.is_editing_client = False
         self.edit_widgets = {}
@@ -375,17 +397,9 @@ class ClientWidget(QWidget):
 
         # app_root_dir should be available in self.config if main.py sets it up.
         # MAIN_MODULE_CONFIG should have app_root_dir if it's set in main.py's CONFIG
-        app_root_dir = self.app_root_dir # Directly use the stored app_root_dir
-        if app_root_dir is None: # As a safety, check if it's None
-            app_root_dir = self.config.get('app_root_dir')
-            if app_root_dir is None:
-                # Attempt to get the logger; if not available, this warning won't appear but code proceeds.
-                try:
-                    logger = logging.getLogger(__name__)
-                    logger.warning("app_root_dir not found in self.app_root_dir or self.config; falling back to path based on sys.argv[0]. This might not be reliable, especially for frozen applications.")
-                except NameError: # If logging itself isn't set up or available here.
-                    print("Warning: app_root_dir not found and logging module not available for detailed warning.")
-                app_root_dir = os.path.dirname(sys.argv[0])
+        app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0])) # Fallback, might not be ideal for frozen apps
+        if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG: # Prefer this if available
+            app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
 
         generated_pdf_path = self.generate_pdf_for_document(
             source_file_path=file_path,
@@ -679,6 +693,7 @@ class ClientWidget(QWidget):
         if current_row < 0:
             QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
             return
+
 
         name_item = self.contacts_table.item(current_row, 0)
         if not name_item: return # Should not happen if row is valid
