@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont # Added QFont
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 
-from db import db_manager
+import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 
