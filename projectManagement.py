@@ -28,8 +28,9 @@ from db import get_status_setting_by_id, get_all_status_settings # For Notificat
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
 import json # For CoverPageEditorDialog style_config_json
-import os # For CoverPageEditorDialog logo_name
+import os # For CoverPageEditorDialog logo_name, and for app_root_dir if self.resource_path("") is not used.
 from dashboard_extensions import ProjectTemplateManager # Added for Project Templates
+from dialogs import ManageProductMasterDialog, ProductEquivalencyDialog # For Product Management
 
 
 class CustomNotificationBanner(QFrame):
@@ -368,6 +369,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         management_btn.setObjectName("menu_button")
         self.nav_buttons.append(management_btn)
         topbar_layout.addWidget(management_btn)
+
+        # Product Management Menu
+        product_management_btn = QPushButton("Gestion Produits")
+        product_management_btn.setIcon(QIcon(":/icons/package.svg")) # Suggestion: package.svg or similar
+        product_management_btn.setObjectName("menu_button")
+
+        product_menu = QMenu(product_management_btn)
+        manage_global_products_action = product_menu.addAction(QIcon(":/icons/box.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
+        manage_global_products_action.triggered.connect(self.open_manage_global_products_dialog)
+
+        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/shuffle.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
+        manage_equivalencies_action.triggered.connect(self.open_product_equivalency_dialog)
+
+        product_management_btn.setMenu(product_menu)
+        self.nav_buttons.append(product_management_btn) # Add to nav_buttons if it should have similar styling behavior
+        topbar_layout.addWidget(product_management_btn)
 
         # Projects Menu (Projects + Tasks + Reports)
         projects_menu = QMenu()
@@ -4061,6 +4078,21 @@ if __name__ == "__main__":
             else: # Fallback
                 QMessageBox.information(self, self.tr("Project Not Found"), self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
 
+    def open_manage_global_products_dialog(self):
+        try:
+            # Use self.resource_path("") to get app_root_dir, as observed in other parts of the class
+            app_root_dir = self.resource_path("")
+            dialog = ManageProductMasterDialog(app_root_dir=app_root_dir, parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Global Product Management: {0}").format(str(e)))
+            print(f"Error opening ManageProductMasterDialog: {e}")
 
-
+    def open_product_equivalency_dialog(self):
+        try:
+            dialog = ProductEquivalencyDialog(parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Product Equivalency Management: {0}").format(str(e)))
+            print(f"Error opening ProductEquivalencyDialog: {e}")
                 
