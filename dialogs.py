@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import logging
 import shutil
 from datetime import datetime
 import smtplib
@@ -745,6 +746,8 @@ class ProductDialog(QDialog):
         super().__init__(parent)
         self.client_id=client_id
         self.app_root_dir = app_root_dir # Store app_root_dir
+        if not self.app_root_dir or not isinstance(self.app_root_dir, str) or not self.app_root_dir.strip():
+            logging.warning("ProductDialog initialized with invalid or empty app_root_dir: %s", self.app_root_dir)
         self.current_selected_global_product_id = None
         self.setWindowTitle(self.tr("Ajouter Produits au Client"))
         self.setMinimumSize(900,800)
@@ -754,6 +757,7 @@ class ProductDialog(QDialog):
         self._filter_products_by_language_and_search()
 
     def _set_initial_language_filter(self):
+        client_langs = None
         primary_language=None
         if self.client_info:client_langs=self.client_info.get('selected_languages');
         if client_langs:primary_language=client_langs.split(',')[0].strip()
