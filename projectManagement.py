@@ -1224,10 +1224,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             is_active_val = member.get('is_active', False) # In db.py, is_active is BOOLEAN (0 or 1)
             active_item = QTableWidgetItem()
             if bool(is_active_val): # Ensure it's treated as boolean
-                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setIcon(QIcon(":/icons/active.svg"))
                 active_item.setText("Active")
             else:
-                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setIcon(QIcon(":/icons/inactive.svg"))
                 active_item.setText("Inactive")
             self.team_table.setItem(row_idx, 7, active_item)
 
@@ -1247,13 +1247,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             current_member_id = member['team_member_id']
 
-            edit_btn = QPushButton("✏️")
+            edit_btn = QPushButton("")
+            edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
             edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
 
-            delete_btn = QPushButton("🗑️")
+            delete_btn = QPushButton("")
+            delete_btn.setIcon(QIcon(":/icons/trash.svg"))
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
             delete_btn.setStyleSheet(self.get_table_action_button_style())
@@ -1321,13 +1323,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             priority_val = project_dict.get('priority', 0)
             priority_item = QTableWidgetItem()
             if priority_val == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-high.svg"))
                 priority_item.setText("High")
             elif priority_val == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-medium.svg"))
                 priority_item.setText("Medium")
             else: # 0 or other = Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-low.svg"))
                 priority_item.setText("Low")
             self.projects_table.setItem(row_idx, 3, priority_item)
 
