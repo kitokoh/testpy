@@ -55,7 +55,8 @@ def load_config():
         "smtp_port": 587,
         "smtp_user": "",
         "smtp_password": "",
-        "default_reminder_days": 30
+        "default_reminder_days": 30,
+        "session_timeout_minutes": 30 # Default session timeout
     }
 
 def save_config(config_data):
