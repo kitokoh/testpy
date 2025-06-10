@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging_config # Initialize logging FIRST
 import sys
 import os
 import json
@@ -49,8 +50,8 @@ from projectManagement import MainDashboard as ProjectManagementDashboard # Adde
 from html_to_pdf_util import convert_html_to_pdf # For PDF generation from HTML
 
 import sqlite3
-import logging
-import logging.handlers
+# import logging # Handled by logging_config
+# import logging.handlers # Handled by logging_config
 
 # APP_ROOT_DIR definition remains in main.py
 if getattr(sys, 'frozen', False):
@@ -86,41 +87,10 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app'): #
         # Use a unique attribute name to avoid conflict if db_manager is imported elsewhere too
         db_manager._initialized_main_app = True
 
+# setup_logging() function removed, logging_config.py handles this.
+# Ensure logging_config.py is imported at the very top of this file.
+logger = logging_config.get_logger(__name__)
 
-def setup_logging():
-    """Configures logging for the application."""
-    log_file_name = "client_manager_app.log"
-    log_format = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
-    
-    # Configure root logger
-    logging.basicConfig(level=logging.DEBUG, format=log_format, stream=sys.stderr) # Basic config for console (stderr)
-
-    # File Handler - Rotate through 3 files of 1MB each
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file_name, maxBytes=1024*1024, backupCount=3, encoding='utf-8'
-    )
-    file_handler.setLevel(logging.INFO) # Log INFO and above to file
-    file_handler.setFormatter(logging.Formatter(log_format))
-    
-    # Console Handler - Only for ERROR and CRITICAL
-    console_handler = logging.StreamHandler(sys.stderr) # Explicitly use stderr for errors
-    console_handler.setLevel(logging.ERROR) # Log ERROR and CRITICAL to console
-    console_handler.setFormatter(logging.Formatter(log_format))
-
-    # Add handlers to the root logger
-    # Check if handlers already exist to avoid duplication if this function is called multiple times
-    # (though it should only be called once)
-    root_logger = logging.getLogger()
-    if not any(isinstance(h, logging.handlers.RotatingFileHandler) and h.baseFilename.endswith(log_file_name) for h in root_logger.handlers):
-        root_logger.addHandler(file_handler)
-    if not any(isinstance(h, logging.StreamHandler) and h.stream == sys.stderr for h in root_logger.handlers):
-        # Remove basicConfig's default stream handler if it exists and we are adding our own stderr
-        for handler in root_logger.handlers[:]: # Iterate over a copy
-            if isinstance(handler, logging.StreamHandler) and handler.stream in (sys.stdout, sys.stderr) and handler.formatter._fmt == logging.BASIC_FORMAT:
-                root_logger.removeHandler(handler)
-        root_logger.addHandler(console_handler)
-
-    logging.info("Logging configured.")
 
 def load_stylesheet_global(app):
     """Loads the global stylesheet."""
@@ -128,15 +98,14 @@ def load_stylesheet_global(app):
     qss_file_path = os.path.join(script_dir, "style.qss")
     
     if not os.path.exists(qss_file_path):
-        print(f"Stylesheet file not found: {qss_file_path}")
+        logger.warning(f"Stylesheet file not found: {qss_file_path}")
         # Create an empty style.qss if it doesn't exist to avoid crashing
-        # In a real scenario, this might be handled differently (e.g., error message, default style)
         try:
             with open(qss_file_path, "w", encoding="utf-8") as f:
                 f.write("/* Default empty stylesheet. Will be populated by the application. */")
-            print(f"Created an empty default stylesheet: {qss_file_path}")
+            logger.info(f"Created an empty default stylesheet: {qss_file_path}")
         except IOError as e:
-            print(f"Error creating default stylesheet {qss_file_path}: {e}")
+            logger.error(f"Error creating default stylesheet {qss_file_path}: {e}", exc_info=True)
             return # Cannot proceed if stylesheet cannot be created or read
 
     file = QFile(qss_file_path)
@@ -144,10 +113,10 @@ def load_stylesheet_global(app):
         stream = QTextStream(file)
         stylesheet = stream.readAll()
         app.setStyleSheet(stylesheet)
-        print(f"Stylesheet loaded successfully from {qss_file_path}")
+        logger.info(f"Stylesheet loaded successfully from {qss_file_path}")
         file.close()
     else:
-        print(f"Failed to open stylesheet file: {qss_file_path}, Error: {file.errorString()}")
+        logger.error(f"Failed to open stylesheet file: {qss_file_path}, Error: {file.errorString()}")
 
 # CONFIG is now loaded using the function from utils.py, passing APP_ROOT_DIR, and default dir paths
 CONFIG = load_config(APP_ROOT_DIR, DEFAULT_TEMPLATES_DIR, DEFAULT_CLIENTS_DIR)
@@ -230,7 +199,7 @@ class StatisticsWidget(QWidget):
             # cursor.execute("SELECT COUNT(*) FROM Clients WHERE status = 'Urgent'"); urgent_count = cursor.fetchone()[0]
 
         except Exception as e: # Catch generic db_manager errors or other issues
-            print(f"Erreur de mise à jour des statistiques: {str(e)}")
+            logger.error(f"Erreur de mise à jour des statistiques: {str(e)}", exc_info=True)
         # finally:
             # if conn: conn.close() # Old sqlite3 connection
 
@@ -251,7 +220,7 @@ class StatusDelegate(QStyledItemDelegate):
                     if status_setting.get('icon_name'):
                         icon_name = status_setting['icon_name']
             except Exception as e:
-                print(f"Error fetching status color/icon for delegate: {e}")
+                logger.warning(f"Error fetching status color/icon for delegate: {e}", exc_info=True)
                 # Keep default color/no icon if error
         
         painter.save()
@@ -557,9 +526,11 @@ class DocumentManager(QMainWindow):
                 else:
                     # This case means db_manager.add_country returned None, indicating an unexpected error.
                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. La fonction add_country a retourné None. Vérifiez les logs."))
+                    logger.error("db_manager.add_country returned None during new country addition.")
 
             except Exception as e: # Catch any other unexpected exceptions during the process
                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout du pays:\n{0}").format(str(e)))
+                logger.error("Unexpected error in add_new_country_dialog", exc_info=True)
                 
     def add_new_city_dialog(self):
         current_country_name = self.country_select_combo.currentText()
@@ -589,9 +560,11 @@ class DocumentManager(QMainWindow):
                     # This means db_manager.add_city returned None, indicating an issue like missing country_id/city_name or a DB error.
                     # The db.add_city function itself prints specific errors for missing fields.
                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. La fonction add_city a retourné None. Vérifiez les logs."))
+                    logger.error("db_manager.add_city returned None during new city addition.")
 
             except Exception as e: # Catch any other unexpected exceptions
                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue lors de l'ajout de la ville:\n{0}").format(str(e)))
+                logger.error("Unexpected error in add_new_city_dialog", exc_info=True)
                 
     def generate_new_client_id(self):
         # This function is no longer used to generate primary client IDs as db_manager.add_client handles UUID generation.
@@ -887,14 +860,15 @@ class DocumentManager(QMainWindow):
                         create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=self.config, parent=self)
                         if create_document_dialog.exec_() == QDialog.Accepted:
                             # All dialogs completed successfully
-                            print("CreateDocumentDialog accepted, all dialogs in sequence complete.")
+                                logger.info("CreateDocumentDialog accepted, all dialogs in sequence complete.")
                         else:
-                            print("CreateDocumentDialog cancelled.")
+                                logger.info("CreateDocumentDialog cancelled.")
                     else:
                         QMessageBox.warning(self, self.tr("Erreur Données Client"),
                                             self.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la création de documents."))
+                            logger.warning("ui_map_data not available for CreateDocumentDialog.")
                 else:
-                    print("ProductDialog cancelled.")
+                        logger.info("ProductDialog cancelled.")
                     # If ProductDialog is cancelled, we should still calculate the price based on any products
                     # that might have been added if the dialog allowed partial additions before cancel.
                     # However, current ProductDialog only returns data on Accept.
@@ -911,7 +885,7 @@ class DocumentManager(QMainWindow):
                              self.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
 
             else:
-                print("ContactDialog cancelled.")
+                    logger.info("ContactDialog cancelled.")
                 # Similar to above, if ContactDialog is cancelled, calculate price based on current state.
                 if actual_new_client_id and ui_map_data:
                     linked_products_on_contact_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
@@ -955,18 +929,22 @@ class DocumentManager(QMainWindow):
 
         except OSError as e_os:
             QMessageBox.critical(self, self.tr("Erreur Dossier"), self.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
+            logger.error(f"OS error during client folder creation for {client_name_val}", exc_info=True)
             # Rollback: If client was added to DB but folder creation failed, delete client from DB
             if actual_new_client_id:
                  db_manager.delete_client(actual_new_client_id) # This will also cascade-delete related Project and Tasks if FKs are set up correctly
-                
+                 logger.info(f"Rolled back client creation (ID: {actual_new_client_id}) due to folder creation error.")
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
         except Exception as e_db: # Catch other potential errors from db_manager calls or logic
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
+            logger.error(f"Unexpected error during client/project/task creation for {client_name_val}", exc_info=True)
             # Rollback: If client or project was added before a subsequent error
             if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
                 db_manager.delete_project(new_project_id_central_db) # Cascade delete tasks
+                logger.info(f"Rolled back project creation (ID: {new_project_id_central_db}) due to error.")
             if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
                  db_manager.delete_client(actual_new_client_id)
+                 logger.info(f"Rolled back client creation (ID: {actual_new_client_id}) due to subsequent error.")
                  QMessageBox.information(self, self.tr("Rollback"), self.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
             
     def load_clients_from_db(self):
@@ -1058,7 +1036,7 @@ class DocumentManager(QMainWindow):
             # If not found by ID (e.g. "Tous les statuts" was selected), it defaults to index 0 ("Tous les statuts")
 
         except Exception as e: # More generic error catch
-            print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)))
+            logger.error(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)), exc_info=True)
             
     def handle_client_list_click(self, item): 
         client_id_val = item.data(Qt.UserRole + 1) 
@@ -1114,6 +1092,7 @@ class DocumentManager(QMainWindow):
             if not status_archived_obj:
                 QMessageBox.critical(self, self.tr("Erreur Configuration"),
                                      self.tr("Statut 'Archivé' non trouvé. Veuillez configurer les statuts."))
+                logger.warning("Archive status 'Archivé' not found in DB settings.")
                 return
 
             archived_status_id = status_archived_obj['status_id']
@@ -1131,12 +1110,15 @@ class DocumentManager(QMainWindow):
                 self.stats_widget.update_stats()
                 QMessageBox.information(self, self.tr("Client Archivé"),
                                         self.tr("Le client '{0}' a été archivé.").format(self.clients_data_map[client_id_val]['client_name']))
+                logger.info(f"Client {client_id_val} archived successfully.")
             else:
                 QMessageBox.critical(self, self.tr("Erreur DB"),
                                      self.tr("Erreur d'archivage du client. Vérifiez les logs."))
+                logger.error(f"Failed to archive client {client_id_val} in DB.")
 
         except Exception as e: # Catch generic db_manager errors or other issues
             QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'archivage du client:\n{0}").format(str(e)))
+            logger.error(f"Error during client archival process for {client_id_val}", exc_info=True)
         # finally:
             # if conn: conn.close() # Old sqlite3
             
@@ -1179,11 +1161,13 @@ class DocumentManager(QMainWindow):
                 else:
                     QMessageBox.critical(self, self.tr("Erreur DB"),
                                          self.tr("Erreur lors de la suppression du client de la base de données. Le dossier n'a pas été supprimé."))
+                    logger.error(f"Failed to delete client {client_id_val} from DB.")
 
             # except sqlite3.Error as e: QMessageBox.critical(self, "Erreur DB", f"Erreur DB suppression client:\n{str(e)}") # Old sqlite3 error
             except OSError as e_os:
                 QMessageBox.critical(self, self.tr("Erreur Dossier"),
                                      self.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier:\n{0}").format(str(e_os)))
+                logger.error(f"OS error deleting folder for client {client_id_val}", exc_info=True)
                 # Update UI anyway as DB deletion was successful before OS error
                 del self.clients_data_map[client_id_val]
                 self.filter_client_list_display()
@@ -1195,6 +1179,7 @@ class DocumentManager(QMainWindow):
             except Exception as e_db: # Catch generic db_manager errors or other issues
                  QMessageBox.critical(self, self.tr("Erreur DB"),
                                       self.tr("Erreur lors de la suppression du client:\n{0}").format(str(e_db)))
+                 logger.error(f"Generic error deleting client {client_id_val}", exc_info=True)
             # finally:
                 # if conn: conn.close() # Old sqlite3
                 
@@ -1238,7 +1223,7 @@ class DocumentManager(QMainWindow):
                                     'creation_date_str': client_creation_date.strftime("%Y-%m-%d") # For display
                                 })
                         except ValueError as ve:
-                            print(f"Could not parse creation_date '{creation_date_str}' for client {client.get('client_id')}: {ve}")
+                            logger.warning(f"Could not parse creation_date '{creation_date_str}' for client {client.get('client_id')}: {ve}")
                             continue # Skip this client if date is unparseable
 
             # Old SQL query:
@@ -1259,7 +1244,7 @@ class DocumentManager(QMainWindow):
                         self.set_client_status_archived(c_info['client_id']) # This method now uses db_manager
 
         except Exception as e: # Catch generic db_manager or other errors
-            print(f"Erreur vérification clients anciens: {str(e)}")
+            logger.error(f"Erreur vérification clients anciens: {str(e)}", exc_info=True)
         # finally:
             # if conn: conn.close() # Old sqlite3
             
@@ -1324,10 +1309,11 @@ class DocumentManager(QMainWindow):
         if dialog.exec_() == QDialog.Accepted:
             new_conf = dialog.get_config() 
             self.config.update(new_conf)
-            save_config(self.config) 
+            save_config(self.config) # utils.save_config - uses print currently
             os.makedirs(self.config["templates_dir"], exist_ok=True) 
             os.makedirs(self.config["clients_dir"], exist_ok=True)
-            QMessageBox.information(self, "Paramètres Sauvegardés", "Nouveaux paramètres enregistrés.")
+            QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés."))
+            logger.info("Settings updated and saved.")
             
     def open_template_manager_dialog(self): TemplateDialog(self).exec_() 
         
@@ -1495,16 +1481,18 @@ def main():
     translation_path = os.path.join(APP_ROOT_DIR, "translations", f"app_{language_code}.qm")
     if translator.load(translation_path):
         app.installTranslator(translator)
+        logger.info(f"Loaded custom translation for {language_code} from {translation_path}")
     else:
-        print(f"Failed to load custom translation for {language_code} from {translation_path}")
+        logger.warning(f"Failed to load custom translation for {language_code} from {translation_path}")
         # Fallback or load default internal strings if needed
 
     qt_translator = QTranslator()
     qt_translation_path = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
     if qt_translator.load(QLocale(language_code), "qtbase", "_", qt_translation_path):
         app.installTranslator(qt_translator)
+        logger.info(f"Loaded Qt base translations for {language_code} from {qt_translation_path}")
     else:
-        print(f"Failed to load Qt base translations for {language_code} from {qt_translation_path}")
+        logger.warning(f"Failed to load Qt base translations for {language_code} from {qt_translation_path}")
 
     # Create new template directories and copy French templates
     TARGET_LANGS_TO_POPULATE = ["en", "pt"] # Only populate these new ones
@@ -1526,11 +1514,11 @@ def main():
                     if not os.path.exists(destination_file):
                         try:
                             shutil.copy2(source_file, destination_file)
-                            print(f"Copied '{filename}' to '{target_lang_code}' directory.")
+                            logger.info(f"Copied '{filename}' to '{target_lang_code}' directory.")
                         except Exception as e:
-                            print(f"Error copying '{filename}' to '{target_lang_code}': {e}")
+                            logger.error(f"Error copying '{filename}' to '{target_lang_code}': {e}", exc_info=True)
     else:
-        print(f"Source French template directory '{source_lang_full_path}' does not exist. Cannot copy templates.")
+        logger.warning(f"Source French template directory '{source_lang_full_path}' does not exist. Cannot copy templates.")
 
 
     templates_root_dir = CONFIG["templates_dir"]
@@ -1544,7 +1532,7 @@ def main():
     # Ensure "General" category exists for default templates
     general_category_id = db_manager.add_template_category("General", "General purpose templates")
     if general_category_id is None:
-        print("CRITICAL ERROR: Could not create or find the 'General' template category. Default templates may not be added correctly.")
+        logger.critical("CRITICAL ERROR: Could not create or find the 'General' template category. Default templates may not be added correctly.")
         # Allowing continuation, db_manager.add_default_template_if_not_exists should ideally handle
         # a missing category_id gracefully if it's designed to take category_name.
         # However, the task implies add_default_template_if_not_exists now expects category_id.
@@ -1569,10 +1557,10 @@ def main():
             if not os.path.exists(template_full_path):
                 try:
                     df_content.to_excel(template_full_path, index=False)
-                    print(f"Created default template file: {template_full_path}")
+                    logger.info(f"Created default template file: {template_full_path}")
                     created_file_on_disk = True
                 except Exception as e:
-                    print(f"Erreur création template file {template_file_name} pour {lang_code}: {str(e)}")
+                    logger.error(f"Erreur création template file {template_file_name} pour {lang_code}: {str(e)}", exc_info=True)
 
             # Regardless of whether it was just created or already existed, try to register in DB
             # Determine template name and type from filename for registration
@@ -1601,11 +1589,11 @@ def main():
             db_template_id = db_manager.add_default_template_if_not_exists(template_metadata)
             if db_template_id:
                 if created_file_on_disk:
-                    print(f"Successfully registered new default template '{template_name_for_db}' ({lang_code}) in DB with ID: {db_template_id}")
+                    logger.info(f"Successfully registered new default template '{template_name_for_db}' ({lang_code}) in DB with ID: {db_template_id}")
                 # else: # File already existed, but ensure it's in DB
-                    # print(f"Ensured default template '{template_name_for_db}' ({lang_code}) is registered in DB with ID: {db_template_id}")
+                    # logger.info(f"Ensured default template '{template_name_for_db}' ({lang_code}) is registered in DB with ID: {db_template_id}") # Too verbose
             # else: # Error during DB registration
-                # print(f"Failed to register default template '{template_name_for_db}' ({lang_code}) in DB.")
+                # logger.warning(f"Failed to register default template '{template_name_for_db}' ({lang_code}) in DB. It might already exist with different metadata or another issue occurred.")
 
 
 
@@ -2136,10 +2124,10 @@ def main():
     html_template_languages = ["fr", "en", "ar", "tr", "pt"]
     # templates_root_dir is already defined above for Excel templates, can reuse
     
-    print("\n--- Starting HTML Template File Creation & Registration ---") # Updated print
+    logger.info("\n--- Starting HTML Template File Creation & Registration ---") # Updated print
     html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.")
     if html_category_id is None:
-        print("CRITICAL ERROR: Could not create or find the 'Documents HTML' category. HTML templates may not be added correctly.")
+        logger.critical("CRITICAL ERROR: Could not create or find the 'Documents HTML' category. HTML templates may not be added correctly.")
 
     # Logic to create HTML files on disk
     for html_meta_for_file_creation in DEFAULT_HTML_TEMPLATES_METADATA:
@@ -2177,11 +2165,11 @@ def main():
 
                         with open(template_file_full_path, "w", encoding="utf-8") as f:
                             f.write(lang_specific_content)
-                        print(f"CREATED Default HTML Template File: {template_file_full_path}")
+                        logger.info(f"CREATED Default HTML Template File: {template_file_full_path}")
                     except IOError as e_io:
-                        print(f"ERROR creating HTML template file {template_file_full_path}: {e_io}")
+                        logger.error(f"ERROR creating HTML template file {template_file_full_path}: {e_io}", exc_info=True)
                 # else: # File already exists
-                    # print(f"SKIP existing HTML Template File: {template_file_full_path}")
+                    # logger.debug(f"SKIP existing HTML Template File: {template_file_full_path}") # Too verbose for info
 
     # Original logic for DB registration (should now find the files created above)
     for html_meta in DEFAULT_HTML_TEMPLATES_METADATA:
@@ -2208,23 +2196,23 @@ def main():
 
                 template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
                 if template_id:
-                    print(f"DB REGISTRATION SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}). DB ID: {template_id}")
+                    logger.info(f"DB REGISTRATION SUCCESS: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}). DB ID: {template_id}")
                 # else: # add_default_template_if_not_exists now handles "already exists" by returning existing ID, or None for other errors.
-                    # print(f"DB REGISTRATION INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) may already exist or error during registration.")
+                    # logger.warning(f"DB REGISTRATION INFO: HTML Template '{db_template_name}' (Type: {html_meta['template_type']}, Lang: {lang_code}) may already exist or error during registration.") # Still a bit verbose
             else:
                 # This message means the file wasn't found for DB registration, which is an issue if it was supposed to be created.
-                print(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
-    print("--- HTML Template File Creation & Registration Finished ---")
+                logger.warning(f"DB REGISTRATION SKIP: HTML Template file not found at '{template_file_path}'. Cannot register.")
+    logger.info("--- HTML Template File Creation & Registration Finished ---")
 
     # --- Default Email Templates Setup ---
-    print("\n--- Starting Default Email Template File Creation & Registration ---")
+    logger.info("\n--- Starting Default Email Template File Creation & Registration ---")
     email_category_obj = db_manager.get_template_category_by_name("Modèles Email")
     email_category_id = email_category_obj['category_id'] if email_category_obj else None
 
     if email_category_id is None:
-        print("CRITICAL ERROR: 'Modèles Email' category not found. Cannot register default email templates.")
+        logger.critical("CRITICAL ERROR: 'Modèles Email' category not found. Cannot register default email templates.")
     else:
-        print(f"Found 'Modèles Email' category with ID: {email_category_id}")
+        logger.info(f"Found 'Modèles Email' category with ID: {email_category_id}")
 
         default_email_templates_data = [
             {
@@ -2320,9 +2308,9 @@ def main():
                     try:
                         with open(full_path_html, "w", encoding="utf-8") as f_html:
                             f_html.write(html_content_str)
-                        print(f"CREATED Default Email Template File (HTML): {full_path_html}")
+                        logger.info(f"CREATED Default Email Template File (HTML): {full_path_html}")
                     except IOError as e_io_html:
-                        print(f"ERROR creating HTML email template file {full_path_html}: {e_io_html}")
+                        logger.error(f"ERROR creating HTML email template file {full_path_html}: {e_io_html}", exc_info=True)
                         continue # Skip DB registration if file creation failed
 
                 template_name_html_db = f"{display_name_prefix} (HTML) {lang_code.upper()}"
@@ -2347,9 +2335,9 @@ def main():
                     try:
                         with open(full_path_txt, "w", encoding="utf-8") as f_txt:
                             f_txt.write(txt_content_str)
-                        print(f"CREATED Default Email Template File (TXT): {full_path_txt}")
+                        logger.info(f"CREATED Default Email Template File (TXT): {full_path_txt}")
                     except IOError as e_io_txt:
-                        print(f"ERROR creating TXT email template file {full_path_txt}: {e_io_txt}")
+                        logger.error(f"ERROR creating TXT email template file {full_path_txt}: {e_io_txt}", exc_info=True)
                         continue # Skip DB registration
 
                 template_name_txt_db = f"{display_name_prefix} (TXT) {lang_code.upper()}"
@@ -2363,7 +2351,7 @@ def main():
                     'category_id': email_category_id,
                     'is_default_for_type_lang': False
                 })
-        print("--- Default Email Template File Creation & Registration Finished ---")
+        logger.info("--- Default Email Template File Creation & Registration Finished ---")
        
     # APP_ROOT_DIR is defined globally in main.py
     main_window = DocumentManager(APP_ROOT_DIR) # Pass APP_ROOT_DIR
@@ -2371,4 +2359,7 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
+    # setup_logging() # Removed, logging_config.py handles this by being imported.
+    logger.info("Application starting...")
     main()
+    logger.info("Application finished.")

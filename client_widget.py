@@ -2,6 +2,7 @@
 import os
 import shutil
 from datetime import datetime
+import logging # Added for logging
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
 
 from PyQt5.QtWidgets import (
@@ -28,6 +29,8 @@ MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
 MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
 MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
+
+logger = logging.getLogger(__name__) # Added logger
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
@@ -102,7 +105,7 @@ class ClientWidget(QWidget):
             # Disconnect previous connection if it exists
             self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
         except TypeError:
-            print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
+            logger.debug("self.create_docs_btn.clicked was likely not connected to self.open_create_docs_dialog or already disconnected.")
         self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
         action_layout.addWidget(self.create_docs_btn)
 
@@ -351,7 +354,7 @@ class ClientWidget(QWidget):
                         if client_id_to_update:
                             if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
                                 self.client_info["selected_languages"] = updated_languages_list # Update local info
-                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                                logger.info(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
                             else:
                                 QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
                         else:
@@ -542,7 +545,7 @@ class ClientWidget(QWidget):
                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
                     self.client_info["status"] = status_text # Keep display name
                     self.client_info["status_id"] = status_id_to_set # Update the id in the local map
-                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
+                    logger.info(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
                     # Consider emitting a signal here if the main list needs to refresh its delegate for color
                     # self.parentWidget().parentWidget().filter_client_list_display() # Example of trying to reach main window, not ideal
                 else:
@@ -633,7 +636,7 @@ class ClientWidget(QWidget):
                     if html_editor_dialog.exec_() == QDialog.Accepted:
                         # ... (archiving and PDF generation logic remains the same) ...
                         generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
-                        if generated_pdf_path: print(f"Updated PDF generated at: {generated_pdf_path}")
+                        if generated_pdf_path: logger.info(f"Updated PDF generated at: {generated_pdf_path}")
                     self.populate_doc_table()
                 else: QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur Ouverture Fichier"), self.tr("Impossible d'ouvrir le fichier:\n{0}").format(str(e)))
@@ -741,7 +744,7 @@ class ClientWidget(QWidget):
                     else:
                         # This case should ideally not happen if the contact is linked.
                         # If it can, then we might need to re-link or handle error.
-                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
+                        logger.warning(f"client_contact_id not found for contact_id {contact_id} during update.")
 
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
                 else:
@@ -907,11 +910,11 @@ class ClientWidget(QWidget):
 
         id_item = self.products_table.item(row, 0)
         if not id_item:
-            print(f"Error: Could not find ID item for row {row}")
+            logger.error(f"Could not find ID item for row {row}")
             return
         link_id = id_item.data(Qt.UserRole)
         if link_id is None:
-            print(f"Error: No client_project_product_id found for row {row}")
+            logger.error(f"No client_project_product_id found for row {row}")
             return
 
         new_value_str = item.text()
@@ -940,7 +943,7 @@ class ClientWidget(QWidget):
             if update_data:
                 success = db_manager.update_client_project_product(link_id, update_data)
                 if success:
-                    print(f"Product link_id {link_id} updated with: {update_data}")
+                    logger.info(f"Product link_id {link_id} updated with: {update_data}")
                     self.products_table.blockSignals(True)
                     self.load_products() # Reload to show new total and formatted values
                     self.products_table.blockSignals(False)
@@ -961,7 +964,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Entrée Invalide"), self.tr("Veuillez entrer un nombre valide."))
             self.products_table.blockSignals(True); self.load_products(); self.products_table.blockSignals(False)
         except Exception as e:
-            print(f"Error in handle_product_item_changed: {e}")
+            logger.error(f"Error in handle_product_item_changed: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Une erreur est survenue: {str(e)}"))
             self.products_table.blockSignals(True); self.load_products(); self.products_table.blockSignals(False)
 

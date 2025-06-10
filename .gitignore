@@ -40,5 +40,8 @@ fonts/
 *.sqlite3
 *.db
 
+# Clé d'encryption
+encryption_key.key
+
 # Autres fichiers utilisateurs
 *.env

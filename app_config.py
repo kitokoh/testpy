@@ -2,8 +2,9 @@
 import sys
 import os
 import json
+# import logging # Removed, will be handled by logging_config.py
 from PyQt5.QtCore import QStandardPaths, QCoreApplication # For get_config_dir and save_config message
-from PyQt5.QtWidgets import QMessageBox # For save_config message
+# from PyQt5.QtWidgets import QMessageBox # QMessageBox removed, consider signal/slot for UI feedback
 
 # --- Configuration Constants & Paths ---
 CONFIG_DIR_NAME = "ClientDocumentManager"
@@ -35,18 +36,33 @@ def get_config_dir():
     os.makedirs(config_dir_path, exist_ok=True)
     return config_dir_path
 
+# LOG_FILE_PATH = os.path.join(get_config_dir(), "app.log") # Moved to logging_config.py
+
+# --- Logging Configuration ---
+# Logging is now handled by logging_config.py, which should be imported early in main.py.
+# This section is removed to avoid conflicts.
+
 def get_config_file_path():
     return os.path.join(get_config_dir(), CONFIG_FILE_NAME)
 
 def load_config():
+    import logging # Import here to ensure logging_config has run
+    logger = logging.getLogger(__name__)
+    logger.info(f"Attempting to load configuration from: {get_config_file_path()}")
     config_path = get_config_file_path()
     if os.path.exists(config_path):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                config = json.load(f)
+                logger.info(f"Configuration loaded from {config_path}")
+                # Ensure essential logging keys are present even if loading from an old config
+                config.setdefault("logs_dir", os.path.join(get_config_dir(), "logs"))
+                config.setdefault("log_level", "INFO")
+                return config
         except (IOError, json.JSONDecodeError) as e:
-            print(f"Error loading config: {e}. Using defaults.")
+            logger.error(f"Error loading config from {config_path}: {e}. Using defaults.", exc_info=True)
 
+    logger.info("No existing config file found or error loading. Using default configuration.")
     return {
         "templates_dir": DEFAULT_TEMPLATES_DIR,
         "clients_dir": DEFAULT_CLIENTS_DIR,
@@ -54,19 +70,23 @@ def load_config():
         "smtp_server": "",
         "smtp_port": 587,
         "smtp_user": "",
-        "smtp_password": "",
-        "default_reminder_days": 30
+        "smtp_password": "", # This should be handled securely, ideally not stored directly if sensitive
+        "default_reminder_days": 30,
+        "logs_dir": os.path.join(get_config_dir(), "logs"), # Default logs directory
+        "log_level": "INFO" # Default log level
     }
 
 def save_config(config_data):
+    import logging # Import here to ensure logging_config has run
+    logger = logging.getLogger(__name__)
     try:
         config_path = get_config_file_path()
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=4, ensure_ascii=False)
+        logger.info(f"Configuration saved to {config_path}")
     except IOError as e:
-        # Need to ensure QMessageBox can be shown if this is called early
-        # For now, assuming it's called from a context where QApplication exists
-        QMessageBox.warning(None, QCoreApplication.translate("app_config", "Erreur de Configuration"), QCoreApplication.translate("app_config", "Impossible d'enregistrer la configuration: {0}").format(e))
+        logger.error(f"Impossible d'enregistrer la configuration: {e}", exc_info=True)
+        # UI feedback (like QMessageBox) should be handled by the caller in the UI layer.
 
 CONFIG = load_config()
 

@@ -2,6 +2,7 @@ import sys
 import os
 import shutil # For file operations
 import uuid # For unique filenames
+import logging # Added for logging
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QTextEdit,
@@ -20,19 +21,21 @@ if parent_dir not in sys.path:
 if current_dir not in sys.path: # for running directly if db.py is alongside
     sys.path.insert(0, current_dir)
 
+logger = logging.getLogger(__name__) # Added logger
+
 try:
     import db as db_manager
-    print("db_manager imported successfully.")
+    logger.info("db_manager imported successfully.")
 except ImportError as e:
-    print(f"Error importing db_manager: {e}")
+    logger.error(f"Error importing db_manager: {e}", exc_info=True)
     # Fallback for direct execution if db.py is in the same directory (e.g., during development)
     if parent_dir not in sys.path: # Redundant check but safe
         try:
             import db as db_manager
-            print("db_manager imported successfully using direct path.")
+            logger.info("db_manager imported successfully using direct path.")
         except ImportError:
             db_manager = None
-            print("Failed to import db_manager. Some features will not work.")
+            logger.error("Failed to import db_manager. Some features will not work.")
 
 # Define APP_ROOT_DIR, assuming this script is in a subdirectory of the app root
 # For robust path handling, this might be better passed from main.py or configured globally
@@ -191,9 +194,9 @@ class CompanyDialog(QDialog):
                             try:
                                 os.rename(old_full_path, new_full_path)
                                 db_manager.update_company(new_company_id, {'logo_path': new_proper_filename}) # Update DB with correct filename
-                                print(f"Renamed logo from {temp_logo_filename} to {new_proper_filename}")
+                                logger.info(f"Renamed logo from {temp_logo_filename} to {new_proper_filename}")
                             except Exception as e_rename:
-                                print(f"Error renaming logo after company creation: {e_rename}")
+                                logger.error(f"Error renaming logo after company creation: {e_rename}", exc_info=True)
 
                 QMessageBox.information(self, self.tr("Success"), self.tr("Company added successfully."))
                 super().accept()
@@ -466,7 +469,7 @@ class CompanyTabWidget(QWidget):
                 self.company_list_widget.addItem(list_item)
         except Exception as e:
             self.company_list_widget.addItem(QListWidgetItem(self.tr("Error loading companies: {0}").format(str(e))))
-            print(f"Error in load_companies: {e}")
+            logger.error(f"Error in load_companies: {e}", exc_info=True)
 
         self.update_company_button_states()
         self.update_personnel_button_states(False)
@@ -555,9 +558,10 @@ class CompanyTabWidget(QWidget):
                     if os.path.exists(full_logo_path):
                         try:
                             os.remove(full_logo_path)
-                            print(f"Deleted logo: {full_logo_path}")
+                            logger.info(f"Deleted logo: {full_logo_path}")
                         except Exception as e_logo_del:
                             QMessageBox.warning(self, self.tr("Logo Deletion Error"), self.tr("Could not delete logo file: {0}.\nPlease remove it manually.").format(str(e_logo_del)))
+                            logger.error(f"Could not delete logo file {full_logo_path}: {e_logo_del}", exc_info=True)
 
                 if db_manager.delete_company(self.current_selected_company_id):
                     QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully."))
@@ -735,19 +739,21 @@ if __name__ == '__main__':
             with open(stylesheet_path_to_try, "r") as f:
                 app.setStyleSheet(f.read())
         else:
-            print(f"Stylesheet not found at {stylesheet_path_to_try}. Using default style.")
+                logger.warning(f"Stylesheet not found at {stylesheet_path_to_try}. Using default style.")
     except Exception as e:
-        print(f"Error loading stylesheet: {e}")
+            logger.error(f"Error loading stylesheet: {e}", exc_info=True)
 
     # Initialize database if db_manager is available
     if db_manager:
         try:
+            # Basic logging for standalone script run
+            logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
             db_manager.initialize_database()
-            print("Database initialized by company_management.py (for testing if run directly).")
+            logger.info("Database initialized by company_management.py (for testing if run directly).")
         except Exception as e:
-            print(f"Error initializing database from company_management.py: {e}")
+            logger.error(f"Error initializing database from company_management.py: {e}", exc_info=True)
     else:
-        print("db_manager not available, skipping database initialization in company_management.py.")
+        logger.warning("db_manager not available, skipping database initialization in company_management.py.")
 
     # Create the company_logos directory for standalone testing
     os.makedirs(os.path.join(APP_ROOT_DIR, LOGO_SUBDIR), exist_ok=True)

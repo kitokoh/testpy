@@ -5,14 +5,17 @@ from PyQt5.QtWidgets import (
     QSizePolicy
 )
 from PyQt5.QtCore import QObject, pyqtSignal, QCoreApplication
+import logging # Added for logging
+
+logger = logging.getLogger(__name__) # Added logger
 
 try:
     import db as db_manager
     # Ensure db.py has these functions, or adjust accordingly
     if not all(hasattr(db_manager, func_name) for func_name in ['get_setting', 'set_setting', 'initialize_database']):
         raise ImportError("db module does not have all required functions.")
-except ImportError:
-    print("Critical: db_manager module not found or is missing required functions. Application may not work correctly.")
+except ImportError as e: # Added 'as e' to log the specific error
+    logger.critical(f"db_manager module not found or is missing required functions: {e}. Application may not work correctly.", exc_info=True)
     # Fallback or error handling can be more sophisticated here
     # For now, let it fail if db_manager is not correctly set up.
     # If a mock is absolutely needed for some standalone test, it should be explicitly injected.
@@ -143,12 +146,12 @@ if __name__ == '__main__':
     # dialog.load_settings() # Reload to see the change
 
     if dialog.exec_() == QDialog.Accepted:
-        print("Dialog accepted. Settings should be saved.")
+        logger.info("Dialog accepted. Settings should be saved.")
         # You can retrieve and print all settings to verify
         # for key in COMPANY_PROFILE_KEYS:
-        #     print(f"{key}: {db_manager.get_setting(key)}")
+        #     logger.debug(f"{key}: {db_manager.get_setting(key)}") # Changed to logger.debug if uncommented
     else:
-        print("Dialog cancelled.")
+        logger.info("Dialog cancelled.")
 
     # Proper cleanup if using a real DB connection pool or similar
     # db_manager itself does not have a close_connection method, connections are managed per function.
@@ -159,3 +162,6 @@ if __name__ == '__main__':
     # If the app should continue running after the dialog, then app.exec_() is needed.
     # For this simple test, exiting after dialog is fine.
     sys.exit(0)
+if __name__ == '__main__':
+    # Basic logging setup for direct script execution
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')

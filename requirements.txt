@@ -11,3 +11,5 @@ tzdata==2025.2
 WeasyPrint>=50.0
 openpyxl>=3.0
 python-docx>=0.8
+cryptography>=3.4.7 # Or a more recent compatible version
+mammoth>=1.6.0 # Or a more recent compatible version

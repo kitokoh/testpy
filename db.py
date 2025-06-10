@@ -3,10 +3,17 @@ import uuid
 import hashlib
 from datetime import datetime
 import json
-import os # Added os import
+import os
+import shutil # For file operations if needed
+import docx # For reading .docx files
+import mammoth # For converting DOCX to HTML
+import logging # Added for logging
+from app_config import CONFIG # For accessing templates_dir
+from security_utils import encrypt_password, decrypt_password, InvalidToken # For SMTP password security
 
 # Global variable for the database name
 DATABASE_NAME = "app_data.db"
+logger = logging.getLogger(__name__)
 
 # Constants for document context paths
 # Assuming db.py is in a subdirectory of the app root (e.g., /app/core/db.py or /app/db.py)
@@ -485,6 +492,23 @@ def initialize_database():
         # Decide if this is fatal or if migration can proceed without a fallback ID
         # For now, migration will use None if this fails, which _get_or_create_category_id handles.
 
+    # Ensure "Modèles Email" category exists
+    try:
+        email_category_name = "Modèles Email"
+        email_category_description = "Modèles pour les corps des emails et sujets."
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (email_category_name,))
+        email_cat_row = cursor.fetchone()
+        if not email_cat_row:
+            cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)",
+                           (email_category_name, email_category_description))
+            conn.commit() # Commit this change immediately
+            print(f"Created '{email_category_name}' category.")
+        else:
+            print(f"'{email_category_name}' category already exists.")
+    except sqlite3.Error as e_cat_email_init:
+        print(f"Error ensuring '{email_category_name}' category: {e_cat_email_init}")
+
+
     # Check if Templates table needs migration
     cursor.execute("PRAGMA table_info(Templates)")
     columns = [column[1] for column in cursor.fetchall()]
@@ -677,13 +701,35 @@ def initialize_database():
         smtp_server TEXT NOT NULL,
         smtp_port INTEGER NOT NULL,
         username TEXT,
-        password_encrypted TEXT, -- Store encrypted password
+        password_encrypted TEXT,
         use_tls BOOLEAN DEFAULT TRUE,
         is_default BOOLEAN DEFAULT FALSE,
         sender_email_address TEXT NOT NULL,
-        sender_display_name TEXT
+        sender_display_name TEXT,
+        from_display_name_override TEXT,
+        reply_to_email TEXT
     )
     """)
+    conn.commit() # Commit creation before altering, just in case
+
+    # Idempotently add new columns to SmtpConfigs if they don't exist
+    try:
+        cursor.execute("PRAGMA table_info(SmtpConfigs)")
+        columns_info = cursor.fetchall()
+        existing_column_names = {info['name'] for info in columns_info}
+
+        if 'from_display_name_override' not in existing_column_names:
+            cursor.execute("ALTER TABLE SmtpConfigs ADD COLUMN from_display_name_override TEXT")
+            print("Added 'from_display_name_override' column to SmtpConfigs table.")
+
+        if 'reply_to_email' not in existing_column_names:
+            cursor.execute("ALTER TABLE SmtpConfigs ADD COLUMN reply_to_email TEXT")
+            print("Added 'reply_to_email' column to SmtpConfigs table.")
+
+        conn.commit() # Commit ALTER TABLE statements
+    except sqlite3.Error as e_alter:
+        print(f"Error altering SmtpConfigs table: {e_alter}")
+
 
     # Create ApplicationSettings table
     cursor.execute("""
@@ -756,8 +802,105 @@ def initialize_database():
     )
     """)
 
-    conn.commit()
+    conn.commit() # Commit all schema changes first
+
+    # Run migration for SMTP passwords after all tables are set up
+    # The migration function itself will handle connections and commits internally
+    # and check if it needs to run.
+    migrate_plaintext_passwords_to_encrypted() # Pass connection if it's to use the same transaction
+                                               # but current migration func handles its own connection.
+
     conn.close()
+
+# --- SMTP Password Migration ---
+def migrate_plaintext_passwords_to_encrypted():
+    """
+    Migrates existing plaintext passwords in SmtpConfigs to be encrypted.
+    This function should ideally run once, controlled by an ApplicationSetting.
+    """
+    migration_flag_key = "smtp_passwords_migrated_v1" # Unique key for this migration
+
+    # Check if migration has already been done
+    # get_setting and set_setting handle their own connections.
+    if get_setting(migration_flag_key) == "true":
+        # print("SMTP password migration (v1) already performed. Skipping.") # Optional: reduce verbosity
+        return
+
+    print("Attempting to migrate plaintext SMTP passwords to encrypted format (v1)...")
+
+    # This migration needs its own connection context as initialize_database's conn is about to close.
+    conn_mig = None
+    updated_count = 0
+    skipped_count = 0 # Count passwords that appear already encrypted or are empty
+    error_count = 0
+
+    try:
+        conn_mig = get_db_connection() # Fresh connection for migration operations
+
+        # Fetch only necessary fields, and only rows where password_encrypted might be plaintext
+        # A simple heuristic: non-empty and potentially not a valid Fernet token.
+        # We will try to decrypt; if it fails, we assume it's plaintext.
+        cursor = conn_mig.cursor()
+        cursor.execute("SELECT smtp_config_id, password_encrypted FROM SmtpConfigs WHERE password_encrypted IS NOT NULL AND password_encrypted != ''")
+        rows = cursor.fetchall()
+
+        if not rows:
+            print("No SMTP configurations with passwords found to migrate.")
+            set_setting(migration_flag_key, "true") # Mark as done even if no data
+            return
+
+        for row_data in rows:
+            config_dict = dict(row_data) # Convert sqlite3.Row to dict
+            smtp_config_id = config_dict['smtp_config_id']
+            current_password_value = config_dict['password_encrypted']
+
+            try:
+                # Attempt to decrypt. If it succeeds, it's already encrypted with the current key.
+                decrypt_password(current_password_value)
+                # print(f"Password for SMTP config ID {smtp_config_id} appears to be already encrypted with the current key. Skipping.")
+                skipped_count += 1
+            except InvalidToken:
+                # If InvalidToken, it's either plaintext or encrypted with a different key/method. Assume plaintext for migration.
+                print(f"Password for SMTP config ID {smtp_config_id} is likely plaintext. Encrypting...")
+                try:
+                    new_encrypted_pass = encrypt_password(current_password_value)
+                    if new_encrypted_pass:
+                        # Use a new cursor for the update within the same transaction
+                        update_cursor = conn_mig.cursor()
+                        update_cursor.execute("UPDATE SmtpConfigs SET password_encrypted = ? WHERE smtp_config_id = ?",
+                                     (new_encrypted_pass, smtp_config_id))
+                        # No commit here yet, commit all at the end of successful migration.
+                        updated_count += 1
+                        print(f"Successfully encrypted password for SMTP config ID {smtp_config_id}.")
+                    else:
+                        print(f"Encryption returned None for plaintext password of SMTP config ID {smtp_config_id}. Skipping update.")
+                        error_count += 1
+                except Exception as e_encrypt:
+                    print(f"Error encrypting password for SMTP config ID {smtp_config_id}: {e_encrypt}")
+                    error_count += 1
+            except Exception as e_check: # Other errors during the decryption check phase
+                print(f"Unexpected error checking password for SMTP config ID {smtp_config_id}: {e_check}. Skipping.")
+                error_count += 1
+
+        if error_count == 0:
+            conn_mig.commit() # Commit all successful updates
+            print(f"SMTP password migration process finished successfully. Updated: {updated_count}, Skipped: {skipped_count}.")
+            set_setting(migration_flag_key, "true") # Mark migration as done only if no errors overall
+        else:
+            conn_mig.rollback()
+            print(f"SMTP password migration encountered errors. Errors: {error_count}. Updated: {updated_count}, Skipped: {skipped_count}. Changes rolled back.")
+            # Do not set the flag if there were errors, so it can be re-attempted.
+
+    except sqlite3.Error as e_sqlite:
+        print(f"SQLite error during SMTP password migration: {e_sqlite}")
+        if conn_mig: conn_mig.rollback()
+    except Exception as e_main:
+        print(f"An unexpected error occurred during SMTP password migration: {e_main}")
+        if conn_mig: conn_mig.rollback()
+    finally:
+        if conn_mig:
+            conn_mig.close()
+
 
 def get_db_connection():
     """
@@ -812,10 +955,10 @@ def add_client(client_data: dict) -> str | None:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Client '{client_data.get('client_name')}' added with ID: {new_client_id}")
         return new_client_id
     except sqlite3.Error as e:
-        print(f"Database error in add_client: {e}")
-        # Consider raising a custom exception or logging more formally
+        logger.error(f"Database error in add_client for client '{client_data.get('client_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -831,7 +974,7 @@ def get_client_by_id(client_id: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_client_by_id: {e}")
+        logger.error(f"Database error in get_client_by_id for ID '{client_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -864,7 +1007,7 @@ def get_all_clients(filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_clients: {e}")
+        logger.error(f"Database error in get_all_clients with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -905,9 +1048,10 @@ def update_client(client_id: str, client_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Client ID '{client_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_client: {e}")
+        logger.error(f"Database error in update_client for ID '{client_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -924,9 +1068,10 @@ def delete_client(client_id: str) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id,))
         conn.commit()
+        logger.info(f"Client ID '{client_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_client: {e}")
+        logger.error(f"Database error in delete_client for ID '{client_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -949,11 +1094,12 @@ def add_client_note(client_id: str, note_text: str, user_id: str = None) -> int 
         params = (client_id, note_text, user_id)
         cursor.execute(sql, params)
         conn.commit()
-        return cursor.lastrowid  # Returns the note_id of the inserted row
+        logger.info(f"Note added for client ID '{client_id}', note ID: {cursor.lastrowid}.")
+        return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_client_note: {e}")
+        logger.error(f"Database error in add_client_note for client ID '{client_id}': {e}", exc_info=True)
         if conn:
-            conn.rollback() # Rollback any changes if an error occurred
+            conn.rollback()
         return None
     finally:
         if conn:
@@ -978,8 +1124,8 @@ def get_client_notes(client_id: str) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_client_notes: {e}")
-        return [] # Return an empty list in case of error
+        logger.error(f"Database error in get_client_notes for client ID '{client_id}': {e}", exc_info=True)
+        return []
     finally:
         if conn:
             conn.close()
@@ -1013,9 +1159,10 @@ def add_company(company_data: dict) -> str | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Company '{company_data.get('company_name')}' added with ID: {new_company_id}")
         return new_company_id
     except sqlite3.Error as e:
-        print(f"Database error in add_company: {e}")
+        logger.error(f"Database error in add_company for '{company_data.get('company_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1031,7 +1178,7 @@ def get_company_by_id(company_id: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_company_by_id: {e}")
+        logger.error(f"Database error in get_company_by_id for ID '{company_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1047,7 +1194,7 @@ def get_all_companies() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_companies: {e}")
+        logger.error(f"Database error in get_all_companies: {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1075,9 +1222,10 @@ def update_company(company_id: str, company_data: dict) -> bool:
 
         cursor.execute(sql, tuple(params))
         conn.commit()
+        logger.info(f"Company ID '{company_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_company: {e}")
+        logger.error(f"Database error in update_company for ID '{company_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1092,9 +1240,10 @@ def delete_company(company_id: str) -> bool:
         # ON DELETE CASCADE will handle CompanyPersonnel
         cursor.execute("DELETE FROM Companies WHERE company_id = ?", (company_id,))
         conn.commit()
+        logger.info(f"Company ID '{company_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_company: {e}")
+        logger.error(f"Database error in delete_company for ID '{company_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1113,15 +1262,16 @@ def set_default_company(company_id: str) -> bool:
         # Set the new default
         cursor.execute("UPDATE Companies SET is_default = TRUE WHERE company_id = ?", (company_id,))
         conn.commit()
+        logger.info(f"Company ID '{company_id}' set as default.")
         return True
     except sqlite3.Error as e:
         if conn:
             conn.rollback()
-        print(f"Database error in set_default_company: {e}")
+        logger.error(f"Database error in set_default_company for ID '{company_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
-            conn.isolation_level = '' # Reset isolation level
+            conn.isolation_level = ''
             conn.close()
 
 def get_default_company() -> dict | None:
@@ -1139,7 +1289,7 @@ def get_default_company() -> dict | None:
             return dict(row)
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_default_company: {e}")
+        logger.error(f"Database error in get_default_company: {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1165,9 +1315,10 @@ def add_company_personnel(personnel_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Personnel '{personnel_data.get('name')}' added to company ID '{personnel_data.get('company_id')}', personnel ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_company_personnel: {e}")
+        logger.error(f"Database error in add_company_personnel for company '{personnel_data.get('company_id')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1189,7 +1340,7 @@ def get_personnel_for_company(company_id: str, role: str = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_personnel_for_company: {e}")
+        logger.error(f"Database error in get_personnel_for_company ID '{company_id}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1218,9 +1369,10 @@ def update_company_personnel(personnel_id: int, personnel_data: dict) -> bool:
 
         cursor.execute(sql, tuple(params))
         conn.commit()
+        logger.info(f"Company personnel ID '{personnel_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_company_personnel: {e}")
+        logger.error(f"Database error in update_company_personnel for ID '{personnel_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1234,9 +1386,10 @@ def delete_company_personnel(personnel_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM CompanyPersonnel WHERE personnel_id = ?", (personnel_id,))
         conn.commit()
+        logger.info(f"Company personnel ID '{personnel_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_company_personnel: {e}")
+        logger.error(f"Database error in delete_company_personnel for ID '{personnel_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1263,9 +1416,10 @@ def add_template_category(category_name: str, description: str = None) -> int | 
         sql = "INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)"
         cursor.execute(sql, (category_name, description))
         conn.commit()
-        return cursor.lastrowid
+        logger.info(f"Template category '{category_name}' added/retrieved with ID: {cursor.lastrowid if not row else row['category_id']}")
+        return cursor.lastrowid if not row else row['category_id']
     except sqlite3.Error as e:
-        print(f"Database error in add_template_category: {e}")
+        logger.error(f"Database error in add_template_category for '{category_name}': {e}", exc_info=True)
         if conn:
             conn.rollback()
         return None
@@ -1296,6 +1450,7 @@ def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, defau
         print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
         # Depending on how critical this is, you might want to raise the error
         # or return the default_category_id as a fallback.
+        # No logging here as this is an internal helper, caller should log context if needed.
         return default_category_id
 
 
@@ -1309,7 +1464,7 @@ def get_template_category_by_id(category_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_template_category_by_id: {e}")
+        logger.error(f"Database error in get_template_category_by_id for ID '{category_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1325,7 +1480,7 @@ def get_template_category_by_name(category_name: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_template_category_by_name: {e}")
+        logger.error(f"Database error in get_template_category_by_name for '{category_name}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1341,7 +1496,7 @@ def get_all_template_categories() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_template_categories: {e}")
+        logger.error(f"Database error in get_all_template_categories: {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1377,9 +1532,10 @@ def update_template_category(category_id: int, new_name: str = None, new_descrip
 
         cursor.execute(sql, tuple(params))
         conn.commit()
+        logger.info(f"Template category ID '{category_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_template_category: {e}")
+        logger.error(f"Database error in update_template_category for ID '{category_id}': {e}", exc_info=True)
         if conn:
             conn.rollback()
         return False
@@ -1402,9 +1558,10 @@ def delete_template_category(category_id: int) -> bool:
         # For now, allowing deletion of any category.
         cursor.execute("DELETE FROM TemplateCategories WHERE category_id = ?", (category_id,))
         conn.commit()
+        logger.info(f"Template category ID '{category_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_template_category: {e}")
+        logger.error(f"Database error in delete_template_category for ID '{category_id}': {e}", exc_info=True)
         if conn:
             conn.rollback()
         return False
@@ -1453,9 +1610,10 @@ def add_template(template_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
-        return cursor.lastrowid # For AUTOINCREMENT PK
+        logger.info(f"Template '{template_data.get('template_name')}' added with ID: {cursor.lastrowid}")
+        return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_template: {e}")
+        logger.error(f"Database error in add_template for '{template_data.get('template_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1471,7 +1629,7 @@ def get_template_by_id(template_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_template_by_id: {e}")
+        logger.error(f"Database error in get_template_by_id for ID '{template_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1498,7 +1656,7 @@ def get_templates_by_type(template_type: str, language_code: str = None) -> list
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_templates_by_type: {e}")
+        logger.error(f"Database error in get_templates_by_type for type '{template_type}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1536,9 +1694,10 @@ def update_template(template_id: int, template_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Template ID '{template_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_template: {e}")
+        logger.error(f"Database error in update_template for ID '{template_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1552,9 +1711,10 @@ def delete_template(template_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
         conn.commit()
+        logger.info(f"Template ID '{template_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_template: {e}")
+        logger.error(f"Database error in delete_template for ID '{template_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1578,7 +1738,7 @@ def get_template_details_for_preview(template_id: int) -> dict | None:
             return {'base_file_name': row['base_file_name'], 'language_code': row['language_code']}
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_template_details_for_preview: {e}")
+        logger.error(f"Database error in get_template_details_for_preview for ID '{template_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1602,7 +1762,7 @@ def get_template_path_info(template_id: int) -> dict | None:
             return {'file_name': row['base_file_name'], 'language': row['language_code']}
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_template_path_info: {e}")
+        logger.error(f"Database error in get_template_path_info for ID '{template_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1650,11 +1810,11 @@ def delete_template_and_get_file_info(template_id: int) -> dict | None:
     except sqlite3.Error as e:
         if conn:
             conn.rollback()
-        print(f"Database error in delete_template_and_get_file_info: {e}")
+        logger.error(f"Database error in delete_template_and_get_file_info for ID '{template_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
-            conn.isolation_level = '' # Reset isolation level
+            conn.isolation_level = ''
             conn.close()
 
 def set_default_template_by_id(template_id: int) -> bool:
@@ -1707,11 +1867,11 @@ def set_default_template_by_id(template_id: int) -> bool:
     except sqlite3.Error as e:
         if conn:
             conn.rollback()
-        print(f"Database error in set_default_template_by_id: {e}")
+        logger.error(f"Database error in set_default_template_by_id for ID '{template_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
-            conn.isolation_level = '' # Reset isolation level
+            conn.isolation_level = ''
             conn.close()
 
 def add_default_template_if_not_exists(template_data: dict) -> int | None:
@@ -1788,13 +1948,13 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
             cursor.execute(sql, params)
             conn.commit()
             new_id = cursor.lastrowid
-            print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
+            logger.info(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
             return new_id
 
     except sqlite3.Error as e:
-        print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
+        logger.error(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}", exc_info=True)
         if conn:
-            conn.rollback() # Rollback on error
+            conn.rollback()
         return None
     finally:
         if conn:
@@ -1839,9 +1999,10 @@ def add_project(project_data: dict) -> str | None:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Project '{project_data.get('project_name')}' added with ID: {new_project_id}")
         return new_project_id
     except sqlite3.Error as e:
-        print(f"Database error in add_project: {e}")
+        logger.error(f"Database error in add_project for '{project_data.get('project_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1857,7 +2018,7 @@ def get_project_by_id(project_id: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_project_by_id: {e}")
+        logger.error(f"Database error in get_project_by_id for ID '{project_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -1873,7 +2034,7 @@ def get_projects_by_client_id(client_id: str) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_projects_by_client_id: {e}")
+        logger.error(f"Database error in get_projects_by_client_id for client ID '{client_id}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1906,7 +2067,7 @@ def get_all_projects(filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_projects: {e}")
+        logger.error(f"Database error in get_all_projects with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -1950,9 +2111,10 @@ def update_project(project_id: str, project_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Project ID '{project_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_project: {e}")
+        logger.error(f"Database error in update_project for ID '{project_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -1967,9 +2129,10 @@ def delete_project(project_id: str) -> bool:
         # ON DELETE CASCADE for Tasks related to this project will be handled by SQLite
         cursor.execute("DELETE FROM Projects WHERE project_id = ?", (project_id,))
         conn.commit()
+        logger.info(f"Project ID '{project_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_project: {e}")
+        logger.error(f"Database error in delete_project for ID '{project_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2012,9 +2175,10 @@ def add_task(task_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Task '{task_data.get('task_name')}' added with ID: {cursor.lastrowid} for project ID '{task_data.get('project_id')}'")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_task: {e}")
+        logger.error(f"Database error in add_task for project '{task_data.get('project_id')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2030,7 +2194,7 @@ def get_task_by_id(task_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_task_by_id: {e}")
+        logger.error(f"Database error in get_task_by_id for ID '{task_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2063,7 +2227,7 @@ def get_tasks_by_project_id(project_id: str, filters: dict = None) -> list[dict]
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_tasks_by_project_id: {e}")
+        logger.error(f"Database error in get_tasks_by_project_id for project '{project_id}' with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -2107,9 +2271,10 @@ def update_task(task_id: int, task_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Task ID '{task_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_task: {e}")
+        logger.error(f"Database error in update_task for ID '{task_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2123,9 +2288,10 @@ def delete_task(task_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Tasks WHERE task_id = ?", (task_id,))
         conn.commit()
+        logger.info(f"Task ID '{task_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_task: {e}")
+        logger.error(f"Database error in delete_task for ID '{task_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2182,9 +2348,10 @@ def add_user(user_data: dict) -> str | None:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"User '{user_data.get('username')}' added with ID: {new_user_id}")
         return new_user_id
     except sqlite3.Error as e:
-        print(f"Database error in add_user: {e}")
+        logger.error(f"Database error in add_user for username '{user_data.get('username')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2200,7 +2367,7 @@ def get_user_by_id(user_id: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_user_by_id: {e}")
+        logger.error(f"Database error in get_user_by_id for ID '{user_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2216,7 +2383,7 @@ def get_user_by_username(username: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_user_by_username: {e}")
+        logger.error(f"Database error in get_user_by_username for username '{username}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2262,9 +2429,10 @@ def update_user(user_id: str, user_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"User ID '{user_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_user: {e}")
+        logger.error(f"Database error in update_user for ID '{user_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2296,9 +2464,10 @@ def delete_user(user_id: str) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Users WHERE user_id = ?", (user_id,))
         conn.commit()
+        logger.info(f"User ID '{user_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_user: {e}")
+        logger.error(f"Database error in delete_user for ID '{user_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2341,9 +2510,10 @@ def add_team_member(member_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Team member '{member_data.get('full_name')}' added with ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_team_member: {e}")
+        logger.error(f"Database error in add_team_member for '{member_data.get('full_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2359,7 +2529,7 @@ def get_team_member_by_id(team_member_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_team_member_by_id: {e}")
+        logger.error(f"Database error in get_team_member_by_id for ID '{team_member_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2396,7 +2566,7 @@ def get_all_team_members(filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_team_members: {e}")
+        logger.error(f"Database error in get_all_team_members with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -2438,9 +2608,10 @@ def update_team_member(team_member_id: int, member_data: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Team member ID '{team_member_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_team_member: {e}")
+        logger.error(f"Database error in update_team_member for ID '{team_member_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2454,9 +2625,10 @@ def delete_team_member(team_member_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM TeamMembers WHERE team_member_id = ?", (team_member_id,))
         conn.commit()
+        logger.info(f"Team member ID '{team_member_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_team_member: {e}")
+        logger.error(f"Database error in delete_team_member for ID '{team_member_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -2509,9 +2681,10 @@ def add_contact(contact_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Contact '{name_to_insert}' added with ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_contact: {e}")
+        logger.error(f"Database error in add_contact for '{name_to_insert}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -2526,7 +2699,7 @@ def get_contact_by_id(contact_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_contact_by_id: {e}")
+        logger.error(f"Database error in get_contact_by_id for ID '{contact_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -2542,7 +2715,7 @@ def get_contact_by_email(email: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_contact_by_email: {e}")
+        logger.error(f"Database error in get_contact_by_email for '{email}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -2576,7 +2749,7 @@ def get_all_contacts(filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_contacts: {e}")
+        logger.error(f"Database error in get_all_contacts with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -2630,9 +2803,10 @@ def update_contact(contact_id: int, contact_data: dict) -> bool:
         sql = f"UPDATE Contacts SET {', '.join(set_clauses)} WHERE contact_id = ?"
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_contact: {e}")
+        logger.error(f"Database error in update_contact for ID '{contact_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -2645,9 +2819,10 @@ def delete_contact(contact_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Contacts WHERE contact_id = ?", (contact_id,))
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_contact: {e}")
+        logger.error(f"Database error in delete_contact for ID '{contact_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -2666,9 +2841,10 @@ def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = F
         params = (client_id, contact_id, is_primary, can_receive_documents)
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' linked to client ID '{client_id}'. Link ID: {cursor.lastrowid}")
         return cursor.lastrowid
-    except sqlite3.Error as e: # Handles UNIQUE constraint violation if link already exists
-        print(f"Database error in link_contact_to_client: {e}")
+    except sqlite3.Error as e:
+        logger.error(f"Database error linking contact '{contact_id}' to client '{client_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -2682,9 +2858,10 @@ def unlink_contact_from_client(client_id: str, contact_id: int) -> bool:
         sql = "DELETE FROM ClientContacts WHERE client_id = ? AND contact_id = ?"
         cursor.execute(sql, (client_id, contact_id))
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' unlinked from client ID '{client_id}'.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in unlink_contact_from_client: {e}")
+        logger.error(f"Database error unlinking contact '{contact_id}' from client '{client_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -2705,7 +2882,7 @@ def get_contacts_for_client(client_id: str) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_contacts_for_client: {e}")
+        logger.error(f"Database error in get_contacts_for_client ID '{client_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -2726,7 +2903,7 @@ def get_clients_for_contact(contact_id: int) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_clients_for_contact: {e}")
+        logger.error(f"Database error in get_clients_for_contact ID '{contact_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -2750,7 +2927,7 @@ def get_specific_client_contact_link_details(client_id: str, contact_id: int) ->
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_specific_client_contact_link_details: {e}")
+        logger.error(f"Database error in get_specific_client_contact_link_details for client '{client_id}', contact '{contact_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -2781,9 +2958,10 @@ def update_client_contact_link(client_contact_id: int, details: dict) -> bool:
         
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Client-contact link ID '{client_contact_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_client_contact_link: {e}")
+        logger.error(f"Database error in update_client_contact_link for ID '{client_contact_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -2814,9 +2992,10 @@ def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
         print(f"IntegrityError: Product equivalence pair ({p_a}, {p_b}) likely already exists.")
         cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a, p_b))
         row = cursor.fetchone()
-        return row['equivalence_id'] if row else None # Should find it if IntegrityError was due to this UNIQUE constraint
+        logger.info(f"Product equivalence pair ({p_a}, {p_b}) already exists. ID: {row['equivalence_id'] if row else 'Error retrieving existing ID'}")
+        return row['equivalence_id'] if row else None
     except sqlite3.Error as e:
-        print(f"Database error in add_product_equivalence: {e}")
+        logger.error(f"Database error in add_product_equivalence for products ({product_id_a}, {product_id_b}): {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -2884,8 +3063,8 @@ def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
         cursor.execute(sql, (p_a, p_b))
         conn.commit()
         return cursor.lastrowid
-    except sqlite3.IntegrityError: # Pair already exists
-        print(f"IntegrityError: Product equivalence pair ({p_a}, {p_b}) likely already exists.")
+    except sqlite3.IntegrityError:
+        logger.info(f"Product equivalence pair ({p_a}, {p_b}) likely already exists due to IntegrityError.")
         # Fetch the ID of the existing pair
         try:
             cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a, p_b))
@@ -2893,16 +3072,15 @@ def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
             if row:
                 return row['equivalence_id']
             else:
-                # This case should be rare if IntegrityError was due to the unique constraint
-                print(f"Warning: IntegrityError for pair ({p_a}, {p_b}) but could not retrieve existing ID.")
+                logger.warning(f"IntegrityError for pair ({p_a}, {p_b}) but could not retrieve existing ID.")
                 return None
         except sqlite3.Error as e_select:
-            print(f"Database error while trying to retrieve existing equivalence_id for ({p_a}, {p_b}): {e_select}")
+            logger.error(f"Database error while trying to retrieve existing equivalence_id for ({p_a}, {p_b}): {e_select}", exc_info=True)
             return None
     except sqlite3.Error as e:
-        print(f"Database error in add_product_equivalence: {e}")
+        logger.error(f"Database error in add_product_equivalence for products ({product_id_a}, {product_id_b}): {e}", exc_info=True)
         if conn:
-            conn.rollback() # Rollback if not an integrity error on insert
+            conn.rollback()
         return None
     finally:
         if conn: conn.close()
@@ -2933,13 +3111,13 @@ def get_equivalent_products(product_id: int) -> list[dict]:
         equivalent_products_details = []
         if equivalent_product_ids:
             for eq_id in equivalent_product_ids:
-                prod_details = get_product_by_id(eq_id) # get_product_by_id will be updated to include new fields
+                prod_details = get_product_by_id(eq_id)
                 if prod_details:
                     equivalent_products_details.append(prod_details)
         return equivalent_products_details
 
     except sqlite3.Error as e:
-        print(f"Database error in get_equivalent_products: {e}")
+        logger.error(f"Database error in get_equivalent_products for product ID '{product_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -2954,12 +3132,10 @@ def add_product(product_data: dict) -> int | None:
         language_code = product_data.get('language_code', 'fr') # Default to 'fr'
 
         if not product_name:
-            print("Error in add_product: 'product_name' is required.")
-            # Consider raising an error or returning a more specific indicator of failure
+            logger.warning("Error in add_product: 'product_name' is required.")
             return None
-        if base_unit_price is None: # Price can be 0.0, so check for None explicitly
-            print("Error in add_product: 'base_unit_price' is required.")
-            # Consider raising an error or returning a more specific indicator of failure
+        if base_unit_price is None:
+            logger.warning("Error in add_product: 'base_unit_price' is required.")
             return None
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -2983,19 +3159,15 @@ def add_product(product_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Product '{product_name}' added with ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.IntegrityError as e:
-        # This will catch the UNIQUE constraint violation for (product_name, language_code)
-        print(f"IntegrityError in add_product for name '{product_name}' and lang '{language_code}': {e}")
+        logger.warning(f"IntegrityError in add_product for name '{product_name}' and lang '{language_code}': {e}. Product likely already exists.")
         if conn:
             conn.rollback()
-        # Optionally, here you could query for the existing product_id if needed:
-        # cursor.execute("SELECT product_id FROM Products WHERE product_name = ? AND language_code = ?", (product_name, language_code))
-        # existing_product = cursor.fetchone()
-        # if existing_product: return existing_product['product_id']
-        return None # Indicates "add failed" or "already exists"
+        return None
     except sqlite3.Error as e:
-        print(f"Database error in add_product: {e}")
+        logger.error(f"Database error in add_product for '{product_name}': {e}", exc_info=True)
         if conn:
             conn.rollback()
         return None
@@ -3013,7 +3185,7 @@ def get_product_by_id(product_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_product_by_id: {e}")
+        logger.error(f"Database error in get_product_by_id for ID '{product_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3031,7 +3203,7 @@ def get_product_by_name(product_name: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_product_by_name: {e}")
+        logger.error(f"Database error in get_product_by_name for '{product_name}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -3062,7 +3234,7 @@ def get_all_products(filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_products: {e}")
+        logger.error(f"Database error in get_all_products with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3101,9 +3273,10 @@ def update_product(product_id: int, product_data: dict) -> bool:
 
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Product ID '{product_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_product: {e}")
+        logger.error(f"Database error in update_product for ID '{product_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3116,9 +3289,10 @@ def delete_product(product_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM Products WHERE product_id = ?", (product_id,))
         conn.commit()
+        logger.info(f"Product ID '{product_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_product: {e}")
+        logger.error(f"Database error in delete_product for ID '{product_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3149,7 +3323,7 @@ def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
         return products
 
     except sqlite3.Error as e:
-        print(f"Database error in get_products_by_name_pattern: {e}")
+        logger.error(f"Database error in get_products_by_name_pattern for pattern '{pattern}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -3191,7 +3365,7 @@ def get_all_products_for_selection(language_code: str = None, name_pattern: str 
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_products_for_selection: {e}")
+        logger.error(f"Database error in get_all_products_for_selection (lang: {language_code}, pattern: {name_pattern}): {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -3247,20 +3421,13 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Product ID '{product_id}' linked to client '{link_data.get('client_id')}' / project '{link_data.get('project_id')}'. Link ID: {cursor.lastrowid}")
         return cursor.lastrowid
-    except TypeError as te: # Specifically catch the error we are investigating
-        print(f"TypeError in add_product_to_client_or_project: {te}")
-        print(f"  product_id: {link_data.get('product_id')}")
-        print(f"  quantity: {link_data.get('quantity', 1)}")
-        print(f"  unit_price_override from link_data: {link_data.get('unit_price_override')}")
-        if product_info: # product_info might be None if error happened before it was fetched
-            print(f"  base_unit_price from product_info: {product_info.get('base_unit_price')}")
-        else:
-            print(f"  product_info was None or not fetched prior to error.")
-        print(f"  effective_unit_price at point of error: {effective_unit_price if 'effective_unit_price' in locals() else 'Not yet defined or error before definition'}")
-        return None # Indicate failure
+    except TypeError as te:
+        logger.error(f"TypeError in add_product_to_client_or_project: {te}. Data: {link_data}, ProductInfo: {product_info}, EffectiveUnitPrice: {effective_unit_price if 'effective_unit_price' in locals() else 'N/A'}", exc_info=True)
+        return None
     except sqlite3.Error as e:
-        print(f"Database error in add_product_to_client_or_project: {e}")
+        logger.error(f"Database error in add_product_to_client_or_project for client '{link_data.get('client_id')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3293,7 +3460,7 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None) -
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_products_for_client_or_project: {e}")
+        logger.error(f"Database error in get_products_for_client_or_project for client '{client_id}', project '{project_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3332,9 +3499,10 @@ def update_client_project_product(link_id: int, update_data: dict) -> bool:
         sql = f"UPDATE ClientProjectProducts SET {', '.join(set_clauses)} WHERE client_project_product_id = ?"
         cursor.execute(sql, params_list)
         conn.commit()
+        logger.info(f"ClientProjectProduct link ID '{link_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_client_project_product: {e}")
+        logger.error(f"Database error in update_client_project_product for link ID '{link_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3348,9 +3516,10 @@ def remove_product_from_client_or_project(link_id: int) -> bool:
         sql = "DELETE FROM ClientProjectProducts WHERE client_project_product_id = ?"
         cursor.execute(sql, (link_id,))
         conn.commit()
+        logger.info(f"ClientProjectProduct link ID '{link_id}' removed.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in remove_product_from_client_or_project: {e}")
+        logger.error(f"Database error in remove_product_from_client_or_project for link ID '{link_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3381,9 +3550,10 @@ def add_client_document(doc_data: dict) -> str | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Client document '{doc_data.get('document_name')}' added with ID: {doc_id}")
         return doc_id
     except sqlite3.Error as e:
-        print(f"Database error in add_client_document: {e}")
+        logger.error(f"Database error in add_client_document for '{doc_data.get('document_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3398,7 +3568,7 @@ def get_document_by_id(document_id: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_document_by_id: {e}")
+        logger.error(f"Database error in get_document_by_id for ID '{document_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3430,7 +3600,7 @@ def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_documents_for_client: {e}")
+        logger.error(f"Database error in get_documents_for_client ID '{client_id}' with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3455,7 +3625,7 @@ def get_documents_for_project(project_id: str, filters: dict = None) -> list[dic
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_documents_for_project: {e}")
+        logger.error(f"Database error in get_documents_for_project ID '{project_id}' with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3487,9 +3657,10 @@ def update_client_document(document_id: str, doc_data: dict) -> bool:
         sql = f"UPDATE ClientDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Client document ID '{document_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_client_document: {e}")
+        logger.error(f"Database error in update_client_document for ID '{document_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3502,9 +3673,10 @@ def delete_client_document(document_id: str) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM ClientDocuments WHERE document_id = ?", (document_id,))
         conn.commit()
+        logger.info(f"Client document ID '{document_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_client_document: {e}")
+        logger.error(f"Database error in delete_client_document for ID '{document_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3522,7 +3694,8 @@ def _ensure_single_default_smtp(cursor: sqlite3.Cursor, exclude_id: int | None =
 def add_smtp_config(config_data: dict) -> int | None:
     """
     Adds a new SMTP config. Returns smtp_config_id or None.
-    Expects 'password_encrypted'. Handles 'is_default' logic.
+    Expects 'password_plaintext' in config_data, which will be encrypted.
+    Handles 'is_default' logic.
     """
     conn = None
     try:
@@ -3536,32 +3709,51 @@ def add_smtp_config(config_data: dict) -> int | None:
             _ensure_single_default_smtp(cursor)
 
         now = datetime.utcnow().isoformat() + "Z" # Not in schema, but good practice if it were
+
+        encrypted_password_for_db = None
+        if 'password_plaintext' in config_data:
+            plaintext_password = config_data.pop('password_plaintext')
+            if plaintext_password: # Only encrypt if password is not empty
+                encrypted_password_for_db = encrypt_password(plaintext_password)
+                if encrypted_password_for_db is None:
+                    print("Error: Failed to encrypt SMTP password during add.")
+                    if conn: conn.rollback()
+                    return None
+            else: # Handle empty plaintext password as empty encrypted string or specific marker if preferred
+                encrypted_password_for_db = "" # Store empty string if plaintext was empty
+
         sql = """
             INSERT INTO SmtpConfigs (
                 config_name, smtp_server, smtp_port, username, password_encrypted,
-                use_tls, is_default, sender_email_address, sender_display_name
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                use_tls, is_default, sender_email_address, sender_display_name,
+                from_display_name_override, reply_to_email
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            config_data.get('config_name'), config_data.get('smtp_server'),
-            config_data.get('smtp_port'), config_data.get('username'),
-            config_data.get('password_encrypted'), # Assumed pre-encrypted
+            config_data.get('config_name'),
+            config_data.get('smtp_server'),
+            config_data.get('smtp_port'),
+            config_data.get('username'),
+            encrypted_password_for_db,
             config_data.get('use_tls', True),
             config_data.get('is_default', False),
             config_data.get('sender_email_address'),
-            config_data.get('sender_display_name')
+            config_data.get('sender_display_name'),
+            config_data.get('from_display_name_override'), # New field
+            config_data.get('reply_to_email')             # New field
         )
         cursor.execute(sql, params)
         new_id = cursor.lastrowid
         conn.commit()
+        logger.info(f"SMTP config '{config_data.get('config_name')}' added with ID: {new_id}")
         return new_id
     except sqlite3.Error as e:
         if conn: conn.rollback()
-        print(f"Database error in add_smtp_config: {e}")
+        logger.error(f"Database error in add_smtp_config for '{config_data.get('config_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn: 
-            conn.isolation_level = '' # Reset to default
+            conn.isolation_level = ''
             conn.close()
 
 
@@ -3572,10 +3764,27 @@ def get_smtp_config_by_id(smtp_config_id: int) -> dict | None:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM SmtpConfigs WHERE smtp_config_id = ?", (smtp_config_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        row_data = cursor.fetchone()
+        if row_data:
+            config_dict = dict(row_data)
+            encrypted_pass = config_dict.get('password_encrypted')
+            if encrypted_pass:
+                try:
+                    decrypted_pass = decrypt_password(encrypted_pass)
+                    config_dict['password_encrypted'] = decrypted_pass # Replace with decrypted version
+                except InvalidToken:
+                    print(f"Warning: Invalid token for SMTP config ID {smtp_config_id}. Password cannot be decrypted.")
+                    config_dict['password_encrypted'] = None # Or some indicator of failure
+                except Exception as e_decrypt: # Catch other potential decryption errors
+                    print(f"Warning: An error occurred decrypting password for SMTP config ID {smtp_config_id}: {e_decrypt}")
+                    config_dict['password_encrypted'] = None
+            else:
+                # Handle case where password_encrypted is None or empty in DB (treat as empty password)
+                config_dict['password_encrypted'] = ""
+            return config_dict
+        return None
     except sqlite3.Error as e:
-        print(f"Database error in get_smtp_config_by_id: {e}")
+        logger.error(f"Database error in get_smtp_config_by_id for ID '{smtp_config_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3587,10 +3796,26 @@ def get_default_smtp_config() -> dict | None:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM SmtpConfigs WHERE is_default = TRUE")
-        row = cursor.fetchone()
-        return dict(row) if row else None # Could be multiple if DB constraint not present, returns first
+        row_data = cursor.fetchone()
+        if row_data:
+            config_dict = dict(row_data)
+            encrypted_pass = config_dict.get('password_encrypted')
+            if encrypted_pass:
+                try:
+                    decrypted_pass = decrypt_password(encrypted_pass)
+                    config_dict['password_encrypted'] = decrypted_pass # Replace with decrypted version
+                except InvalidToken:
+                    print(f"Warning: Invalid token for default SMTP config. Password cannot be decrypted.")
+                    config_dict['password_encrypted'] = None
+                except Exception as e_decrypt:
+                    print(f"Warning: An error occurred decrypting password for default SMTP config: {e_decrypt}")
+                    config_dict['password_encrypted'] = None
+            else:
+                config_dict['password_encrypted'] = ""
+            return config_dict
+        return None
     except sqlite3.Error as e:
-        print(f"Database error in get_default_smtp_config: {e}")
+        logger.error(f"Database error in get_default_smtp_config: {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3605,7 +3830,7 @@ def get_all_smtp_configs() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_smtp_configs: {e}")
+        logger.error(f"Database error in get_all_smtp_configs: {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3613,7 +3838,7 @@ def get_all_smtp_configs() -> list[dict]:
 def update_smtp_config(smtp_config_id: int, config_data: dict) -> bool:
     """
     Updates an SMTP config. Handles 'is_default' logic.
-    Expects 'password_encrypted' if password is to be changed.
+    If 'password_plaintext' is in config_data, it will be encrypted and updated.
     """
     conn = None
     if not config_data: return False
@@ -3626,29 +3851,52 @@ def update_smtp_config(smtp_config_id: int, config_data: dict) -> bool:
         if config_data.get('is_default'):
             _ensure_single_default_smtp(cursor, exclude_id=smtp_config_id)
         
-        # Ensure password_encrypted is handled if present, otherwise original remains
-        # This assumes if 'password_encrypted' is not in config_data, it's not being updated.
+        update_dict = config_data.copy() # Work on a copy
+
+        if 'password_plaintext' in update_dict:
+            plaintext_password = update_dict.pop('password_plaintext')
+            if plaintext_password: # Encrypt if not empty
+                encrypted_password_for_db = encrypt_password(plaintext_password)
+                if encrypted_password_for_db is None:
+                    print(f"Error: Failed to encrypt SMTP password during update for ID {smtp_config_id}.")
+                    if conn: conn.rollback()
+                    return False
+                update_dict['password_encrypted'] = encrypted_password_for_db
+            else: # If plaintext is empty, store empty encrypted string or specific marker
+                update_dict['password_encrypted'] = ""
+
         valid_columns = [
             'config_name', 'smtp_server', 'smtp_port', 'username', 
             'password_encrypted', 'use_tls', 'is_default', 
-            'sender_email_address', 'sender_display_name'
+            'sender_email_address', 'sender_display_name',
+            'from_display_name_override', 'reply_to_email' # Added new fields
         ]
-        current_config_data = {k: v for k,v in config_data.items() if k in valid_columns}
-        if not current_config_data:
-            conn.rollback() # No valid fields to update
-            return False
 
-        set_clauses = [f"{key} = ?" for key in current_config_data.keys()]
-        params = list(current_config_data.values())
+        # Filter update_dict to only include valid columns for the SET clause
+        fields_to_update = {k: v for k, v in update_dict.items() if k in valid_columns}
+
+        if not fields_to_update:
+            # This might happen if only 'password_plaintext' was provided but was empty,
+            # and no other valid fields were present. Or if config_data was empty initially.
+            # If 'password_plaintext' was empty and resulted in password_encrypted="", this is a valid update.
+            if 'password_encrypted' not in update_dict: # Check if password was explicitly set to empty
+                 conn.rollback() # No actual fields to update
+                 print(f"Warning: No valid fields to update for SMTP config ID {smtp_config_id}.")
+                 return False
+
+
+        set_clauses = [f"{key} = ?" for key in fields_to_update.keys()]
+        params = list(fields_to_update.values())
         params.append(smtp_config_id)
         
         sql = f"UPDATE SmtpConfigs SET {', '.join(set_clauses)} WHERE smtp_config_id = ?"
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"SMTP config ID '{smtp_config_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
         if conn: conn.rollback()
-        print(f"Database error in update_smtp_config: {e}")
+        logger.error(f"Database error in update_smtp_config for ID '{smtp_config_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: 
@@ -3665,9 +3913,10 @@ def delete_smtp_config(smtp_config_id: int) -> bool:
         # For now, direct delete.
         cursor.execute("DELETE FROM SmtpConfigs WHERE smtp_config_id = ?", (smtp_config_id,))
         conn.commit()
+        logger.info(f"SMTP config ID '{smtp_config_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_smtp_config: {e}")
+        logger.error(f"Database error in delete_smtp_config for ID '{smtp_config_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3686,10 +3935,11 @@ def set_default_smtp_config(smtp_config_id: int) -> bool:
         updated_rows = cursor.rowcount
         
         conn.commit()
+        logger.info(f"SMTP config ID '{smtp_config_id}' set as default.")
         return updated_rows > 0
     except sqlite3.Error as e:
         if conn: conn.rollback()
-        print(f"Database error in set_default_smtp_config: {e}")
+        logger.error(f"Database error in set_default_smtp_config for ID '{smtp_config_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: 
@@ -3716,9 +3966,10 @@ def add_scheduled_email(email_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Scheduled email for '{email_data.get('recipient_email')}' added with ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"DB error in add_scheduled_email: {e}")
+        logger.error(f"DB error in add_scheduled_email for '{email_data.get('recipient_email')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3732,7 +3983,7 @@ def get_scheduled_email_by_id(scheduled_email_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"DB error in get_scheduled_email_by_id: {e}")
+        logger.error(f"DB error in get_scheduled_email_by_id for ID '{scheduled_email_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3752,7 +4003,7 @@ def get_pending_scheduled_emails(before_time: str = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_pending_scheduled_emails: {e}")
+        logger.error(f"DB error in get_pending_scheduled_emails (before: {before_time}): {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3766,9 +4017,10 @@ def update_scheduled_email_status(scheduled_email_id: int, status: str, sent_at:
         params = (status, sent_at, error_message, scheduled_email_id)
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Scheduled email ID '{scheduled_email_id}' status updated to '{status}'.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in update_scheduled_email_status: {e}")
+        logger.error(f"DB error in update_scheduled_email_status for ID '{scheduled_email_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3781,9 +4033,10 @@ def delete_scheduled_email(scheduled_email_id: int) -> bool:
         # ON DELETE CASCADE handles EmailReminders
         cursor.execute("DELETE FROM ScheduledEmails WHERE scheduled_email_id = ?", (scheduled_email_id,))
         conn.commit()
+        logger.info(f"Scheduled email ID '{scheduled_email_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in delete_scheduled_email: {e}")
+        logger.error(f"DB error in delete_scheduled_email for ID '{scheduled_email_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3802,9 +4055,10 @@ def add_email_reminder(reminder_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Email reminder added for scheduled_email_id '{reminder_data.get('scheduled_email_id')}', reminder ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"DB error in add_email_reminder: {e}")
+        logger.error(f"DB error in add_email_reminder for scheduled_email_id '{reminder_data.get('scheduled_email_id')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3822,9 +4076,9 @@ def get_pending_reminders(before_time: str = None) -> list[dict]:
         sql += " ORDER BY reminder_send_at ASC"
         cursor.execute(sql, params)
         rows = cursor.fetchall()
-        return [dict(row) for row in rows] # Consider joining with ScheduledEmails for context
+        return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_pending_reminders: {e}")
+        logger.error(f"DB error in get_pending_reminders (before: {before_time}): {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3837,9 +4091,10 @@ def update_reminder_status(reminder_id: int, status: str) -> bool:
         sql = "UPDATE EmailReminders SET status = ? WHERE reminder_id = ?"
         cursor.execute(sql, (status, reminder_id))
         conn.commit()
+        logger.info(f"Email reminder ID '{reminder_id}' status updated to '{status}'.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in update_reminder_status: {e}")
+        logger.error(f"DB error in update_reminder_status for ID '{reminder_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3851,9 +4106,10 @@ def delete_email_reminder(reminder_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM EmailReminders WHERE reminder_id = ?", (reminder_id,))
         conn.commit()
+        logger.info(f"Email reminder ID '{reminder_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in delete_email_reminder: {e}")
+        logger.error(f"DB error in delete_email_reminder for ID '{reminder_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3873,9 +4129,10 @@ def add_contact_list(list_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Contact list '{list_data.get('list_name')}' added with ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"DB error in add_contact_list: {e}")
+        logger.error(f"DB error in add_contact_list for '{list_data.get('list_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3889,7 +4146,7 @@ def get_contact_list_by_id(list_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"DB error in get_contact_list_by_id: {e}")
+        logger.error(f"DB error in get_contact_list_by_id for ID '{list_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3903,7 +4160,7 @@ def get_all_contact_lists() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_all_contact_lists: {e}")
+        logger.error(f"DB error in get_all_contact_lists: {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -3921,9 +4178,10 @@ def update_contact_list(list_id: int, list_data: dict) -> bool:
         sql = f"UPDATE ContactLists SET {', '.join(set_clauses)} WHERE list_id = ?"
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Contact list ID '{list_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in update_contact_list: {e}")
+        logger.error(f"DB error in update_contact_list for ID '{list_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3936,9 +4194,10 @@ def delete_contact_list(list_id: int) -> bool:
         # ON DELETE CASCADE handles ContactListMembers
         cursor.execute("DELETE FROM ContactLists WHERE list_id = ?", (list_id,))
         conn.commit()
+        logger.info(f"Contact list ID '{list_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in delete_contact_list: {e}")
+        logger.error(f"DB error in delete_contact_list for ID '{list_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3951,9 +4210,10 @@ def add_contact_to_list(list_id: int, contact_id: int) -> int | None:
         sql = "INSERT INTO ContactListMembers (list_id, contact_id) VALUES (?, ?)"
         cursor.execute(sql, (list_id, contact_id))
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' added to list ID '{list_id}'. Member ID: {cursor.lastrowid}")
         return cursor.lastrowid
-    except sqlite3.Error as e: # Handles unique constraint violation
-        print(f"DB error in add_contact_to_list: {e}")
+    except sqlite3.Error as e:
+        logger.error(f"DB error adding contact '{contact_id}' to list '{list_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -3966,9 +4226,10 @@ def remove_contact_from_list(list_id: int, contact_id: int) -> bool:
         sql = "DELETE FROM ContactListMembers WHERE list_id = ? AND contact_id = ?"
         cursor.execute(sql, (list_id, contact_id))
         conn.commit()
+        logger.info(f"Contact ID '{contact_id}' removed from list ID '{list_id}'.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in remove_contact_from_list: {e}")
+        logger.error(f"DB error removing contact '{contact_id}' from list '{list_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -3986,7 +4247,7 @@ def get_contacts_in_list(list_id: int) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_contacts_in_list: {e}")
+        logger.error(f"DB error in get_contacts_in_list for list ID '{list_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4016,9 +4277,10 @@ def add_kpi(kpi_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"KPI '{kpi_data.get('name')}' added for project ID '{kpi_data.get('project_id')}', KPI ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_kpi: {e}")
+        logger.error(f"Database error in add_kpi for project '{kpi_data.get('project_id')}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4034,7 +4296,7 @@ def get_kpi_by_id(kpi_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_kpi_by_id: {e}")
+        logger.error(f"Database error in get_kpi_by_id for ID '{kpi_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4050,7 +4312,7 @@ def get_kpis_for_project(project_id: str) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_kpis_for_project: {e}")
+        logger.error(f"Database error in get_kpis_for_project ID '{project_id}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -4084,9 +4346,10 @@ def update_kpi(kpi_id: int, kpi_data: dict) -> bool:
 
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"KPI ID '{kpi_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_kpi: {e}")
+        logger.error(f"Database error in update_kpi for ID '{kpi_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -4100,9 +4363,10 @@ def delete_kpi(kpi_id: int) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM KPIs WHERE kpi_id = ?", (kpi_id,))
         conn.commit()
+        logger.info(f"KPI ID '{kpi_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_kpi: {e}")
+        logger.error(f"Database error in delete_kpi for ID '{kpi_id}': {e}", exc_info=True)
         return False
     finally:
         if conn:
@@ -4118,7 +4382,7 @@ def get_setting(key: str) -> str | None:
         row = cursor.fetchone()
         return row['setting_value'] if row else None
     except sqlite3.Error as e:
-        print(f"DB error in get_setting: {e}")
+        logger.error(f"DB error in get_setting for key '{key}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4132,9 +4396,10 @@ def set_setting(key: str, value: str) -> bool:
         sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
         cursor.execute(sql, (key, value))
         conn.commit()
+        # No logger.info here as this can be called frequently by migration scripts too.
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"DB error in set_setting: {e}")
+        logger.error(f"DB error in set_setting for key '{key}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -4155,9 +4420,11 @@ def add_activity_log(log_data: dict) -> int | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        # Info logging for activity log might be too verbose, consider DEBUG if needed.
+        # logger.info(f"Activity log added: {log_data.get('action_type')}")
         return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"DB error in add_activity_log: {e}")
+        logger.error(f"DB error in add_activity_log for action '{log_data.get('action_type')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4187,7 +4454,7 @@ def get_activity_logs(limit: int = 50, filters: dict = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_activity_logs: {e}")
+        logger.error(f"DB error in get_activity_logs with filters '{filters}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4291,9 +4558,10 @@ def add_cover_page_template(template_data: dict) -> str | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Cover page template '{template_data.get('template_name')}' added with ID: {new_template_id}")
         return new_template_id
     except sqlite3.Error as e:
-        print(f"Database error in add_cover_page_template: {e}")
+        logger.error(f"Database error in add_cover_page_template for '{template_data.get('template_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4311,13 +4579,12 @@ def get_cover_page_template_by_id(template_id: str) -> dict | None:
             if data.get('style_config_json'):
                 try:
                     data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template {template_id}")
-                    # Keep as string or set to default dict? For now, keep as is.
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse style_config_json for template ID {template_id}: {json_e}")
             return data
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_template_by_id: {e}")
+        logger.error(f"Database error in get_cover_page_template_by_id for ID '{template_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4335,12 +4602,12 @@ def get_cover_page_template_by_name(template_name: str) -> dict | None:
             if data.get('style_config_json'):
                 try:
                     data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template {template_name}")
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse style_config_json for template name '{template_name}': {json_e}")
             return data
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_template_by_name: {e}")
+        logger.error(f"Database error in get_cover_page_template_by_name for '{template_name}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4373,12 +4640,12 @@ def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offs
             if data.get('style_config_json'):
                 try:
                     data['style_config_json'] = json.loads(data['style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse style_config_json for template ID {data['template_id']}")
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse style_config_json for template ID {data['template_id']}: {json_e}")
             templates.append(data)
         return templates
     except sqlite3.Error as e:
-        print(f"Database error in get_all_cover_page_templates: {e}")
+        logger.error(f"Database error in get_all_cover_page_templates: {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4421,9 +4688,10 @@ def update_cover_page_template(template_id: str, update_data: dict) -> bool:
 
         cursor.execute(sql, sql_params)
         conn.commit()
+        logger.info(f"Cover page template ID '{template_id}' updated.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_cover_page_template: {e}")
+        logger.error(f"Database error in update_cover_page_template for ID '{template_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -4437,9 +4705,10 @@ def delete_cover_page_template(template_id: str) -> bool:
         # Consider impact on CoverPages using this template (ON DELETE SET NULL)
         cursor.execute("DELETE FROM CoverPageTemplates WHERE template_id = ?", (template_id,))
         conn.commit()
+        logger.info(f"Cover page template ID '{template_id}' deleted.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_cover_page_template: {e}")
+        logger.error(f"Database error in delete_cover_page_template for ID '{template_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -4489,9 +4758,10 @@ def add_cover_page(cover_data: dict) -> str | None:
         )
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Cover page '{cover_data.get('cover_page_name')}' added with ID: {new_cover_id}")
         return new_cover_id
     except sqlite3.Error as e:
-        print(f"Database error in add_cover_page: {e}")
+        logger.error(f"Database error in add_cover_page for '{cover_data.get('cover_page_name')}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4509,12 +4779,12 @@ def get_cover_page_by_id(cover_page_id: str) -> dict | None:
             if data.get('custom_style_config_json'):
                 try:
                     data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse custom_style_config_json for cover page {cover_page_id}")
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse custom_style_config_json for cover page ID {cover_page_id}: {json_e}")
             return data
         return None
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_page_by_id: {e}")
+        logger.error(f"Database error in get_cover_page_by_id for ID '{cover_page_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4530,11 +4800,15 @@ def get_cover_pages_for_client(client_id: str) -> list[dict]:
         cover_pages = []
         for row in rows:
             data = dict(row)
-            # JSON parsing similar to get_cover_page_by_id if needed
+            if data.get('custom_style_config_json'): # Added JSON parsing similar to get_by_id
+                try:
+                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse custom_style_config_json for cover page ID {data['cover_page_id']} in list: {json_e}")
             cover_pages.append(data)
         return cover_pages
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_client: {e}")
+        logger.error(f"Database error in get_cover_pages_for_client ID '{client_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4550,11 +4824,15 @@ def get_cover_pages_for_project(project_id: str) -> list[dict]:
         cover_pages = []
         for row in rows:
             data = dict(row)
-            # JSON parsing similar to get_cover_page_by_id if needed
+            if data.get('custom_style_config_json'): # Added JSON parsing
+                try:
+                    data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse custom_style_config_json for cover page ID {data['cover_page_id']} in list: {json_e}")
             cover_pages.append(data)
         return cover_pages
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_project: {e}")
+        logger.error(f"Database error in get_cover_pages_for_project ID '{project_id}': {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4578,9 +4856,10 @@ def update_cover_page(cover_page_id: str, update_data: dict) -> bool:
         sql = f"UPDATE CoverPages SET {', '.join(set_clauses)} WHERE cover_page_id = ?"
         cursor.execute(sql, params)
         conn.commit()
+        logger.info(f"Cover page ID '{cover_page_id}' updated successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in update_cover_page: {e}")
+        logger.error(f"Database error in update_cover_page for ID '{cover_page_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -4593,9 +4872,10 @@ def delete_cover_page(cover_page_id: str) -> bool:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM CoverPages WHERE cover_page_id = ?", (cover_page_id,))
         conn.commit()
+        logger.info(f"Cover page ID '{cover_page_id}' deleted successfully.")
         return cursor.rowcount > 0
     except sqlite3.Error as e:
-        print(f"Database error in delete_cover_page: {e}")
+        logger.error(f"Database error in delete_cover_page for ID '{cover_page_id}': {e}", exc_info=True)
         return False
     finally:
         if conn: conn.close()
@@ -4618,12 +4898,12 @@ def get_cover_pages_for_user(user_id: str, limit: int = 50, offset: int = 0) -> 
             if data.get('custom_style_config_json'):
                 try:
                     data['custom_style_config_json'] = json.loads(data['custom_style_config_json'])
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse custom_style_config_json for cover page {data['cover_page_id']}")
+                except json.JSONDecodeError as json_e:
+                    logger.warning(f"Could not parse custom_style_config_json for cover page {data['cover_page_id']}: {json_e}")
             cover_pages.append(data)
         return cover_pages
     except sqlite3.Error as e:
-        print(f"Database error in get_cover_pages_for_user: {e}")
+        logger.error(f"Database error in get_cover_pages_for_user ID '{user_id}': {e}", exc_info=True)
         return []
     finally:
         if conn:
@@ -4639,7 +4919,7 @@ def get_all_countries() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_all_countries: {e}")
+        logger.error(f"DB error in get_all_countries: {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4653,7 +4933,7 @@ def get_country_by_id(country_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"DB error in get_country_by_id: {e}")
+        logger.error(f"DB error in get_country_by_id for ID '{country_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4668,7 +4948,7 @@ def get_country_by_name(country_name: str) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_country_by_name: {e}")
+        logger.error(f"Database error in get_country_by_name for '{country_name}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4687,22 +4967,22 @@ def add_country(country_data: dict) -> int | None:
         cursor = conn.cursor()
         country_name = country_data.get('country_name')
         if not country_name:
-            print("Error: 'country_name' is required to add a country.")
+            logger.warning("Error in add_country: 'country_name' is required.")
             return None
 
         try:
             cursor.execute("INSERT INTO Countries (country_name) VALUES (?)", (country_name,))
             conn.commit()
+            logger.info(f"Country '{country_name}' added with ID: {cursor.lastrowid}")
             return cursor.lastrowid
         except sqlite3.IntegrityError:
-            # Country name already exists, fetch its ID
-            print(f"Country '{country_name}' already exists. Fetching its ID.")
+            logger.info(f"Country '{country_name}' already exists. Fetching its ID.")
             cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
             row = cursor.fetchone()
             return row['country_id'] if row else None
 
     except sqlite3.Error as e:
-        print(f"Database error in add_country: {e}")
+        logger.error(f"Database error in add_country for '{country_name}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4723,7 +5003,7 @@ def get_all_cities(country_id: int = None) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"DB error in get_all_cities: {e}")
+        logger.error(f"DB error in get_all_cities (country_id: {country_id}): {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4744,29 +5024,20 @@ def add_city(city_data: dict) -> int | None:
         city_name = city_data.get('city_name')
 
         if not country_id or not city_name:
-            print("Error: 'country_id' and 'city_name' are required to add a city.")
+            logger.warning("Error in add_city: 'country_id' and 'city_name' are required.")
             return None
 
         try:
-            # Check if city already exists for this country to avoid IntegrityError for composite uniqueness if not explicitly handled by schema (though schema doesn't show composite unique constraint for city_name+country_id, it's good practice)
-            # However, the current schema for Cities does not have a UNIQUE constraint on (country_id, city_name).
-            # It only has city_id as PK and country_id as FK.
-            # So, we will just insert. If a stricter uniqueness is needed, the table schema should be updated.
             cursor.execute("INSERT INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
             conn.commit()
+            logger.info(f"City '{city_name}' added for country ID '{country_id}', new city ID: {cursor.lastrowid}")
             return cursor.lastrowid
         except sqlite3.IntegrityError:
-            # This part would be relevant if there was a UNIQUE constraint on (country_id, city_name)
-            # For now, this block might not be hit unless city_name itself becomes unique across all countries (which is not typical)
-            print(f"IntegrityError likely means city '{city_name}' under country_id '{country_id}' already exists or other constraint failed.")
-            # If it were unique and we wanted to return existing:
-            # cursor.execute("SELECT city_id FROM Cities WHERE country_id = ? AND city_name = ?", (country_id, city_name))
-            # row = cursor.fetchone()
-            # return row['city_id'] if row else None
-            return None # For now, any IntegrityError is treated as a failure to add as new.
+            logger.warning(f"IntegrityError for city '{city_name}', country_id '{country_id}'. City may already exist or other constraint failed.")
+            return None
 
     except sqlite3.Error as e:
-        print(f"Database error in add_city: {e}")
+        logger.error(f"Database error in add_city for '{city_name}', country_id '{country_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4782,7 +5053,7 @@ def get_city_by_name_and_country_id(city_name: str, country_id: int) -> dict | N
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"Database error in get_city_by_name_and_country_id: {e}")
+        logger.error(f"Database error in get_city_by_name_and_country_id for city '{city_name}', country '{country_id}': {e}", exc_info=True)
         return None
     finally:
         if conn:
@@ -4797,7 +5068,7 @@ def get_city_by_id(city_id: int) -> dict | None:
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        print(f"DB error in get_city_by_id: {e}")
+        logger.error(f"DB error in get_city_by_id for ID '{city_id}': {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -4831,7 +5102,7 @@ def get_all_templates(template_type_filter: str = None, language_code_filter: st
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_templates: {e}")
+        logger.error(f"Database error in get_all_templates (type: {template_type_filter}, lang: {language_code_filter}): {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4847,10 +5118,9 @@ def get_distinct_languages_for_template_type(template_type: str) -> list[str]:
         cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT language_code FROM Templates WHERE template_type = ? ORDER BY language_code ASC", (template_type,))
         rows = cursor.fetchall()
-        languages = [row['language_code'] for row in rows if row['language_code']] # Ensure not None
+        languages = [row['language_code'] for row in rows if row['language_code']]
     except sqlite3.Error as e:
-        print(f"Database error in get_distinct_languages_for_template_type for type '{template_type}': {e}")
-        # Return empty list on error
+        logger.error(f"Database error in get_distinct_languages_for_template_type for type '{template_type}': {e}", exc_info=True)
     finally:
         if conn:
             conn.close()
@@ -4870,7 +5140,7 @@ def get_all_file_based_templates() -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_all_file_based_templates: {e}")
+        logger.error(f"Database error in get_all_file_based_templates: {e}", exc_info=True)
         return []
     finally:
         if conn: conn.close()
@@ -4885,11 +5155,363 @@ def get_templates_by_category_id(category_id: int) -> list[dict]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
-        print(f"Database error in get_templates_by_category_id: {e}")
+        logger.error(f"Database error in get_templates_by_category_id for category ID '{category_id}': {e}", exc_info=True)
         return []
     finally:
         if conn:
             conn.close()
+
+# --- Email Body Template Specific Functions ---
+
+def add_email_body_template(
+    name: str,
+    template_type: str, # e.g., 'email_body_html', 'email_body_text'
+    language_code: str,
+    base_file_name: str,
+    description: str = None,
+    email_subject_template: str = None,
+    email_variables_info: str = None,
+    created_by_user_id: str = None
+) -> int | None:
+    """
+    Adds an email body template record to the Templates table, associating it
+    with the "Modèles Email" category.
+    Returns the template_id if successful, otherwise None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Get "Modèles Email" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Modèles Email",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Modèles Email' category not found. Cannot add email body template.")
+            return None
+        email_category_id = category_row['category_id']
+
+        template_data = {
+            'template_name': name,
+            'template_type': template_type, # Specific type like 'email_body_html'
+            'description': description,
+            'base_file_name': base_file_name,
+            'language_code': language_code,
+            'is_default_for_type_lang': False, # Email templates are usually not "default" in the same way as docs
+            'category_id': email_category_id,
+            'email_subject_template': email_subject_template,
+            'email_variables_info': email_variables_info, # JSON string or text describing placeholder variables
+            'created_by_user_id': created_by_user_id
+            # 'raw_template_file_data': None, # Not storing file content directly in DB for these
+            # 'version': '1.0' # Optional: could add versioning later
+        }
+        # Call the generic add_template function
+        return add_template(template_data)
+    except sqlite3.Error as e:
+        print(f"Database error in add_email_body_template: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_email_body_templates(language_code: str, template_type_filter: str = None) -> list[dict]:
+    """
+    Retrieves email body templates for a specific language, optionally filtered by template_type.
+    Fetches templates belonging to the "Modèles Email" category.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get "Modèles Email" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Modèles Email",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Modèles Email' category not found. Cannot retrieve email body templates.")
+            return []
+        email_category_id = category_row['category_id']
+
+        sql = """
+            SELECT template_id, template_name, template_type, base_file_name,
+                   language_code, description, email_subject_template, email_variables_info,
+                   created_at, updated_at, created_by_user_id
+            FROM Templates
+            WHERE category_id = ? AND language_code = ?
+        """
+        params = [email_category_id, language_code]
+
+        if template_type_filter:
+            sql += " AND template_type = ?"
+            params.append(template_type_filter)
+
+        sql += " ORDER BY template_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_email_body_templates: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+# --- Utility Document Template Specific Functions ---
+
+def add_utility_document_template(
+    name: str,
+    language_code: str,
+    base_file_name: str,
+    description: str = None,
+    # template_type is derived internally from base_file_name's extension
+    created_by_user_id: str = None
+) -> int | None:
+    """
+    Adds a utility document template record to the Templates table,
+    associating it with the "Documents Utilitaires" category.
+    template_type is derived from base_file_name's extension.
+    Returns the template_id if successful, otherwise None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Get "Documents Utilitaires" category ID
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Documents Utilitaires",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Documents Utilitaires' category not found. Attempting to create.")
+            # Attempt to create it if it's missing (should have been created by initialize_database)
+            util_category_id = add_template_category("Documents Utilitaires", "Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)")
+            if not util_category_id:
+                print("Critical Error: Could not create 'Documents Utilitaires' category.")
+                return None
+        else:
+            util_category_id = category_row['category_id']
+
+        # Determine template_type from file extension
+        file_ext = os.path.splitext(base_file_name)[1].lower()
+        # Example template_types: 'utility_document_pdf', 'utility_document_docx', 'utility_document_xlsx'
+        template_type = f"utility_document_{file_ext.replace('.', '')}" if file_ext else "utility_document_generic"
+
+        template_data = {
+            'template_name': name,
+            'template_type': template_type,
+            'description': description,
+            'base_file_name': base_file_name,
+            'language_code': language_code,
+            'is_default_for_type_lang': False,
+            'category_id': util_category_id,
+            'created_by_user_id': created_by_user_id
+        }
+        return add_template(template_data) # Uses the generic add_template function
+    except sqlite3.Error as e:
+        print(f"Database error in add_utility_document_template: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_utility_documents(language_code: str = None) -> list[dict]:
+    """
+    Retrieves utility documents, optionally filtered by language_code.
+    Fetches templates belonging to the "Documents Utilitaires" category.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", ("Documents Utilitaires",))
+        category_row = cursor.fetchone()
+        if not category_row:
+            print("Error: 'Documents Utilitaires' category not found.")
+            return []
+        util_category_id = category_row['category_id']
+
+        # Build query based on whether language_code is provided
+        sql = "SELECT * FROM Templates WHERE category_id = ?"
+        params = [util_category_id]
+
+        if language_code:
+            sql += " AND language_code = ?"
+            params.append(language_code)
+
+        sql += " ORDER BY template_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    except sqlite3.Error as e:
+        print(f"Database error in get_utility_documents: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+# --- General Document File Operations (for Utility Docs, Email Templates etc.) ---
+
+def save_general_document_file(
+    source_file_path: str,
+    document_type_subfolder: str, # e.g., "email_bodies", "utility_documents"
+    language_code: str,
+    target_base_name: str
+) -> str | None:
+    """
+    Saves a document file to a structured path under the main templates directory.
+    Path: CONFIG["templates_dir"] / document_type_subfolder / language_code / target_base_name
+    Returns the full path of the saved file if successful, None otherwise.
+    """
+    if not all([source_file_path, document_type_subfolder, language_code, target_base_name]):
+        print("Error: Missing one or more required parameters for saving general document file.")
+        return None
+
+    try:
+        templates_base_dir = CONFIG.get("templates_dir", "templates") # Default if not in CONFIG
+        # Ensure language_code is a string, as it's used in path construction
+        if not isinstance(language_code, str):
+            print(f"Warning: language_code '{language_code}' is not a string. Converting.")
+            language_code = str(language_code)
+
+        target_dir = os.path.join(templates_base_dir, document_type_subfolder, language_code)
+
+        os.makedirs(target_dir, exist_ok=True)
+
+        final_target_path = os.path.join(target_dir, target_base_name)
+
+        shutil.copy(source_file_path, final_target_path)
+
+        print(f"Document file saved successfully to: {final_target_path}")
+        return final_target_path
+
+    except FileNotFoundError:
+        print(f"Error: Source file not found at {source_file_path}")
+        return None
+    except Exception as e:
+        print(f"Error saving document file '{target_base_name}' to '{target_dir}': {str(e)}")
+        return None
+
+def delete_general_document_file(
+    document_type_subfolder: str,
+    language_code: str,
+    base_file_name: str
+) -> bool:
+    """
+    Deletes a general document file from the structured path.
+    Returns True if successful or if file was already deleted, False on error.
+    """
+    if not all([document_type_subfolder, language_code, base_file_name]):
+        print("Error: Missing one or more required parameters for deleting general document file.")
+        return False
+
+    try:
+        templates_base_dir = CONFIG.get("templates_dir", "templates")
+        if not isinstance(language_code, str):
+            language_code = str(language_code)
+
+        file_path = os.path.join(templates_base_dir, document_type_subfolder, language_code, base_file_name)
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"Document file deleted successfully: {file_path}")
+            return True
+        else:
+            print(f"Document file not found (already deleted?): {file_path}")
+            return True # Consider True as the desired state (not present) is achieved
+
+    except Exception as e:
+        print(f"Error deleting document file at '{file_path}': {str(e)}")
+        return False
+
+# --- Email Body Template File Operations (Kept for direct use by email template logic if needed) ---
+# Note: save_uploaded_email_template_file can be refactored to use save_general_document_file
+# save_uploaded_email_template_file can be potentially refactored to use save_general_document_file
+# by passing "email_bodies" as document_type_subfolder.
+
+def save_uploaded_email_template_file(
+    uploaded_file_source_path: str,
+    language_code: str,
+    target_base_file_name: str
+) -> str | None:
+    """
+    Saves an email template file to the 'email_bodies' subfolder.
+    Returns the target_base_file_name if successful, None otherwise.
+    """
+    # This now acts as a specific wrapper for save_general_document_file
+    full_path = save_general_document_file(
+        source_file_path=uploaded_file_source_path,
+        document_type_subfolder="email_bodies",
+        language_code=language_code,
+        target_base_name=target_base_file_name
+    )
+    return target_base_file_name if full_path else None
+
+
+def get_email_body_template_content(template_id: int) -> str | None:
+    """
+    Retrieves the content of an email body template file.
+    Handles .html, .txt, and .docx file types based on template_type.
+    """
+    template_info = get_template_by_id(template_id)
+    if not template_info:
+        print(f"Error: Template with ID {template_id} not found.")
+        return None
+
+    base_file_name = template_info.get('base_file_name')
+    language_code = template_info.get('language_code')
+    template_type = template_info.get('template_type') # e.g., 'email_body_html', 'email_body_word'
+
+    if not all([base_file_name, language_code, template_type]):
+        print(f"Error: Template metadata incomplete for ID {template_id} (missing file name, language, or type).")
+        return None
+
+    try:
+        # Construct the path: CONFIG["templates_dir"]/email_bodies/<language_code>/<template_file_name>
+        # Ensure CONFIG is accessible, might need to import app_config or pass templates_dir
+        templates_base_dir = CONFIG.get("templates_dir", "templates") # Default if not in CONFIG
+        file_path = os.path.join(templates_base_dir, "email_bodies", language_code, base_file_name)
+
+        if not os.path.exists(file_path):
+            print(f"Error: Template file not found at {file_path}")
+            return None
+
+        content = ""
+        if template_type in ['email_body_html', 'email_body_text']:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        elif template_type == 'email_body_word':
+            if not base_file_name.endswith('.docx'):
+                print(f"Error: Template type is 'email_body_word' but file extension is not .docx for {base_file_name}")
+                return f"[Error: File {base_file_name} is not a .docx file]"
+            try:
+                with open(file_path, 'rb') as docx_file:
+                    result = mammoth.convert_to_html(docx_file)
+                    content = result.value # The HTML output
+                    # messages = result.messages # Optional: log messages
+                    # if messages:
+                    #     print(f"Mammoth messages for {file_path}: {messages}")
+            except Exception as e_mammoth:
+                print(f"Error converting DOCX to HTML with Mammoth for {file_path}: {e_mammoth}")
+                # Fallback to plain text extraction
+                try:
+                    doc = docx.Document(file_path)
+                    full_text = [para.text for para in doc.paragraphs]
+                    content = "\n\n".join(full_text) # Using double newline for paragraph separation
+                    content = f"[Plain Text Preview (Mammoth failed: {e_mammoth})]\n\n{content}"
+                except Exception as e_docx:
+                    print(f"Error extracting plain text from DOCX {file_path} after Mammoth failed: {e_docx}")
+                    return f"[Error: Could not process Word template file. Mammoth Error: {e_mammoth}, Docx Error: {e_docx}]"
+        else:
+            print(f"Error: Unsupported template_type '{template_type}' for content retrieval.")
+            return f"[Error: Unsupported template type '{template_type}']"
+
+        return content
+
+    except FileNotFoundError:
+        print(f"Error: Template file not found for ID {template_id} at path: {file_path}")
+        return f"[Error: Template file not found at {file_path}]"
+    except Exception as e:
+        print(f"Error reading template content for ID {template_id}: {str(e)}")
+        return f"[Error: Could not read template content: {str(e)}]"
 
 def get_all_products_for_selection_filtered(language_code: str = None, name_pattern: str = None) -> list[dict]:
     """
