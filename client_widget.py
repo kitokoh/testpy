@@ -16,6 +16,7 @@ from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor # Added QFont and
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
+from PyQt5.QtGui import QPixmap
 
 import db as db_manager
 from excel_editor import ExcelEditor
