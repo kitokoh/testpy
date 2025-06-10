@@ -7,7 +7,7 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 import db # For database operations
 import random # For promo text, though might share LoginWindow's list
-from .login_window import LoginWindow # To access PROMOTIONAL_TEXTS
+# from auth.login_window import LoginWindow # To access PROMOTIONAL_TEXTS
 
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
