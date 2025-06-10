@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
                              QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
+                             QGridLayout, QGroupBox, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
                              QTableWidgetItem, QHeaderView, QPushButton)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QUrl, QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtWebChannel import QWebChannel
+from PyQt5.QtWebEngineWidgets import QWebEngineView  # ✅ BON MODULE
 
 import db as db_manager
 import folium
@@ -527,3 +529,4 @@ if __name__ == '__main__':
     main_widget.resize(1200, 700)
     main_widget.show()
     sys.exit(app.exec_())
+

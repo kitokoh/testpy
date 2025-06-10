@@ -1,0 +1,113 @@
+import unittest
+import sqlite3
+import os
+import sys
+
+# Adjust path to import db_manager from parent directory
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import db as db_manager
+
+class TestDBContactsPagination(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.original_db_name = db_manager.DATABASE_NAME
+        cls.test_db_name = "test_pagination_db.sqlite"
+        db_manager.DATABASE_NAME = cls.test_db_name
+
+        # Ensure a clean slate if a previous test run failed
+        if os.path.exists(cls.test_db_name):
+            os.remove(cls.test_db_name)
+
+        db_manager.initialize_database()
+
+    @classmethod
+    def tearDownClass(cls):
+        db_manager.DATABASE_NAME = cls.original_db_name
+        if os.path.exists(cls.test_db_name):
+            os.remove(cls.test_db_name)
+
+    def setUp(self):
+        # The database schema is already initialized in setUpClass.
+        # We need to clear data from tables for each test for isolation.
+        conn = db_manager.get_db_connection() # Uses cls.test_db_name
+        cursor = conn.cursor()
+        # Order of deletion matters if there are foreign key constraints.
+        # Start with tables that are "dependents" or join tables.
+        cursor.execute("DELETE FROM ClientContacts")
+        cursor.execute("DELETE FROM Contacts")
+        cursor.execute("DELETE FROM Clients")
+        # Add other tables if necessary, e.g., Users if created_by_user_id has FK
+        # For now, assuming these are the core tables for these tests.
+        conn.commit()
+        conn.close()
+
+        # Add a test client
+        # Assuming add_client and other db functions use the modified DATABASE_NAME internally
+        self.test_client_id = db_manager.add_client({'client_name': 'Test Client For Pagination', 'project_identifier': 'PAG_TEST'})
+        self.assertIsNotNone(self.test_client_id, "Failed to create test client")
+
+        # Add test contacts
+        self.num_total_contacts = 25
+        self.contact_ids = []
+        # Ensure contacts are added in a predictable order for name-based assertions
+        for i in range(self.num_total_contacts):
+            contact_data = {'name': f'Contact {i:02d}', 'email': f'contact{i:02d}@example.com'}
+            contact_id = db_manager.add_contact(contact_data)
+            self.assertIsNotNone(contact_id, f"Failed to create contact {i}")
+            self.contact_ids.append(contact_id)
+            link_id = db_manager.link_contact_to_client(self.test_client_id, contact_id)
+            self.assertIsNotNone(link_id, f"Failed to link contact {i} to client")
+
+    def tearDown(self):
+        # self.conn.close() # Connection is managed per function call in db_manager or per test in setUp
+        pass
+
+    def test_get_all_contacts_no_limit(self):
+        contacts = db_manager.get_contacts_for_client(self.test_client_id)
+        self.assertEqual(len(contacts), self.num_total_contacts)
+        # Verify names to ensure order (get_contacts_for_client has ORDER BY c.name)
+        retrieved_names = [c['name'] for c in contacts] # Already sorted by SQL
+        expected_names = [f'Contact {i:02d}' for i in range(self.num_total_contacts)]
+        self.assertListEqual(retrieved_names, expected_names)
+
+    def test_get_contacts_with_limit(self):
+        limit = 10
+        contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=limit)
+        self.assertEqual(len(contacts), limit)
+        # Assuming ORDER BY c.name in get_contacts_for_client
+        self.assertEqual(contacts[0]['name'], 'Contact 00')
+        self.assertEqual(contacts[limit-1]['name'], f'Contact {limit-1:02d}')
+
+
+    def test_get_contacts_with_limit_and_offset(self):
+        limit = 10
+        offset = 5
+        contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=limit, offset=offset)
+        self.assertEqual(len(contacts), limit)
+        # Assuming ORDER BY c.name
+        self.assertEqual(contacts[0]['name'], f'Contact {offset:02d}') # First contact of this page
+        self.assertEqual(contacts[limit-1]['name'], f'Contact {offset + limit - 1:02d}') # Last contact of this page
+
+    def test_get_contacts_limit_greater_than_total(self):
+        limit = self.num_total_contacts + 5
+        contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=limit)
+        self.assertEqual(len(contacts), self.num_total_contacts)
+
+    def test_get_contacts_offset_out_of_bounds(self):
+        limit = 10
+        offset = self.num_total_contacts
+        contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=limit, offset=offset)
+        self.assertEqual(len(contacts), 0)
+
+        offset_way_out = self.num_total_contacts + 100
+        contacts_way_out = db_manager.get_contacts_for_client(self.test_client_id, limit=limit, offset=offset_way_out)
+        self.assertEqual(len(contacts_way_out), 0)
+
+    def test_get_contacts_limit_zero(self):
+        contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=0)
+        self.assertEqual(len(contacts), 0)
+
+if __name__ == '__main__':
+    # This allows running the tests directly from this file
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)

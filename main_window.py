@@ -57,6 +57,7 @@ class DocumentManager(QMainWindow):
         self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
         self.main_area_stack.addWidget(self.statistics_dashboard_instance)
 
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main() 
@@ -189,8 +190,10 @@ class DocumentManager(QMainWindow):
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog) # Conceptual: modern gear
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog) # Conceptual: stylized page with corner fold
-        self.status_action = QAction(self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog) # No icon specified, can add one e.g. :/icons/modern/list-check.svg
-        self.exit_action = QAction(self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close) # No icon specified, can add one e.g. :/icons/modern/power.svg
+        self.status_action = QAction(QIcon(":/icons/check-square.svg"), self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog) # No icon specified, can add one e.g. :/icons/modern/list-check.svg
+        self.status_action.setEnabled(False)
+        self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
+        self.exit_action = QAction(QIcon(":/icons/log-out.svg"), self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close) # No icon specified, can add one e.g. :/icons/modern/power.svg
         self.project_management_action = QAction(QIcon(":/icons/modern/dashboard.svg"), self.tr("Gestion de Projet"), self) # Conceptual: modern dashboard/kanban
         self.project_management_action.triggered.connect(self.show_project_management_view)
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self) # Conceptual: clean folder with document symbol
@@ -213,7 +216,7 @@ class DocumentManager(QMainWindow):
         modules_menu.addAction(self.project_management_action)
         modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide"))
-        about_action = QAction(self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
+        about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
 
     def show_project_management_view(self):
@@ -308,6 +311,7 @@ class DocumentManager(QMainWindow):
 
     def add_client_to_list_widget(self, client_dict_data): 
         item = QListWidgetItem(client_dict_data["client_name"])
+        item.setIcon(QIcon(":/icons/user.svg"))
         item.setData(Qt.UserRole, client_dict_data.get("status", "N/A"))
         item.setData(Qt.UserRole + 1, client_dict_data["client_id"]) 
         self.client_list_widget.addItem(item)
@@ -351,13 +355,13 @@ class DocumentManager(QMainWindow):
         if not list_item: return
         client_id_val = list_item.data(Qt.UserRole + 1) 
         menu = QMenu()
-        open_action = menu.addAction(self.tr("Ouvrir Fiche Client")); open_action.triggered.connect(lambda: self.open_client_tab_by_id(client_id_val))
+        open_action = menu.addAction(QIcon(":/icons/eye.svg"), self.tr("Ouvrir Fiche Client")); open_action.triggered.connect(lambda: self.open_client_tab_by_id(client_id_val))
         # Connect context menu actions to SLOTS or directly to logic handlers if appropriate
-        edit_action = menu.addAction(self.tr("Modifier Client")); edit_action.triggered.connect(lambda: self.open_edit_client_dialog_slot(client_id_val))
-        open_folder_action = menu.addAction(self.tr("Ouvrir Dossier Client")); open_folder_action.triggered.connect(lambda: self.open_client_folder_fs(client_id_val))
+        edit_action = menu.addAction(QIcon(":/icons/pencil.svg"), self.tr("Modifier Client")); edit_action.triggered.connect(lambda: self.open_edit_client_dialog_slot(client_id_val))
+        open_folder_action = menu.addAction(QIcon(":/icons/folder.svg"), self.tr("Ouvrir Dossier Client")); open_folder_action.triggered.connect(lambda: self.open_client_folder_fs(client_id_val))
         menu.addSeparator()
-        archive_action = menu.addAction(self.tr("Archiver Client")); archive_action.triggered.connect(lambda: self.set_client_status_archived_slot(client_id_val))
-        delete_action = menu.addAction(self.tr("Supprimer Client")); delete_action.triggered.connect(lambda: self.delete_client_permanently_slot(client_id_val))
+        archive_action = menu.addAction(QIcon(":/icons/briefcase.svg"), self.tr("Archiver Client")); archive_action.triggered.connect(lambda: self.set_client_status_archived_slot(client_id_val))
+        delete_action = menu.addAction(QIcon(":/icons/trash.svg"), self.tr("Supprimer Client")); delete_action.triggered.connect(lambda: self.delete_client_permanently_slot(client_id_val))
         menu.exec_(self.client_list_widget.mapToGlobal(pos))
         
     def open_client_folder_fs(self, client_id_val): 
@@ -397,6 +401,7 @@ class DocumentManager(QMainWindow):
         # 2. Ensure the "Ajouter un Nouveau Client" form is visible/expanded
         if hasattr(self, 'form_group_box') and self.form_group_box:
             self.form_group_box.setChecked(True)
+
             if hasattr(self, 'form_container_widget'):
                  self.form_container_widget.setVisible(True) # Explicitly ensure container is visible
         else:
@@ -407,6 +412,7 @@ class DocumentManager(QMainWindow):
         country_successfully_selected = False
         if hasattr(self, 'country_select_combo') and self.country_select_combo:
             # First attempt to find the country in the existing combo box items
+
             for i in range(self.country_select_combo.count()):
                 if self.country_select_combo.itemText(i).lower() == country_name_str.lower():
                     self.country_select_combo.setCurrentIndex(i)
@@ -453,6 +459,13 @@ class DocumentManager(QMainWindow):
                 except Exception as e:
                     print(f"An exception occurred while trying to add/select country '{country_name_str}': {e}")
                     # QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur inattendue est survenue lors de la gestion du pays."))
+                    found_country = True
+                    break
+            if not found_country:
+                print(f"Warning: Country '{country_name_str}' not found in the country combobox. User may need to add it.")
+                # If editable, we could set the text directly:
+                # self.country_select_combo.lineEdit().setText(country_name_str)
+                # Or, attempt to add it via a non-interactive version of add_new_country_dialog if that were possible.
         else:
             print("Warning: 'country_select_combo' not found in MainWindow. Cannot pre-fill country.")
 
@@ -465,6 +478,7 @@ class DocumentManager(QMainWindow):
                  print(f"Focus set to client name input. Country '{country_name_str}' was not selected in combobox.")
         else:
             print("Warning: 'client_name_input' not found. Cannot set focus.")
+
 
 
 # If main() and other app setup logic is moved to main.py, this file should only contain DocumentManager
