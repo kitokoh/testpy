@@ -168,89 +168,15 @@ def handle_create_client_execution(doc_manager):
         doc_manager.project_id_input_field.clear(); doc_manager.final_price_input.setValue(0)
 
         if ui_map_data: # Ensure ui_map_data is populated
-            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
-            if contact_dialog.exec_() == QDialog.Accepted:
-                contact_form_data = contact_dialog.get_data()
-                try:
-                    existing_contact = db_manager.get_contact_by_email(contact_form_data['email'])
-                    contact_id_to_link = None
-                    if existing_contact:
-                        contact_id_to_link = existing_contact['contact_id']
-                        update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
-                        if update_data: db_manager.update_contact(contact_id_to_link, update_data)
-                    else:
-                        new_contact_id = db_manager.add_contact({
-                            'name': contact_form_data['name'], 'email': contact_form_data['email'],
-                            'phone': contact_form_data['phone'], 'position': contact_form_data['position']
-                        })
-                        if new_contact_id: contact_id_to_link = new_contact_id
-                        else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le nouveau contact global."))
-
-                    if contact_id_to_link:
-                        if contact_form_data['is_primary']:
-                            client_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
-                            if client_contacts:
-                                for cc in client_contacts:
-                                    if cc['is_primary_for_client'] and cc.get('client_contact_id'):
-                                        db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
-                        link_id = db_manager.link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary'])
-                        if not link_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
-                except Exception as e_contact_save:
-                    QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Contact"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
-
-                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=doc_manager)
-                if product_dialog.exec_() == QDialog.Accepted:
-                    products_list_data = product_dialog.get_data()
-                    for product_item_data in products_list_data:
-                        try:
-                            global_product = db_manager.get_product_by_name(product_item_data['name'])
-                            global_product_id = None; current_base_unit_price = None
-                            if global_product:
-                                global_product_id = global_product['product_id']; current_base_unit_price = global_product.get('base_unit_price')
-                            else:
-                                new_global_product_id = db_manager.add_product({
-                                    'product_name': product_item_data['name'], 'description': product_item_data['description'],
-                                    'base_unit_price': product_item_data['unit_price'], 'language_code': product_item_data.get('language_code', 'fr')
-                                })
-                                if new_global_product_id: global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
-                                else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr'))); continue
-
-                            if global_product_id:
-                                unit_price_override_val = product_item_data['unit_price'] if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price else None
-                                link_data = {'client_id': actual_new_client_id, 'project_id': None, 'product_id': global_product_id, 'quantity': product_item_data['quantity'], 'unit_price_override': unit_price_override_val}
-                                cpp_id = db_manager.add_product_to_client_or_project(link_data)
-                                if not cpp_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
-                        except Exception as e_product_save:
-                            QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Produit"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))
-
-                    linked_products = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                    if linked_products is None: linked_products = []
-                    calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
-                    db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum})
-                    ui_map_data['price'] = calculated_total_sum # Update the map for CreateDocumentDialog
-                    if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
-
-                    create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=doc_manager.config, parent=doc_manager)
-                    if create_document_dialog.exec_() == QDialog.Accepted: logging.info("CreateDocumentDialog accepted.")
-                    else: logging.info("CreateDocumentDialog cancelled.")
-                else: # ProductDialog cancelled
-                    logging.info("ProductDialog cancelled.")
-                    if actual_new_client_id and ui_map_data: # Recalculate price
-                        linked_products_on_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                        if linked_products_on_cancel is None: linked_products_on_cancel = []
-                        calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
-                        db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
-                        ui_map_data['price'] = calculated_total_sum_on_cancel
-                        if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
-            else: # ContactDialog cancelled
-                logging.info("ContactDialog cancelled.")
-                if actual_new_client_id and ui_map_data: # Recalculate price
-                    linked_products_on_contact_cancel = db_manager.get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                    if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
-                    calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
-                    db_manager.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
-                    ui_map_data['price'] = calculated_total_sum_on_contact_cancel
-                    if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
+            # ContactDialog, ProductDialog, and CreateDocumentDialog calls removed as per request.
+            # The client's price will remain at its initial value (likely 0)
+            # until products are added manually via the ClientWidget.
+            # actual_new_client_id should be valid here if ui_map_data is True.
+            logging.info(f"Skipping Contact, Product, and CreateDocument dialogs for client ID: {actual_new_client_id}.")
+            # The original logic for price calculation based on dialogs is removed.
+            # Price will be initial_price (e.g. 0) or as set before this block.
+            # If there was any other logic inside this if ui_map_data block that needs to be preserved,
+            # it should have been identified and kept. For now, the assumption is this block was primarily for these dialogs.
         else: # ui_map_data was not populated
              QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Données Client"), doc_manager.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la séquence de dialogue."))
 
