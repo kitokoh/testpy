@@ -868,7 +868,183 @@ def initialize_database():
     # StatusSettings: UNIQUE(status_name, status_type) already indexed. Index on status_type alone might be useful.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_statussettings_type ON StatusSettings(status_type)")
 
-    conn.commit()
+    # --- Seed Data ---
+    try:
+        # 1. Users
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        if cursor.fetchone()[0] == 0:
+            admin_user_id = str(uuid.uuid4())
+            admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
+            cursor.execute("""
+                INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
+            print("Seeded admin user.")
+
+        # 2. Companies
+        default_company_id = None
+        cursor.execute("SELECT COUNT(*) FROM Companies")
+        if cursor.fetchone()[0] == 0:
+            default_company_id = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
+                VALUES (?, ?, ?, ?)
+            """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
+            print("Seeded default company.")
+        else:
+            # If company exists, try to get the default one for personnel and other linking
+            cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
+            row = cursor.fetchone()
+            if row:
+                default_company_id = row[0]
+
+
+        # 3. CompanyPersonnel
+        if default_company_id:
+            cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
+            if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
+                cursor.execute("""
+                    INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
+                print("Seeded default company personnel.")
+
+        # 4. TeamMembers (link to admin user if created)
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+        admin_user_row = cursor.fetchone()
+        if admin_user_row:
+            admin_user_id_for_tm = admin_user_row[0]
+            cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
+                    VALUES (?, ?, ?, ?)
+                """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
+                print("Seeded admin team member.")
+
+        # 5. Countries
+        default_countries = [
+            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
+        ]
+        for country in default_countries:
+            cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
+        print(f"Seeded {len(default_countries)} countries.")
+
+        # 6. Cities
+        default_cities_map = {
+            'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
+        }
+        for country_name, city_name in default_cities_map.items():
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            country_row = cursor.fetchone()
+            if country_row:
+                country_id = country_row[0]
+                cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+        print(f"Seeded {len(default_cities_map)} cities.")
+
+        # 7. Clients
+        cursor.execute("SELECT COUNT(*) FROM Clients")
+        if cursor.fetchone()[0] == 0:
+            # Fetch IDs needed for a sample client
+            admin_user_for_client = get_user_by_username('admin') # Use existing function if available
+            admin_user_id_for_client = admin_user_for_client['user_id'] if admin_user_for_client else None
+
+            default_country_for_client = get_country_by_name('France') # Use existing function
+            default_country_id_for_client = default_country_for_client['country_id'] if default_country_for_client else None
+
+            default_city_for_client = None
+            if default_country_id_for_client:
+                default_city_for_client = get_city_by_name_and_country_id('Paris', default_country_id_for_client)
+            default_city_id_for_client = default_city_for_client['city_id'] if default_city_for_client else None
+
+            active_client_status = get_status_setting_by_name('Actif', 'Client') # Use existing function
+            active_client_status_id = active_client_status['status_id'] if active_client_status else None
+
+            if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
+                client_uuid = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
+                print("Seeded sample client.")
+            else:
+                print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+
+        # 8. Projects
+        cursor.execute("SELECT COUNT(*) FROM Projects")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
+            sample_client_row = cursor.fetchone()
+            if sample_client_row:
+                sample_client_id = sample_client_row[0]
+                planning_project_status = get_status_setting_by_name('Planning', 'Project')
+                planning_project_status_id = planning_project_status['status_id'] if planning_project_status else None
+                admin_user_for_project = get_user_by_username('admin')
+                admin_user_id_for_project = admin_user_for_project['user_id'] if admin_user_for_project else None
+
+                if sample_client_id and planning_project_status_id and admin_user_id_for_project:
+                    project_uuid = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
+                    print("Seeded sample project.")
+                else:
+                    print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
+
+        # 9. Contacts
+        # Add a generic contact
+        cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
+        if cursor.fetchone()[0] == 0:
+             cursor.execute("""
+                INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
+                VALUES (?, ?, ?, ?, ?)
+            """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
+             print("Seeded generic contact.")
+
+        # 10. Products
+        cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
+            print("Seeded default product.")
+
+        # 11. SmtpConfigs
+        cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
+            print("Seeded placeholder SMTP config.")
+
+        # 12. ApplicationSettings
+        set_setting('initial_data_seeded_version', '1') # Uses existing function
+        set_setting('default_app_language', 'en')    # Uses existing function
+        print("Seeded application settings.")
+
+        # 13. CoverPageTemplates (Call the existing population function)
+        # Ensure this is called after CoverPageTemplates table is created and before final commit for initialize_database
+        _populate_default_cover_page_templates() # This function handles its own prints and commits if any internally
+        print("Called _populate_default_cover_page_templates for seeding.")
+
+        conn.commit() # Commit all seeding changes
+        print("Data seeding completed.")
+
+    except sqlite3.Error as e:
+        print(f"An error occurred during data seeding: {e}")
+        if conn:
+            conn.rollback() # Rollback on error
+    finally:
+        # The main initialize_database function will close the connection if it opened it.
+        # If conn was passed, it should be closed by the caller.
+        # Here, we assume conn is local to this seeding block if it were standalone,
+        # but it's part of initialize_database, so no separate close here.
+        pass
+
+    conn.commit() # Final commit for initialize_database itself
     conn.close()
 
 def get_db_connection():
@@ -7271,10 +7447,6 @@ if __name__ == '__main__':
     print("--- Cover Page testing completed and cleaned up. ---")
 
     initialize_database() # Ensure tables are created with new schema
-
-    # --- Populate Default Cover Page Templates ---
-    # This should be called AFTER initialize_database() to ensure tables exist.
-    _populate_default_cover_page_templates()
 
     # Test TeamMembers
     print("\nTesting TeamMembers...")
