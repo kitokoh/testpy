@@ -72,6 +72,7 @@ class DocumentManager(QMainWindow):
                 print("Error: statistics_dashboard_instance does not have 'country_selected_for_new_client' signal.")
         else:
             print("Error: statistics_dashboard_instance not found for signal connection.")
+
         self.create_menus_main() 
 
         # Set initial checked state for the default view action
@@ -130,6 +131,15 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
+
+        # Removed form_group_box and its contents from here.
+        # Add a button to open the AddNewClientDialog
+        self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client"))
+        self.add_new_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")) # Conceptual: person outline with plus
+        self.add_new_client_button.setObjectName("primaryButton")
+        self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog)
+        left_layout.addWidget(self.add_new_client_button)
+
         self.form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")) # Made it self.form_group_box
         form_vbox_layout = QVBoxLayout(self.form_group_box)
 
@@ -197,6 +207,7 @@ class DocumentManager(QMainWindow):
         self.form_group_box.setChecked(False)
         left_layout.addWidget(self.form_group_box)
 
+
         # Removed form_group_box and its contents from here.
         # Add a button to open the AddNewClientDialog
         self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client"))
@@ -239,6 +250,7 @@ class DocumentManager(QMainWindow):
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
 
 
+
         self.statistics_action.setCheckable(True)
         self.statistics_action.triggered.connect(self.show_statistics_view)
 
@@ -277,6 +289,7 @@ class DocumentManager(QMainWindow):
         
     def show_statistics_view(self):
         self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+
 
 
         self.statistics_action.setChecked(True)
