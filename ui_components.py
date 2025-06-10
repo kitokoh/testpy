@@ -10,6 +10,41 @@ import db as db_manager # Used by both classes
 
 # --- UI Components ---
 
+class MyScoreWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("myScoreWidget") # For styling if needed
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5) # Compact margins
+
+        self.title_label = QLabel(self.tr("My Score"))
+        title_font = QFont("Arial", 12, QFont.Bold)
+        self.title_label.setFont(title_font)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_label)
+
+        self.score_label = QLabel("0")
+        score_font = QFont("Arial", 20, QFont.Bold) # Larger font for the score
+        self.score_label.setFont(score_font)
+        self.score_label.setAlignment(Qt.AlignCenter)
+        self.score_label.setObjectName("myScoreValueLabel") # For specific styling
+        layout.addWidget(self.score_label)
+
+        # To make it behave more like the QGroupBoxes in StatisticsWidget,
+        # we can wrap this widget's content in a QGroupBox look-alike or ensure
+        # it has a border through stylesheets if desired, or just add it as is.
+        # For simplicity, adding as is. Can be wrapped in QGroupBox in StatisticsWidget if needed.
+
+    def update_score(self):
+        try:
+            active_clients_count = db_manager.get_active_clients_count()
+            self.score_label.setText(str(active_clients_count))
+        except Exception as e:
+            print(f"Error updating My Score: {e}")
+            self.score_label.setText(self.tr("Error"))
+
+
 class StatisticsWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -38,6 +73,23 @@ class StatisticsWidget(QWidget):
             setattr(self, attr_name, label)
             group_layout.addWidget(label); layout.addWidget(group)
 
+        # Add MyScoreWidget
+        # Option 1: MyScoreWidget is self-contained and added directly
+        # self.my_score_widget = MyScoreWidget()
+        # layout.addWidget(self.my_score_widget)
+
+        # Option 2: Wrap MyScoreWidget in a QGroupBox to match other stats
+        self.my_score_group = QGroupBox(self.tr("My Score")) # Title for the group box
+        self.my_score_group.setObjectName("statisticsGroup") # Use same object name for styling
+        my_score_group_layout = QVBoxLayout(self.my_score_group)
+        self.my_score_widget_internal = MyScoreWidget()
+        # Remove title from MyScoreWidget if GroupBox provides it, or adjust MyScoreWidget
+        # For now, MyScoreWidget has its own title; we can hide group title or MyScoreWidget's title
+        self.my_score_group.setTitle("") # Hide group box title, let MyScoreWidget display its own
+        my_score_group_layout.addWidget(self.my_score_widget_internal)
+        layout.addWidget(self.my_score_group)
+
+
     def update_stats(self):
         try:
             all_clients = db_manager.get_all_clients()
@@ -64,6 +116,12 @@ class StatisticsWidget(QWidget):
             if status_urgent_id is not None:
                 urgent_count = sum(1 for c in all_clients if c.get('status_id') == status_urgent_id)
             self.urgent_label.setText(str(urgent_count))
+
+            # Update MyScoreWidget
+            if hasattr(self, 'my_score_widget_internal'): # Check if it's initialized
+                self.my_score_widget_internal.update_score()
+            elif hasattr(self, 'my_score_widget'): # If using Option 1
+                 self.my_score_widget.update_score()
 
         except Exception as e:
             print(f"Erreur de mise à jour des statistiques: {str(e)}")
