@@ -206,23 +206,357 @@ def initialize_default_templates(config, app_root_dir):
         },
     ]
 
+    # This is the single, definitive assignment for HTML_TEMPLATE_CONTENTS
     HTML_TEMPLATE_CONTENTS = {
-        "technical_specifications_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>', # Content truncated for brevity
-        "contact_page_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        "proforma_invoice_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        "packing_list_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        "sales_contract_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        "warranty_document_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        "cover_page_template.html": '<!DOCTYPE html>\\n<html lang="{{LANGUAGE_CODE}}">...</html>',
-        # Actual full content should be here. For this refactoring step, I'm using placeholders.
-        # The real content is very long and was provided in the previous main.py listing.
-        # NOTE: For the actual implementation, the full HTML content strings from the original main.py must be used here.
-    }
-    # Populate HTML_TEMPLATE_CONTENTS with the actual long strings from main.py
-    # This is a placeholder for the actual content.
-    HTML_TEMPLATE_CONTENTS = {
-    "technical_specifications_template.html": '<!DOCTYPE html>\\n<html lang="fr">\\n<head>\\n    <meta charset="UTF-8">\\n    <title>SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}}</title>\\n    <style>\\n        body {\\n            font-family: "Segoe UI", Arial, sans-serif;\\n            margin: 0;\\n            padding: 0;\\n            background-color: #f4f7fc;\\n            color: #333;\\n            font-size: 10pt;\\n        }\\n        .page {\\n            width: 210mm;\\n            min-height: 297mm;\\n            padding: 20mm;\\n            margin: 10mm auto;\\n            background-color: #fff;\\n            box-shadow: 0 0 15px rgba(0,0,0,0.1);\\n            page-break-after: always;\\n            box-sizing: border-box;\\n        }\\n        .page:last-child {\\n            page-break-after: avoid;\\n        }\\n        .header-container-tech {\\n            display: flex;\\n            justify-content: space-between;\\n            align-items: flex-start;\\n            border-bottom: 2px solid #3498db; /* Technical Blue */\\n            padding-bottom: 15px;\\n            margin-bottom: 25px;\\n        }\\n        .logo-tech {\\n            max-width: 160px;\\n            max-height: 70px;\\n            object-fit: contain;\\n        }\\n        .document-title-tech {\\n            text-align: right;\\n        }\\n        .document-title-tech h1 {\\n            font-size: 20pt;\\n            color: #3498db;\\n            margin: 0 0 5px 0;\\n            font-weight: 600;\\n        }\\n        .document-title-tech p {\\n            font-size: 9pt;\\n            color: #555;\\n            margin: 2px 0;\\n        }\\n        .section-tech {\\n            margin-bottom: 20px;\\n        }\\n        .section-tech h2 {\\n            font-size: 14pt;\\n            color: #2980b9; /* Darker Technical Blue */\\n            border-bottom: 1px solid #aed6f1;\\n            padding-bottom: 6px;\\n            margin-top: 0; /* For first section on a page */\\n            margin-bottom: 15px;\\n            font-weight: 500;\\n        }\\n        .section-tech h3 {\\n            font-size: 12pt;\\n            color: #2c3e50;\\n            margin-top: 15px;\\n            margin-bottom: 8px;\\n            font-weight: 500;\\n        }\\n        .section-tech p, .section-tech ul, .section-tech table {\\n            font-size: 9.5pt;\\n            line-height: 1.6;\\n            margin-bottom: 10px;\\n        }\\n        .section-tech ul {\\n            padding-left: 20px;\\n            list-style-type: disc;\\n        }\\n        .section-tech li {\\n            margin-bottom: 5px;\\n        }\\n        .tech-image-container {\\n            text-align: center;\\n            margin-bottom: 20px;\\n            border: 1px solid #e0e0e0;\\n            padding: 15px;\\n            background-color: #f9f9f9;\\n        }\\n        .tech-image-container img {\\n            max-width: 100%;\\n            max-height: 400px; /* Adjust as needed */\\n            object-fit: contain;\\n            border: 1px solid #ccc;\\n        }\\n        .dimensions-table {\\n            width: 100%;\\n            border-collapse: collapse;\\n        }\\n        .dimensions-table th, .dimensions-table td {\\n            border: 1px solid #bdc3c7; /* Gray borders */\\n            padding: 8px 10px;\\n            text-align: left;\\n        }\\n        .dimensions-table th {\\n            background-color: #ecf0f1; /* Light Gray Blue */\\n            font-weight: 500;\\n        }\\n        .footer-tech {\\n            border-top: 1px solid #3498db;\\n            padding-top: 10px;\\n            margin-top: 30px;\\n            text-align: center;\\n            font-size: 8.5pt;\\n            color: #777;\\n        }\\n        .page-number::before {\\n            content: "Page " counter(page);\\n        }\\n        @page {\\n            counter-increment: page;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <!-- Page 1: Image and Dimensions -->\\n    <div class="page">\\n        <div class="header-container-tech">\\n            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech">\\n            <div class="document-title-tech">\\n                <h1>SPECIFICATIONS TECHNIQUES</h1>\\n                <p>Produit: {{PRODUCT_NAME_TECH_SPEC}}</p>\\n                <p>Référence Projet: {{PROJECT_ID_TECH_SPEC}}</p>\\n                <p>Date: {{DATE_TECH_SPEC}} | Version: {{VERSION_TECH_SPEC}}</p>\\n            </div>\\n        </div>\\n\\n        <div class="section-tech">\\n            <h2>Aperçu Technique et Dimensions</h2>\\n            <div class="tech-image-container">\\n                <img src="{{TECHNICAL_IMAGE_PATH_OR_EMBED}}" alt="Image Technique du Produit">\\n                <p><em>{{TECHNICAL_IMAGE_CAPTION}}</em></p>\\n            </div>\\n            <h3>Dimensions Principales</h3>\\n            <table class="dimensions-table">\\n                <thead>\\n                    <tr>\\n                        <th>Caractéristique</th>\\n                        <th>Valeur</th>\\n                        <th>Unité</th>\\n                        <th>Tolérance</th>\\n                    </tr>\\n                </thead>\\n                <tbody>\\n                    {{DIMENSIONS_TABLE_ROWS_TECH_SPEC}}\\n                </tbody>\\n            </table>\\n        </div>\\n        <div class="footer-tech">\\n            <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel\\n        </div>\\n    </div>\\n\\n    <!-- Page 2: Material Conditions and Performance -->\\n    <div class="page">\\n        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">\\n             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">\\n             <div class="document-title-tech" style="padding-top:10px;">\\n                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>\\n            </div>\\n        </div>\\n        <div class="section-tech">\\n            <h2>Conditions sur les Matériaux</h2>\\n            <p>{{MATERIALS_GENERAL_OVERVIEW_TECH_SPEC}}</p>\\n            {{MATERIALS_CONDITIONS_DETAILED_LIST_TECH_SPEC}}\\n        </div>\\n        <div class="section-tech">\\n            <h2>Performances et Caractéristiques Opérationnelles</h2>\\n            {{PERFORMANCE_SPECS_TECH_SPEC}}\\n        </div>\\n        <div class="footer-tech">\\n             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel\\n        </div>\\n    </div>\\n\\n    <!-- Page 3: Compliance, Environment, Maintenance, Notes -->\\n    <div class="page">\\n        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">\\n             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">\\n             <div class="document-title-tech" style="padding-top:10px;">\\n                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>\\n            </div>\\n        </div>\\n        <div class="section-tech">\\n            <h2>Conformité et Standards</h2>\\n            {{COMPLIANCE_STANDARDS_TECH_SPEC}}\\n        </div>\\n        <div class="section-tech">\\n            <h2>Environnement d\'\'\'Utilisation</h2>\\n            {{OPERATING_ENVIRONMENT_TECH_SPEC}}\\n        </div>\\n        <div class="section-tech">\\n            <h2>Maintenance et Entretien</h2>\\n            {{MAINTENANCE_INFO_TECH_SPEC}}\\n        </div>\\n        <div class="section-tech">\\n            <h2>Notes Complémentaires</h2>\\n            <p>{{NOTES_TECH_SPEC}}</p>\\n        </div>\\n        <div class="footer-tech">\\n             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel\\n        </div>\\n    </div>\\n</body>\\n</html>\\n',
-    "contact_page_template.html": '<!DOCTYPE html>\\n<html lang="fr">\\n<head>\\n    <meta charset="UTF-8">\\n    <title>PAGE DE CONTACTS - Projet {{PROJECT_ID}}</title>\\n    <style>\\n        body {\\n            font-family: "Segoe UI", Arial, sans-serif;\\n            margin: 0;\\n            padding: 0;\\n            background-color: #f4f7fc;\\n            color: #333;\\n            font-size: 10pt;\\n        }\\n        .page {\\n            width: 210mm;\\n            min-height: 297mm;\\n            padding: 20mm;\\n            margin: 10mm auto;\\n            background-color: #fff;\\n            box-shadow: 0 0 15px rgba(0,0,0,0.1);\\n            box-sizing: border-box;\\n        }\\n        .header-container-contact {\\n            display: flex;\\n            justify-content: space-between;\\n            align-items: flex-start;\\n            border-bottom: 2px solid #28a745; /* Green accent */\\n            padding-bottom: 15px;\\n            margin-bottom: 25px;\\n        }\\n        .logo-contact {\\n            max-width: 160px;\\n            max-height: 70px;\\n            object-fit: contain;\\n        }\\n        .document-title-contact {\\n            text-align: right;\\n        }\\n        .document-title-contact h1 {\\n            font-size: 20pt;\\n            color: #28a745;\\n            margin: 0 0 5px 0;\\n            font-weight: 600;\\n        }\\n        .document-title-contact p {\\n            font-size: 9pt;\\n            color: #555;\\n            margin: 2px 0;\\n        }\\n        .intro-contact {\\n            margin-bottom: 20px;\\n            font-size: 11pt;\\n            text-align: center;\\n        }\\n        .contacts-table {\\n            width: 100%;\\n            border-collapse: collapse;\\n            margin-top: 15px;\\n        }\\n        .contacts-table th, .contacts-table td {\\n            border: 1px solid #dee2e6;\\n            padding: 10px 12px;\\n            text-align: left;\\n            font-size: 9.5pt;\\n            vertical-align: top;\\n        }\\n        .contacts-table th {\\n            background-color: #28a745; /* Green accent */\\n            color: #fff;\\n            font-weight: 500;\\n            text-transform: uppercase;\\n        }\\n        .contacts-table tr:nth-child(even) {\\n            background-color: #f8f9fa;\\n        }\\n        .contacts-table td a {\\n            color: #007bff;\\n            text-decoration: none;\\n        }\\n        .contacts-table td a:hover {\\n            text-decoration: underline;\\n        }\\n        .footer-contact {\\n            border-top: 1px solid #28a745;\\n            padding-top: 10px;\\n            margin-top: 30px;\\n            text-align: center;\\n            font-size: 8.5pt;\\n            color: #777;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class="page">\\n        <div class="header-container-contact">\\n            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-contact">\\n            <div class="document-title-contact">\\n                <h1>PAGE DE CONTACTS</h1>\\n                <p>Projet: {{PROJECT_ID}} - {{PROJECT_NAME_CONTACT_PAGE}}</p>\\n                <p>Date d\'\'\'impression: {{DATE_CONTACT_PAGE}}</p>\\n            </div>\\n        </div>\\n\\n        <div class="intro-contact">\\n            <p>Voici la liste des principaux intervenants et contacts pour le projet <strong>{{PROJECT_NAME_CONTACT_PAGE}}</strong>.</p>\\n        </div>\\n\\n        <table class="contacts-table">\\n            <thead>\\n                <tr>\\n                    <th style="width:25%;">Rôle / Organisation</th>\\n                    <th style="width:20%;">Nom du Contact</th>\\n                    <th style="width:20%;">Fonction / Titre</th>\\n                    <th style="width:20%;">Email</th>\\n                    <th style="width:15%;">Téléphone</th>\\n                </tr>\\n            </thead>\\n            <tbody>\\n                {{CONTACTS_TABLE_ROWS_CONTACT_PAGE}}\\n            </tbody>\\n        </table>\\n        \\n        <div class="footer-contact">\\n            <p>{{SELLER_COMPANY_NAME}} - Facilitant la communication pour votre projet.</p>\\n        </div>\\n    </div>\\n</body>\\n</html>\\n',
+        "technical_specifications_template.html": """<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}}</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #333;
+            font-size: 10pt;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 10mm auto;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            page-break-after: always;
+            box-sizing: border-box;
+        }
+        .page:last-child {
+            page-break-after: avoid;
+        }
+        .header-container-tech {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #3498db; /* Technical Blue */
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .logo-tech {
+            max-width: 160px;
+            max-height: 70px;
+            object-fit: contain;
+        }
+        .document-title-tech {
+            text-align: right;
+        }
+        .document-title-tech h1 {
+            font-size: 20pt;
+            color: #3498db;
+            margin: 0 0 5px 0;
+            font-weight: 600;
+        }
+        .document-title-tech p {
+            font-size: 9pt;
+            color: #555;
+            margin: 2px 0;
+        }
+        .section-tech {
+            margin-bottom: 20px;
+        }
+        .section-tech h2 {
+            font-size: 14pt;
+            color: #2980b9; /* Darker Technical Blue */
+            border-bottom: 1px solid #aed6f1;
+            padding-bottom: 6px;
+            margin-top: 0; /* For first section on a page */
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .section-tech h3 {
+            font-size: 12pt;
+            color: #2c3e50;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .section-tech p, .section-tech ul, .section-tech table {
+            font-size: 9.5pt;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .section-tech ul {
+            padding-left: 20px;
+            list-style-type: disc;
+        }
+        .section-tech li {
+            margin-bottom: 5px;
+        }
+        .tech-image-container {
+            text-align: center;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .tech-image-container img {
+            max-width: 100%;
+            max-height: 400px; /* Adjust as needed */
+            object-fit: contain;
+            border: 1px solid #ccc;
+        }
+        .dimensions-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .dimensions-table th, .dimensions-table td {
+            border: 1px solid #bdc3c7; /* Gray borders */
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .dimensions-table th {
+            background-color: #ecf0f1; /* Light Gray Blue */
+            font-weight: 500;
+        }
+        .footer-tech {
+            border-top: 1px solid #3498db;
+            padding-top: 10px;
+            margin-top: 30px;
+            text-align: center;
+            font-size: 8.5pt;
+            color: #777;
+        }
+        .page-number::before {
+            content: "Page " counter(page);
+        }
+        @page {
+            counter-increment: page;
+        }
+    </style>
+</head>
+<body>
+    <!-- Page 1: Image and Dimensions -->
+    <div class="page">
+        <div class="header-container-tech">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech">
+            <div class="document-title-tech">
+                <h1>SPECIFICATIONS TECHNIQUES</h1>
+                <p>Produit: {{PRODUCT_NAME_TECH_SPEC}}</p>
+                <p>Référence Projet: {{PROJECT_ID_TECH_SPEC}}</p>
+                <p>Date: {{DATE_TECH_SPEC}} | Version: {{VERSION_TECH_SPEC}}</p>
+            </div>
+        </div>
+
+        <div class="section-tech">
+            <h2>Aperçu Technique et Dimensions</h2>
+            <div class="tech-image-container">
+                <img src="{{TECHNICAL_IMAGE_PATH_OR_EMBED}}" alt="Image Technique du Produit">
+                <p><em>{{TECHNICAL_IMAGE_CAPTION}}</em></p>
+            </div>
+            <h3>Dimensions Principales</h3>
+            <table class="dimensions-table">
+                <thead>
+                    <tr>
+                        <th>Caractéristique</th>
+                        <th>Valeur</th>
+                        <th>Unité</th>
+                        <th>Tolérance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{DIMENSIONS_TABLE_ROWS_TECH_SPEC}}
+                </tbody>
+            </table>
+        </div>
+        <div class="footer-tech">
+            <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
+        </div>
+    </div>
+
+    <!-- Page 2: Material Conditions and Performance -->
+    <div class="page">
+        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">
+             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">
+             <div class="document-title-tech" style="padding-top:10px;">
+                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>
+            </div>
+        </div>
+        <div class="section-tech">
+            <h2>Conditions sur les Matériaux</h2>
+            <p>{{MATERIALS_GENERAL_OVERVIEW_TECH_SPEC}}</p>
+            {{MATERIALS_CONDITIONS_DETAILED_LIST_TECH_SPEC}}
+        </div>
+        <div class="section-tech">
+            <h2>Performances et Caractéristiques Opérationnelles</h2>
+            {{PERFORMANCE_SPECS_TECH_SPEC}}
+        </div>
+        <div class="footer-tech">
+             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
+        </div>
+    </div>
+
+    <!-- Page 3: Compliance, Environment, Maintenance, Notes -->
+    <div class="page">
+        <div class="header-container-tech" style="border-bottom:none; margin-bottom:5px;">
+             <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-tech" style="max-height:40px;">
+             <div class="document-title-tech" style="padding-top:10px;">
+                <p style="font-size:11pt; color:#3498db; font-weight:500;">SPECIFICATIONS TECHNIQUES - {{PRODUCT_NAME_TECH_SPEC}} (Suite)</p>
+            </div>
+        </div>
+        <div class="section-tech">
+            <h2>Conformité et Standards</h2>
+            {{COMPLIANCE_STANDARDS_TECH_SPEC}}
+        </div>
+        <div class="section-tech">
+            <h2>Environnement d\'Utilisation</h2>
+            {{OPERATING_ENVIRONMENT_TECH_SPEC}}
+        </div>
+        <div class="section-tech">
+            <h2>Maintenance et Entretien</h2>
+            {{MAINTENANCE_INFO_TECH_SPEC}}
+        </div>
+        <div class="section-tech">
+            <h2>Notes Complémentaires</h2>
+            <p>{{NOTES_TECH_SPEC}}</p>
+        </div>
+        <div class="footer-tech">
+             <span class="page-number"></span> | {{SELLER_COMPANY_NAME}} - Confidentiel
+        </div>
+    </div>
+</body>
+</html>
+""",
+    "contact_page_template.html": """<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>PAGE DE CONTACTS - Projet {{PROJECT_ID}}</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7fc;
+            color: #333;
+            font-size: 10pt;
+        }
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 10mm auto;
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+        .header-container-contact {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #28a745; /* Green accent */
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .logo-contact {
+            max-width: 160px;
+            max-height: 70px;
+            object-fit: contain;
+        }
+        .document-title-contact {
+            text-align: right;
+        }
+        .document-title-contact h1 {
+            font-size: 20pt;
+            color: #28a745;
+            margin: 0 0 5px 0;
+            font-weight: 600;
+        }
+        .document-title-contact p {
+            font-size: 9pt;
+            color: #555;
+            margin: 2px 0;
+        }
+        .intro-contact {
+            margin-bottom: 20px;
+            font-size: 11pt;
+            text-align: center;
+        }
+        .contacts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .contacts-table th, .contacts-table td {
+            border: 1px solid #dee2e6;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 9.5pt;
+            vertical-align: top;
+        }
+        .contacts-table th {
+            background-color: #28a745; /* Green accent */
+            color: #fff;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .contacts-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .contacts-table td a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .contacts-table td a:hover {
+            text-decoration: underline;
+        }
+        .footer-contact {
+            border-top: 1px solid #28a745;
+            padding-top: 10px;
+            margin-top: 30px;
+            text-align: center;
+            font-size: 8.5pt;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header-container-contact">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-contact">
+            <div class="document-title-contact">
+                <h1>PAGE DE CONTACTS</h1>
+                <p>Projet: {{PROJECT_ID}} - {{PROJECT_NAME_CONTACT_PAGE}}</p>
+                <p>Date d'impression: {{DATE_CONTACT_PAGE}}</p>
+            </div>
+        </div>
+
+        <div class="intro-contact">
+            <p>Voici la liste des principaux intervenants et contacts pour le projet <strong>{{PROJECT_NAME_CONTACT_PAGE}}</strong>.</p>
+        </div>
+
+        <table class="contacts-table">
+            <thead>
+                <tr>
+                    <th style="width:25%;">Rôle / Organisation</th>
+                    <th style="width:20%;">Nom du Contact</th>
+                    <th style="width:20%;">Fonction / Titre</th>
+                    <th style="width:20%;">Email</th>
+                    <th style="width:15%;">Téléphone</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{CONTACTS_TABLE_ROWS_CONTACT_PAGE}}
+            </tbody>
+        </table>
+
+        <div class="footer-contact">
+            <p>{{SELLER_COMPANY_NAME}} - Facilitant la communication pour votre projet.</p>
+        </div>
+    </div>
+</body>
+</html>
+""",
     "proforma_invoice_template.html": """<!DOCTYPE html>
 <html lang="{{LANGUAGE_CODE}}">
 <head>
@@ -635,54 +969,55 @@ def initialize_default_templates(config, app_root_dir):
 <html lang="{{LANGUAGE_CODE}}">
 <head>
     <meta charset="UTF-8">
-    <title>{{doc.document_title}} - Cover Page</title> <!-- Adjusted placeholder -->
+    <title>{{doc.document_title}} - {{ lang.cover_page_title_suffix }}</title>
     <style>
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f4f8; color: #333; text-align: center; }
-        .cover-container { width: 80%; max-width: 800px; background-color: #fff; padding: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 10px solid #005ea5; }
-        .logo { max-width: 200px; max-height: 100px; margin-bottom: 30px; }
-        h1 { font-size: 2.8em; color: #005ea5; margin-bottom: 15px; text-transform: uppercase; }
-        h2 { font-size: 1.8em; color: #555; margin-bottom: 25px; font-weight: normal; }
-        .meta-info { margin-top: 40px; margin-bottom: 40px; }
-        .meta-info p { font-size: 1.1em; margin: 8px 0; }
-        .meta-info strong { color: #005ea5; }
-        .prepared-for, .prepared-by { margin-top: 30px; }
-        .footer { margin-top: 50px; font-size: 0.9em; color: #777; }
+        body { font-family: 'Roboto', Arial, sans-serif; margin: 0; padding: 20mm; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: calc(100vh - 40mm); background-color: #eef2f7; color: #333; text-align: center; }
+        .cover-container { width: 100%; max-width: 820px; background-color: #fff; padding: 50px 60px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); border-top: 8px solid #3498db; border-radius: 8px; }
+        .logo { max-width: 180px; max-height: 75px; margin-bottom: 35px; object-fit: contain; }
+        h1 { font-size: 2.6em; color: #3498db; margin-bottom: 15px; font-weight: 500; text-transform: uppercase; }
+        h2 { font-size: 1.6em; color: #718096; margin-bottom: 30px; font-weight: 300; }
+        .meta-info { margin-top: 35px; margin-bottom: 35px; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 20px 0; }
+        .meta-info p { font-size: 1em; margin: 10px 0; line-height: 1.6; }
+        .meta-info strong { color: #3498db; font-weight: 500; }
+        .details-section { display: flex; justify-content: space-between; margin-top: 35px; text-align: left; }
+        .details-column { width: 48%; }
+        .details-column h4 { font-size: 1.1em; color: #2d3748; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 500; }
+        .details-column p { font-size: 0.95em; line-height: 1.5; margin-bottom: 6px; }
+        .footer { margin-top: 45px; font-size: 0.85em; color: #a0aec0; }
+        .footer p { margin: 5px 0; }
     </style>
 </head>
 <body>
     <div class="cover-container">
-        <img src="{{seller_company_logo_path}}" alt="Company Logo" class="logo"> <!-- Adjusted placeholder -->
-
-        <h1>{{doc.document_title}}</h1> <!-- Adjusted placeholder -->
+        <img src="{{ seller_company_logo_path }}" alt="{{ lang.cover_logo_alt_text }}" class="logo" />
+        <h1>{{ doc.document_title }}</h1>
         {{#if doc.document_subtitle}}
-        <h2>{{doc.document_subtitle}}</h2> <!-- Adjusted placeholder -->
+        <h2>{{ doc.document_subtitle }}</h2>
         {{/if}}
-
         <div class="meta-info">
-            <p><strong>Client:</strong> {{client_name}} ({{client_company_name}})</p> <!-- Adjusted placeholder -->
-            <p><strong>Project ID:</strong> {{project_id}}</p> <!-- Adjusted placeholder -->
-            <p><strong>Date:</strong> {{date}}</p> <!-- Adjusted placeholder -->
+            <p><strong>{{ lang.cover_client_label }}:</strong> {{ client_name }} {{#if client_company_name}}({{client_company_name}}){{/if}}</p>
+            <p><strong>{{ lang.cover_project_id_label }}:</strong> {{ project_id }}</p>
+            <p><strong>{{ lang.cover_date_label }}:</strong> {{ date }}</p>
             {{#if doc.document_version}}
-            <p><strong>Version:</strong> {{doc.document_version}}</p> <!-- Adjusted placeholder -->
+            <p><strong>{{ lang.cover_version_label }}:</strong> {{ doc.document_version }}</p>
             {{/if}}
         </div>
-
-        <div class="prepared-for">
-            <p><em>Prepared for:</em></p>
-            <p>{{client_name}}</p> <!-- Adjusted placeholder -->
-            <p>{{client_full_address}}</p> <!-- Adjusted placeholder -->
+        <div class="details-section">
+            <div class="details-column">
+                <h4>{{ lang.cover_prepared_for_title }}</h4>
+                <p>{{ client_name }}</p>
+                <p>{{ client_full_address }}</p>
+            </div>
+            <div class="details-column">
+                <h4>{{ lang.cover_prepared_by_title }}</h4>
+                <p><strong>{{ seller_company_name }}</strong></p>
+                <p>{{ seller_full_address }}</p>
+                <p>{{ lang.cover_contact_label }}: {{ seller_company_email }} | {{ seller_company_phone }}</p>
+            </div>
         </div>
-
-        <div class="prepared-by">
-            <p><em>Prepared by:</em></p>
-            <p><strong>{{seller_company_name}}</strong></p> <!-- Adjusted placeholder -->
-            <p>{{seller_full_address}}</p> <!-- Adjusted placeholder -->
-            <p>Contact: {{seller_company_email}} | {{seller_company_phone}}</p> <!-- Adjusted placeholder -->
-        </div>
-
         <div class="footer">
-            <p>This document is confidential and intended solely for the use of the individual or entity to whom it is addressed.</p>
-            <p>&copy; {{current_year}} {{seller_company_name}}</p> <!-- Adjusted placeholder -->
+            <p>{{ lang.cover_footer_confidential }}</p>
+            <p>&copy; {{ current_year }} {{ seller_company_name }}</p>
         </div>
     </div>
 </body>
@@ -709,6 +1044,10 @@ def initialize_default_templates(config, app_root_dir):
             if not os.path.exists(template_file_full_path):
                 try:
                     lang_specific_content = html_content_to_write.replace("{{LANGUAGE_CODE}}", lang_code)
+                    if base_fn == "cover_page_template.html" and lang_code == 'ar':
+                        # Ensure RTL direction for Arabic cover page
+                        lang_specific_content = lang_specific_content.replace('<html lang="ar">', '<html lang="ar" dir="rtl">', 1)
+
                     # Placeholder adjustments for proforma and packing list
                     if base_fn == "proforma_invoice_template.html":
                         lang_specific_content = lang_specific_content.replace(
@@ -731,6 +1070,18 @@ def initialize_default_templates(config, app_root_dir):
                 db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
                 # Determine if this template should be default for its type and language
                 is_default = False # Default to False
+                current_template_type = html_meta['template_type']
+
+                if current_template_type == "HTML_COVER_PAGE":
+                    if lang_code in ['en', 'fr', 'ar', 'tr']:
+                        is_default = True
+                    # else is_default remains False for other languages of cover pages
+                elif current_template_type == "HTML_PACKING_LIST": # This was html_meta['base_file_name'] == "packing_list_template.html"
+                    if lang_code in ['en', 'fr', 'ar', 'tr']:
+                        is_default = True
+                    # else is_default remains False for other languages of packing lists
+                else:
+                    # Existing logic for other templates (e.g., French default for all other HTML types)
                 if html_meta['base_file_name'] == "packing_list_template.html":
                     if lang_code in ['en', 'fr', 'ar', 'tr']:
                         is_default = True

@@ -5854,10 +5854,63 @@ def get_document_context_data(
 
     """
     context = {
-        "doc": {}, "client": {}, "seller": {}, "project": {}, "products": [],
+        "doc": {}, "client": {}, "seller": {}, "project": {}, "products": [], "lang": {}, # Added 'lang' key
         "additional": additional_context if isinstance(additional_context, dict) else {}
     }
     now_dt = datetime.now()
+
+    # --- Cover Page Translations ---
+    cover_page_translations = {
+        'en': {
+            'cover_page_title_suffix': "Cover Page",
+            'cover_logo_alt_text': "Company Logo",
+            'cover_client_label': "Client",
+            'cover_project_id_label': "Project ID",
+            'cover_date_label': "Date",
+            'cover_version_label': "Version",
+            'cover_prepared_for_title': "Prepared for",
+            'cover_prepared_by_title': "Prepared by",
+            'cover_contact_label': "Contact",
+            'cover_footer_confidential': "This document is confidential and intended solely for the use of the individual or entity to whom it is addressed."
+        },
+        'fr': {
+            'cover_page_title_suffix': "Page de Garde",
+            'cover_logo_alt_text': "Logo de l'Entreprise",
+            'cover_client_label': "Client",
+            'cover_project_id_label': "ID Projet",
+            'cover_date_label': "Date",
+            'cover_version_label': "Version",
+            'cover_prepared_for_title': "Préparé pour",
+            'cover_prepared_by_title': "Préparé par",
+            'cover_contact_label': "Contact",
+            'cover_footer_confidential': "Ce document est confidentiel et destiné uniquement à l'usage de la personne ou de l'entité à qui il est adressé."
+        },
+        'ar': {
+            'cover_page_title_suffix': "صفحة الغلاف",
+            'cover_logo_alt_text': "شعار الشركة",
+            'cover_client_label': "العميل",
+            'cover_project_id_label': "معرف المشروع",
+            'cover_date_label': "التاريخ",
+            'cover_version_label': "الإصدار",
+            'cover_prepared_for_title': "أعدت لـ",
+            'cover_prepared_by_title': "أعدها",
+            'cover_contact_label': "الاتصال",
+            'cover_footer_confidential': "هذا المستند سري ومخصص فقط لاستخدام الفرد أو الكيان الموجه إليه."
+        },
+        'tr': {
+            'cover_page_title_suffix': "Kapak Sayfası",
+            'cover_logo_alt_text': "Şirket Logosu",
+            'cover_client_label': "Müşteri",
+            'cover_project_id_label': "Proje ID",
+            'cover_date_label': "Tarih",
+            'cover_version_label': "Sürüm",
+            'cover_prepared_for_title': "Hazırlayan",
+            'cover_prepared_by_title': "Hazırlanan", # Note: Turkish might structure this differently, "Kim için hazırlandı" / "Kim tarafından hazırlandı"
+            'cover_contact_label': "İletişim",
+            'cover_footer_confidential': "Bu belge gizlidir ve yalnızca muhatabı olan kişi veya kuruluşun kullanımı içindir."
+        }
+    }
+    context['lang'] = cover_page_translations.get(target_language_code, cover_page_translations.get('en', {}))
 
     # Initialize common document fields
     context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
