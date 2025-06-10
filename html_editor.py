@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtWebChannel import QWebChannel
 
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication, pyqtSlot, QObject, pyqtSignal, QFileInfo
+from PyQt5.QtCore import QUrl, QStandardPaths, Qt, QCoreApplication, pyqtSlot, QObject, pyqtSignal, QFileInfo, QTimer
 import db as db_manager
 from db import get_document_context_data, get_default_company
 from html_to_pdf_util import render_html_template, convert_html_to_pdf
@@ -47,6 +47,7 @@ class HtmlEditor(QDialog):
         self.web_view = None
         self.bridge = None
         self.channel = None
+        self.tinymce_init_timer = None
 
         default_company_obj = get_default_company()
         self.default_company_id = default_company_obj['company_id'] if default_company_obj else None
@@ -72,6 +73,11 @@ class HtmlEditor(QDialog):
         self._setup_ui()
         if self.bridge:
             self.bridge.tinymceInitialized.connect(self._load_file_content_into_tinymce)
+
+        # Timer for TinyMCE initialization
+        self.tinymce_init_timer = QTimer(self)
+        self.tinymce_init_timer.setSingleShot(True)
+        self.tinymce_init_timer.timeout.connect(self._handle_tinymce_init_timeout)
 
     def _setup_ui(self):
         self.setWindowTitle(self.tr("HTML Editor (TinyMCE) - {0}").format(os.path.basename(self.file_path) if self.file_path else "New Document"))
@@ -134,10 +140,14 @@ class HtmlEditor(QDialog):
     def _on_web_view_load_finished(self, success):
         if success:
             print("WebEngineView (loader) finished loading.")
+            # Start timer to check if TinyMCE initializes
+            self.tinymce_init_timer.start(7000) # 7 seconds timeout
         else:
             QMessageBox.critical(self, "Load Error", "Failed to load the TinyMCE loader HTML.")
+            # Consider closing or disabling the editor if the loader itself fails.
 
     def _load_file_content_into_tinymce(self):
+        self.tinymce_init_timer.stop() # TinyMCE has initialized (or at least JS bridge called us)
         print("Attempting to load content into TinyMCE...")
         content_to_load = ""
         if self.file_path and os.path.exists(self.file_path):  # 8 spaces
@@ -300,6 +310,33 @@ class HtmlEditor(QDialog):
             # Potentially log the context for debugging, carefully avoiding sensitive data in logs
             # print(f"Context was: {str(document_context)[:500]}...")
             return html_template_content # Return original content on error
+
+    def _handle_tinymce_init_timeout(self):
+        if not self.web_view: # Should not happen if timer was started
+            return
+
+        # Check if TinyMCE might have initialized right before timeout (less likely but good practice)
+        # This check is a bit indirect; assumes if JS called onTinymceInitialized, _load_file_content_into_tinymce would have stopped the timer.
+        # If the timer is still running, it means onTinymceInitialized was not called.
+        if self.tinymce_init_timer.isActive(): # Ensure it's genuinely a timeout
+            self.tinymce_init_timer.stop() # Stop it just in case
+
+            error_title = self.tr("TinyMCE Failed to Initialize")
+            error_message = self.tr(
+                "The rich text editor (TinyMCE) could not be loaded. "
+                "This is often due to missing TinyMCE library files. "
+                "Please ensure the TinyMCE library is correctly placed in the "
+                "'html_editor_assets/tinymce' directory. You may need to download "
+                "it from the official TinyMCE website.\n\n"
+                "The editor may not function correctly or will now close."
+            )
+            QMessageBox.critical(self, error_title, error_message)
+            self.web_view.setHtml(f"<h1>{error_title}</h1><p>{error_message}</p>") # Show error in web view
+            # Optionally, disable functions or close
+            self.save_button.setEnabled(False)
+            self.refresh_button.setEnabled(False)
+            self.export_pdf_button.setEnabled(False)
+            # self.reject() # Or, to close the dialog immediately
 
 
 if __name__ == '__main__':
