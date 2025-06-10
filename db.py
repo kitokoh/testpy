@@ -795,6 +795,79 @@ def initialize_database():
     )
     """)
 
+    # Indexes for Clients table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_status_id ON Clients(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_country_id ON Clients(country_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_city_id ON Clients(city_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_project_identifier ON Clients(project_identifier)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_created_by_user_id ON Clients(created_by_user_id)")
+
+    # Indexes for Projects table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_client_id ON Projects(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_status_id ON Projects(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_manager_team_member_id ON Projects(manager_team_member_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_priority ON Projects(priority)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_deadline_date ON Projects(deadline_date)")
+
+    # Indexes for Tasks table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON Tasks(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status_id ON Tasks(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_assignee_team_member_id ON Tasks(assignee_team_member_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_reporter_team_member_id ON Tasks(reporter_team_member_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON Tasks(due_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON Tasks(priority)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON Tasks(parent_task_id)")
+
+    # Indexes for Templates table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_template_type ON Templates(template_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_language_code ON Templates(language_code)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_category_id ON Templates(category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_is_default_for_type_lang ON Templates(is_default_for_type_lang)")
+
+    # Indexes for ClientDocuments table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_client_id ON ClientDocuments(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_document_type_generated ON ClientDocuments(document_type_generated)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_source_template_id ON ClientDocuments(source_template_id)")
+
+    # Indexes for TeamMembers table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_user_id ON TeamMembers(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_is_active ON TeamMembers(is_active)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_department ON TeamMembers(department)")
+
+    # Indexes for Contacts table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contacts_company_name ON Contacts(company_name)")
+
+    # Indexes for ClientContacts table (Associative)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientcontacts_contact_id ON ClientContacts(contact_id)")
+
+    # Indexes for Products table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON Products(category)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_is_active ON Products(is_active)")
+
+    # Indexes for ProductEquivalencies table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productequivalencies_product_id_b ON ProductEquivalencies(product_id_b)")
+
+    # Indexes for ClientProjectProducts table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientprojectproducts_product_id ON ClientProjectProducts(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientprojectproducts_client_project ON ClientProjectProducts(client_id, project_id)")
+
+    # Indexes for ActivityLog table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_activitylog_user_id ON ActivityLog(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_activitylog_created_at ON ActivityLog(created_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_activitylog_action_type ON ActivityLog(action_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_activitylog_related_entity ON ActivityLog(related_entity_type, related_entity_id)")
+
+    # Indexes for ScheduledEmails table
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_scheduledemails_status_time ON ScheduledEmails(status, scheduled_send_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_scheduledemails_related_client_id ON ScheduledEmails(related_client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_scheduledemails_related_project_id ON ScheduledEmails(related_project_id)")
+
+    # StatusSettings: UNIQUE(status_name, status_type) already indexed. Index on status_type alone might be useful.
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_statussettings_type ON StatusSettings(status_type)")
+
     conn.commit()
     conn.close()
 
@@ -3174,32 +3247,36 @@ def get_equivalent_products(product_id: int) -> list[dict]:
     """
     conn = None
     equivalent_product_ids = set()
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         # Find pairs where product_id is product_id_a
         cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
-        rows_a = cursor.fetchall()
-        for row in rows_a:
+        for row in cursor.fetchall():
             equivalent_product_ids.add(row['product_id_b'])
 
         # Find pairs where product_id is product_id_b
         cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
-        rows_b = cursor.fetchall()
-        for row in rows_b:
+        for row in cursor.fetchall():
             equivalent_product_ids.add(row['product_id_a'])
 
-        equivalent_products = []
-        if equivalent_product_ids:
-            # Fetch full details for each equivalent product ID
-            # Using a placeholder for multiple IDs to avoid complex IN clause for now, iterate instead.
-            # For larger sets, an IN clause would be more efficient.
-            for eq_id in equivalent_product_ids:
-                prod_details = get_product_by_id(eq_id) # This function now includes weight and dimensions
-                if prod_details:
-                    equivalent_products.append(prod_details)
-        return equivalent_products
+        # Remove the original product_id itself if it's in the set
+        equivalent_product_ids.discard(product_id)
+
+        equivalent_products_details = []
+        if not equivalent_product_ids:
+            return []
+
+        # Fetch all equivalent products in a single query
+        placeholders = ','.join('?' for _ in equivalent_product_ids)
+        sql = f"SELECT * FROM Products WHERE product_id IN ({placeholders})"
+        cursor.execute(sql, tuple(equivalent_product_ids))
+        rows = cursor.fetchall()
+        equivalent_products_details = [dict(row) for row in rows]
+
+        return equivalent_products_details
 
     except sqlite3.Error as e:
         print(f"Database error in get_equivalent_products: {e}")
@@ -3207,7 +3284,7 @@ def get_equivalent_products(product_id: int) -> list[dict]:
     finally:
         if conn: conn.close()
 
-# CRUD functions for ProductEquivalencies
+# CRUD functions for ProductEquivalencies (This one was duplicated, keeping one instance)
 def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
     """
     Adds a product equivalence pair.
@@ -3259,36 +3336,8 @@ def get_equivalent_products(product_id: int) -> list[dict]:
     Returns a list of product dictionaries (including weight and dimensions).
     """
     conn = None
-    equivalent_product_ids = set()
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Find pairs where product_id is product_id_a
-        cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
-        rows_a = cursor.fetchall()
-        for row in rows_a:
-            equivalent_product_ids.add(row['product_id_b'])
-
-        # Find pairs where product_id is product_id_b
-        cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
-        rows_b = cursor.fetchall()
-        for row in rows_b:
-            equivalent_product_ids.add(row['product_id_a'])
-
-        equivalent_products_details = []
-        if equivalent_product_ids:
-            for eq_id in equivalent_product_ids:
-                prod_details = get_product_by_id(eq_id) # get_product_by_id will be updated to include new fields
-                if prod_details:
-                    equivalent_products_details.append(prod_details)
-        return equivalent_products_details
-
-    except sqlite3.Error as e:
-        print(f"Database error in get_equivalent_products: {e}")
-        return []
-    finally:
-        if conn: conn.close()
+# This SEARCH block is for the duplicated get_equivalent_products, we are removing it.
+# The actual refactored function is above.
 
 # CRUD functions for ProductDimensions
 def add_or_update_product_dimension(product_id: int, dimension_data: dict) -> bool:
@@ -5668,6 +5717,72 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
         return ""
     return f"{symbol}{amount:,.{precision}f}"
 
+def _get_batch_products_and_equivalents(product_ids: list[int], target_language_code: str) -> dict:
+    """
+    Internal helper to fetch product details and their equivalents in batches.
+    Attempts to find equivalents in the target_language_code.
+    """
+    if not product_ids:
+        return {}
+
+    conn = None
+    results = {pid: {'original': None, 'equivalents': []} for pid in product_ids}
+    all_equivalent_ids_to_fetch = set()
+    original_product_details_map = {}
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Fetch details for the primary product_ids
+        placeholders = ','.join('?' for _ in product_ids)
+        sql_originals = f"SELECT * FROM Products WHERE product_id IN ({placeholders})"
+        cursor.execute(sql_originals, tuple(product_ids))
+        for row in cursor.fetchall():
+            original_product_details_map[row['product_id']] = dict(row)
+            results[row['product_id']]['original'] = dict(row)
+
+        # 2. For each original product, find its direct equivalent IDs
+        product_to_equivalent_ids_map = {pid: set() for pid in product_ids}
+        for pid in product_ids:
+            cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (pid,))
+            for eq_row in cursor.fetchall():
+                if eq_row['product_id_b'] != pid: # Ensure not self-referential if somehow data allows
+                    all_equivalent_ids_to_fetch.add(eq_row['product_id_b'])
+                    product_to_equivalent_ids_map[pid].add(eq_row['product_id_b'])
+
+            cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (pid,))
+            for eq_row in cursor.fetchall():
+                if eq_row['product_id_a'] != pid:
+                    all_equivalent_ids_to_fetch.add(eq_row['product_id_a'])
+                    product_to_equivalent_ids_map[pid].add(eq_row['product_id_a'])
+
+        # 3. Fetch details for all unique equivalent IDs found (if any)
+        equivalent_product_details_map = {}
+        if all_equivalent_ids_to_fetch:
+            eq_placeholders = ','.join('?' for _ in all_equivalent_ids_to_fetch)
+            sql_equivalents = f"SELECT * FROM Products WHERE product_id IN ({eq_placeholders})"
+            cursor.execute(sql_equivalents, tuple(all_equivalent_ids_to_fetch))
+            for row in cursor.fetchall():
+                equivalent_product_details_map[row['product_id']] = dict(row)
+
+        # 4. Populate the results with equivalent details
+        for pid, data in results.items():
+            if pid in product_to_equivalent_ids_map:
+                for eq_id in product_to_equivalent_ids_map[pid]:
+                    if eq_id in equivalent_product_details_map:
+                        data['equivalents'].append(equivalent_product_details_map[eq_id])
+
+        return results
+
+    except sqlite3.Error as e:
+        print(f"Database error in _get_batch_products_and_equivalents: {e}")
+        # Return partially fetched results or empty dict on error to avoid breaking caller
+        return results # or {} depending on desired error handling
+    finally:
+        if conn:
+            conn.close()
+
 def get_document_context_data(
     client_id: str,
     company_id: str, # For seller info
@@ -5957,63 +6072,138 @@ def get_document_context_data(
             context["project"]["name"] = project_data.get('project_name')
             # ... (populate rest of project fields) ...
     else:
+        # Fallback if no project_id, ensure client_data is checked before access
         context["project"]["name"] = client_data.get('project_identifier', "N/A") if client_data else "N/A"
 
+    # --- Pre-fetch product data and equivalents ---
+    all_product_ids_in_doc_set = set()
 
-    # --- Enhanced Product Fetching and Language Resolution ---
-    linked_products_query_result = []
-    if linked_product_ids_for_doc: # Fetch specific linked products if IDs are provided
-        conn_temp = get_db_connection()
-        cursor_temp = conn_temp.cursor()
-        for link_id in linked_product_ids_for_doc:
-            cursor_temp.execute("""
-                SELECT cpp.*, p.product_name AS original_product_name, p.description AS original_description,
-                       p.language_code AS original_language_code, p.weight, p.dimensions,
-                       p.base_unit_price, p.unit_of_measure
-                FROM ClientProjectProducts cpp
-                JOIN Products p ON cpp.product_id = p.product_id
-                WHERE cpp.client_project_product_id = ?
-            """, (link_id,))
-            row = cursor_temp.fetchone()
-            if row:
-                linked_products_query_result.append(dict(row))
-        conn_temp.close()
-    else: # Fetch all for client/project
-        linked_products_query_result = get_products_for_client_or_project(client_id, project_id)
-        # get_products_for_client_or_project already joins with Products and fetches its columns.
-        # We need to ensure it fetches original_language_code, original_product_name, original_description
-        # and the new weight/dimensions. The alias for Products table is 'p'.
-        # The previous subtask updated get_products_for_client_or_project to include p.weight, p.dimensions.
-        # It also implicitly included p.language_code, p.product_name, p.description.
+    # Determine which products are relevant for this document context
+    # This could be specific linked products or all products for a client/project
+    linked_products_source_data = []
+    if linked_product_ids_for_doc: # If specific ClientProjectProduct IDs are provided
+        conn_temp_links = get_db_connection()
+        cursor_temp_links = conn_temp_links.cursor()
+        placeholders_links = ','.join('?' for _ in linked_product_ids_for_doc)
+        # Fetch the actual product_id from Products table, and other relevant cpp data
+        cursor_temp_links.execute(f"""
+            SELECT cpp.product_id, cpp.quantity, cpp.unit_price_override, cpp.total_price_calculated,
+                   p.product_name, p.description, p.language_code, p.weight, p.dimensions, p.base_unit_price, p.unit_of_measure
+            FROM ClientProjectProducts cpp
+            JOIN Products p ON cpp.product_id = p.product_id
+            WHERE cpp.client_project_product_id IN ({placeholders_links})
+        """, tuple(linked_product_ids_for_doc))
+        for row in cursor_temp_links.fetchall():
+            linked_products_source_data.append(dict(row))
+            all_product_ids_in_doc_set.add(row['product_id'])
+        conn_temp_links.close()
+    else:
+        # Fallback: fetch all products linked to the client (and optionally project if specified)
+        # This is the original behavior if no specific linked_product_ids_for_doc are given.
+        linked_products_source_data = get_products_for_client_or_project(client_id, project_id)
+        if linked_products_source_data:
+            for prod_data in linked_products_source_data:
+                all_product_ids_in_doc_set.add(prod_data['product_id'])
 
+    packing_list_item_product_ids = set()
+    if 'packing_details' in context["additional"] and 'items' in context["additional"]['packing_details']:
+        for item_detail in context["additional"]['packing_details']['items']:
+            if item_detail.get('product_id'):
+                packing_list_item_product_ids.add(item_detail['product_id'])
+
+    all_unique_product_ids_to_fetch = list(all_product_ids_in_doc_set.union(packing_list_item_product_ids))
+
+    batched_product_data_map = {}
+    if all_unique_product_ids_to_fetch:
+        batched_product_data_map = _get_batch_products_and_equivalents(all_unique_product_ids_to_fetch, target_language_code)
+
+    # --- Packing List Specific Fields from additional_context (remains mostly the same) ---
+    packing_details_from_context = context["additional"].get('packing_details', {})
+    context["doc"]["notify_party_name"] = packing_details_from_context.get('notify_party_name', 'N/A')
+    context["doc"]["notify_party_address"] = packing_details_from_context.get('notify_party_address', 'N/A')
+    # ... (other packing_details fields)
+
+    # --- Process Products (Standard or Packing List) using batched data ---
     products_table_html_rows = ""
     subtotal_amount_calculated = 0.0
     item_counter = 0
+    context["products"] = [] # Clear before populating
 
-    for linked_prod_data in linked_products_query_result:
+    if 'packing_details' in context["additional"] and 'items' in context["additional"]['packing_details']:
+        # This is a Packing List
+        packing_list_items_html_accumulator = ""
+        for item_idx, item_detail in enumerate(context["additional"]['packing_details']['items']):
+            product_name_for_item = item_detail.get('product_name_override', '')
+            product_description_for_item = '' # Typically specific for packing list items
+            is_item_lang_match = True
+            item_original_lang_code_if_known = 'N/A'
+            original_item_product_details = None
+
+            item_product_id = item_detail.get('product_id')
+            if item_product_id and item_product_id in batched_product_data_map:
+                product_batch_info = batched_product_data_map[item_product_id]
+                original_item_product_details = product_batch_info.get('original')
+                if original_item_product_details:
+                    item_original_lang_code_if_known = original_item_product_details.get('language_code', 'N/A')
+                    if not product_name_for_item: # If no override, use fetched name
+                        product_name_for_item = original_item_product_details.get('product_name', 'N/A')
+                        is_item_lang_match = (item_original_lang_code_if_known == target_language_code)
+                        if not is_item_lang_match:
+                            for eq_item_prod in product_batch_info.get('equivalents', []):
+                                if eq_item_prod.get('language_code') == target_language_code:
+                                    product_name_for_item = eq_item_prod.get('product_name')
+                                    product_description_for_item = eq_item_prod.get('description', '')
+                                    is_item_lang_match = True
+                                    break
+            if not product_name_for_item: product_name_for_item = "N/A"
+
+            desc_for_packing_list = product_name_for_item
+            if item_detail.get('quantity_description'):
+                desc_for_packing_list += f" ({item_detail.get('quantity_description')})"
+            if not is_item_lang_match and item_product_id and original_item_product_details:
+                 desc_for_packing_list += f" <em style='font-size:8pt; color:red;'>(lang: {original_item_product_details.get('language_code', '?')})</em>"
+
+            packing_list_items_html_accumulator += f"""<tr>
+                <td>{item_detail.get('marks_nos', '')}</td>
+                <td>{desc_for_packing_list}</td>
+                <td class="number">{item_detail.get('num_packages', '')}</td>
+                <td>{item_detail.get('package_type', '')}</td>
+                <td class="number">{item_detail.get('net_weight_kg_item', '')}</td>
+                <td class="number">{item_detail.get('gross_weight_kg_item', '')}</td>
+                <td>{item_detail.get('dimensions_cm_item', '')}</td>
+            </tr>"""
+        context['doc']['packing_list_items'] = packing_list_items_html_accumulator if packing_list_items_html_accumulator else "<tr><td colspan='7'>Aucun détail d'article de colisage fourni.</td></tr>"
+
+    # Standard product processing (for proforma, invoice, etc.)
+    # This uses linked_products_source_data which was fetched based on linked_product_ids_for_doc or client/project
+    for linked_prod_data in linked_products_source_data: # This is now the primary loop for product details
         item_counter += 1
-        original_product_id = linked_prod_data['product_id'] # This is the ID of the product in its original language
-        original_lang_code = linked_prod_data.get('language_code') # Language of the product in Products table for this link
+        original_product_id = linked_prod_data['product_id']
 
-        product_name_for_doc = linked_prod_data.get('product_name') # Default to original
-        product_description_for_doc = linked_prod_data.get('product_description') # Default to original
+        product_batch_info = batched_product_data_map.get(original_product_id)
+        original_details = product_batch_info['original'] if product_batch_info and product_batch_info['original'] else linked_prod_data
+        # Fallback to linked_prod_data if batch somehow missed it, though it shouldn't happen if all_product_ids_in_doc_set was comprehensive
+
+        if not original_details:
+            print(f"Warning: Original product details not found for ID {original_product_id} from linked_products_source_data. Skipping.")
+            continue
+
+        original_lang_code = original_details.get('language_code')
+        product_name_for_doc = original_details.get('product_name')
+        product_description_for_doc = original_details.get('description')
         is_language_match = (original_lang_code == target_language_code)
 
-        if not is_language_match:
-            equivalents = get_equivalent_products(original_product_id)
+        if not is_language_match and product_batch_info: # Check equivalents only if batch info exists
             found_equivalent_in_target_lang = False
-            for eq_prod in equivalents:
+            for eq_prod in product_batch_info.get('equivalents', []):
                 if eq_prod.get('language_code') == target_language_code:
                     product_name_for_doc = eq_prod.get('product_name')
                     product_description_for_doc = eq_prod.get('description')
-                    is_language_match = True # Now it's a match because we found an equivalent
+                    is_language_match = True
                     found_equivalent_in_target_lang = True
                     break
             if not found_equivalent_in_target_lang:
-                # No equivalent found in target language, is_language_match remains False.
-                # product_name_for_doc and product_description_for_doc retain original language values.
-                print(f"Warning: No equivalent found for product ID {original_product_id} in target language {target_language_code}.")
-
+                 print(f"Warning: No equivalent found for product ID {original_product_id} in target language {target_language_code} (using batch data).")
 
         quantity = linked_prod_data.get('quantity', 1)
         unit_price_override = linked_prod_data.get('unit_price_override')
