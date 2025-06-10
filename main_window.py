@@ -148,8 +148,16 @@ class DocumentManager(QMainWindow):
         price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
         price_info_label.setObjectName("priceInfoLabel")
         creation_form_layout.addRow("", price_info_label)
+
+        # Hide price input, its info label, and its row label as per request
+        self.final_price_input.setVisible(False)
+        price_info_label.setVisible(False)
+        final_price_label_widget = creation_form_layout.labelForField(self.final_price_input)
+        if final_price_label_widget:
+            final_price_label_widget.setVisible(False)
         
         self.language_select_combo = QComboBox()
+        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
         self.language_select_combo.addItems([
             self.tr("English only (en)"), self.tr("French only (fr)"),
             self.tr("Arabic only (ar)"), self.tr("Turkish only (tr)"),
