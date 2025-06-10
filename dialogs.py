@@ -2379,7 +2379,7 @@ class ClientDocumentNoteDialog(QDialog):
         form_layout.addRow(self.tr("Code Langue:"), self.language_code_combo)
 
         self.note_content_edit = QTextEdit()
-        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici..."))
+        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici. Chaque ligne sera affichée comme un élément d'une liste numérotée."))
         self.note_content_edit.setMinimumHeight(100)
         form_layout.addRow(self.tr("Contenu de la Note:"), self.note_content_edit)
 
