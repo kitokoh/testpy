@@ -823,6 +823,113 @@ def add_client(client_data: dict) -> str | None:
         if conn:
             conn.close()
 
+
+def get_client_segmentation_by_city() -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT
+                co.country_name,
+                ci.city_name,
+                COUNT(cl.client_id) as client_count
+            FROM Clients cl
+            JOIN Cities ci ON cl.city_id = ci.city_id
+            JOIN Countries co ON ci.country_id = co.country_id
+            GROUP BY co.country_name, ci.city_name
+            HAVING COUNT(cl.client_id) > 0
+            ORDER BY co.country_name, client_count DESC, ci.city_name
+        """
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_segmentation_by_city: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_client_segmentation_by_status() -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT
+                ss.status_name,
+                COUNT(cl.client_id) as client_count
+            FROM Clients cl
+            JOIN StatusSettings ss ON cl.status_id = ss.status_id
+            GROUP BY ss.status_name
+            HAVING COUNT(cl.client_id) > 0
+            ORDER BY client_count DESC, ss.status_name
+        """
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_segmentation_by_status: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_client_segmentation_by_category() -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Assumes Clients.category is a simple text field.
+        # If category were an ID linking to another table, the query would need a JOIN.
+        sql = """
+            SELECT
+                cl.category,
+                COUNT(cl.client_id) as client_count
+            FROM Clients cl
+            WHERE cl.category IS NOT NULL AND cl.category != ''
+            GROUP BY cl.category
+            HAVING COUNT(cl.client_id) > 0
+            ORDER BY client_count DESC, cl.category
+        """
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_segmentation_by_category: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_client_counts_by_country() -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # This query assumes Clients table has country_id and Countries table has country_id and country_name
+        sql = """
+            SELECT
+                co.country_name,
+                COUNT(cl.client_id) as client_count
+            FROM Clients cl
+            JOIN Countries co ON cl.country_id = co.country_id
+            GROUP BY co.country_name
+            HAVING COUNT(cl.client_id) > 0
+            ORDER BY client_count DESC
+        """
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_counts_by_country: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def get_client_by_id(client_id: str) -> dict | None:
     """Retrieves a client by their ID. Returns a dict or None if not found."""
     conn = None
@@ -6584,3 +6691,74 @@ if __name__ == '__main__':
 
 
     print("--- Finished testing get_default_company ---")
+
+
+def get_total_clients_count() -> int:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(client_id) as total_count FROM Clients")
+        row = cursor.fetchone()
+        return row['total_count'] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_total_clients_count: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+def get_total_projects_count() -> int:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(project_id) as total_count FROM Projects")
+        row = cursor.fetchone()
+        return row['total_count'] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_total_projects_count: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+def get_active_projects_count() -> int:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Select projects whose status_id is not in the set of completion or archival statuses,
+        # or projects who have no status_id (considered active by default).
+        sql = """
+            SELECT COUNT(p.project_id) as active_count
+            FROM Projects p
+            LEFT JOIN StatusSettings ss ON p.status_id = ss.status_id
+            WHERE (ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE) OR p.status_id IS NULL
+        """
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        return row['active_count'] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_active_projects_count: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+def get_total_products_count() -> int:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Counts distinct product_name and language_code pairs as a proxy for unique products
+        # Or, more simply, just count rows in Products table if each row is a distinct product offering
+        cursor.execute("SELECT COUNT(product_id) as total_count FROM Products")
+        row = cursor.fetchone()
+        return row['total_count'] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_total_products_count: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
