@@ -20,12 +20,24 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
 import db as db_manager
 from db import get_all_companies, add_company # Specific imports for company check
+from auth.login_window import LoginWindow # Added for authentication
+from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 
 
 from initial_setup_dialog import InitialSetupDialog # Import the new dialog
-from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
-import db as db_manager # For db initialization
+# import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
+
+import datetime # Added for session timeout
+from PyQt5.QtCore import QSettings # Added for Remember Me
+
+# Global variables for session information
+CURRENT_SESSION_TOKEN = None
+CURRENT_USER_ROLE = None
+CURRENT_USER_ID = None
+SESSION_START_TIME = None
+# Initialize from CONFIG, providing a default if key is missing
+SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
 # Initialize the central database using db_manager.
 # This should be called once, early in the application startup,
@@ -38,11 +50,35 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app_main
     if __name__ != "__main__": # For import scenarios (e.g. testing)
         db_manager._initialized_main_app_main_py = True
 
+def expire_session():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
+    CURRENT_SESSION_TOKEN = None
+    CURRENT_USER_ROLE = None
+    CURRENT_USER_ID = None
+    SESSION_START_TIME = None
+    logging.info("Session expired and token/user info cleared.")
+    # In a real app, this would likely trigger a re-login UI flow.
+
+def check_session_timeout() -> bool:
+    """Checks if the current session has timed out. Returns True if timed out, False otherwise."""
+    global CURRENT_SESSION_TOKEN, SESSION_START_TIME, SESSION_TIMEOUT_SECONDS
+    if CURRENT_SESSION_TOKEN is None or SESSION_START_TIME is None:
+        # No active session or session already marked as expired
+        return False # Not "timed out now", but "no valid session"
+
+    elapsed_time = datetime.datetime.now() - SESSION_START_TIME
+    if elapsed_time.total_seconds() > SESSION_TIMEOUT_SECONDS:
+        logging.info(f"Session timed out. Elapsed: {elapsed_time.total_seconds()}s, Timeout: {SESSION_TIMEOUT_SECONDS}s")
+        expire_session()
+        return True # Session has timed out
+    return False # Session is still valid
 
 def main():
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
+    # Log the configured session timeout value
+    logging.info(f"Session timeout is set to: {SESSION_TIMEOUT_SECONDS // 60} minutes ({SESSION_TIMEOUT_SECONDS} seconds).")
 
     # 2. Initialize Database (already done outside main for direct script execution,
     #    but if main could be called from elsewhere without the above block, ensure it's done)
@@ -59,6 +95,7 @@ def main():
 
     # 5. Set Application Name and Style
     app.setApplicationName("ClientDocManager")
+    app.setOrganizationName("SaadiyaManagement") # Added for QSettings consistency
     app.setStyle("Fusion") # Or any other style like "Windows", "GTK+"
 
     # 6. Set Default Font
@@ -248,15 +285,75 @@ def main():
             # For now, we'll log and let it proceed.
             # QApplication.quit() # Or sys.exit(1) if cancellation is critical
 
-    # 10. Create and Show Main Window
-    # DocumentManager is imported from main_window
-    # APP_ROOT_DIR is imported from app_setup
-    main_window = DocumentManager(APP_ROOT_DIR) 
-    main_window.show()
-    logging.info("Main window shown. Application is running.")
+    # 10. Authentication Flow
+    settings = QSettings()
+    remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+    proceed_to_main_app = False
 
-    # 11. Execute Application
-    sys.exit(app.exec_())
+    if remember_me_active:
+        logging.info("Found active 'Remember Me' flag.")
+        stored_token = settings.value("auth/session_token", None)
+        stored_user_id = settings.value("auth/user_id", None)
+        stored_username = settings.value("auth/username", "Unknown") # Default for logging
+        stored_user_role = settings.value("auth/user_role", None)
+
+        if stored_token and stored_user_id and stored_user_role:
+            logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
+
+            global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME
+            CURRENT_SESSION_TOKEN = stored_token
+            CURRENT_USER_ID = stored_user_id
+            CURRENT_USER_ROLE = stored_user_role
+            SESSION_START_TIME = datetime.datetime.now() # Reset session timer
+
+            logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
+            logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
+            proceed_to_main_app = True
+        else:
+            logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
+            settings.setValue("auth/remember_me_active", False)
+            settings.remove("auth/session_token")
+            settings.remove("auth/user_id")
+            settings.remove("auth/username")
+            settings.remove("auth/user_role")
+    else:
+        logging.info("'Remember Me' is not active.")
+
+    if not proceed_to_main_app:
+        logging.info("Proceeding to show LoginWindow.")
+        login_dialog = LoginWindow()
+        login_result = login_dialog.exec_()
+
+        if login_result == QDialog.Accepted:
+            session_token = login_dialog.get_session_token()
+            logged_in_user = login_dialog.get_current_user()
+
+            # global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME # Already global
+            CURRENT_SESSION_TOKEN = session_token # These are assigned again here for clarity
+            if logged_in_user:
+                CURRENT_USER_ROLE = logged_in_user.get('role')
+                CURRENT_USER_ID = logged_in_user.get('user_id')
+                SESSION_START_TIME = datetime.datetime.now()
+                logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+            else: # Should not happen if dialog.accept() is called correctly
+                logging.error("Login reported successful by dialog, but no user data retrieved. Exiting.")
+                sys.exit(1)
+            proceed_to_main_app = True # Mark to proceed
+        else:
+            logging.info("Login failed or cancelled by user. Exiting application.")
+            sys.exit()
+
+    if proceed_to_main_app:
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+        sys.exit(app.exec_())
+    else:
+        # This path should ideally not be reached if logic is correct,
+        # as either proceed_to_main_app is true or sys.exit() was called.
+        logging.error("Fatal error in authentication flow. Application cannot start.")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
