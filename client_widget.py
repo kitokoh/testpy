@@ -421,9 +421,27 @@ class ClientWidget(QWidget):
 
                 self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
 
-                content_preview = note.get("note_content", "")
-                if len(content_preview) > 70: content_preview = content_preview[:67] + "..."
-                self.document_notes_table.setItem(row_idx, 2, QTableWidgetItem(content_preview))
+                # --- New HTML list for note content ---
+                note_content = note.get("note_content", "")
+                lines = [line.strip() for line in note_content.split('\n') if line.strip()]
+
+                html_content = ""
+                if lines:
+                    html_content = "<ol style='margin:0px; padding-left: 15px;'>" # Adjust padding as needed
+                    for line in lines:
+                        # Basic HTML escaping for safety, can be more robust if needed
+                        escaped_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        html_content += f"<li>{escaped_line}</li>"
+                    html_content += "</ol>"
+                else:
+                    html_content = f"<p style='margin:0px; font-style:italic;'>{self.tr('Aucune note.')}</p>"
+
+                note_label = QLabel()
+                note_label.setText(html_content)
+                note_label.setWordWrap(True)
+                # note_label.setStyleSheet("background-color: #f0f0f0;") # Optional: for debugging layout
+                self.document_notes_table.setCellWidget(row_idx, 2, note_label)
+                # --- End new HTML list ---
 
                 active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
                 active_item = QTableWidgetItem(active_text)
