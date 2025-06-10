@@ -401,15 +401,14 @@ class ClientWidget(QWidget):
         # Product Selector ComboBox
         self.dim_product_selector_combo = QComboBox()
         self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
-        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # This connection will be done later
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Connection will be done after this block
         prod_dims_layout.addWidget(self.dim_product_selector_combo)
 
-        # Removed self.client_dimensions_form_group and its contents.
         # Add new "Edit Client Product Dimensions" button
         self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
-        self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Example icon
+        self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
         self.edit_client_product_dimensions_button.setEnabled(False) # Initially disabled
-        # Connection will be done after this block
+
         prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
 
         prod_dims_layout.addStretch() # Push elements to the top
@@ -431,6 +430,7 @@ class ClientWidget(QWidget):
         # Connect signals for the Product Dimensions Tab
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+
         # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
 
         self.populate_doc_table(); self.load_contacts(); self.load_products()

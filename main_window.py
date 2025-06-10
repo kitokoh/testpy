@@ -130,6 +130,14 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
+        # Removed form_group_box and its contents from here.
+        # Add a button to open the AddNewClientDialog
+        self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client"))
+        self.add_new_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")) # Conceptual: person outline with plus
+        self.add_new_client_button.setObjectName("primaryButton")
+        self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog)
+        left_layout.addWidget(self.add_new_client_button)
+
         self.form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")) # Made it self.form_group_box
         form_vbox_layout = QVBoxLayout(self.form_group_box)
 
