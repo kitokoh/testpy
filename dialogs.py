@@ -2548,8 +2548,11 @@ class ManageProductMasterDialog(QDialog):
                 lang_idx = self.language_code_combo.findText(product_data.get('language_code', 'fr'))
                 self.language_code_combo.setCurrentIndex(lang_idx if lang_idx != -1 else 0)
 
-                self.base_unit_price_input.setValue(product_data.get('base_unit_price', 0.0))
-                self.weight_input.setValue(product_data.get('weight', 0.0))
+                base_price_from_db = product_data.get('base_unit_price')
+                self.base_unit_price_input.setValue(float(base_price_from_db) if base_price_from_db is not None else 0.0)
+
+                weight_from_db = product_data.get('weight')
+                self.weight_input.setValue(float(weight_from_db) if weight_from_db is not None else 0.0)
                 self.general_dimensions_input.setText(product_data.get('dimensions', ''))
 
                 self.save_product_button.setText(self.tr("Enregistrer Modifications"))
