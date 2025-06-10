@@ -1,3 +1,6 @@
+
+premiere connexion voila ce quil nous faut actuelemnt fait de sorte que lors que lon demarre cette applicaiton pour la priere fois alors de modal qui demande a ajouter un nouveau client la saffiche dune maniere sypatique et demande a lutilisateur dinser les info concernant son entreprise  puis luis demande  ajouter les vendeur sache que les vendeur eu ill nont pas que des nom il on aussi des numeros detelephone et mail aussi   puis le programme de mande d jouter un techniciens puis invite d ajouter un nouveau client pour commencer  une fois que le gars ajoute les infos de son enresprise un mesage sypatique lui sera affichee si possiblee meme leffet stylistique de feu dartifice puis  le progrmme va lui demande dajouter un premier clent pour demarrer aussi en haut a caute des quatre element de statistique la ajoute un autre pour dire my score que je te laisse la deffinition et limplemetaiton si tu as compris ce que je vien de dire 
+
 preparer les document 
 des beau documents
 envoyer par mail 
