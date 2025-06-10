@@ -67,6 +67,17 @@ def save_config(config_data):
         QMessageBox.warning(None, QCoreApplication.translate("utils.save_config", "Erreur de Configuration"),
                             QCoreApplication.translate("utils.save_config", "Impossible d'enregistrer la configuration: {0}").format(e))
 
+def is_first_launch(app_root_dir, default_templates_dir, default_clients_dir):
+    """Checks if this is the first launch of the application."""
+    config = load_config(app_root_dir, default_templates_dir, default_clients_dir)
+    return not config.get("initial_setup_complete", False)
+
+def mark_initial_setup_complete(app_root_dir, default_templates_dir, default_clients_dir):
+    """Marks that the initial setup has been completed."""
+    config = load_config(app_root_dir, default_templates_dir, default_clients_dir)
+    config["initial_setup_complete"] = True
+    save_config(config)
+
 # --- DOCX Population Logic ---
 def populate_docx_template(docx_path, client_data):
     """

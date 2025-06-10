@@ -62,6 +62,8 @@ def initialize_database():
         company_id TEXT NOT NULL,
         name TEXT NOT NULL,
         role TEXT NOT NULL, -- e.g., "seller", "technical_manager"
+        phone TEXT, -- Added phone
+        email TEXT, -- Added email
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE
     )
@@ -932,6 +934,33 @@ def delete_client(client_id: str) -> bool:
         if conn:
             conn.close()
 
+def get_active_clients_count() -> int:
+    """
+    Retrieves the count of active clients.
+    An active client is one whose status is not marked as 'is_archival_status = TRUE'.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Select clients whose status_id is not in the set of archival statuses,
+        # or clients who have no status_id (considered active by default).
+        sql = """
+            SELECT COUNT(c.client_id) as active_count
+            FROM Clients c
+            LEFT JOIN StatusSettings ss ON c.status_id = ss.status_id
+            WHERE ss.is_archival_status IS NOT TRUE OR c.status_id IS NULL
+        """
+        cursor.execute(sql)
+        row = cursor.fetchone()
+        return row['active_count'] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_active_clients_count: {e}")
+        return 0 # Return 0 in case of error
+    finally:
+        if conn:
+            conn.close()
+
 def add_client_note(client_id: str, note_text: str, user_id: str = None) -> int | None:
     """
     Adds a new note for a client.
@@ -1146,7 +1175,7 @@ def get_default_company() -> dict | None:
             conn.close()
 
 # CRUD functions for CompanyPersonnel
-def add_company_personnel(personnel_data: dict) -> int | None:
+def add_company_personnel(personnel_data: dict) -> int | None: # Keep signature, expect phone/email in dict
     """Inserts new personnel linked to a company. Returns personnel_id."""
     conn = None
     try:
@@ -1154,13 +1183,15 @@ def add_company_personnel(personnel_data: dict) -> int | None:
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
         sql = """
-            INSERT INTO CompanyPersonnel (company_id, name, role, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO CompanyPersonnel (company_id, name, role, phone, email, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
         """
         params = (
             personnel_data.get('company_id'),
             personnel_data.get('name'),
             personnel_data.get('role'),
+            personnel_data.get('phone'), # Get from dict
+            personnel_data.get('email'), # Get from dict
             now
         )
         cursor.execute(sql, params)
@@ -1207,8 +1238,15 @@ def update_company_personnel(personnel_id: int, personnel_data: dict) -> bool:
         # We don't update created_at, but if there was an updated_at for this table:
         # personnel_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
 
-        set_clauses = [f"{key} = ?" for key in personnel_data.keys() if key != 'personnel_id']
-        params = [value for key, value in personnel_data.items() if key != 'personnel_id']
+        # Define valid columns to prevent malicious or accidental updates to PK or FKs if they were in dict
+        valid_update_columns = ['name', 'role', 'phone', 'email']
+
+        set_clauses = []
+        params = []
+        for key, value in personnel_data.items():
+            if key in valid_update_columns:
+                set_clauses.append(f"{key} = ?")
+                params.append(value)
 
         if not set_clauses:
             return False
