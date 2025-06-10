@@ -29,29 +29,33 @@ MAIN_MODULE_COMPILE_PDF_DIALOG = None
 MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
 MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
-MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
+MAIN_MODULE_SEND_EMAIL_DIALOG = None
+MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = None # Added for ClientDocumentNoteDialog
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
            MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
            MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
+           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG, \
+           MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
         # import main as main_module # No longer needed
-        from dialogs import SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog, CreateDocumentDialog, CompilePdfDialog
+        from dialogs import (SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog,
+                             CreateDocumentDialog, CompilePdfDialog, ClientDocumentNoteDialog)
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
         from db import DATABASE_NAME as DB_NAME
-        MAIN_MODULE_CONTACT_DIALOG = ContactDialog # Assign directly
-        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog # Assign directly
+        MAIN_MODULE_CONTACT_DIALOG = ContactDialog
+        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
         MAIN_MODULE_CREATE_DOCUMENT_DIALOG = CreateDocumentDialog
         MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
         MAIN_MODULE_CONFIG = APP_CONFIG
-        MAIN_MODULE_DATABASE_NAME = DB_NAME # Used in load_statuses, save_client_notes
+        MAIN_MODULE_DATABASE_NAME = DB_NAME
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
+        MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
 
 
 class ClientWidget(QWidget):
@@ -62,9 +66,9 @@ class ClientWidget(QWidget):
 
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
-        self.config = MAIN_MODULE_CONFIG # Use the imported config
-        self.app_root_dir = app_root_dir # Store it
-        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
+        self.config = MAIN_MODULE_CONFIG
+        self.app_root_dir = app_root_dir
+        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
         self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
@@ -72,7 +76,8 @@ class ClientWidget(QWidget):
         self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
         self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
         self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
-        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
+        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG
+        self.ClientDocumentNoteDialog = MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG # Added
 
         self.is_editing_client = False
         self.edit_widgets = {}
@@ -277,7 +282,425 @@ class ClientWidget(QWidget):
             self.tab_widget.addTab(notes_content_tab, self.tr("Notes")) # Fallback if "Produits" tab not found
 
         layout.addWidget(self.tab_widget)
+
+        # --- Document Notes Tab ---
+        self.document_notes_tab = QWidget()
+        doc_notes_layout = QVBoxLayout(self.document_notes_tab)
+
+        # Filters Section
+        doc_notes_filters_layout = QHBoxLayout()
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
+        self.doc_notes_type_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
+
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
+        self.doc_notes_lang_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
+        doc_notes_filters_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_filters_layout)
+
+        # Table Section
+        self.document_notes_table = QTableWidget()
+        self.document_notes_table.setColumnCount(5)
+        self.document_notes_table.setHorizontalHeaderLabels([
+            self.tr("Type Document"), self.tr("Langue"),
+            self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
+        ])
+        self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Aperçu Note stretch
+        self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        doc_notes_layout.addWidget(self.document_notes_table)
+
+        # Buttons Section
+        doc_notes_buttons_layout = QHBoxLayout()
+        self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
+        self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new")) # Placeholder icon
+        doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
+
+        self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
+        self.refresh_doc_notes_button.setIcon(QIcon.fromTheme("view-refresh"))
+        doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
+        doc_notes_buttons_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_buttons_layout)
+
+        self.document_notes_tab.setLayout(doc_notes_layout)
+        self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+
+        # Connections for Document Notes Tab
+        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
+
         self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
+        # --- Product Dimensions Tab ---
+        self.product_dimensions_tab = QWidget()
+        prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
+
+        # Product Selector ComboBox
+        self.dim_product_selector_combo = QComboBox()
+        self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # TODO
+        prod_dims_layout.addWidget(self.dim_product_selector_combo)
+
+        # Dimensions Form GroupBox
+        self.client_dimensions_form_group = QGroupBox(self.tr("Détails des Dimensions"))
+        dimensions_form_layout = QFormLayout(self.client_dimensions_form_group)
+        dimensions_form_layout.setSpacing(10)
+
+        self.client_dimension_inputs = {}
+        for i in range(10): # For dim_A to dim_J
+            key = chr(65 + i) # A, B, C...
+            dim_label_text = self.tr(f"Dimension {key}:")
+            dim_input = QLineEdit()
+            dimensions_form_layout.addRow(dim_label_text, dim_input)
+            self.client_dimension_inputs[key] = dim_input
+
+        # Technical Image Section
+        self.client_tech_image_path_input = QLineEdit()
+        self.client_tech_image_path_input.setReadOnly(True)
+        self.client_tech_image_path_input.setPlaceholderText(self.tr("Aucune image sélectionnée"))
+
+        self.client_browse_tech_image_button = QPushButton(self.tr("Parcourir..."))
+        self.client_browse_tech_image_button.setIcon(QIcon.fromTheme("document-open"))
+        # self.client_browse_tech_image_button.clicked.connect(self.on_client_browse_tech_image) # TODO
+
+        image_path_layout = QHBoxLayout()
+        image_path_layout.addWidget(self.client_tech_image_path_input)
+        image_path_layout.addWidget(self.client_browse_tech_image_button)
+        dimensions_form_layout.addRow(self.tr("Chemin Image Technique:"), image_path_layout)
+
+        self.client_tech_image_preview_label = QLabel(self.tr("Aperçu Image Technique"))
+        self.client_tech_image_preview_label.setMinimumSize(200, 150)
+        self.client_tech_image_preview_label.setAlignment(Qt.AlignCenter)
+        self.client_tech_image_preview_label.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
+        dimensions_form_layout.addRow(self.tr("Aperçu:"), self.client_tech_image_preview_label)
+
+        prod_dims_layout.addWidget(self.client_dimensions_form_group)
+
+        # Save Button
+        self.save_client_product_dimensions_button = QPushButton(self.tr("Enregistrer Dimensions"))
+        self.save_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-save", QIcon(":/icons/check.svg")))
+        self.save_client_product_dimensions_button.setObjectName("primaryButton")
+        # self.save_client_product_dimensions_button.clicked.connect(self.on_save_client_product_dimensions) # TODO
+        prod_dims_layout.addWidget(self.save_client_product_dimensions_button)
+        prod_dims_layout.addStretch() # Push elements to the top
+
+        # Initial State
+        self.client_dimensions_form_group.setEnabled(False)
+        self.save_client_product_dimensions_button.setEnabled(False)
+
+        # Add Tab to Tab Widget
+        produits_tab_index = -1
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(i) == self.tr("Notes de Document"): # Insert after "Notes de Document"
+                produits_tab_index = i
+                break
+
+        if produits_tab_index != -1:
+            self.tab_widget.insertTab(produits_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+        else: # Fallback
+            self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+
+        # TODO: Call methods to populate product selector for this tab in ClientWidget constructor or refresh method
+        # self.populate_dim_product_selector()
+        self.load_products_for_dimension_tab() # Initial population of product selector for dimensions tab
+
+        # Connect signals for the new Product Dimensions Tab
+        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+        self.client_browse_tech_image_button.clicked.connect(self.on_client_browse_tech_image)
+        self.save_client_product_dimensions_button.clicked.connect(self.on_save_client_product_dimensions)
+
+
+    def load_products_for_dimension_tab(self):
+        """Populates the product selector combo box in the Product Dimensions tab."""
+        self.dim_product_selector_combo.blockSignals(True)
+        self.dim_product_selector_combo.clear()
+        self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            self.dim_product_selector_combo.blockSignals(False)
+            return
+
+        try:
+            # Fetch products linked to this client (not project-specific for this tab's purpose)
+            # get_products_for_client_or_project returns products with their global product_id in 'product_id'
+            linked_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+
+            if linked_products:
+                unique_products = {prod.get('product_id'): prod for prod in linked_products}.values() # Ensure unique by global product_id
+                for prod_data in sorted(list(unique_products), key=lambda x: x.get('product_name', '')): # Sort by name
+                    product_name = prod_data.get('product_name', 'N/A')
+                    global_product_id = prod_data.get('product_id')
+                    lang_code = prod_data.get('language_code', '')
+                    display_text = f"{product_name} ({lang_code}) - ID: {global_product_id}"
+                    self.dim_product_selector_combo.addItem(display_text, global_product_id)
+        except Exception as e:
+            print(f"Error loading products for dimension tab: {e}")
+            QMessageBox.warning(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les produits pour l'onglet dimensions."))
+
+        self.dim_product_selector_combo.blockSignals(False)
+        self.on_dim_product_selected() # Trigger loading for current selection (or placeholder)
+
+
+    def on_dim_product_selected(self, index=None):
+        """Handles selection change in the product selector for the dimensions tab."""
+        selected_global_product_id = self.dim_product_selector_combo.currentData()
+
+        # Clear all fields first
+        for key_char in self.client_dimension_inputs:
+            self.client_dimension_inputs[key_char].setText("")
+        self.client_tech_image_path_input.setText("")
+        self.client_tech_image_preview_label.setText(self.tr("Aperçu Image Technique"))
+        self.client_tech_image_preview_label.setPixmap(QPixmap()) # Clear pixmap
+
+        if selected_global_product_id is None:
+            self.client_dimensions_form_group.setEnabled(False)
+            self.save_client_product_dimensions_button.setEnabled(False)
+            return
+
+        self.client_dimensions_form_group.setEnabled(True)
+        self.save_client_product_dimensions_button.setEnabled(True)
+
+        try:
+            dimension_data = db_manager.get_product_dimension(selected_global_product_id)
+            if dimension_data:
+                for key_char, input_field in self.client_dimension_inputs.items():
+                    input_field.setText(dimension_data.get(f'dim_{key_char.lower()}', '')) # dim_a, dim_b etc.
+
+                relative_image_path = dimension_data.get('technical_image_path', '')
+                self.client_tech_image_path_input.setText(relative_image_path)
+
+                if relative_image_path and self.app_root_dir:
+                    absolute_image_path = os.path.join(self.app_root_dir, relative_image_path)
+                    if os.path.exists(absolute_image_path):
+                        pixmap = QPixmap(absolute_image_path)
+                        if not pixmap.isNull():
+                            self.client_tech_image_preview_label.setPixmap(
+                                pixmap.scaled(self.client_tech_image_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                            )
+                        else:
+                            self.client_tech_image_preview_label.setText(self.tr("Aperçu non disponible."))
+                    else:
+                        self.client_tech_image_preview_label.setText(self.tr("Image non trouvée."))
+                else:
+                    self.client_tech_image_preview_label.setText(self.tr("Aucune image."))
+            else:
+                # Fields already cleared, message in preview label is fine
+                self.client_tech_image_preview_label.setText(self.tr("Aucune dimension détaillée pour ce produit."))
+        except Exception as e:
+            print(f"Error loading dimensions for product {selected_global_product_id}: {e}")
+            QMessageBox.warning(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les dimensions pour le produit sélectionné."))
+            self.client_dimensions_form_group.setEnabled(False)
+            self.save_client_product_dimensions_button.setEnabled(False)
+
+
+    def on_client_browse_tech_image(self):
+        selected_global_product_id = self.dim_product_selector_combo.currentData()
+        if selected_global_product_id is None:
+            QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"), self.tr("Veuillez d'abord sélectionner un produit."))
+            return
+
+        source_file_path, _ = QFileDialog.getOpenFileName(
+            self, self.tr("Sélectionner Image Technique"), os.path.expanduser("~"),
+            self.tr("Images (*.png *.jpg *.jpeg *.bmp *.gif)")
+        )
+        if not source_file_path:
+            return
+
+        base_images_dir = "product_technical_images"
+        target_product_dir = os.path.join(self.app_root_dir, base_images_dir, str(selected_global_product_id))
+
+        try:
+            os.makedirs(target_product_dir, exist_ok=True)
+            image_filename = os.path.basename(source_file_path)
+            absolute_target_file_path = os.path.join(target_product_dir, image_filename)
+
+            shutil.copy2(source_file_path, absolute_target_file_path)
+
+            relative_image_path = os.path.join(base_images_dir, str(selected_global_product_id), image_filename).replace(os.sep, '/')
+
+            self.client_tech_image_path_input.setText(relative_image_path)
+            # Also update the internal variable that would be used for saving if we follow ProductDimensionUIDialog pattern
+            # self.current_tech_image_path = relative_image_path
+
+            pixmap = QPixmap(absolute_target_file_path)
+            if not pixmap.isNull():
+                self.client_tech_image_preview_label.setPixmap(pixmap.scaled(self.client_tech_image_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            else:
+                self.client_tech_image_preview_label.setText(self.tr("Aperçu non disponible."))
+        except shutil.Error as e_shutil:
+            QMessageBox.critical(self, self.tr("Erreur de Copie"), self.tr("Impossible de copier l'image : {0}").format(str(e_shutil)))
+        except Exception as e_general:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors du traitement de l'image : {0}").format(str(e_general)))
+
+
+    def on_save_client_product_dimensions(self):
+        selected_global_product_id = self.dim_product_selector_combo.currentData()
+        if selected_global_product_id is None:
+            QMessageBox.warning(self, self.tr("Aucun Produit"), self.tr("Aucun produit sélectionné pour enregistrer les dimensions."))
+            return
+
+        dimension_data_dict = {}
+        for key_char, input_field in self.client_dimension_inputs.items():
+            dimension_data_dict[f'dim_{key_char.lower()}'] = input_field.text().strip() # dim_a, dim_b...
+
+        # Important: Ensure the path being saved is the relative path stored in the input field
+        dimension_data_dict['technical_image_path'] = self.client_tech_image_path_input.text().strip()
+
+        try:
+            success = db_manager.add_or_update_product_dimension(selected_global_product_id, dimension_data_dict)
+            if success:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Dimensions du produit enregistrées avec succès."))
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'enregistrer les dimensions du produit. Vérifiez les logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Une erreur est survenue : {0}").format(str(e)))
+
+
+    def load_document_notes_filters(self):
+        """Populates filter combos for the document notes tab."""
+        self.doc_notes_type_filter_combo.blockSignals(True)
+        self.doc_notes_lang_filter_combo.blockSignals(True)
+
+        self.doc_notes_type_filter_combo.clear()
+        self.doc_notes_type_filter_combo.addItem(self.tr("Tous Types"), None) # UserData is None for "All"
+        # Common document types that might have notes
+        doc_types = ["Proforma", "Packing List", "Sales Conditions", "Certificate of Origin", "Bill of Lading", "Other"]
+        for doc_type in doc_types:
+            self.doc_notes_type_filter_combo.addItem(doc_type, doc_type) # Store string value as data
+
+        self.doc_notes_lang_filter_combo.clear()
+        self.doc_notes_lang_filter_combo.addItem(self.tr("Toutes Langues"), None)
+        # Common languages, could be dynamically populated from client's selected_languages or existing notes
+        langs = ["fr", "en", "ar", "tr", "pt"]
+        for lang in langs:
+            self.doc_notes_lang_filter_combo.addItem(lang, lang)
+
+        self.doc_notes_type_filter_combo.blockSignals(False)
+        self.doc_notes_lang_filter_combo.blockSignals(False)
+
+        # Set default selection (e.g., "All")
+        self.doc_notes_type_filter_combo.setCurrentIndex(0)
+        self.doc_notes_lang_filter_combo.setCurrentIndex(0)
+
+
+    def load_document_notes_table(self):
+        """Fetches data from db_manager.get_client_document_notes() and populates table."""
+        self.document_notes_table.setRowCount(0) # Clear table
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            return
+
+        doc_type_filter = self.doc_notes_type_filter_combo.currentData() # This is 'None' for "All"
+        lang_filter = self.doc_notes_lang_filter_combo.currentData()     # This is 'None' for "All"
+
+        try:
+            notes = db_manager.get_client_document_notes(
+                client_id,
+                document_type=doc_type_filter,
+                language_code=lang_filter,
+                is_active=None # Fetch all (active and inactive)
+            )
+            notes = notes if notes else []
+
+            self.document_notes_table.setRowCount(len(notes))
+            for row_idx, note in enumerate(notes):
+                note_id = note.get("note_id")
+
+                type_item = QTableWidgetItem(note.get("document_type"))
+                type_item.setData(Qt.UserRole, note_id) # Store note_id in the first item
+                self.document_notes_table.setItem(row_idx, 0, type_item)
+
+                self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
+
+                content_preview = note.get("note_content", "")
+                if len(content_preview) > 70: content_preview = content_preview[:67] + "..."
+                self.document_notes_table.setItem(row_idx, 2, QTableWidgetItem(content_preview))
+
+                active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
+                active_item = QTableWidgetItem(active_text)
+                active_item.setTextAlignment(Qt.AlignCenter)
+                self.document_notes_table.setItem(row_idx, 3, active_item)
+
+                # Actions column
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(5, 0, 5, 0)
+                actions_layout.setSpacing(5)
+
+                edit_button = QPushButton(QIcon(":/icons/pencil.svg"), "")
+                edit_button.setToolTip(self.tr("Modifier cette note"))
+                edit_button.clicked.connect(lambda checked, n_id=note_id: self.on_edit_document_note_clicked(n_id))
+                actions_layout.addWidget(edit_button)
+
+                delete_button = QPushButton(QIcon(":/icons/trash.svg"), "")
+                delete_button.setToolTip(self.tr("Supprimer cette note"))
+                delete_button.setObjectName("dangerButton")
+                delete_button.clicked.connect(lambda checked, n_id=note_id: self.on_delete_document_note_clicked(n_id))
+                actions_layout.addWidget(delete_button)
+
+                actions_layout.addStretch()
+                self.document_notes_table.setCellWidget(row_idx, 4, actions_widget)
+
+            # Adjust column widths
+            self.document_notes_table.resizeColumnToContents(0) # Type
+            self.document_notes_table.resizeColumnToContents(1) # Language
+            # Column 2 (Preview) is stretched by setSectionResizeMode
+            self.document_notes_table.resizeColumnToContents(3) # Active
+            self.document_notes_table.resizeColumnToContents(4) # Actions
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Notes"), self.tr("Impossible de charger les notes de document:\n{0}").format(str(e)))
+
+
+    def on_add_document_note(self):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = self.ClientDocumentNoteDialog(client_id=client_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_document_notes_table()
+
+
+    def on_edit_document_note_clicked(self, note_id):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        note_data = db_manager.get_client_document_note_by_id(note_id)
+        if note_data:
+            dialog = self.ClientDocumentNoteDialog(client_id=client_id, note_data=note_data, parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_document_notes_table()
+        else:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Note non trouvée (ID: {0}).").format(note_id))
+
+
+    def on_delete_document_note_clicked(self, note_id):
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer cette note (ID: {0})?").format(note_id),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                success = db_manager.delete_client_document_note(note_id)
+                if success:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Note supprimée avec succès."))
+                    self.load_document_notes_table()
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de supprimer la note. Vérifiez les logs."))
+            except Exception as e:
+                 QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de la suppression:\n{0}").format(str(e)))
+
 
     def add_document(self):
         # Define available languages
@@ -792,7 +1215,7 @@ class ClientWidget(QWidget):
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
-        dialog = self.ProductDialog(client_uuid, parent=self)
+        dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
             # ... (logic for adding products remains the same) ...
@@ -801,11 +1224,58 @@ class ClientWidget(QWidget):
     def edit_product(self):
         selected_row = self.products_table.currentRow();
         if selected_row < 0: QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier.")); return
-        # ... (logic for editing product remains the same) ...
+
+        # Fetch existing data to pass to the dialog
+        # Assuming the first column (hidden) stores client_project_product_id
+        # and other columns have display data. We need to fetch full data for the dialog.
+        link_id_item = self.products_table.item(selected_row, 0)
+        if not link_id_item:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du lien produit."))
+            return
+        link_id = link_id_item.data(Qt.UserRole)
+
+        # Construct product_link_data similar to how it might be if fetched fresh
+        # This needs all relevant fields that EditProductLineDialog and its subsequent logic expect.
+        # This is a simplified example; in a real app, you'd fetch this from DB or have it structured.
+        product_link_data = {
+            'client_project_product_id': link_id,
+            'name': self.products_table.item(selected_row, 1).text(),
+            'description': self.products_table.item(selected_row, 2).text(),
+            'weight': self.products_table.item(selected_row, 3).text().replace(' kg', ''), # Assuming format "X kg"
+            'dimensions': self.products_table.item(selected_row, 4).text(),
+            'quantity': float(self.products_table.item(selected_row, 5).text()),
+            'unit_price': float(self.products_table.item(selected_row, 6).text().replace('€', '').strip()),
+            # 'product_id' (global product ID) needs to be fetched if not already in table item data
+            # For now, assuming it might be part of what get_products_for_client_or_project returns
+            # and could be stored in one of the items' UserRole if needed.
+            # Let's assume it's retrieved via link_id if necessary by EditProductLineDialog or its save logic.
+        }
+        # Attempt to retrieve global product_id if stored, e.g. in name_item's UserRole+1 or similar
+        # This part is speculative based on common patterns, adjust if product_id is stored differently
+        name_item_for_global_id = self.products_table.item(selected_row, 1) # Assuming name item might hold it
+        if name_item_for_global_id and name_item_for_global_id.data(Qt.UserRole + 2): # Example: UserRole+2 for global_product_id
+             product_link_data['product_id'] = name_item_for_global_id.data(Qt.UserRole + 2)
+
+
         try:
-            # ... (DB operations) ...
-            self.load_products() # Refresh after successful update
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            dialog = self.EditProductLineDialog(product_link_data, self.app_root_dir, self) # Pass app_root_dir
+            if dialog.exec_() == QDialog.Accepted:
+                updated_line_data = dialog.get_data()
+                if updated_line_data:
+                    update_payload = {
+                        'quantity': updated_line_data.get('quantity'),
+                        'unit_price_override': updated_line_data.get('unit_price')
+                    }
+                    update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
+                    if db_manager.update_client_project_product(link_id, update_payload):
+                        QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour."))
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit."))
+            self.load_products() # Refresh after successful update or error
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            self.load_products() # Ensure table is reloaded even on unexpected error
 
     def remove_product(self):
         selected_row = self.products_table.currentRow();
@@ -825,19 +1295,22 @@ class ClientWidget(QWidget):
             return
 
         try:
-            all_linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
+            all_linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None) # project_id=None to get all for client
             all_linked_products = all_linked_products if all_linked_products else []
 
             selected_lang_code = self.product_lang_filter_combo.currentData()
 
             filtered_products = []
-            if selected_lang_code: # If a specific language is selected (not "All Languages")
+            if selected_lang_code:
                 for prod in all_linked_products:
-                    # Ensure 'language_code' is available from the db_manager call for the product itself
                     if prod.get('language_code') == selected_lang_code:
                         filtered_products.append(prod)
-            else: # "All Languages" selected
+            else:
                 filtered_products = all_linked_products
+
+            # This part populates self.products_table (main products tab)
+            # We also need to call self.load_products_for_dimension_tab() to update its own combo box
+            # if this load_products method is the central point of refresh for product data.
 
             for row_idx, prod_link_data in enumerate(filtered_products):
                 self.products_table.insertRow(row_idx)
@@ -898,7 +1371,10 @@ class ClientWidget(QWidget):
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des produits:\n{0}").format(str(e)))
         finally:
-            self.products_table.blockSignals(False) # Unblock signals
+            self.products_table.blockSignals(False)
+
+            # Refresh the product selector in the "Dimensions Produit (Client)" tab
+            self.load_products_for_dimension_tab()
 
     def handle_product_item_changed(self, item):
         if not item:
