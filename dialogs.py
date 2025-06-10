@@ -111,6 +111,31 @@ class TemplateDialog(QDialog):
 
     def setup_ui(self):
         main_hbox_layout = QHBoxLayout(self); left_vbox_layout = QVBoxLayout(); left_vbox_layout.setSpacing(10)
+
+        # Filter UI Elements
+        filter_layout = QGridLayout()
+        filter_layout.setSpacing(10)
+
+        self.category_filter_label = QLabel(self.tr("Category:"))
+        self.category_filter_combo = QComboBox()
+        filter_layout.addWidget(self.category_filter_label, 0, 0)
+        filter_layout.addWidget(self.category_filter_combo, 0, 1)
+
+        self.language_filter_label = QLabel(self.tr("Language:"))
+        self.language_filter_combo = QComboBox()
+        filter_layout.addWidget(self.language_filter_label, 0, 2)
+        filter_layout.addWidget(self.language_filter_combo, 0, 3)
+
+        self.doc_type_filter_label = QLabel(self.tr("Document Type:"))
+        self.doc_type_filter_combo = QComboBox()
+        filter_layout.addWidget(self.doc_type_filter_label, 0, 4)
+        filter_layout.addWidget(self.doc_type_filter_combo, 0, 5)
+
+        # Add some stretch to push filters to the left if needed, or set column stretch factors
+        filter_layout.setColumnStretch(6, 1) # Add stretch to the right of filters
+
+        left_vbox_layout.addLayout(filter_layout)
+
         self.template_list = QTreeWidget(); self.template_list.setColumnCount(4)
         self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Default Status")])
         header = self.template_list.header(); header.setSectionResizeMode(0, QHeaderView.Stretch); header.setSectionResizeMode(1, QHeaderView.ResizeToContents); header.setSectionResizeMode(2, QHeaderView.ResizeToContents); header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
@@ -124,7 +149,73 @@ class TemplateDialog(QDialog):
         left_vbox_layout.addLayout(btn_layout); main_hbox_layout.addLayout(left_vbox_layout, 1)
         self.preview_area = QTextEdit(); self.preview_area.setReadOnly(True); self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
         self.preview_area.setObjectName("templatePreviewArea")
-        main_hbox_layout.addWidget(self.preview_area, 2); main_hbox_layout.setContentsMargins(15,15,15,15); self.load_templates(); self.template_list.currentItemChanged.connect(self.handle_tree_item_selection)
+        main_hbox_layout.addWidget(self.preview_area, 3); main_hbox_layout.setContentsMargins(15,15,15,15)
+
+        self.populate_category_filter()
+        self.populate_language_filter()
+        self.populate_doc_type_filter()
+
+        # Connect filter signals
+        self.category_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
+        self.language_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
+        self.doc_type_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
+
+        self.load_templates(); self.template_list.currentItemChanged.connect(self.handle_tree_item_selection)
+
+    def handle_filter_changed(self):
+        category_id = self.category_filter_combo.currentData()
+        language_code = self.language_filter_combo.currentData()
+        doc_type = self.doc_type_filter_combo.currentData() # This is the DB value
+
+        # Ensure "all" is treated as None or a special value if your load_templates expects that
+        # For now, load_templates is designed to handle "all" string directly.
+        self.load_templates(category_filter=category_id, language_filter=language_code, type_filter=doc_type)
+
+    def populate_category_filter(self):
+        self.category_filter_combo.addItem(self.tr("All Categories"), "all")
+        try:
+            categories = db_manager.get_all_template_categories()
+            if categories:
+                for category in categories:
+                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+        except Exception as e:
+            print(f"Error populating category filter: {e}") # Log error
+            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template categories for filtering."))
+
+    def populate_language_filter(self):
+        self.language_filter_combo.addItem(self.tr("All Languages"), "all")
+        try:
+            # Assuming db_manager.get_distinct_template_languages() returns a list of language code strings
+            languages = db_manager.get_distinct_template_languages()
+            if languages:
+                for lang_code_tuple in languages: # get_distinct_template_languages might return list of tuples
+                    lang_code = lang_code_tuple[0]
+                    self.language_filter_combo.addItem(lang_code, lang_code)
+        except Exception as e:
+            print(f"Error populating language filter: {e}") # Log error
+            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template languages for filtering."))
+
+    def populate_doc_type_filter(self):
+        self.doc_type_filter_combo.addItem(self.tr("All Types"), "all")
+        # Mapping from DB type to user-friendly name
+        self.doc_type_map = {
+            "document_excel": self.tr("Excel"),
+            "document_word": self.tr("Word"),
+            "document_html": self.tr("HTML"),
+            "document_other": self.tr("Other"),
+            # Add more types as needed
+        }
+        try:
+            # Assuming db_manager.get_distinct_template_types() returns a list of type strings
+            doc_types = db_manager.get_distinct_template_types()
+            if doc_types:
+                for type_tuple in doc_types: # get_distinct_template_types might return list of tuples
+                    db_type = type_tuple[0]
+                    display_name = self.doc_type_map.get(db_type, db_type) # Fallback to db_type if not in map
+                    self.doc_type_filter_combo.addItem(display_name, db_type)
+        except Exception as e:
+            print(f"Error populating document type filter: {e}") # Log error
+            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template document types for filtering."))
 
     def handle_tree_item_selection(self,current_item,previous_item):
         if current_item is not None and current_item.parent() is not None: self.show_template_preview(current_item); self.edit_btn.setEnabled(True); self.delete_btn.setEnabled(True); self.default_btn.setEnabled(True)
@@ -150,23 +241,85 @@ class TemplateDialog(QDialog):
                         except Exception as e: self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier Word:\n{0}").format(str(e)))
                     elif file_extension==".html":
                         try:
-                            with open(template_file_path,"r",encoding="utf-8") as f: self.preview_area.setPlainText(f.read())
+                            with open(template_file_path,"r",encoding="utf-8") as f: self.preview_area.setHtml(f.read())
                         except Exception as e: self.preview_area.setPlainText(self.tr("Erreur de lecture du fichier HTML:\n{0}").format(str(e)))
                     else: self.preview_area.setPlainText(self.tr("Aperçu non disponible pour ce type de fichier."))
                 else: self.preview_area.setPlainText(self.tr("Fichier modèle introuvable."))
             else: self.preview_area.setPlainText(self.tr("Détails du modèle non trouvés dans la base de données."))
         except Exception as e_general: self.preview_area.setPlainText(self.tr("Une erreur est survenue lors de la récupération des détails du modèle:\n{0}").format(str(e_general)))
 
-    def load_templates(self):
-        self.template_list.clear(); self.preview_area.clear(); self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
-        categories=db_manager.get_all_template_categories(); categories=categories if categories else []
-        for category_dict in categories:
-            category_item=QTreeWidgetItem(self.template_list,[category_dict['category_name']])
-            templates_in_category=db_manager.get_templates_by_category_id(category_dict['category_id']); templates_in_category=templates_in_category if templates_in_category else []
-            for template_dict in templates_in_category:
-                template_name=template_dict['template_name']; template_type=template_dict.get('template_type','N/A'); language=template_dict['language_code']; is_default=self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                template_item=QTreeWidgetItem(category_item,[template_name,template_type,language,is_default]); template_item.setData(0,Qt.UserRole,template_dict['template_id'])
-        self.template_list.expandAll(); self.edit_btn.setEnabled(False); self.delete_btn.setEnabled(False); self.default_btn.setEnabled(False)
+    def load_templates(self, category_filter=None, language_filter=None, type_filter=None):
+        self.template_list.clear()
+        self.preview_area.clear()
+        self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
+
+        effective_category_id = category_filter if category_filter != "all" else None
+        effective_language_code = language_filter if language_filter != "all" else None
+        effective_template_type = type_filter if type_filter != "all" else None
+
+        all_templates_from_db = db_manager.get_filtered_templates(
+            category_id=effective_category_id,
+            language_code=effective_language_code,
+            template_type=effective_template_type
+        )
+
+        if not all_templates_from_db:
+            # No templates match the filters, or an error occurred (already logged by db_manager)
+            self.template_list.expandAll() # Keep it consistent
+            self.edit_btn.setEnabled(False)
+            self.delete_btn.setEnabled(False)
+            self.default_btn.setEnabled(False)
+            return
+
+        if effective_category_id is not None:
+            # Specific category was selected, create one top-level item for it
+            category_details = db_manager.get_template_category_details(effective_category_id)
+            if category_details:
+                category_item = QTreeWidgetItem(self.template_list, [category_details['category_name']])
+                for template_dict in all_templates_from_db: # These are already filtered correctly
+                    template_name = template_dict['template_name']
+                    template_db_type = template_dict.get('template_type', 'N/A')
+                    display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
+                    language = template_dict['language_code']
+                    is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
+                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, is_default])
+                    template_item.setData(0, Qt.UserRole, template_dict['template_id'])
+            else:
+                # Category details not found, this might indicate an issue or just no templates for this specific category
+                # This case should ideally be handled based on whether get_filtered_templates returned anything
+                pass
+        else:
+            # "All Categories" selected, group templates by category
+            all_db_categories = db_manager.get_all_template_categories()
+            if not all_db_categories: # Should not happen if there are templates
+                self.template_list.expandAll()
+                self.edit_btn.setEnabled(False); self.delete_btn.setEnabled(False); self.default_btn.setEnabled(False)
+                return
+
+            categories_map = {cat['category_id']: cat for cat in all_db_categories}
+            templates_by_category = {}
+            for template in all_templates_from_db:
+                cat_id = template.get('category_id')
+                if cat_id not in templates_by_category:
+                    templates_by_category[cat_id] = []
+                templates_by_category[cat_id].append(template)
+
+            for cat_id, category_details_dict in categories_map.items():
+                if cat_id in templates_by_category: # Only add category if it has matching templates
+                    category_item = QTreeWidgetItem(self.template_list, [category_details_dict['category_name']])
+                    for template_dict in templates_by_category[cat_id]:
+                        template_name = template_dict['template_name']
+                        template_db_type = template_dict.get('template_type', 'N/A')
+                        display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
+                        language = template_dict['language_code']
+                        is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
+                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, is_default])
+                        template_item.setData(0, Qt.UserRole, template_dict['template_id'])
+
+        self.template_list.expandAll()
+        self.edit_btn.setEnabled(False)
+        self.delete_btn.setEnabled(False)
+        self.default_btn.setEnabled(False)
 
     def add_template(self):
         file_path,_=QFileDialog.getOpenFileName(self,self.tr("Sélectionner un modèle"),self.config["templates_dir"],self.tr("Fichiers Modèles (*.xlsx *.docx *.html);;Tous les fichiers (*)"))
