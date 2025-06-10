@@ -729,11 +729,21 @@ def initialize_default_templates(config, app_root_dir):
 
             if html_category_id is not None: # Only register if category exists
                 db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
+                # Determine if this template should be default for its type and language
+                is_default = False # Default to False
+                if html_meta['base_file_name'] == "packing_list_template.html":
+                    if lang_code in ['en', 'fr', 'ar', 'tr']:
+                        is_default = True
+                    # For other languages of packing_list_template.html, it remains False unless explicitly set by other logic
+                else:
+                    # Existing logic for other templates (e.g., French default)
+                    is_default = True if lang_code == 'fr' else False
+
                 template_data_for_db = {
                     'template_name': db_template_name, 'template_type': html_meta['template_type'],
                     'language_code': lang_code, 'base_file_name': html_meta['base_file_name'],
                     'description': html_meta['description_fr'], 'category_id': html_category_id,
-                    'is_default_for_type_lang': True if lang_code == 'fr' else False
+                    'is_default_for_type_lang': is_default
                 }
                 db_html_template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
                 if db_html_template_id and created_file_on_disk_html:

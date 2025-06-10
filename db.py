@@ -11,9 +11,9 @@ DATABASE_NAME = "app_data.db"
 # Constants for document context paths
 # Assuming db.py is in a subdirectory of the app root (e.g., /app/core/db.py or /app/db.py)
 # If db.py is directly in /app, then os.path.dirname(__file__) is /app
-# If db.py is in /app/core, then os.path.dirname(__file__) is /app/core, so "../" goes to /app
-APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-LOGO_SUBDIR_CONTEXT = "company_logos" # Example, adjust if actual path is different, e.g., "static/logos" or "data/logos"
+# If db.py is directly in /app, then os.path.dirname(__file__) is /app
+APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.dirname(__file__))
+LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup in the test script and app_setup.py
 
 
 def initialize_database():
@@ -5728,15 +5728,20 @@ def get_document_context_data(
         logo_path_relative = seller_company_data.get('logo_path')
         context["seller"]["logo_path_relative"] = logo_path_relative
         if logo_path_relative:
+            # Construct the absolute path to the logo
             abs_logo_path = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
+            # Check if the logo file actually exists at the constructed absolute path
             if os.path.exists(abs_logo_path):
-                 context["seller"]["logo_path_absolute"] = abs_logo_path
-                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}"
+                context["seller"]["logo_path_absolute"] = abs_logo_path
+                # Format as file URI if it exists
+                context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}"
             else:
-                 context["seller"]["logo_path_absolute"] = None
-                 context["seller"]["company_logo_path"] = None # Or a default/placeholder logo URL
-                 print(f"Warning: Seller logo file not found at {abs_logo_path}")
+                # File does not exist, so set path to None
+                context["seller"]["logo_path_absolute"] = None
+                context["seller"]["company_logo_path"] = None
+                print(f"Warning: Seller logo file not found at {abs_logo_path}")
         else:
+            # logo_path_relative is not set, so set path to None
             context["seller"]["logo_path_absolute"] = None
             context["seller"]["company_logo_path"] = None
 
@@ -5856,8 +5861,9 @@ def get_document_context_data(
             status_id = project_data.get('status_id')
             status_info = get_status_setting_by_id(status_id) if status_id else None
             context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
-    else: # No project_id, provide defaults for project fields
-        context["project"]["name"] = context["additional"].get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A") # Fallback to project_identifier
+    else: # No project_id argument, provide defaults for project fields
+        context["project"]["name"] = context["additional"].get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
+        context["project"]["id"] = context["additional"].get("project_id", client_data.get('project_identifier', "N/A") if client_data else "N/A") # Use additional_context project_id if available
         context["project"]["description"] = context["additional"].get("project_description", client_data.get('primary_need_description', "") if client_data else "")
 
     # --- Contact Page Specific Details from additional_context ---
@@ -6127,12 +6133,20 @@ def get_document_context_data(
     context["doc"]["final_destination_country"] = packing_details_from_context.get('final_destination_country', 'N/A')
 
     context["doc"]["total_packages"] = packing_details_from_context.get('total_packages', 'N/A')
-    context["doc"]["total_net_weight"] = str(packing_details_from_context.get('total_net_weight_kg', 'N/A')) + ' kg'
-    context["doc"]["total_gross_weight"] = str(packing_details_from_context.get('total_gross_weight_kg', 'N/A')) + ' kg'
-    context["doc"]["total_volume_cbm"] = str(packing_details_from_context.get('total_volume_cbm', 'N/A')) + ' CBM'
+    # Ensure " kg" is appended correctly, handling N/A case
+    total_net_weight_val = packing_details_from_context.get('total_net_weight_kg', 'N/A')
+    context["doc"]["total_net_weight"] = f"{total_net_weight_val} kg" if total_net_weight_val != 'N/A' else 'N/A'
+    total_gross_weight_val = packing_details_from_context.get('total_gross_weight_kg', 'N/A')
+    context["doc"]["total_gross_weight"] = f"{total_gross_weight_val} kg" if total_gross_weight_val != 'N/A' else 'N/A'
+    total_volume_cbm_val = packing_details_from_context.get('total_volume_cbm', 'N/A') # Assuming CBM is already part of the value or added in template
+    context["doc"]["total_volume_cbm"] = f"{total_volume_cbm_val} CBM" if total_volume_cbm_val != 'N/A' else 'N/A'
+
 
     # --- Process Products for Proforma/Invoice (if not a packing list specific flow) OR Packing List Items ---
     packing_list_items_html_accumulator = ""
+    # Flag to indicate if this document is primarily a packing list
+    is_packing_list_document = additional_context.get('document_type') == 'packing_list'
+
     if 'packing_details' in context["additional"] and 'items' in context["additional"]['packing_details']:
         # This is a Packing List, build HTML rows from packing_details.items
         for item_idx, item_detail in enumerate(context["additional"]['packing_details']['items']):
@@ -6172,13 +6186,11 @@ def get_document_context_data(
             </tr>"""
         context['doc']['packing_list_items'] = packing_list_items_html_accumulator if packing_list_items_html_accumulator else "<tr><td colspan='7'>Aucun détail d'article de colisage fourni.</td></tr>"
 
-    else: # Standard product processing (e.g., for Proforma, Invoice, general specs)
-        # ... (existing product processing logic for proforma/invoice/general specs) ...
-        # This part remains largely the same as before, fetching products based on client/project/linked_product_ids
-        # and then doing language resolution for name/description and populating context['products'] and context['doc']['products_table_rows']
-        # This section should NOT overwrite context['doc']['packing_list_items'] if already populated.
+        if is_packing_list_document:
+            context["products"] = [] # Clear main products list if it's a packing list, as it might contain prices
 
-        # Standard product fetching (if not a packing list with specific items)
+    elif not is_packing_list_document: # Standard product processing only if NOT a packing list
+        # Standard product fetching
         standard_fetched_products = []
         if linked_product_ids_for_doc: # If specific ClientProjectProduct IDs are given
             conn_temp_std = get_db_connection()
@@ -6200,8 +6212,7 @@ def get_document_context_data(
         products_table_html_rows = ""
         subtotal_amount_calculated = 0.0
         item_counter = 0
-        # Clear context products before repopulating for standard documents
-        context["products"] = []
+        context["products"] = [] # Clear context products before repopulating for standard documents
 
         for prod_data in standard_fetched_products:
             item_counter += 1
@@ -6309,11 +6320,32 @@ def get_document_context_data(
 
 
     context["project_description"] = context["project"].get("description", "")
-    context["project_id"] = context["project"].get("id", client_data.get("project_identifier", "N/A") if client_data else "N/A") # Ensure PROJECT_ID is available
 
-    # Packing List specific mappings
+    # Final mapping for context["project_id"] (root level template variable)
+    # project_id variable here refers to the original function argument.
+    if project_id: # If a specific project_id was passed to the function
+        context["project_id"] = project_id
+    else:
+        # If no specific project_id was passed to the function,
+        # prioritize project_id from additional_context if available.
+        # context["project"]["id"] should have already been populated considering this,
+        # this ensures the root 'project_id' key also reflects this override directly.
+        additional_override_project_id = context["additional"].get("project_id")
+        if additional_override_project_id:
+            context["project_id"] = additional_override_project_id
+        else:
+            # Fallback to what's in context["project"]["id"] (which might be client's project_identifier)
+            context["project_id"] = context["project"].get("id", client_data.get("project_identifier", "N/A") if client_data else "N/A")
+
+    # Packing List specific mappings (many already mapped via seller/buyer aliases)
+    # Ensure exporter_company_name, consignee_name, packing_list_id are correctly populated
+    # context["doc"]["packing_list_id"] is populated from additional_context or defaults earlier
+    # context["exporter_company_name"] will be context["seller_company_name"]
+    # context["consignee_name"] will be context["buyer_name"]
+    # These are mostly covered by the generic mappings below but explicitly mentioned for clarity.
+
     context["company_logo_path_for_stamp"] = context["seller_company_logo_path"]
-    context["exporter_company_name"] = context["seller_company_name"]
+    context["exporter_company_name"] = context["seller_company_name"] # Already mapped
     context["exporter_address"] = context["seller_company_address"]
     context["exporter_contact_person"] = context["seller_representative_name"]
     context["exporter_phone"] = context["seller_company_phone"]
@@ -6322,13 +6354,15 @@ def get_document_context_data(
     context["consignee_name"] = context["buyer_name"]
     context["consignee_address"] = context["buyer_address"]
     context["consignee_contact_person"] = context["buyer_representative_name"]
-    context["consignee_phone"] = context["buyer_phone"]
-    context["consignee_email"] = context["buyer_email"]
+    context["consignee_phone"] = context["buyer_phone"] # Already mapped
+    context["consignee_email"] = context["buyer_email"] # Already mapped
 
-    context["primary_contact_name"] = context["client"].get("contact_person_name", "N/A") # For general use
+    # These general fields are used by packing list templates as well
+    context["packing_list_id"] = context["doc"].get("packing_list_id", "N/A") # Ensure it's directly accessible
+
+    context["primary_contact_name"] = context["client"].get("contact_person_name", "N/A")
     context["primary_contact_email"] = context["client"].get("contact_email", "N/A")
     context["primary_contact_position"] = context["client"].get("contact_position", "N/A")
-
 
     context["authorized_signature_name"] = context["seller"].get("personnel",{}).get("authorized_signature_name", "N/A")
     context["authorized_signature_title"] = context["seller"].get("personnel",{}).get("authorized_signature_title", "N/A")
