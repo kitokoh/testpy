@@ -4,11 +4,11 @@ import os # Used by open_settings_dialog for makedirs
 
 # PyQt5 imports used directly by DocumentManager UI and methods
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, # Added QApplication
     QPushButton, QLabel, QLineEdit, # QTextEdit (used by client_notes_edit indirectly via ClientWidget or dialogs)
     QListWidget, QListWidgetItem, # QListWidgetItem for add_client_to_list_widget
     QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox, # QDialog for dialog inheritance
-    QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
+    QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox, QProgressDialog, # Added QProgressDialog
     QStackedWidget, QDoubleSpinBox # QDoubleSpinBox for final_price_input
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -62,9 +62,26 @@ class DocumentManager(QMainWindow):
 
         self.create_actions_main() 
         self.create_menus_main() 
+
+        # Set initial checked state for the default view action
+        self.documents_view_action.setChecked(True)
+        # Explicitly uncheck others, though default for checkable is false
+        self.project_management_action.setChecked(False)
+        self.statistics_action.setChecked(False)
         
         # Calls to refactored logic functions
-        load_and_display_clients(self) 
+        progress_dialog = QProgressDialog(self.tr("Chargement des clients..."), None, 0, 0, self)
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setMinimumDuration(100) # Only show if loading takes > 100ms
+        progress_dialog.setValue(0)
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            load_and_display_clients(self)
+        finally:
+            QApplication.restoreOverrideCursor()
+            progress_dialog.close() # Ensure it's closed
+
         if self.stats_widget: # Ensure stats_widget is initialized
             self.stats_widget.update_stats() 
         
@@ -149,8 +166,16 @@ class DocumentManager(QMainWindow):
         price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
         price_info_label.setObjectName("priceInfoLabel")
         creation_form_layout.addRow("", price_info_label)
+
+        # Hide price input, its info label, and its row label as per request
+        self.final_price_input.setVisible(False)
+        price_info_label.setVisible(False)
+        final_price_label_widget = creation_form_layout.labelForField(self.final_price_input)
+        if final_price_label_widget:
+            final_price_label_widget.setVisible(False)
         
         self.language_select_combo = QComboBox()
+        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
         self.language_select_combo.addItems([
             self.tr("English only (en)"), self.tr("French only (fr)"),
             self.tr("Arabic only (ar)"), self.tr("Turkish only (tr)"),
@@ -181,13 +206,18 @@ class DocumentManager(QMainWindow):
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog) # Conceptual: modern gear
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog) # Conceptual: stylized page with corner fold
         self.status_action = QAction(self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog) # No icon specified, can add one e.g. :/icons/modern/list-check.svg
+        self.status_action.setEnabled(False)
+        self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
         self.exit_action = QAction(self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close) # No icon specified, can add one e.g. :/icons/modern/power.svg
         self.project_management_action = QAction(QIcon(":/icons/modern/dashboard.svg"), self.tr("Gestion de Projet"), self) # Conceptual: modern dashboard/kanban
+        self.project_management_action.setCheckable(True)
         self.project_management_action.triggered.connect(self.show_project_management_view)
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self) # Conceptual: clean folder with document symbol
+        self.documents_view_action.setCheckable(True)
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+        self.statistics_action.setCheckable(True)
         self.statistics_action.triggered.connect(self.show_statistics_view)
 
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
@@ -213,12 +243,21 @@ class DocumentManager(QMainWindow):
 
     def show_project_management_view(self):
         self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+        self.project_management_action.setChecked(True)
+        self.documents_view_action.setChecked(False)
+        self.statistics_action.setChecked(False)
 
     def show_documents_view(self):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
+        self.documents_view_action.setChecked(True)
+        self.project_management_action.setChecked(False)
+        self.statistics_action.setChecked(False)
         
     def show_statistics_view(self):
         self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+        self.statistics_action.setChecked(True)
+        self.documents_view_action.setChecked(False)
+        self.project_management_action.setChecked(False)
 
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))

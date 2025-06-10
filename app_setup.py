@@ -1082,6 +1082,12 @@ def initialize_default_templates(config, app_root_dir):
                     # else is_default remains False for other languages of packing lists
                 else:
                     # Existing logic for other templates (e.g., French default for all other HTML types)
+                if html_meta['base_file_name'] == "packing_list_template.html":
+                    if lang_code in ['en', 'fr', 'ar', 'tr']:
+                        is_default = True
+                    # For other languages of packing_list_template.html, it remains False unless explicitly set by other logic
+                else:
+                    # Existing logic for other templates (e.g., French default)
                     is_default = True if lang_code == 'fr' else False
 
                 template_data_for_db = {

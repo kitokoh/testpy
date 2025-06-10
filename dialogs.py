@@ -77,6 +77,16 @@ class SettingsDialog(QDialog):
         self.reminder_days_spinbox = QSpinBox(); self.reminder_days_spinbox.setRange(1, 365)
         self.reminder_days_spinbox.setValue(self.current_config_data.get("default_reminder_days", 30))
         general_form_layout.addRow(self.tr("Jours avant rappel client ancien:"), self.reminder_days_spinbox)
+
+        # Session Timeout
+        self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
+        self.session_timeout_spinbox = QSpinBox()
+        self.session_timeout_spinbox.setRange(5, 240) # 5 minutes to 4 hours
+        self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
+        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
+        self.session_timeout_spinbox.setValue(default_timeout_minutes)
+        general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
+
         tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -102,10 +112,18 @@ class SettingsDialog(QDialog):
     def get_config(self):
         selected_lang_display_text = self.interface_lang_combo.currentText()
         language_code = self.lang_display_to_code.get(selected_lang_display_text, "fr")
-        return {"templates_dir": self.templates_dir_input.text(), "clients_dir": self.clients_dir_input.text(),
-                "language": language_code, "default_reminder_days": self.reminder_days_spinbox.value(),
-                "smtp_server": self.smtp_server_input_field.text(), "smtp_port": self.smtp_port_spinbox.value(),
-                "smtp_user": self.smtp_user_input_field.text(), "smtp_password": self.smtp_pass_input_field.text()}
+        config_data_to_return = {
+            "templates_dir": self.templates_dir_input.text(),
+            "clients_dir": self.clients_dir_input.text(),
+            "language": language_code,
+            "default_reminder_days": self.reminder_days_spinbox.value(),
+            "session_timeout_minutes": self.session_timeout_spinbox.value(), # Added session timeout
+            "smtp_server": self.smtp_server_input_field.text(),
+            "smtp_port": self.smtp_port_spinbox.value(),
+            "smtp_user": self.smtp_user_input_field.text(),
+            "smtp_password": self.smtp_pass_input_field.text()
+        }
+        return config_data_to_return
 
 class TemplateDialog(QDialog):
     def __init__(self, config, parent=None):
@@ -2471,7 +2489,7 @@ class ClientDocumentNoteDialog(QDialog):
         form_layout.addRow(self.tr("Code Langue:"), self.language_code_combo)
 
         self.note_content_edit = QTextEdit()
-        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici..."))
+        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici. Chaque ligne sera affichée comme un élément d'une liste numérotée."))
         self.note_content_edit.setMinimumHeight(100)
         form_layout.addRow(self.tr("Contenu de la Note:"), self.note_content_edit)
 
