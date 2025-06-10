@@ -108,11 +108,11 @@ def main():
     
     # Apply the basic QSS stylesheet (this was the one previously embedded)
     # This can be moved to style.qss and loaded by load_stylesheet_global if preferred.
-    # app.setStyleSheet("""
-    #     QWidget {}
-    #     QPushButton {
-    #         padding: 6px 12px; border: 1px solid #cccccc; border-radius: 4px;
-            background-color: #f8f9fa; min-width: 80px;
+    app.setStyleSheet("""
+        QWidget {}
+        QPushButton {
+            padding: 6px 12px; border: 1px solid #cccccc; border-radius: 4px;
+        background-color: #f8f9fa; min-width: 80px;
         }
         QPushButton:hover { background-color: #e9ecef; border-color: #adb5bd; }
         QPushButton:pressed { background-color: #dee2e6; border-color: #adb5bd; }
