@@ -29,29 +29,33 @@ MAIN_MODULE_COMPILE_PDF_DIALOG = None
 MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
 MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
-MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
+MAIN_MODULE_SEND_EMAIL_DIALOG = None
+MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = None # Added for ClientDocumentNoteDialog
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
            MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
            MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
+           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG, \
+           MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
         # import main as main_module # No longer needed
-        from dialogs import SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog, CreateDocumentDialog, CompilePdfDialog
+        from dialogs import (SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog,
+                             CreateDocumentDialog, CompilePdfDialog, ClientDocumentNoteDialog)
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
         from db import DATABASE_NAME as DB_NAME
-        MAIN_MODULE_CONTACT_DIALOG = ContactDialog # Assign directly
-        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog # Assign directly
+        MAIN_MODULE_CONTACT_DIALOG = ContactDialog
+        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
         MAIN_MODULE_CREATE_DOCUMENT_DIALOG = CreateDocumentDialog
         MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
         MAIN_MODULE_CONFIG = APP_CONFIG
-        MAIN_MODULE_DATABASE_NAME = DB_NAME # Used in load_statuses, save_client_notes
+        MAIN_MODULE_DATABASE_NAME = DB_NAME
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
+        MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
 
 
 class ClientWidget(QWidget):
@@ -62,9 +66,9 @@ class ClientWidget(QWidget):
 
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
-        self.config = MAIN_MODULE_CONFIG # Use the imported config
-        self.app_root_dir = app_root_dir # Store it
-        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
+        self.config = MAIN_MODULE_CONFIG
+        self.app_root_dir = app_root_dir
+        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
         self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
@@ -72,7 +76,8 @@ class ClientWidget(QWidget):
         self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
         self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
         self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
-        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
+        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG
+        self.ClientDocumentNoteDialog = MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG # Added
 
         self.is_editing_client = False
         self.edit_widgets = {}
@@ -277,7 +282,200 @@ class ClientWidget(QWidget):
             self.tab_widget.addTab(notes_content_tab, self.tr("Notes")) # Fallback if "Produits" tab not found
 
         layout.addWidget(self.tab_widget)
+
+        # --- Document Notes Tab ---
+        self.document_notes_tab = QWidget()
+        doc_notes_layout = QVBoxLayout(self.document_notes_tab)
+
+        # Filters Section
+        doc_notes_filters_layout = QHBoxLayout()
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
+        self.doc_notes_type_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
+
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
+        self.doc_notes_lang_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
+        doc_notes_filters_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_filters_layout)
+
+        # Table Section
+        self.document_notes_table = QTableWidget()
+        self.document_notes_table.setColumnCount(5)
+        self.document_notes_table.setHorizontalHeaderLabels([
+            self.tr("Type Document"), self.tr("Langue"),
+            self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
+        ])
+        self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Aperçu Note stretch
+        self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        doc_notes_layout.addWidget(self.document_notes_table)
+
+        # Buttons Section
+        doc_notes_buttons_layout = QHBoxLayout()
+        self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
+        self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new")) # Placeholder icon
+        doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
+
+        self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
+        self.refresh_doc_notes_button.setIcon(QIcon.fromTheme("view-refresh"))
+        doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
+        doc_notes_buttons_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_buttons_layout)
+
+        self.document_notes_tab.setLayout(doc_notes_layout)
+        self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+
+        # Connections for Document Notes Tab
+        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
+
         self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters() # Initial call for new tab
+        self.load_document_notes_table()   # Initial call for new tab
+
+
+    def load_document_notes_filters(self):
+        """Populates filter combos for the document notes tab."""
+        self.doc_notes_type_filter_combo.blockSignals(True)
+        self.doc_notes_lang_filter_combo.blockSignals(True)
+
+        self.doc_notes_type_filter_combo.clear()
+        self.doc_notes_type_filter_combo.addItem(self.tr("Tous Types"), None) # UserData is None for "All"
+        # Common document types that might have notes
+        doc_types = ["Proforma", "Packing List", "Sales Conditions", "Certificate of Origin", "Bill of Lading", "Other"]
+        for doc_type in doc_types:
+            self.doc_notes_type_filter_combo.addItem(doc_type, doc_type) # Store string value as data
+
+        self.doc_notes_lang_filter_combo.clear()
+        self.doc_notes_lang_filter_combo.addItem(self.tr("Toutes Langues"), None)
+        # Common languages, could be dynamically populated from client's selected_languages or existing notes
+        langs = ["fr", "en", "ar", "tr", "pt"]
+        for lang in langs:
+            self.doc_notes_lang_filter_combo.addItem(lang, lang)
+
+        self.doc_notes_type_filter_combo.blockSignals(False)
+        self.doc_notes_lang_filter_combo.blockSignals(False)
+
+        # Set default selection (e.g., "All")
+        self.doc_notes_type_filter_combo.setCurrentIndex(0)
+        self.doc_notes_lang_filter_combo.setCurrentIndex(0)
+
+
+    def load_document_notes_table(self):
+        """Fetches data from db_manager.get_client_document_notes() and populates table."""
+        self.document_notes_table.setRowCount(0) # Clear table
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            return
+
+        doc_type_filter = self.doc_notes_type_filter_combo.currentData() # This is 'None' for "All"
+        lang_filter = self.doc_notes_lang_filter_combo.currentData()     # This is 'None' for "All"
+
+        try:
+            notes = db_manager.get_client_document_notes(
+                client_id,
+                document_type=doc_type_filter,
+                language_code=lang_filter,
+                is_active=None # Fetch all (active and inactive)
+            )
+            notes = notes if notes else []
+
+            self.document_notes_table.setRowCount(len(notes))
+            for row_idx, note in enumerate(notes):
+                note_id = note.get("note_id")
+
+                type_item = QTableWidgetItem(note.get("document_type"))
+                type_item.setData(Qt.UserRole, note_id) # Store note_id in the first item
+                self.document_notes_table.setItem(row_idx, 0, type_item)
+
+                self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
+
+                content_preview = note.get("note_content", "")
+                if len(content_preview) > 70: content_preview = content_preview[:67] + "..."
+                self.document_notes_table.setItem(row_idx, 2, QTableWidgetItem(content_preview))
+
+                active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
+                active_item = QTableWidgetItem(active_text)
+                active_item.setTextAlignment(Qt.AlignCenter)
+                self.document_notes_table.setItem(row_idx, 3, active_item)
+
+                # Actions column
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(5, 0, 5, 0)
+                actions_layout.setSpacing(5)
+
+                edit_button = QPushButton(QIcon(":/icons/pencil.svg"), "")
+                edit_button.setToolTip(self.tr("Modifier cette note"))
+                edit_button.clicked.connect(lambda checked, n_id=note_id: self.on_edit_document_note_clicked(n_id))
+                actions_layout.addWidget(edit_button)
+
+                delete_button = QPushButton(QIcon(":/icons/trash.svg"), "")
+                delete_button.setToolTip(self.tr("Supprimer cette note"))
+                delete_button.setObjectName("dangerButton")
+                delete_button.clicked.connect(lambda checked, n_id=note_id: self.on_delete_document_note_clicked(n_id))
+                actions_layout.addWidget(delete_button)
+
+                actions_layout.addStretch()
+                self.document_notes_table.setCellWidget(row_idx, 4, actions_widget)
+
+            # Adjust column widths
+            self.document_notes_table.resizeColumnToContents(0) # Type
+            self.document_notes_table.resizeColumnToContents(1) # Language
+            # Column 2 (Preview) is stretched by setSectionResizeMode
+            self.document_notes_table.resizeColumnToContents(3) # Active
+            self.document_notes_table.resizeColumnToContents(4) # Actions
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Notes"), self.tr("Impossible de charger les notes de document:\n{0}").format(str(e)))
+
+
+    def on_add_document_note(self):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = self.ClientDocumentNoteDialog(client_id=client_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_document_notes_table()
+
+
+    def on_edit_document_note_clicked(self, note_id):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        note_data = db_manager.get_client_document_note_by_id(note_id)
+        if note_data:
+            dialog = self.ClientDocumentNoteDialog(client_id=client_id, note_data=note_data, parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_document_notes_table()
+        else:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Note non trouvée (ID: {0}).").format(note_id))
+
+
+    def on_delete_document_note_clicked(self, note_id):
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer cette note (ID: {0})?").format(note_id),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                success = db_manager.delete_client_document_note(note_id)
+                if success:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Note supprimée avec succès."))
+                    self.load_document_notes_table()
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de supprimer la note. Vérifiez les logs."))
+            except Exception as e:
+                 QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de la suppression:\n{0}").format(str(e)))
+
 
     def add_document(self):
         # Define available languages
@@ -792,7 +990,7 @@ class ClientWidget(QWidget):
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
-        dialog = self.ProductDialog(client_uuid, parent=self)
+        dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
             # ... (logic for adding products remains the same) ...
@@ -801,11 +999,58 @@ class ClientWidget(QWidget):
     def edit_product(self):
         selected_row = self.products_table.currentRow();
         if selected_row < 0: QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier.")); return
-        # ... (logic for editing product remains the same) ...
+
+        # Fetch existing data to pass to the dialog
+        # Assuming the first column (hidden) stores client_project_product_id
+        # and other columns have display data. We need to fetch full data for the dialog.
+        link_id_item = self.products_table.item(selected_row, 0)
+        if not link_id_item:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du lien produit."))
+            return
+        link_id = link_id_item.data(Qt.UserRole)
+
+        # Construct product_link_data similar to how it might be if fetched fresh
+        # This needs all relevant fields that EditProductLineDialog and its subsequent logic expect.
+        # This is a simplified example; in a real app, you'd fetch this from DB or have it structured.
+        product_link_data = {
+            'client_project_product_id': link_id,
+            'name': self.products_table.item(selected_row, 1).text(),
+            'description': self.products_table.item(selected_row, 2).text(),
+            'weight': self.products_table.item(selected_row, 3).text().replace(' kg', ''), # Assuming format "X kg"
+            'dimensions': self.products_table.item(selected_row, 4).text(),
+            'quantity': float(self.products_table.item(selected_row, 5).text()),
+            'unit_price': float(self.products_table.item(selected_row, 6).text().replace('€', '').strip()),
+            # 'product_id' (global product ID) needs to be fetched if not already in table item data
+            # For now, assuming it might be part of what get_products_for_client_or_project returns
+            # and could be stored in one of the items' UserRole if needed.
+            # Let's assume it's retrieved via link_id if necessary by EditProductLineDialog or its save logic.
+        }
+        # Attempt to retrieve global product_id if stored, e.g. in name_item's UserRole+1 or similar
+        # This part is speculative based on common patterns, adjust if product_id is stored differently
+        name_item_for_global_id = self.products_table.item(selected_row, 1) # Assuming name item might hold it
+        if name_item_for_global_id and name_item_for_global_id.data(Qt.UserRole + 2): # Example: UserRole+2 for global_product_id
+             product_link_data['product_id'] = name_item_for_global_id.data(Qt.UserRole + 2)
+
+
         try:
-            # ... (DB operations) ...
-            self.load_products() # Refresh after successful update
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            dialog = self.EditProductLineDialog(product_link_data, self.app_root_dir, self) # Pass app_root_dir
+            if dialog.exec_() == QDialog.Accepted:
+                updated_line_data = dialog.get_data()
+                if updated_line_data:
+                    update_payload = {
+                        'quantity': updated_line_data.get('quantity'),
+                        'unit_price_override': updated_line_data.get('unit_price')
+                    }
+                    update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
+                    if db_manager.update_client_project_product(link_id, update_payload):
+                        QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour."))
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit."))
+            self.load_products() # Refresh after successful update or error
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
+            self.load_products() # Ensure table is reloaded even on unexpected error
 
     def remove_product(self):
         selected_row = self.products_table.currentRow();
