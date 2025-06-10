@@ -5,6 +5,7 @@ import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
+import math # Added for pagination
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
@@ -31,32 +32,38 @@ MAIN_MODULE_COMPILE_PDF_DIALOG = None
 MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = None
 MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
-MAIN_MODULE_SEND_EMAIL_DIALOG = None # Added for SendEmailDialog
+MAIN_MODULE_SEND_EMAIL_DIALOG = None
+MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = None # Added for ClientDocumentNoteDialog
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
            MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
            MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
-           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
+           MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG, \
+           MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
         # import main as main_module # No longer needed
-        from dialogs import SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog, CreateDocumentDialog, CompilePdfDialog
+        from dialogs import (SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog,
+                             CreateDocumentDialog, CompilePdfDialog, ClientDocumentNoteDialog)
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
         from db import DATABASE_NAME as DB_NAME
-        MAIN_MODULE_CONTACT_DIALOG = ContactDialog # Assign directly
-        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog # Assign directly
+        MAIN_MODULE_CONTACT_DIALOG = ContactDialog
+        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
         MAIN_MODULE_CREATE_DOCUMENT_DIALOG = CreateDocumentDialog
         MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
         MAIN_MODULE_CONFIG = APP_CONFIG
-        MAIN_MODULE_DATABASE_NAME = DB_NAME # Used in load_statuses, save_client_notes
+        MAIN_MODULE_DATABASE_NAME = DB_NAME
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
+        MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
 
 
 class ClientWidget(QWidget):
+    CONTACT_PAGE_LIMIT = 15 # Class attribute for page limit
+
     def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
@@ -64,9 +71,9 @@ class ClientWidget(QWidget):
 
         # Dynamically import main elements to avoid circular import at module load time
         _import_main_elements()
-        self.config = MAIN_MODULE_CONFIG # Use the imported config
-        self.app_root_dir = app_root_dir # Store it
-        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME # For methods still using it
+        self.config = MAIN_MODULE_CONFIG
+        self.app_root_dir = app_root_dir
+        self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME
 
         self.ContactDialog = MAIN_MODULE_CONTACT_DIALOG
         self.ProductDialog = MAIN_MODULE_PRODUCT_DIALOG
@@ -74,10 +81,16 @@ class ClientWidget(QWidget):
         self.CreateDocumentDialog = MAIN_MODULE_CREATE_DOCUMENT_DIALOG
         self.CompilePdfDialog = MAIN_MODULE_COMPILE_PDF_DIALOG
         self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
-        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG # Added
+        self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG
+        self.ClientDocumentNoteDialog = MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG # Added
 
         self.is_editing_client = False
         self.edit_widgets = {}
+
+        # Pagination for Contacts
+        self.current_contact_offset = 0
+        self.total_contacts_count = 0
+        # self.CONTACT_PAGE_LIMIT is a class attribute
 
         self.setup_ui()
 
@@ -232,6 +245,24 @@ class ClientWidget(QWidget):
 
         contacts_layout.addWidget(self.contacts_table)
 
+        # Pagination controls for Contacts
+        contacts_pagination_layout = QHBoxLayout()
+        self.prev_contact_button = QPushButton("<< Précédent")
+        self.prev_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.prev_contact_button.clicked.connect(self.prev_contact_page)
+        self.contact_page_info_label = QLabel("Page 1 / 1")
+        self.contact_page_info_label.setObjectName("paginationLabel") # Use QSS for styling
+        self.next_contact_button = QPushButton("Suivant >>")
+        self.next_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.next_contact_button.clicked.connect(self.next_contact_page)
+
+        contacts_pagination_layout.addStretch()
+        contacts_pagination_layout.addWidget(self.prev_contact_button)
+        contacts_pagination_layout.addWidget(self.contact_page_info_label)
+        contacts_pagination_layout.addWidget(self.next_contact_button)
+        contacts_pagination_layout.addStretch()
+        contacts_layout.addLayout(contacts_pagination_layout) # Add pagination to contacts tab
+
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
         self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
@@ -309,7 +340,240 @@ class ClientWidget(QWidget):
             self.tab_widget.addTab(notes_content_tab, self.tr("Notes")) # Fallback if "Produits" tab not found
 
         layout.addWidget(self.tab_widget)
+
+        # --- Document Notes Tab ---
+        self.document_notes_tab = QWidget()
+        doc_notes_layout = QVBoxLayout(self.document_notes_tab)
+
+        # Filters Section
+        doc_notes_filters_layout = QHBoxLayout()
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
+        self.doc_notes_type_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
+
+        doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
+        self.doc_notes_lang_filter_combo = QComboBox()
+        # Population will be handled in load_document_notes_filters
+        doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
+        doc_notes_filters_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_filters_layout)
+
+        # Table Section
+        self.document_notes_table = QTableWidget()
+        self.document_notes_table.setColumnCount(5)
+        self.document_notes_table.setHorizontalHeaderLabels([
+            self.tr("Type Document"), self.tr("Langue"),
+            self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
+        ])
+        self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Aperçu Note stretch
+        self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        doc_notes_layout.addWidget(self.document_notes_table)
+
+        # Buttons Section
+        doc_notes_buttons_layout = QHBoxLayout()
+        self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
+        self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new")) # Placeholder icon
+        doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
+
+        self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
+        self.refresh_doc_notes_button.setIcon(QIcon.fromTheme("view-refresh"))
+        doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
+        doc_notes_buttons_layout.addStretch()
+        doc_notes_layout.addLayout(doc_notes_buttons_layout)
+
+        self.document_notes_tab.setLayout(doc_notes_layout)
+        self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+
+        # Connections for Document Notes Tab
+        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
+
         self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters() # Initial call for new tab
+        self.load_document_notes_table()   # Initial call for new tab
+
+
+    def load_document_notes_filters(self):
+        """Populates filter combos for the document notes tab."""
+        self.doc_notes_type_filter_combo.blockSignals(True)
+        self.doc_notes_lang_filter_combo.blockSignals(True)
+
+        self.doc_notes_type_filter_combo.clear()
+        self.doc_notes_type_filter_combo.addItem(self.tr("Tous Types"), None) # UserData is None for "All"
+        # Common document types that might have notes
+        doc_types = ["Proforma", "Packing List", "Sales Conditions", "Certificate of Origin", "Bill of Lading", "Other"]
+        for doc_type in doc_types:
+            self.doc_notes_type_filter_combo.addItem(doc_type, doc_type) # Store string value as data
+
+        self.doc_notes_lang_filter_combo.clear()
+        self.doc_notes_lang_filter_combo.addItem(self.tr("Toutes Langues"), None)
+        # Common languages, could be dynamically populated from client's selected_languages or existing notes
+        langs = ["fr", "en", "ar", "tr", "pt"]
+        for lang in langs:
+            self.doc_notes_lang_filter_combo.addItem(lang, lang)
+
+        self.doc_notes_type_filter_combo.blockSignals(False)
+        self.doc_notes_lang_filter_combo.blockSignals(False)
+
+        # Set default selection (e.g., "All")
+        self.doc_notes_type_filter_combo.setCurrentIndex(0)
+        self.doc_notes_lang_filter_combo.setCurrentIndex(0)
+
+
+    def load_document_notes_table(self):
+        """Fetches data from db_manager.get_client_document_notes() and populates table."""
+        self.document_notes_table.setRowCount(0) # Clear table
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            return
+
+        doc_type_filter = self.doc_notes_type_filter_combo.currentData() # This is 'None' for "All"
+        lang_filter = self.doc_notes_lang_filter_combo.currentData()     # This is 'None' for "All"
+
+        try:
+            notes = db_manager.get_client_document_notes(
+                client_id,
+                document_type=doc_type_filter,
+                language_code=lang_filter,
+                is_active=None # Fetch all (active and inactive)
+            )
+            notes = notes if notes else []
+
+            self.document_notes_table.setRowCount(len(notes))
+            for row_idx, note in enumerate(notes):
+                note_id = note.get("note_id")
+
+                type_item = QTableWidgetItem(note.get("document_type"))
+                type_item.setData(Qt.UserRole, note_id) # Store note_id in the first item
+                self.document_notes_table.setItem(row_idx, 0, type_item)
+
+                self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
+
+                # --- New HTML list for note content ---
+                note_content = note.get("note_content", "")
+                lines = [line.strip() for line in note_content.split('\n') if line.strip()]
+
+                html_content = ""
+                if lines:
+                    html_content = "<ol style='margin:0px; padding-left: 15px;'>" # Adjust padding as needed
+                    for line in lines:
+                        # Basic HTML escaping for safety, can be more robust if needed
+                        escaped_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        html_content += f"<li>{escaped_line}</li>"
+                    html_content += "</ol>"
+                else:
+                    html_content = f"<p style='margin:0px; font-style:italic;'>{self.tr('Aucune note.')}</p>"
+
+                note_label = QLabel()
+                note_label.setText(html_content)
+                note_label.setWordWrap(True)
+                # note_label.setStyleSheet("background-color: #f0f0f0;") # Optional: for debugging layout
+                self.document_notes_table.setCellWidget(row_idx, 2, note_label)
+                # --- End new HTML list ---
+
+                active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
+                active_item = QTableWidgetItem(active_text)
+                active_item.setTextAlignment(Qt.AlignCenter)
+                self.document_notes_table.setItem(row_idx, 3, active_item)
+
+                # Actions column
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(5, 0, 5, 0)
+                actions_layout.setSpacing(5)
+
+                edit_button = QPushButton(QIcon(":/icons/pencil.svg"), "")
+                edit_button.setToolTip(self.tr("Modifier cette note"))
+                edit_button.clicked.connect(lambda checked, n_id=note_id: self.on_edit_document_note_clicked(n_id))
+                actions_layout.addWidget(edit_button)
+
+                delete_button = QPushButton(QIcon(":/icons/trash.svg"), "")
+                delete_button.setToolTip(self.tr("Supprimer cette note"))
+                delete_button.setObjectName("dangerButton")
+                delete_button.clicked.connect(lambda checked, n_id=note_id: self.on_delete_document_note_clicked(n_id))
+                actions_layout.addWidget(delete_button)
+
+                actions_layout.addStretch()
+                self.document_notes_table.setCellWidget(row_idx, 4, actions_widget)
+
+            # Adjust column widths
+            self.document_notes_table.resizeColumnToContents(0) # Type
+            self.document_notes_table.resizeColumnToContents(1) # Language
+            # Column 2 (Preview) is stretched by setSectionResizeMode
+            self.document_notes_table.resizeColumnToContents(3) # Active
+            self.document_notes_table.resizeColumnToContents(4) # Actions
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Notes"), self.tr("Impossible de charger les notes de document:\n{0}").format(str(e)))
+
+
+    def on_add_document_note(self):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = self.ClientDocumentNoteDialog(client_id=client_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_document_notes_table()
+
+
+    def on_edit_document_note_clicked(self, note_id):
+        client_id = self.client_info.get("client_id")
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        note_data = db_manager.get_client_document_note_by_id(note_id)
+        if note_data:
+            dialog = self.ClientDocumentNoteDialog(client_id=client_id, note_data=note_data, parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_document_notes_table()
+        else:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Note non trouvée (ID: {0}).").format(note_id))
+
+
+    def on_delete_document_note_clicked(self, note_id):
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir supprimer cette note (ID: {0})?").format(note_id),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                success = db_manager.delete_client_document_note(note_id)
+                if success:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Note supprimée avec succès."))
+                    self.load_document_notes_table()
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de supprimer la note. Vérifiez les logs."))
+            except Exception as e:
+                 QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de la suppression:\n{0}").format(str(e)))
+
+
+    def prev_contact_page(self):
+        if self.current_contact_offset > 0:
+            self.current_contact_offset -= self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def next_contact_page(self):
+        if (self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count:
+            self.current_contact_offset += self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def update_contact_pagination_controls(self):
+        if self.total_contacts_count == 0:
+            total_pages = 1
+            current_page = 1
+        else:
+            total_pages = math.ceil(self.total_contacts_count / self.CONTACT_PAGE_LIMIT)
+            current_page = (self.current_contact_offset // self.CONTACT_PAGE_LIMIT) + 1
+
+        self.contact_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        self.prev_contact_button.setEnabled(self.current_contact_offset > 0)
+        self.next_contact_button.setEnabled((self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count)
 
     def add_document(self):
         # Define available languages
@@ -714,10 +978,17 @@ class ClientWidget(QWidget):
             # Still ensure empty label is visible if client_uuid is missing for some reason
             if hasattr(self, 'contacts_empty_label'):
                  self.contacts_empty_label.setVisible(True)
+
             return
 
         try:
-            contacts = db_manager.get_contacts_for_client(client_uuid)
+            self.total_contacts_count = db_manager.get_contacts_for_client_count(client_id=client_uuid)
+
+            contacts = db_manager.get_contacts_for_client(
+                client_id=client_uuid,
+                limit=self.CONTACT_PAGE_LIMIT,
+                offset=self.current_contact_offset
+            )
             contacts = contacts if contacts else []
 
             if not contacts:
@@ -734,102 +1005,75 @@ class ClientWidget(QWidget):
 
             for row, contact in enumerate(contacts):
                 self.contacts_table.insertRow(row)
-
                 name_item = QTableWidgetItem(contact.get('name', 'N/A'))
-                # Store IDs in the first column's item for retrieval
                 name_item.setData(Qt.UserRole, {
                     'contact_id': contact.get('contact_id'),
                     'client_contact_id': contact.get('client_contact_id')
                 })
                 self.contacts_table.setItem(row, 0, name_item)
-
                 self.contacts_table.setItem(row, 1, QTableWidgetItem(contact.get('email', '')))
                 self.contacts_table.setItem(row, 2, QTableWidgetItem(contact.get('phone', '')))
                 self.contacts_table.setItem(row, 3, QTableWidgetItem(contact.get('position', '')))
-
                 primary_text = self.tr("Oui") if contact.get('is_primary_for_client') else self.tr("Non")
                 primary_item = QTableWidgetItem(primary_text)
-                # Optional: Center align this column
                 primary_item.setTextAlignment(Qt.AlignCenter)
                 self.contacts_table.setItem(row, 4, primary_item)
-
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
+            self.total_contacts_count = 0 # Reset on error
+        finally:
+            self.update_contact_pagination_controls()
+
 
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
         dialog = self.ContactDialog(client_uuid, parent=self)
         if dialog.exec_() == QDialog.Accepted:
-            contact_form_data = dialog.get_data()
+            # contact_form_data = dialog.get_data() # Original line
             try:
-                # ... (logic for adding/linking contact remains the same) ...
-                self.load_contacts() # Ensure this is called after DB operations
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+                # Assuming dialog handles DB ops or returns data for db_manager call
+                # No specific return from dialog.get_data() is used here for DB ops.
+                # The dialog itself calls db_manager.add_contact and db_manager.link_contact_to_client
+                pass # DB operations are handled within ContactDialog
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
-    def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
+    def edit_contact(self, row=None, column=None):
         current_row = self.contacts_table.currentRow()
         if current_row < 0:
             QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
             return
 
-
         name_item = self.contacts_table.item(current_row, 0)
-        if not name_item: return # Should not happen if row is valid
+        if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
         contact_id = item_data.get('contact_id')
-        # client_contact_id is also available if needed for specific link properties
-        # client_contact_id = item_data.get('client_contact_id')
 
         if not contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de contact non trouvé pour la ligne sélectionnée."))
             return
 
-        client_uuid = self.client_info.get("client_id") # For the dialog's context
-
-        # Fetch the full contact details to pass to the dialog
+        client_uuid = self.client_info.get("client_id")
         full_contact_details = db_manager.get_contact_by_id(contact_id)
         if not full_contact_details:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("Détails du contact non trouvés dans la base de données."))
             return
 
-        # Add the client-specific link information to the contact_data for the dialog
-        # This is crucial for the 'is_primary_for_client' checkbox
         client_contact_link_info = db_manager.get_specific_client_contact_link_details(client_uuid, contact_id)
         if client_contact_link_info:
             full_contact_details['is_primary_for_client'] = client_contact_link_info.get('is_primary_for_client', False)
-            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id') # Store for update
+            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id')
 
         dialog = self.ContactDialog(client_id=client_uuid, contact_data=full_contact_details, parent=self)
 
         if dialog.exec_() == QDialog.Accepted:
-            updated_data_from_dialog = dialog.get_data()
-            is_primary_for_client_from_dialog = updated_data_from_dialog.pop('is_primary_for_client', False)
+            # DB operations are handled within ContactDialog after its own save logic
+            self.load_contacts()
 
-            try:
-                # Update the main contact details
-                if db_manager.update_contact(contact_id, updated_data_from_dialog):
-                    # Now, update the client-specific link (is_primary_for_client)
-                    # We need the client_contact_id for this.
-                    client_contact_id_for_update = full_contact_details.get('client_contact_id')
-                    if client_contact_id_for_update is not None:
-                        db_manager.update_client_contact_link(
-                            client_contact_id_for_update,
-                            {'is_primary_for_client': is_primary_for_client_from_dialog}
-                        )
-                    else:
-                        # This case should ideally not happen if the contact is linked.
-                        # If it can, then we might need to re-link or handle error.
-                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
-
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
-                else:
-                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du contact."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la mise à jour du contact:\n{0}").format(str(e)))
-            finally:
-                self.load_contacts() # Refresh the table
 
     def remove_contact(self):
         current_row = self.contacts_table.currentRow()
@@ -841,12 +1085,11 @@ class ClientWidget(QWidget):
         if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
-        contact_id = item_data.get('contact_id') # Global contact ID
-        client_contact_id = item_data.get('client_contact_id') # Link ID
-
+        contact_id = item_data.get('contact_id')
+        client_contact_id = item_data.get('client_contact_id')
         contact_name = name_item.text()
 
-        if not client_contact_id: # Should have this to remove the link
+        if not client_contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de lien contact-client non trouvé."))
             return
 
@@ -855,18 +1098,20 @@ class ClientWidget(QWidget):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                if db_manager.unlink_contact_from_client(client_contact_id):
+                # Use client_contact_id for unlinking, not client_id + contact_id
+                if db_manager.unlink_contact_from_client_by_link_id(client_contact_id): # Assuming this new function exists
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Lien vers le contact '{0}' supprimé avec succès.").format(contact_name))
-                    self.load_contacts() # Refresh table
                 else:
                     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression du lien vers le contact."))
             except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
-        dialog = self.ProductDialog(client_uuid, parent=self)
+        dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
             # ... (logic for adding products remains the same) ...
@@ -965,6 +1210,7 @@ class ClientWidget(QWidget):
         except Exception as e:
             logging.error(f"Erreur inattendue lors de la modification du produit: {e}", exc_info=True)
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+
 
     def remove_product(self):
         selected_row = self.products_table.currentRow();
