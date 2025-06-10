@@ -1151,6 +1151,37 @@ def delete_client(client_id: str) -> bool:
         if conn:
             conn.close()
 
+def get_all_clients_with_details():
+    # Ensure status_type = 'Client' is part of the JOIN or WHERE clause if status_id is not unique across types
+    query = """
+    SELECT
+        c.client_id, c.client_name, c.company_name, c.primary_need_description,
+        c.project_identifier, c.default_base_folder_path, c.selected_languages,
+        c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
+        co.country_name AS country,  -- Alias to match existing expected key 'country'
+        ci.city_name AS city,        -- Alias to match existing expected key 'city'
+        s.status_name AS status      -- Alias to match existing expected key 'status'
+    FROM clients c
+    LEFT JOIN countries co ON c.country_id = co.country_id
+    LEFT JOIN cities ci ON c.city_id = ci.city_id
+    LEFT JOIN status_settings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+    ORDER BY c.client_name;
+    """
+    conn = None
+    try:
+        conn = get_db_connection() # Assumes get_db_connection sets row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        # Column names are directly keys in the dicts due to conn.row_factory = sqlite3.Row
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_clients_with_details: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def get_active_clients_count() -> int:
     """
     Retrieves the count of active clients.

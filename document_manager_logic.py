@@ -178,6 +178,7 @@ def handle_create_client_execution(doc_manager):
             # If there was any other logic inside this if ui_map_data block that needs to be preserved,
             # it should have been identified and kept. For now, the assumption is this block was primarily for these dialogs.
 
+
             contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()
