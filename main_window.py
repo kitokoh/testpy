@@ -31,7 +31,8 @@ from document_manager_logic import (
 # Dialogs directly instantiated by DocumentManager
 from dialogs import (
     SettingsDialog, TemplateDialog, # EditClientDialog is called from logic
-    ProductEquivalencyDialog # Added for product equivalency
+    ProductEquivalencyDialog, # Added for product equivalency
+    ManageProductMasterDialog # Added for global product management
 )
 from client_widget import ClientWidget # For client tabs
 from projectManagement import MainDashboard as ProjectManagementDashboard # For PM tab
@@ -148,8 +149,16 @@ class DocumentManager(QMainWindow):
         price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
         price_info_label.setObjectName("priceInfoLabel")
         creation_form_layout.addRow("", price_info_label)
+
+        # Hide price input, its info label, and its row label as per request
+        self.final_price_input.setVisible(False)
+        price_info_label.setVisible(False)
+        final_price_label_widget = creation_form_layout.labelForField(self.final_price_input)
+        if final_price_label_widget:
+            final_price_label_widget.setVisible(False)
         
         self.language_select_combo = QComboBox()
+        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
         self.language_select_combo.addItems([
             self.tr("English only (en)"), self.tr("French only (fr)"),
             self.tr("Arabic only (ar)"), self.tr("Turkish only (tr)"),
@@ -192,11 +201,15 @@ class DocumentManager(QMainWindow):
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
 
+        self.manage_products_action = QAction(QIcon(":/icons/briefcase.svg"), self.tr("Gérer Produits Globaux"), self)
+        self.manage_products_action.triggered.connect(self.open_manage_products_dialog)
+
     def create_menus_main(self): 
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu(self.tr("Fichier"))
         file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action)
-        file_menu.addAction(self.product_equivalency_action) # Add the new action
+        file_menu.addAction(self.product_equivalency_action)
+        file_menu.addAction(self.manage_products_action) # Add the new action for products
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action)
@@ -371,6 +384,10 @@ class DocumentManager(QMainWindow):
             
     def open_product_equivalency_dialog(self):
         dialog = ProductEquivalencyDialog(self) # Pass self as parent
+        dialog.exec_()
+
+    def open_manage_products_dialog(self):
+        dialog = ManageProductMasterDialog(self.app_root_dir, self) # Pass app_root_dir and self as parent
         dialog.exec_()
 
     def closeEvent(self, event): 

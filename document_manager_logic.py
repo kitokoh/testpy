@@ -168,6 +168,15 @@ def handle_create_client_execution(doc_manager):
         doc_manager.project_id_input_field.clear(); doc_manager.final_price_input.setValue(0)
 
         if ui_map_data: # Ensure ui_map_data is populated
+            # ContactDialog, ProductDialog, and CreateDocumentDialog calls removed as per request.
+            # The client's price will remain at its initial value (likely 0)
+            # until products are added manually via the ClientWidget.
+            # actual_new_client_id should be valid here if ui_map_data is True.
+            logging.info(f"Skipping Contact, Product, and CreateDocument dialogs for client ID: {actual_new_client_id}.")
+            # The original logic for price calculation based on dialogs is removed.
+            # Price will be initial_price (e.g. 0) or as set before this block.
+            # If there was any other logic inside this if ui_map_data block that needs to be preserved,
+            # it should have been identified and kept. For now, the assumption is this block was primarily for these dialogs.
             contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()

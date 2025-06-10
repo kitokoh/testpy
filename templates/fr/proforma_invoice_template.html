@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Proforma Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
+        </div>
+
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+                <p>Email: {{SELLER_EMAIL}}</p>
+                <p>VAT ID: {{SELLER_VAT_ID}}</p>
+            </div>
+
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
+                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
+            </div>
+        </div>
+
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
+            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{doc.products_table_rows}} <!-- Populated by db.py -->
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
+            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
+            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
+            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
+        </div>
+
+        <div class="footer">
+            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
+        </div>
+    </div>
+</body>
+</html>

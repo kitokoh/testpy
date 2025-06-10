@@ -92,7 +92,7 @@ class CompanyInfoStepDialog(QDialog):
         if file_path:
             self.logo_path_selected_for_upload = file_path # User selected a new logo
             self.logo_path = file_path
-           pixmap = QPixmap(file_path)
+            pixmap = QPixmap(file_path)
             self.logo_preview_label.setPixmap(pixmap.scaled(
                 self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))

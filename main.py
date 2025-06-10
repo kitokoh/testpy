@@ -20,11 +20,12 @@ from PyQt5.QtWidgets import QDialog, QMessageBox # Required for QDialog.Accepted
 # Import specific db functions needed
 import db as db_manager
 from db import get_all_companies, add_company # Specific imports for company check
+from auth.login_window import LoginWindow # Added for authentication
+from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 
 
 from initial_setup_dialog import InitialSetupDialog # Import the new dialog
-from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
-import db as db_manager # For db initialization
+# import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
 
 # Initialize the central database using db_manager.
@@ -272,15 +273,38 @@ def main():
     #         # For now, we'll log and let it proceed.
     #         # QApplication.quit() # Or sys.exit(1) if cancellation is critical
 
-    # 10. Create and Show Main Window
-    # DocumentManager is imported from main_window
-    # APP_ROOT_DIR is imported from app_setup
-    main_window = DocumentManager(APP_ROOT_DIR) 
-    main_window.show()
-    logging.info("Main window shown. Application is running.")
+    # 10. Authentication Flow
+    login_dialog = LoginWindow() # Create LoginWindow instance
+    login_result = login_dialog.exec_() # Show login dialog modally
 
-    # 11. Execute Application
-    sys.exit(app.exec_())
+    if login_result == QDialog.Accepted:
+        logging.info("Login successful. Proceeding to main application.")
+        # 11. Create and Show Main Window (only after successful login)
+        # DocumentManager is imported from main_window
+        # APP_ROOT_DIR is imported from app_setup
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+
+    # 10. Authentication Flow
+    login_dialog = LoginWindow() # Create LoginWindow instance
+    login_result = login_dialog.exec_() # Show login dialog modally
+
+    if login_result == QDialog.Accepted:
+        logging.info("Login successful. Proceeding to main application.")
+        # 11. Create and Show Main Window (only after successful login)
+        # DocumentManager is imported from main_window
+        # APP_ROOT_DIR is imported from app_setup
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+
+        # 12. Execute Application
+        sys.exit(app.exec_())
+    else:
+        logging.info("Login failed or cancelled. Exiting application.")
+        sys.exit() # Exit if login is not successful
+
 
 if __name__ == "__main__":
     main()
