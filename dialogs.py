@@ -356,9 +356,9 @@ class TemplateDialog(QDialog):
         self.template_list.setAlternatingRowColors(True); font = self.template_list.font(); font.setPointSize(font.pointSize() + 1); self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         btn_layout = QHBoxLayout(); btn_layout.setSpacing(8)
-        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon(":/icons/add.svg")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
-        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon(":/icons/edit.svg")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
-        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon(":/icons/delete.svg")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
+        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon(":/icons/plus.svg")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
+        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
+        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon(":/icons/trash.svg")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
         self.default_btn = QPushButton(self.tr("Par Défaut")); self.default_btn.setIcon(QIcon.fromTheme("emblem-default")); self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue")); self.default_btn.clicked.connect(self.set_default_template); self.default_btn.setEnabled(False); btn_layout.addWidget(self.default_btn) # emblem-default not in list yet
         left_vbox_layout.addLayout(btn_layout); main_hbox_layout.addLayout(left_vbox_layout, 1)
         self.preview_area = QTextEdit(); self.preview_area.setReadOnly(True); self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
@@ -817,9 +817,9 @@ class ProductDialog(QDialog):
         form_layout.addRow(self.view_detailed_dimensions_button)
 
         current_line_total_title_label=QLabel(self.tr("Total Ligne Actuelle:"));self.current_line_total_label=QLabel("€ 0.00");font=self.current_line_total_label.font();font.setBold(True);self.current_line_total_label.setFont(font);form_layout.addRow(current_line_total_title_label,self.current_line_total_label);two_columns_layout.addWidget(input_group_box,2);main_layout.addLayout(two_columns_layout)
-        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/list-add.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
+        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/plus-circle.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
         self.products_table=QTableWidget();self.products_table.setColumnCount(5);self.products_table.setHorizontalHeaderLabels([self.tr("Nom Produit"),self.tr("Description"),self.tr("Qté"),self.tr("Prix Unitaire"),self.tr("Total Ligne")]);self.products_table.setEditTriggers(QAbstractItemView.NoEditTriggers);self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows);self.products_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeToContents);main_layout.addWidget(self.products_table)
-        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon(":/icons/list-remove.svg")); self.remove_line_btn.setObjectName("removeProductLineButton"); self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn) # Added objectName
+        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_line_btn.setObjectName("removeProductLineButton"); self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn) # Added objectName
         self.overall_total_label=QLabel(self.tr("Total Général: € 0.00")); font=self.overall_total_label.font();font.setPointSize(font.pointSize()+3);font.setBold(True);self.overall_total_label.setFont(font); self.overall_total_label.setObjectName("overallTotalLabel"); self.overall_total_label.setAlignment(Qt.AlignRight);main_layout.addWidget(self.overall_total_label);main_layout.addStretch()
         button_frame=QFrame(self);button_frame.setObjectName("buttonFrame"); button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0) # Style in QSS
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton");cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"));button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
@@ -971,7 +971,7 @@ class CreateDocumentDialog(QDialog):
         self.load_templates(); main_layout.addStretch()
         button_frame = QFrame(self); button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout = QHBoxLayout(button_frame); button_frame_layout.setContentsMargins(0,0,0,0)
-        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/document-new.svg")); create_btn.setObjectName("primaryButton")
+        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/file-plus.svg")); create_btn.setObjectName("primaryButton")
         create_btn.clicked.connect(self.create_documents); button_frame_layout.addWidget(create_btn)
         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         cancel_btn.clicked.connect(self.reject); button_frame_layout.addWidget(cancel_btn)
@@ -1170,15 +1170,15 @@ class CompilePdfDialog(QDialog):
         self.pdf_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.pdf_list.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.pdf_list)
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/list-add.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
-        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/delete.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
+        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/plus.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
+        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/trash.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
         move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn) # go-up not in list
         move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn) # go-down not in list
         layout.addLayout(btn_layout)
         options_layout = QHBoxLayout(); options_layout.addWidget(QLabel(self.tr("Nom du fichier compilé:")))
         self.output_name = QLineEdit(f"{self.tr('compilation')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"); options_layout.addWidget(self.output_name); layout.addLayout(options_layout)
         action_layout = QHBoxLayout()
-        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/document-export.svg")); compile_btn.setObjectName("primaryButton")
+        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/download.svg")); compile_btn.setObjectName("primaryButton")
         compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
         layout.addLayout(action_layout)
