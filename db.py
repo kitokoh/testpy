@@ -3496,6 +3496,107 @@ def delete_product_dimension(product_id: int) -> bool:
         if conn:
             conn.close()
 
+# CRUD functions for ProductDimensions
+def add_or_update_product_dimension(product_id: int, dimension_data: dict) -> bool:
+    """
+    Adds or updates a product's dimensions.
+    Performs an "upsert" operation. Updates 'updated_at' timestamp.
+    Returns True on success, False on failure.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+
+        # Check if record exists
+        cursor.execute("SELECT product_id FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        exists = cursor.fetchone()
+
+        if exists:
+            # Update existing record
+            dimension_data['updated_at'] = now
+            set_clauses = [f"{key} = ?" for key in dimension_data.keys() if key != 'product_id']
+            # Filter out product_id from params if it was accidentally included in dimension_data keys
+            params = [value for key, value in dimension_data.items() if key != 'product_id']
+
+            if not set_clauses: # No actual dimension data to update, only product_id was passed
+                # Still, we might want to update the 'updated_at' timestamp
+                # Forcing an update to 'updated_at' even if other fields are empty
+                cursor.execute("UPDATE ProductDimensions SET updated_at = ? WHERE product_id = ?", (now, product_id))
+                conn.commit()
+                return True
+
+            params.append(product_id)
+            sql = f"UPDATE ProductDimensions SET {', '.join(set_clauses)} WHERE product_id = ?"
+            cursor.execute(sql, params)
+        else:
+            # Insert new record
+            # Ensure all dimension columns are potentially included, defaulting to None if not in dimension_data
+            all_dim_columns = ['dim_A', 'dim_B', 'dim_C', 'dim_D', 'dim_E', 'dim_F', 'dim_G', 'dim_H', 'dim_I', 'dim_J', 'technical_image_path']
+
+            columns_to_insert = ['product_id', 'created_at', 'updated_at']
+            values_to_insert = [product_id, now, now]
+
+            for col in all_dim_columns:
+                columns_to_insert.append(col)
+                values_to_insert.append(dimension_data.get(col))
+
+            placeholders = ', '.join(['?'] * len(columns_to_insert))
+            sql = f"INSERT INTO ProductDimensions ({', '.join(columns_to_insert)}) VALUES ({placeholders})"
+            cursor.execute(sql, tuple(values_to_insert))
+
+        conn.commit()
+        return cursor.rowcount > 0 or (not exists and cursor.lastrowid is not None) # For INSERT, check lastrowid
+    except sqlite3.Error as e:
+        print(f"Database error in add_or_update_product_dimension for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_product_dimension(product_id: int) -> dict | None:
+    """
+    Fetches the dimension data for the given product_id.
+    Returns a dictionary of the dimension data if found, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_product_dimension for product_id {product_id}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def delete_product_dimension(product_id: int) -> bool:
+    """
+    Deletes the dimension record for the given product_id.
+    Returns True if a row was deleted, False otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_product_dimension for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Products
 def add_product(product_data: dict) -> int | None:
     """Adds a new product, including weight and dimensions. Returns product_id or None."""
