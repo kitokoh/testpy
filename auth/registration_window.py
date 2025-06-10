@@ -1,31 +1,46 @@
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QSpacerItem, QSizePolicy
+    QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
+    QMessageBox, QSpacerItem, QSizePolicy, QFrame, QWidget
 )
-from PyQt5.QtGui import QPixmap # For logo, though not strictly required by instructions for this window
+from PyQt5.QtGui import QFont # QPixmap can be added if a different logo/image is desired here
 from PyQt5.QtCore import Qt
 import db # For database operations
 
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Create Account")
-        self.setMinimumWidth(400) # Slightly wider for more fields
+        self.setWindowTitle("Create New Account")
+        self.setMinimumWidth(800) # Increased width for two columns, slightly more for more fields
         self.init_ui()
 
     def init_ui(self):
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(25, 25, 25, 25)
-        main_layout.setSpacing(15)
+        # Main horizontal layout
+        main_h_layout = QHBoxLayout(self)
+        main_h_layout.setContentsMargins(0, 0, 0, 0)
+        main_h_layout.setSpacing(0)
+
+        # --- Left Side (Form Area) ---
+        left_widget = QWidget()
+        left_widget.setObjectName("registrationFormArea")
+
+        form_layout = QVBoxLayout(left_widget)
+        form_layout.setContentsMargins(30, 40, 30, 40)
+        form_layout.setSpacing(15) # Slightly less spacing than login due to more fields
 
         # Title Label
-        title_label = QLabel("Create Account")
-        title_label.setObjectName("dialogHeaderLabel") # For QSS styling
+        title_label = QLabel("Create Your Account")
+        title_label.setObjectName("dialogHeaderLabel")
         title_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title_label)
+        form_layout.addWidget(title_label)
 
-        # Spacer
-        main_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed)) # Smaller spacer
+        # Subtitle or instruction
+        instruction_label = QLabel("Fill in the details below to register.")
+        instruction_label.setAlignment(Qt.AlignCenter)
+        instruction_label.setStyleSheet("font-size: 10pt; color: #6c757d;")
+        form_layout.addWidget(instruction_label)
+
+        form_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Username
         self.username_input = QLineEdit()
@@ -45,35 +60,65 @@ class RegistrationWindow(QDialog):
         self.confirm_password_input.setPlaceholderText("Confirm Password")
         self.confirm_password_input.setEchoMode(QLineEdit.Password)
 
+        form_layout.addWidget(QLabel("Username:"))
+        form_layout.addWidget(self.username_input)
+        form_layout.addWidget(QLabel("Email:"))
+        form_layout.addWidget(self.email_input)
+        form_layout.addWidget(QLabel("Password:"))
+        form_layout.addWidget(self.password_input)
+        form_layout.addWidget(QLabel("Confirm Password:"))
+        form_layout.addWidget(self.confirm_password_input)
+
+        form_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
+
         # Register Button
         register_button = QPushButton("Register")
-        register_button.setObjectName("primaryButton") # Or "registerButton"
+        register_button.setObjectName("primaryButton")
+        register_button.setMinimumHeight(35)
         register_button.clicked.connect(self.handle_registration)
+        form_layout.addWidget(register_button)
+
+        form_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Back to Login Button
-        back_to_login_button = QPushButton("Back to Login")
-        back_to_login_button.setObjectName("linkButton") # Or "secondaryButton"
+        back_to_login_button = QPushButton("Already have an account? Login")
+        back_to_login_button.setObjectName("linkButton")
         back_to_login_button.setCursor(Qt.PointingHandCursor)
         back_to_login_button.clicked.connect(self.go_to_login)
+        form_layout.addWidget(back_to_login_button, 0, Qt.AlignCenter)
 
-        # Button Layout for Register
-        register_button_layout = QHBoxLayout()
-        register_button_layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        register_button_layout.addWidget(register_button)
-        register_button_layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        form_layout.addStretch(1)
 
-        # Add widgets to main layout
-        main_layout.addWidget(self.username_input)
-        main_layout.addWidget(self.email_input)
-        main_layout.addWidget(self.password_input)
-        main_layout.addWidget(self.confirm_password_input)
-        main_layout.addLayout(register_button_layout) # Add register button layout
-        main_layout.addWidget(back_to_login_button, 0, Qt.AlignCenter) # Center the back to login link
+        # --- Right Side (Promo Area) ---
+        promo_frame = QFrame()
+        promo_frame.setObjectName("promoAreaFrame") # Consistent object name
+        # promo_frame.setStyleSheet("#promoAreaFrame { background-color: #28a745; border-left: 1px solid #ddd; }") # Style from QSS
+        promo_frame.setMinimumWidth(320)
 
-        # Spacer at the bottom
-        main_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        promo_layout = QVBoxLayout(promo_frame)
+        promo_layout.setContentsMargins(30, 40, 30, 40) # Consistent margins
+        promo_layout.setSpacing(20)
+        promo_layout.setAlignment(Qt.AlignCenter)
 
-        self.setLayout(main_layout)
+        promo_header = QLabel("Create Your Account") # Text updated as per instruction
+        promo_header.setObjectName("promoHeaderLabel")
+        promo_header.setAlignment(Qt.AlignCenter)
+        promo_header.setWordWrap(True)
+        promo_layout.addWidget(promo_header)
+
+        promo_text_content = "Join us to manage your documents and projects with ease. Sign up in seconds!" # Text updated
+        promo_text = QLabel(promo_text_content)
+        promo_text.setObjectName("promoTextLabel")
+        promo_text.setAlignment(Qt.AlignCenter)
+        promo_text.setWordWrap(True)
+        promo_layout.addWidget(promo_text)
+
+        promo_layout.addStretch(1)
+
+        # Add left and right widgets to main horizontal layout
+        main_h_layout.addWidget(left_widget, 1)
+        main_h_layout.addWidget(promo_frame, 1) # Use the updated promo_frame
+
 
     def handle_registration(self):
         username = self.username_input.text().strip()
