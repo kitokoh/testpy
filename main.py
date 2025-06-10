@@ -73,6 +73,7 @@ def check_session_timeout() -> bool:
     return False # Session is still valid
 
 def main():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
@@ -291,13 +292,11 @@ def main():
         session_token = login_dialog.get_session_token()
         logged_in_user = login_dialog.get_current_user()
 
-        global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID
         CURRENT_SESSION_TOKEN = session_token
         if logged_in_user:
             CURRENT_USER_ROLE = logged_in_user.get('role')
             CURRENT_USER_ID = logged_in_user.get('user_id')
             # Set session start time
-            global SESSION_START_TIME
             SESSION_START_TIME = datetime.datetime.now()
             logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
         else:
