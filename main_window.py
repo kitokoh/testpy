@@ -159,6 +159,7 @@ class DocumentManager(QMainWindow):
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+
         self.statistics_action.setCheckable(True)
         self.statistics_action.triggered.connect(self.show_statistics_view)
 
@@ -197,6 +198,7 @@ class DocumentManager(QMainWindow):
         
     def show_statistics_view(self):
         self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+
         self.statistics_action.setChecked(True)
         self.documents_view_action.setChecked(False)
         self.project_management_action.setChecked(False)

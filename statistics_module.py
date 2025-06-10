@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
-                             QGridLayout, QGroupBox, QProgressBar,
+                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
-                             QTableWidgetItem, QHeaderView)
+                             QTableWidgetItem, QHeaderView, QPushButton) # Added QPushButton
+from PyQt5.QtGui import QIcon # Added QIcon
 from PyQt5.QtCore import Qt, QUrl
 import db as db_manager
 import folium
 import io
 import os
-import json # For loading GeoJSON
-import requests # To fetch GeoJSON data (fallback)
+import json
+import requests
 import pandas as pd
-from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 class StatisticsDashboard(QWidget):
     def __init__(self, parent=None):
@@ -25,9 +25,8 @@ class StatisticsDashboard(QWidget):
         self.map_view = QWebEngineView()
         self.map_view.setMinimumHeight(400)
         self.map_view.setObjectName("presenceMapView")
-
         map_group_box = QGroupBox(self.tr("Carte de Présence"))
-        map_group_box.setObjectName("mapGroupBox") # Added object name
+        map_group_box.setObjectName("mapGroupBox")
         map_group_layout = QVBoxLayout(map_group_box)
         map_group_layout.addWidget(self.map_view)
         map_group_layout.setContentsMargins(5,5,5,5)
@@ -41,6 +40,21 @@ class StatisticsDashboard(QWidget):
         self.right_panel_layout = QVBoxLayout(self.right_panel_widget)
         self.right_panel_layout.setAlignment(Qt.AlignTop)
         self.right_panel_layout.setSpacing(15)
+
+        # --- Refresh Button ---
+        refresh_section_layout = QHBoxLayout()
+        self.refresh_button = QPushButton(self.tr("Actualiser"))
+        self.refresh_button.setObjectName("refreshStatsButton")
+        refresh_icon = QIcon(":/icons/refresh-cw.svg")
+        if not refresh_icon.isNull():
+            self.refresh_button.setIcon(refresh_icon)
+        else:
+            print("Warning: Refresh icon ':/icons/refresh-cw.svg' not found.")
+        self.refresh_button.setToolTip(self.tr("Actualiser toutes les données statistiques"))
+        self.refresh_button.clicked.connect(self.refresh_all_statistics) # Connect signal
+        refresh_section_layout.addStretch()
+        refresh_section_layout.addWidget(self.refresh_button)
+        self.right_panel_layout.addLayout(refresh_section_layout)
 
         title_label = QLabel(self.tr("Statistiques Détaillées"))
         title_label.setObjectName("statisticsTitleLabel")
@@ -100,10 +114,15 @@ class StatisticsDashboard(QWidget):
         self.right_scroll_area.setWidget(self.right_panel_widget)
         self.main_h_layout.addWidget(self.right_scroll_area, 1)
 
+        self.refresh_all_statistics() # Initial data load
+
+    def refresh_all_statistics(self):
+        print("Refreshing all statistics...")
         self.update_global_stats()
         self.update_presence_map()
         self.update_business_health_score()
         self.update_customer_segmentation_views()
+        print("All statistics refreshed.")
 
     def _setup_segmentation_tab_ui(self):
         layout_country = QVBoxLayout(self.country_segment_tab)
@@ -311,13 +330,21 @@ class StatisticsDashboard(QWidget):
         print("StatisticsDashboard closeEvent triggered.")
         super().closeEvent(event)
 
+    def showEvent(self, event):
+        """
+        Called when the widget is shown.
+        Overrides QWidget.showEvent().
+        """
+        print("StatisticsDashboard is now visible, refreshing all statistics...") # For debugging
+        self.refresh_all_statistics()
+        super().showEvent(event) # Call the base class implementation
+
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
     db_manager.initialize_database()
 
     try:
-        # Dummy data population logic (from previous step, ensure it runs for testing)
         print("Populating dummy data for testing if necessary...")
     except Exception as e:
         print(f"Error during __main__ dummy data setup: {e}")
@@ -325,7 +352,12 @@ if __name__ == '__main__':
     app.setStyleSheet("""
         #statisticsTitleLabel { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
         #healthScoreValueLabel { font-size: 20px; font-weight: bold; color: #17a2b8; margin-top: 5px; margin-bottom: 5px;}
-
+        #refreshStatsButton {
+            font-weight: bold;
+            padding: 5px 10px; /* Reduced padding */
+            margin-bottom: 5px; /* Reduced margin */
+            min-width: 90px;
+        }
         QProgressBar {
             border: 1px solid #cccccc;
             border-radius: 5px;
@@ -336,7 +368,6 @@ if __name__ == '__main__':
         QProgressBar::chunk {
             background-color: #28a745;
         }
-
         QGroupBox {
             font-weight: bold;
             border: 1px solid #cccccc;
@@ -352,22 +383,18 @@ if __name__ == '__main__':
             background-color: #f0f0f0;
             border-radius: 3px;
         }
-
         QLabel { font-size: 13px; padding: 4px; }
-
         QLabel[objectName^="statValue_"] {
             font-weight: bold;
             color: #007bff;
             font-size: 14px;
             padding: 4px;
         }
-
         QTableWidget {
             border: 1px solid #dcdcdc;
             alternate-background-color: #f9f9f9;
         }
         QTableWidget::item { padding: 5px; }
-
         QHeaderView::section {
             background-color: #e9ecef;
             padding: 5px;
@@ -375,7 +402,6 @@ if __name__ == '__main__':
             font-weight: bold;
             font-size: 13px;
         }
-
         QTabWidget::pane {
             border: 1px solid #dcdcdc;
             border-top: none;
@@ -396,10 +422,8 @@ if __name__ == '__main__':
             border-bottom: 1px solid #ffffff;
         }
         QTabBar::tab:hover:!selected { background-color: #e2e6ea; }
-
         #statsScrollArea { border: none; }
         #statsRightPanelWidget { background-color: transparent; }
-
         QGroupBox#mapGroupBox {
              padding: 5px;
         }
