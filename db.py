@@ -1412,6 +1412,22 @@ def delete_template_category(category_id: int) -> bool:
         if conn:
             conn.close()
 
+def get_template_category_details(category_id: int) -> dict | None:
+    """Retrieves details for a specific template category by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM TemplateCategories WHERE category_id = ?", (category_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_category_details: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Templates
 def add_template(template_data: dict) -> int | None:
     """
@@ -1556,6 +1572,81 @@ def delete_template(template_id: int) -> bool:
     except sqlite3.Error as e:
         print(f"Database error in delete_template: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_distinct_template_languages() -> list[tuple[str]]:
+    """Retrieves a list of distinct, non-empty language codes from templates."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT DISTINCT language_code FROM Templates WHERE language_code IS NOT NULL AND language_code != '' ORDER BY language_code;"
+        cursor.execute(sql)
+        # Returns list of tuples, e.g., [('en',), ('fr',)]
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_template_languages: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_distinct_template_types() -> list[tuple[str]]:
+    """Retrieves a list of distinct, non-empty template types from templates."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT DISTINCT template_type FROM Templates WHERE template_type IS NOT NULL AND template_type != '' ORDER BY template_type;"
+        cursor.execute(sql)
+        # Returns list of tuples, e.g., [('document_excel',), ('document_word',)]
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_template_types: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def get_filtered_templates(category_id: int = None, language_code: str = None, template_type: str = None) -> list[dict]:
+    """
+    Fetches templates based on the provided filters.
+    If a filter is None, it's not applied.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        base_sql = "SELECT * FROM Templates"
+        where_clauses = []
+        params = []
+
+        if category_id is not None:
+            where_clauses.append("category_id = ?")
+            params.append(category_id)
+        if language_code is not None:
+            where_clauses.append("language_code = ?")
+            params.append(language_code)
+        if template_type is not None:
+            where_clauses.append("template_type = ?")
+            params.append(template_type)
+
+        if where_clauses:
+            sql = f"{base_sql} WHERE {' AND '.join(where_clauses)}"
+        else:
+            sql = base_sql
+
+        sql += " ORDER BY category_id, template_name;" # Order for consistent display
+
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_filtered_templates: {e}")
+        return []
     finally:
         if conn:
             conn.close()
