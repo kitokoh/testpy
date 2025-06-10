@@ -363,7 +363,7 @@ class InitialSetupDialog(QDialog):
         self.button_box = QDialogButtonBox()
         self.prev_button = self.button_box.addButton(QCoreApplication.translate("InitialSetupDialog", "Previous"), QDialogButtonBox.ActionRole)
         self.next_button = self.button_box.addButton(QCoreApplication.translate("InitialSetupDialog", "Next"), QDialogButtonBox.ActionRole)
-        self.finish_button = self.button_box.addButton(QDialogButtonBox.Finish)
+        self.finish_button = self.button_box.addButton(QDialogButtonBox.Ok)
         self.cancel_button = self.button_box.addButton(QDialogButtonBox.Cancel)
 
         self.prev_button.clicked.connect(self.go_previous)
