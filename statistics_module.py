@@ -527,3 +527,4 @@ if __name__ == '__main__':
     main_widget.resize(1200, 700)
     main_widget.show()
     sys.exit(app.exec_())
+
