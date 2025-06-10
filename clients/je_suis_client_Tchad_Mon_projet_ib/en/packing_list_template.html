@@ -2,67 +2,82 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Packing List</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-        .container { width: 90%; margin: auto; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { color: #444; }
-        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
-        .shipper-details, .consignee-details, .notify-party-details { width: 32%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
-        .shipment-info { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee;}
-        .shipment-info p { margin: 5px 0; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #e9e9e9; font-weight: bold; }
-        .totals-summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
-        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }
-        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; font-size: 12px; }
+        .container { width: 90%; margin: 20px auto; border: 1px solid #ccc; padding: 20px; }
+        .header, .footer { text-align: center; margin-bottom: 20px; }
+        .logo { max-width: 150px; max-height: 75px; margin-bottom: 10px; }
+        .company-details, .client-details, .shipment-info { margin-bottom: 20px; }
+        .company-details div, .client-details div, .shipment-info div { margin-bottom: 5px; }
+        .details-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .details-table th, .details-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .details-table th { background-color: #f2f2f2; }
+        .totals-summary { margin-top: 20px; }
+        .totals-summary table { width: 50%; border-collapse: collapse; margin-left: auto; /* Align to right */ }
+        .totals-summary td { padding: 5px; border: 1px solid #ddd;}
+        .totals-summary .label { font-weight: bold; }
+        .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
+        .signature-block { width: 45%; text-align: center; }
+        .signature-block p { margin-top: 50px; border-top: 1px solid #000; padding-top: 5px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <img src="" alt="Company Logo" class="logo" />
-            <h1>PACKING LIST</h1>
+            {% if seller.company_logo_path %}
+                <img src="" alt="Company Logo" class="logo" />
+            {% else %}
+                <p>(Company Logo)</p>
+            {% endif %}
+            <h1>Packing List</h1>
         </div>
 
-        <div class.details-section">
-            <div class="shipper-details">
-                <h3>Shipper/Exporter:</h3>
-                <p><strong></strong></p>
-                <p></p>
-                <p></p>
-                <p>Phone: </p>
-            </div>
-
-            <div class="consignee-details">
-                <h3>Consignee:</h3>
-                <p><strong></strong></p>
-                <p></p>
-                <p></p>
-                <p>Contact: </p>
-            </div>
-
-            <div class="notify-party-details">
-                <h3>Notify Party:</h3>
-                <p></p>
-                <p></p>
-            </div>
-        </div>
+        <table style="width:100%; margin-bottom: 20px;">
+            <tr>
+                <td style="width:50%; vertical-align:top;">
+                    <div class="company-details">
+                        <strong>Exporter:</strong><br>
+                        <br>
+                        <br>
+                        Phone: <br>
+                        Email: 
+                    </div>
+                </td>
+                <td style="width:50%; vertical-align:top;">
+                    <div class="client-details">
+                        <strong>Consignee:</strong><br>
+                        <br>
+                        <br>
+                        Attn: 
+                    </div>
+                </td>
+            </tr>
+        </table>
 
         <div class="shipment-info">
-            <p><strong>Packing List No:</strong> </p>
-            <p><strong>Date:</strong> </p>
-            <p><strong>Invoice No:</strong> </p>
-            <p><strong>Project ID:</strong> </p>
-            <p><strong>Vessel/Flight No:</strong> </p>
-            <p><strong>Port of Loading:</strong> </p>
-            <p><strong>Port of Discharge:</strong> </p>
-            <p><strong>Final Destination:</strong> </p>
+            <table style="width:100%; border-collapse: collapse;">
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Packing List No.:</strong> </td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Date:</strong> </td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Invoice No.:</strong> </td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Project ID:</strong> </td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Vessel/Flight No.:</strong> </td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Port of Loading:</strong> </td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Port of Discharge:</strong> </td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Final Destination Country:</strong> </td>
+                </tr>
+            </table>
         </div>
 
-        <table>
+        <table class="details-table">
             <thead>
                 <tr>
                     <th>Mark & Nos.</th>
@@ -75,31 +90,43 @@
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan='7'>Packing details not provided.</td></tr> <!-- Populated by db.py -->
-                <!-- Example Row:
-                <tr>
-                    <td>CS/NO. 1-10</td>
-                    <td>Product Alpha - Model X</td>
-                    <td>10</td>
-                    <td>Cartons</td>
-                    <td>100.00</td>
-                    <td>110.00</td>
-                    <td>50x40x30</td>
-                </tr>
-                -->
+                
             </tbody>
         </table>
 
         <div class="totals-summary">
-            <p><strong>Total Number of Packages:</strong> </p>
-            <p><strong>Total Net Weight:</strong>  kg</p>
-            <p><strong>Total Gross Weight:</strong>  kg</p>
-            <p><strong>Total Volume:</strong>  CBM</p>
+            <table>
+                <tr>
+                    <td class="label">Total Number of Packages:</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="label">Total Net Weight (kg):</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="label">Total Gross Weight (kg):</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="label">Total Volume (CBM):</td>
+                    <td></td>
+                </tr>
+            </table>
         </div>
 
         <div class="footer">
-            <p>Exporter's Signature: _________________________</p>
-            <p>Date: </p>
+            <div class="signatures">
+                <div class="signature-block">
+                    <p>Exporter's Signature</p>
+                    <p>Date: 2025-06-10</p>
+                </div>
+                <div class="signature-block">
+                    <p>Consignee's Signature (Optional)</p>
+                    <p>Date: </p>
+                </div>
+            </div>
+            <p>&copy; hidroguc pres 2025</p>
         </div>
     </div>
 </body>
