@@ -3072,6 +3072,24 @@ def get_contacts_for_client(client_id: str) -> list[dict]:
     finally:
         if conn: conn.close()
 
+def get_contacts_for_client_count(client_id: str) -> int:
+    """Retrieves the count of contacts linked to a specific client_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Counts entries in the ClientContacts association table for the given client_id
+        sql = "SELECT COUNT(contact_id) FROM ClientContacts WHERE client_id = ?"
+        cursor.execute(sql, (client_id,))
+        row = cursor.fetchone()
+        return row[0] if row else 0
+    except sqlite3.Error as e:
+        print(f"Database error in get_contacts_for_client_count for client_id {client_id}: {e}")
+        return 0 # Return 0 in case of error to prevent further issues
+    finally:
+        if conn:
+            conn.close()
+
 def get_clients_for_contact(contact_id: int) -> list[dict]:
     """Retrieves all clients associated with a contact."""
     conn = None

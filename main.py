@@ -286,6 +286,19 @@ def main():
         main_window.show()
         logging.info("Main window shown. Application is running.")
 
+    # 10. Authentication Flow
+    login_dialog = LoginWindow() # Create LoginWindow instance
+    login_result = login_dialog.exec_() # Show login dialog modally
+
+    if login_result == QDialog.Accepted:
+        logging.info("Login successful. Proceeding to main application.")
+        # 11. Create and Show Main Window (only after successful login)
+        # DocumentManager is imported from main_window
+        # APP_ROOT_DIR is imported from app_setup
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+
         # 12. Execute Application
         sys.exit(app.exec_())
     else:
