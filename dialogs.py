@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QTreeWidget, QTreeWidgetItem, QHeaderView, QTextEdit,
     QInputDialog, QMessageBox, QFrame, QLabel, QListWidget, QListWidgetItem, QCheckBox,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QDoubleSpinBox,
-    QGridLayout, QGroupBox
+    QGridLayout, QGroupBox, QCompleter
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QBrush, QPixmap
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication, QDate
@@ -39,6 +39,193 @@ import shutil # Ensure shutil is imported
 
 # Forward declaration for type hinting if needed, or ensure ProductDimensionUIDialog is defined before use.
 # class ProductDimensionUIDialog(QDialog): pass
+
+
+class AddNewClientDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Ajouter un Nouveau Client"))
+        self.setMinimumSize(500, 400) # Adjust as needed
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        self.form_layout = QFormLayout()
+        self.form_layout.setLabelAlignment(Qt.AlignRight)
+        self.form_layout.setSpacing(10)
+
+        self.client_name_input = QLineEdit()
+        self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
+        self.form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
+
+        self.company_name_input = QLineEdit()
+        self.company_name_input.setPlaceholderText(self.tr("Nom entreprise (optionnel)"))
+        self.form_layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
+
+        self.client_need_input = QLineEdit()
+        self.client_need_input.setPlaceholderText(self.tr("Besoin principal du client"))
+        self.form_layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
+
+        country_hbox_layout = QHBoxLayout()
+        self.country_select_combo = QComboBox()
+        self.country_select_combo.setEditable(True)
+        self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
+        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country)
+        country_hbox_layout.addWidget(self.country_select_combo)
+        self.add_country_button = QPushButton("+")
+        self.add_country_button.setFixedSize(30, 30)
+        self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
+        self.add_country_button.clicked.connect(self.add_new_country_dialog)
+        country_hbox_layout.addWidget(self.add_country_button)
+        self.form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
+
+        city_hbox_layout = QHBoxLayout()
+        self.city_select_combo = QComboBox()
+        self.city_select_combo.setEditable(True)
+        self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
+        city_hbox_layout.addWidget(self.city_select_combo)
+        self.add_city_button = QPushButton("+")
+        self.add_city_button.setFixedSize(30, 30)
+        self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
+        self.add_city_button.clicked.connect(self.add_new_city_dialog)
+        city_hbox_layout.addWidget(self.add_city_button)
+        self.form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
+
+        self.project_id_input_field = QLineEdit()
+        self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))
+        self.form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
+
+        self.language_select_combo = QComboBox()
+        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
+        # Language options should be consistent with main_window.py's original setup
+        self.language_options_map = {
+            self.tr("English only (en)"): ["en"],
+            self.tr("French only (fr)"): ["fr"],
+            self.tr("Arabic only (ar)"): ["ar"],
+            self.tr("Turkish only (tr)"): ["tr"],
+            self.tr("Portuguese only (pt)"): ["pt"],
+            self.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
+        }
+        self.language_select_combo.addItems(list(self.language_options_map.keys()))
+        self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
+
+        layout.addLayout(self.form_layout)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.button(QDialogButtonBox.Ok).setText(self.tr("Créer Client"))
+        self.buttons.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+
+        self.load_countries_into_combo()
+
+    def load_countries_into_combo(self):
+        self.country_select_combo.clear()
+        try:
+            countries = db_manager.get_all_countries()
+            if countries is None: countries = []
+            for country_dict in countries:
+                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
+
+    def load_cities_for_country(self, country_name_str):
+        self.city_select_combo.clear()
+        if not country_name_str: return
+        selected_country_id = self.country_select_combo.currentData()
+        if selected_country_id is None:
+            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
+            if country_obj_by_name: selected_country_id = country_obj_by_name['country_id']
+            else: return
+        try:
+            cities = db_manager.get_all_cities(country_id=selected_country_id)
+            if cities is None: cities = []
+            for city_dict in cities:
+                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
+
+    def add_new_country_dialog(self):
+        country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
+        if ok and country_text.strip():
+            try:
+                returned_country_id = db_manager.add_country({'country_name': country_text.strip()})
+                if returned_country_id is not None:
+                    self.load_countries_into_combo()
+                    index = self.country_select_combo.findText(country_text.strip())
+                    if index >= 0: self.country_select_combo.setCurrentIndex(index)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+
+    def add_new_city_dialog(self):
+        current_country_name = self.country_select_combo.currentText()
+        current_country_id = self.country_select_combo.currentData()
+        if not current_country_id:
+            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner un pays valide."))
+            return
+        city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
+        if ok and city_text.strip():
+            try:
+                returned_city_id = db_manager.add_city({'country_id': current_country_id, 'city_name': city_text.strip()})
+                if returned_city_id is not None:
+                    self.load_cities_for_country(current_country_name)
+                    index = self.city_select_combo.findText(city_text.strip())
+                    if index >= 0: self.city_select_combo.setCurrentIndex(index)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+
+    def get_data(self):
+        client_name = self.client_name_input.text().strip()
+        company_name = self.company_name_input.text().strip()
+        client_need = self.client_need_input.text().strip()
+        country_id = self.country_select_combo.currentData()
+        country_name = self.country_select_combo.currentText().strip()
+        city_id = self.city_select_combo.currentData()
+        city_name = self.city_select_combo.currentText().strip()
+        project_id_text = self.project_id_input_field.text().strip()
+
+        selected_lang_display_text = self.language_select_combo.currentText()
+        selected_languages = self.language_options_map.get(selected_lang_display_text, ["fr"]) # Default to French if mapping fails
+
+        # Handle cases where country/city might be new and not have an ID yet
+        if country_id is None and country_name:
+            # Attempt to get or create country if it was manually entered
+            country_obj = db_manager.get_country_by_name(country_name)
+            if country_obj:
+                country_id = country_obj['country_id']
+            # else: # Optionally, auto-add new country or handle as error
+            #     QMessageBox.warning(self, self.tr("Pays Invalide"), self.tr("Le pays '{0}' n'est pas valide.").format(country_name))
+            #     return None # Indicate error
+
+        if city_id is None and city_name and country_id:
+            # Attempt to get or create city if it was manually entered
+            city_obj = db_manager.get_city_by_name_and_country_id(city_name, country_id)
+            if city_obj:
+                city_id = city_obj['city_id']
+            # else: # Optionally, auto-add new city or handle as error
+            #    QMessageBox.warning(self, self.tr("Ville Invalide"), self.tr("La ville '{0}' pour le pays '{1}' n'est pas valide.").format(city_name, country_name))
+            #    return None # Indicate error
+
+        return {
+            "client_name": client_name,
+            "company_name": company_name,
+            "primary_need_description": client_need, # Matching EditClientDialog's get_data
+            "country_id": country_id,
+            "country_name": country_name, # For display or if ID is None
+            "city_id": city_id,
+            "city_name": city_name, # For display or if ID is None
+            "project_identifier": project_id_text, # Matching EditClientDialog's get_data
+            "selected_languages": ",".join(selected_languages) # Store as comma-separated string
+        }
 
 
 class SettingsDialog(QDialog):
@@ -81,8 +268,10 @@ class SettingsDialog(QDialog):
         # Session Timeout
         self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
         self.session_timeout_spinbox = QSpinBox()
-        self.session_timeout_spinbox.setRange(5, 240) # 5 minutes to 4 hours
+        self.session_timeout_spinbox.setRange(5, 129600) # Min 5 minutes, Max 90 days (90*24*60)
         self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
+        self.session_timeout_spinbox.setToolTip(self.tr("Set session duration in minutes. E.g., 1440 for 1 day, 10080 for 1 week, 43200 for 30 days."))
+
         default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
@@ -2926,4 +3115,185 @@ class SelectUtilityAttachmentDialog(QDialog):
     def get_selected_files(self):
         return self.selected_files
 
+
+class ClientProductDimensionDialog(QDialog):
+    def __init__(self, client_id, product_id, app_root_dir, parent=None):
+        super().__init__(parent)
+        self.client_id = client_id
+        self.product_id = product_id
+        self.app_root_dir = app_root_dir
+        self.current_tech_image_path = None  # Store relative path to image
+
+        self.setWindowTitle(self.tr("Gérer Dimensions Produit Client") + f" (Produit ID: {self.product_id})")
+        self.setMinimumSize(500, 600) # Adjusted as per ProductDimensionUIDialog
+
+        self.setup_ui()
+        self.load_dimensions()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+
+        form_group = QGroupBox(self.tr("Dimensions Spécifiques"))
+        form_layout = QFormLayout(form_group)
+        form_layout.setSpacing(10)
+
+        self.dimension_inputs = {}
+        for i in range(10): # dim_A to dim_J
+            dim_label_key = f"dim_{chr(65 + i)}" # e.g., dim_A
+            line_edit = QLineEdit()
+            self.dimension_inputs[dim_label_key] = line_edit
+            form_layout.addRow(self.tr(f"Dimension {chr(65+i)}:"), line_edit)
+
+        main_layout.addWidget(form_group)
+
+        # Technical Image Section
+        tech_image_group = QGroupBox(self.tr("Image Technique"))
+        tech_image_layout = QVBoxLayout(tech_image_group)
+
+        path_button_layout = QHBoxLayout()
+        self.tech_image_path_input = QLineEdit()
+        self.tech_image_path_input.setReadOnly(True)
+        self.tech_image_path_input.setPlaceholderText(self.tr("Aucune image sélectionnée"))
+        path_button_layout.addWidget(self.tech_image_path_input)
+
+        self.browse_tech_image_button = QPushButton(self.tr("Parcourir..."))
+        self.browse_tech_image_button.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/folder.svg"))) # Fallback icon
+        self.browse_tech_image_button.clicked.connect(self.handle_browse_tech_image)
+        path_button_layout.addWidget(self.browse_tech_image_button)
+        tech_image_layout.addLayout(path_button_layout)
+
+        self.tech_image_preview_label = QLabel(self.tr("Aperçu de l'image non disponible."))
+        self.tech_image_preview_label.setAlignment(Qt.AlignCenter)
+        self.tech_image_preview_label.setMinimumSize(200, 200)
+        self.tech_image_preview_label.setStyleSheet("border: 1px solid #ccc; background-color: #f0f0f0;")
+        tech_image_layout.addWidget(self.tech_image_preview_label)
+
+        main_layout.addWidget(tech_image_group)
+        main_layout.addStretch()
+
+        # Dialog Button Box
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Save).setText(self.tr("Enregistrer"))
+        self.button_box.button(QDialogButtonBox.Save).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+
+        self.button_box.accepted.connect(self.accept) # Connected to overridden accept
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_dimensions(self):
+        try:
+            # For ClientProductDimensionDialog, we are editing dimensions specific to a product_id,
+            # but these are still stored in the 'product_dimensions' table, keyed by product_id.
+            # There isn't a separate table like 'client_product_dimensions'.
+            # The context of 'client_id' is for potential future use or if behavior needs to differ,
+            # but the data source is the global product_dimensions for this product_id.
+            dimension_data = db_manager.get_product_dimension(self.product_id)
+            if dimension_data:
+                for dim_ui_key, input_widget in self.dimension_inputs.items():
+                    db_key = dim_ui_key.lower() # e.g. "dim_a"
+                    input_widget.setText(dimension_data.get(db_key, ""))
+
+                technical_image_path_from_db = dimension_data.get('technical_image_path', '')
+                self.current_tech_image_path = technical_image_path_from_db
+
+                if technical_image_path_from_db:
+                    self.tech_image_path_input.setText(technical_image_path_from_db)
+                    # Construct absolute path for preview
+                    absolute_image_path = os.path.join(self.app_root_dir, technical_image_path_from_db)
+                    if os.path.exists(absolute_image_path):
+                        pixmap = QPixmap(absolute_image_path)
+                        if not pixmap.isNull():
+                            self.tech_image_preview_label.setPixmap(
+                                pixmap.scaled(
+                                    self.tech_image_preview_label.width(), # Use label's current size
+                                    self.tech_image_preview_label.height(),
+                                    Qt.KeepAspectRatio,
+                                    Qt.SmoothTransformation
+                                )
+                            )
+                        else:
+                            self.tech_image_preview_label.setText(self.tr("Aperçu non disponible (format invalide)."))
+                    else:
+                        self.tech_image_preview_label.setText(self.tr("Image non trouvée."))
+                else:
+                    self.tech_image_path_input.setPlaceholderText(self.tr("Aucune image technique définie."))
+                    self.tech_image_preview_label.setText(self.tr("Aucune image technique."))
+                    self.current_tech_image_path = None
+            else:
+                for input_widget in self.dimension_inputs.values():
+                    input_widget.clear()
+                self.tech_image_path_input.clear()
+                self.tech_image_preview_label.setText(self.tr("Aucune dimension pour ce produit."))
+                self.current_tech_image_path = None
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Dimensions"),
+                                 self.tr("Impossible de charger les dimensions: {0}").format(str(e)))
+            self.current_tech_image_path = None # Reset on error
+
+    def handle_browse_tech_image(self):
+        initial_dir = os.path.expanduser("~")
+        source_file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Sélectionner une Image Technique"),
+            initial_dir,
+            self.tr("Images (*.png *.jpg *.jpeg *.bmp *.gif)")
+        )
+
+        if source_file_path:
+            base_product_images_dir_name = "product_technical_images"
+            # Product-specific subfolder using product_id
+            target_product_dir = os.path.join(self.app_root_dir, base_product_images_dir_name, str(self.product_id))
+
+            try:
+                os.makedirs(target_product_dir, exist_ok=True)
+                image_filename = os.path.basename(source_file_path)
+                # It's crucial that absolute_target_file_path uses os.path.join for platform compatibility
+                absolute_target_file_path = os.path.join(target_product_dir, image_filename)
+
+                shutil.copy2(source_file_path, absolute_target_file_path)
+
+                # Store and display the relative path using forward slashes for consistency
+                relative_image_path = os.path.join(base_product_images_dir_name, str(self.product_id), image_filename).replace(os.sep, '/')
+
+                self.tech_image_path_input.setText(relative_image_path)
+                self.current_tech_image_path = relative_image_path
+
+                pixmap = QPixmap(absolute_target_file_path)
+                if not pixmap.isNull():
+                    self.tech_image_preview_label.setPixmap(
+                        pixmap.scaled(
+                            self.tech_image_preview_label.width(),
+                            self.tech_image_preview_label.height(),
+                            Qt.KeepAspectRatio,
+                            Qt.SmoothTransformation))
+                else:
+                    self.tech_image_preview_label.setText(self.tr("Aperçu non disponible."))
+                    self.current_tech_image_path = None
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Copie Image"),
+                                     self.tr("Impossible de copier l'image: {0}").format(str(e)))
+                self.current_tech_image_path = None # Reset on error
+
+    def accept(self):
+        dimension_data_to_save = {}
+        for dim_key, input_widget in self.dimension_inputs.items():
+            dimension_data_to_save[dim_key.lower()] = input_widget.text().strip()
+
+        dimension_data_to_save['technical_image_path'] = self.current_tech_image_path
+
+        try:
+            # The product_id is the global product_id. Dimensions are stored against this ID.
+            # The client_id in this dialog is for context but not directly used for this DB operation
+            # unless the DB schema for product_dimensions also includes client_id, which it doesn't seem to.
+            success = db_manager.add_or_update_product_dimension(self.product_id, dimension_data_to_save)
+            if success:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Dimensions du produit enregistrées avec succès."))
+                super().accept()  # Call QDialog's accept to close
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'enregistrer les dimensions. Vérifiez les logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Enregistrement"),
+                                 self.tr("Une erreur est survenue: {0}").format(str(e)))
 # [end of dialogs.py]

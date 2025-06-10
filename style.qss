@@ -895,24 +895,41 @@ QLabel#pageTitleLabel {
 
 /* Auth Page Specific Styles */
 QFrame#promoAreaFrame {
-    background-color: #E3F2FD; /* Light blue, derived from Accent Blue */
-    /* border-radius: 6px; */ /* Dialog itself has no border now, so frame doesn't need it */
+    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 rgba(227, 242, 253, 255), stop:1 rgba(200, 220, 250, 255)); /* Light blue gradient */
+    border-radius: 8px;
+    padding: 20px; /* Add padding inside the promo area */
+}
+
+QFrame#imagePlaceholderFrame {
+    background-color: #CFD8DC; /* Neutral placeholder color */
+    border: 1px dashed #78909C;
+    border-radius: 6px;
+    min-height: 150px; /* Or a fixed height */
+}
+
+QLabel#imagePlaceholderLabel { /* If using a QLabel for text inside placeholder */
+    color: #546E7A;
+    font-size: 10pt;
+    font-style: italic;
+    background-color: transparent;
 }
 
 QFrame#promoAreaFrame QLabel#promoHeaderLabel {
-    font-size: 16pt;
+    font-size: 18pt; /* Slightly larger */
     font-weight: bold;
-    color: #005ea5; /* Primary Accent Color */
-    margin-bottom: 15px;
+    color: #0D47A1; /* Darker, richer blue for header */
+    margin-bottom: 10px; /* Reduced margin if image placeholder is above/below */
     background-color: transparent;
+    text-align: center; /* Center the header */
 }
 
 QFrame#promoAreaFrame QLabel#promoTextLabel {
     font-size: 11pt;
-    color: #263238; /* Primary Text Color */
-    /* line-height: 1.5; */ /* line-height is not a standard QSS property */
+    color: #1E272E; /* Darker text for better contrast on gradient */
+    /* line-height: 1.6; */ /* Not standard QSS, handle with wordWrap or layout spacing */
     background-color: transparent;
-    padding: 10px;
+    padding: 5px; /* Reduced padding if overall frame has padding */
+    text-align: center; /* Center promo text */
 }
 
 /* Placeholder for icons needed by this QSS:
