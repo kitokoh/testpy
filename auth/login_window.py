@@ -23,6 +23,8 @@ class LoginWindow(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("LoginWindow") # Set object name for the dialog
+
         self.setWindowTitle(self.tr("User Login"))
         self.setMinimumWidth(760)
         self.session_token = None
@@ -49,10 +51,13 @@ class LoginWindow(QDialog):
         # --- Left Side (Form Area) ---
         left_widget = QWidget()
         left_widget.setObjectName("loginFormArea")
+        left_widget.setFixedWidth(360) # Set fixed width for the form area
 
-        self.form_layout = QVBoxLayout(left_widget) # Store as self.form_layout
+        self.form_layout = QVBoxLayout(left_widget)
         self.form_layout.setContentsMargins(30, 40, 30, 40)
-        self.form_layout.setSpacing(15) # Reduced spacing a bit
+        self.form_layout.setSpacing(15)
+
+
 
         # Logo
         logo_label = QLabel()
@@ -127,44 +132,28 @@ class LoginWindow(QDialog):
         promo_layout.setSpacing(20)
         promo_layout.setAlignment(Qt.AlignCenter)
 
-        # Store promoHeaderLabel as instance variable to ensure it exists before showEvent potentially accesses it indirectly
         self.promoHeaderLabel = QLabel("ClientDocManager")
         self.promoHeaderLabel.setObjectName("promoHeaderLabel")
-        self.promoHeaderLabel.setAlignment(Qt.AlignCenter)
+        self.promoHeaderLabel.setAlignment(Qt.AlignCenter) # Set alignment in Python
         self.promoHeaderLabel.setWordWrap(True)
-        # promo_layout.addWidget(self.promoHeaderLabel) # Added later in specific order
 
-        # Image Placeholder
-        self.image_placeholder = QFrame()
-        self.image_placeholder.setObjectName("imagePlaceholderFrame")
-        placeholder_layout = QVBoxLayout(self.image_placeholder)
-        placeholder_layout.setAlignment(Qt.AlignCenter)
-        lbl_placeholder_text = QLabel(self.tr("Future Promotional Image"))
-        lbl_placeholder_text.setObjectName("imagePlaceholderLabel")
-        lbl_placeholder_text.setAlignment(Qt.AlignCenter)
-        placeholder_layout.addWidget(lbl_placeholder_text)
-
-        # Promotional Text Label
         self.promoTextLabel = QLabel()
         self.promoTextLabel.setObjectName("promoTextLabel")
-        self.promoTextLabel.setAlignment(Qt.AlignCenter)
+        self.promoTextLabel.setAlignment(Qt.AlignCenter) # Set alignment in Python
         self.promoTextLabel.setWordWrap(True)
-        # promo_layout.addWidget(self.promoTextLabel) # Added later
 
-        # Order: Header, Image Placeholder, Promo Text
+        # New Order: Stretch, Header, Spacing, Text, Stretch
+        promo_layout.addStretch(1)
         promo_layout.addWidget(self.promoHeaderLabel)
-        promo_layout.addSpacing(15) # Space between header and image placeholder
-        promo_layout.addWidget(self.image_placeholder, 1) # Placeholder takes some stretch
-        promo_layout.addSpacing(15) # Space between image and text
+        promo_layout.addSpacing(10)
         promo_layout.addWidget(self.promoTextLabel)
+        promo_layout.addStretch(1)
 
-        # Set initial random text (already done in showEvent, but good for first paint)
-        self.update_promo_text() # Call a new method to encapsulate this
-
-        promo_layout.addStretch(0) # Less aggressive stretch at the bottom
+        self.update_promo_text() # Set initial random text
 
         # Add left and right widgets to main horizontal layout
-        main_h_layout.addWidget(left_widget, 1) # Give form area a stretch factor of 1
+        main_h_layout.addWidget(left_widget, 1)
+
         main_h_layout.addWidget(promo_frame, 1) # Give promo area a stretch factor of 1
 
         # No need to call self.setLayout() as main_h_layout was passed `self`
@@ -259,3 +248,4 @@ if __name__ == '__main__':
     login_window = LoginWindow()
     login_window.show()
     sys.exit(app.exec_())
+

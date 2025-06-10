@@ -354,6 +354,7 @@ def main():
         # as either proceed_to_main_app is true or sys.exit() was called.
         logging.error("Fatal error in authentication flow. Application cannot start.")
         sys.exit(1)
+
     login_dialog = LoginWindow() # Create LoginWindow instance
     login_result = login_dialog.exec_() # Show login dialog modally
 
