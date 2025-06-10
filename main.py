@@ -13,6 +13,9 @@ from app_setup import (
     APP_ROOT_DIR, CONFIG,
     setup_logging, load_stylesheet_global, initialize_default_templates
 )
+from utils import is_first_launch, mark_initial_setup_complete
+from initial_setup_dialog import InitialSetupDialog # Import the new dialog
+from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 import db as db_manager # For db initialization
 from main_window import DocumentManager # The main application window
 
@@ -149,7 +152,34 @@ def main():
     # 9. Initialize Default Templates (after DB and CONFIG are ready)
     # initialize_default_templates is imported from app_setup
     initialize_default_templates(CONFIG, APP_ROOT_DIR)
-       
+
+    # Check for first launch
+    # Ensure CONFIG is loaded and paths are available before calling this
+    # Default paths for templates and clients can be obtained from CONFIG or app_setup constants
+    # For consistency, let's use what load_config in utils would expect if creating a new config
+    # However, at this stage, CONFIG should already be loaded by app_setup.
+    default_templates_dir = os.path.join(APP_ROOT_DIR, "templates") # A sensible default
+    default_clients_dir = os.path.join(APP_ROOT_DIR, "clients") # A sensible default
+    if 'templates_dir' in CONFIG: # Prefer path from loaded config if available
+        default_templates_dir = CONFIG['templates_dir']
+    if 'clients_dir' in CONFIG: # Prefer path from loaded config if available
+        default_clients_dir = CONFIG['clients_dir']
+
+    if is_first_launch(APP_ROOT_DIR, default_templates_dir, default_clients_dir):
+        logging.info("This is the first launch. Running initial setup dialog.")
+        initial_setup_dialog = InitialSetupDialog()
+        result = initial_setup_dialog.exec_()
+
+        if result == QDialog.Accepted:
+            logging.info("Initial setup dialog completed and accepted.")
+            mark_initial_setup_complete(APP_ROOT_DIR, default_templates_dir, default_clients_dir)
+            logging.info("Initial setup marked as complete in config.")
+        else:
+            logging.warning("Initial setup dialog was cancelled or closed. Application may not have all necessary configurations.")
+            # Decide on behavior: exit, or proceed with limited functionality.
+            # For now, we'll log and let it proceed.
+            # QApplication.quit() # Or sys.exit(1) if cancellation is critical
+
     # 10. Create and Show Main Window
     # DocumentManager is imported from main_window
     # APP_ROOT_DIR is imported from app_setup
