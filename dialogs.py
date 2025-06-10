@@ -269,11 +269,13 @@ class SettingsDialog(QDialog):
         # Session Timeout
         self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
         self.session_timeout_spinbox = QSpinBox()
-        self.session_timeout_spinbox.setRange(5, 129600) # Min 5 minutes, Max 90 days (90*24*60)
+        self.session_timeout_spinbox.setRange(5, 525600) # New range: Min 5 mins, Max ~1 year
         self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
-        self.session_timeout_spinbox.setToolTip(self.tr("Set session duration in minutes. E.g., 1440 for 1 day, 10080 for 1 week, 43200 for 30 days."))
+        self.session_timeout_spinbox.setToolTip(
+            self.tr("Set session duration in minutes. Examples: 1440 (1 day), 10080 (1 week), 43200 (30 days), 259200 (6 months).")
+        )
+        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 259200) # New default
 
-        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
 

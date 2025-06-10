@@ -7,13 +7,16 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 import db # For database operations
 import random # For promo text, though might share LoginWindow's list
-# from auth.login_window import LoginWindow # To access PROMOTIONAL_TEXTS
+from .login_window import LoginWindow # To access PROMOTIONAL_TEXTS
+
 
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("RegistrationWindow") # Set object name for the dialog
         self.setWindowTitle(self.tr("Create New Account"))
-        self.setMinimumWidth(800)
+        self.setMinimumWidth(800) # Keep overall dialog width for two columns
+
         self.init_ui()
 
     def init_ui(self):
@@ -25,10 +28,12 @@ class RegistrationWindow(QDialog):
         # --- Left Side (Form Area) ---
         left_widget = QWidget()
         left_widget.setObjectName("registrationFormArea")
+        left_widget.setFixedWidth(380) # Set fixed width for the form area
 
         form_layout = QVBoxLayout(left_widget)
         form_layout.setContentsMargins(30, 40, 30, 40)
-        form_layout.setSpacing(15) # Slightly less spacing than login due to more fields
+        form_layout.setSpacing(15)
+
 
         # Title Label
         title_label = QLabel("Create Your Account")
@@ -104,35 +109,24 @@ class RegistrationWindow(QDialog):
 
         self.promoHeaderLabel = QLabel(self.tr("Create Your Account"))
         self.promoHeaderLabel.setObjectName("promoHeaderLabel")
-        self.promoHeaderLabel.setAlignment(Qt.AlignCenter)
+        self.promoHeaderLabel.setAlignment(Qt.AlignCenter) # Ensure alignment
         self.promoHeaderLabel.setWordWrap(True)
-
-        # Image Placeholder
-        self.image_placeholder = QFrame()
-        self.image_placeholder.setObjectName("imagePlaceholderFrame")
-        placeholder_layout = QVBoxLayout(self.image_placeholder)
-        placeholder_layout.setAlignment(Qt.AlignCenter)
-        lbl_placeholder_text = QLabel(self.tr("Showcase Your Brand"))
-        lbl_placeholder_text.setObjectName("imagePlaceholderLabel")
-        lbl_placeholder_text.setAlignment(Qt.AlignCenter)
-        placeholder_layout.addWidget(lbl_placeholder_text)
 
         # Promotional Text Label
         self.promoTextLabel = QLabel()
         self.promoTextLabel.setObjectName("promoTextLabel")
-        self.promoTextLabel.setAlignment(Qt.AlignCenter)
+        self.promoTextLabel.setAlignment(Qt.AlignCenter) # Ensure alignment
         self.promoTextLabel.setWordWrap(True)
 
-        # Order: Header, Image Placeholder, Promo Text
+        # New Order: Stretch, Header, Spacing, Text, Stretch
+        promo_layout.addStretch(1)
         promo_layout.addWidget(self.promoHeaderLabel)
-        promo_layout.addSpacing(15) # Space between header and image placeholder
-        promo_layout.addWidget(self.image_placeholder, 1) # Placeholder takes some stretch
-        promo_layout.addSpacing(15) # Space between image and text
+        promo_layout.addSpacing(10)
         promo_layout.addWidget(self.promoTextLabel)
+        promo_layout.addStretch(1)
 
         self.update_promo_text()
 
-        promo_layout.addStretch(0) # Less aggressive stretch at the bottom
 
         # Add left and right widgets to main horizontal layout
         main_h_layout.addWidget(left_widget, 1)
@@ -224,3 +218,4 @@ if __name__ == '__main__':
     registration_window = RegistrationWindow()
     registration_window.show()
     sys.exit(app.exec_())
+
