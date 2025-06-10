@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <title>Packing List</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .shipper-details, .consignee-details, .notify-party-details { width: 32%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .shipment-info { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee;}
+        .shipment-info p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .totals-summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PACKING LIST</h1>
+        </div>
+
+        <div class.details-section">
+            <div class="shipper-details">
+                <h3>Shipper/Exporter:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+            </div>
+
+            <div class="consignee-details">
+                <h3>Consignee:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+            </div>
+
+            <div class="notify-party-details">
+                <h3>Notify Party:</h3>
+                <p>{{NOTIFY_PARTY_NAME}}</p>
+                <p>{{NOTIFY_PARTY_ADDRESS}}</p>
+            </div>
+        </div>
+
+        <div class="shipment-info">
+            <p><strong>Packing List No:</strong> {{PACKING_LIST_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Invoice No:</strong> {{INVOICE_ID}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Vessel/Flight No:</strong> {{VESSEL_FLIGHT_NO}}</p>
+            <p><strong>Port of Loading:</strong> {{PORT_OF_LOADING}}</p>
+            <p><strong>Port of Discharge:</strong> {{PORT_OF_DISCHARGE}}</p>
+            <p><strong>Final Destination:</strong> {{FINAL_DESTINATION_COUNTRY}}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Mark & Nos.</th>
+                    <th>Description of Goods</th>
+                    <th>No. of Packages</th>
+                    <th>Type of Packages</th>
+                    <th>Net Weight (kg)</th>
+                    <th>Gross Weight (kg)</th>
+                    <th>Dimensions (LxWxH cm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{doc.packing_list_items}} <!-- Populated by db.py -->
+                <!-- Example Row:
+                <tr>
+                    <td>CS/NO. 1-10</td>
+                    <td>Product Alpha - Model X</td>
+                    <td>10</td>
+                    <td>Cartons</td>
+                    <td>100.00</td>
+                    <td>110.00</td>
+                    <td>50x40x30</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="totals-summary">
+            <p><strong>Total Number of Packages:</strong> {{TOTAL_PACKAGES}}</p>
+            <p><strong>Total Net Weight:</strong> {{TOTAL_NET_WEIGHT}} kg</p>
+            <p><strong>Total Gross Weight:</strong> {{TOTAL_GROSS_WEIGHT}} kg</p>
+            <p><strong>Total Volume:</strong> {{TOTAL_VOLUME_CBM}} CBM</p>
+        </div>
+
+        <div class="footer">
+            <p>Exporter's Signature: _________________________</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+    </div>
+</body>
+</html>

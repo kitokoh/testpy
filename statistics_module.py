@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
-                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
+                             QGridLayout, QGroupBox, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
                              QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import Qt, QUrl
@@ -11,6 +11,7 @@ import os
 import json # For loading GeoJSON
 import requests # To fetch GeoJSON data (fallback)
 import pandas as pd
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 class StatisticsDashboard(QWidget):
     def __init__(self, parent=None):
