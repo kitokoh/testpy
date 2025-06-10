@@ -392,10 +392,6 @@ class ClientWidget(QWidget):
         self.add_doc_note_button.clicked.connect(self.on_add_document_note)
         self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
 
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
         # --- Product Dimensions Tab ---
         self.product_dimensions_tab = QWidget()
         prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
@@ -473,6 +469,10 @@ class ClientWidget(QWidget):
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.client_browse_tech_image_button.clicked.connect(self.on_client_browse_tech_image)
         self.save_client_product_dimensions_button.clicked.connect(self.on_save_client_product_dimensions)
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
 
 
     def load_products_for_dimension_tab(self):
