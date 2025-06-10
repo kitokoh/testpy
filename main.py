@@ -16,7 +16,7 @@ from app_setup import (
 from utils import is_first_launch, mark_initial_setup_complete
 # Import InitialSetupDialog and PromptCompanyInfoDialog
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
-from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
+from PyQt5.QtWidgets import QDialog, QMessageBox # Required for QDialog.Accepted check and messages
 # Import specific db functions needed
 import db as db_manager
 from db import get_all_companies, add_company # Specific imports for company check
@@ -164,60 +164,84 @@ def main():
     # --- Company Existence Check ---
     # This check runs before the "first_launch" specific dialog for sellers/techs.
     # It ensures there's at least one company (ours) in the DB.
-    try:
-        companies = get_all_companies()
-        if not companies:
-            logging.info("No companies found in the database. Prompting for initial company setup.")
-            prompt_dialog = PromptCompanyInfoDialog()
-            dialog_result = prompt_dialog.exec_()
+    # try:
+    #     companies = get_all_companies()
+    #     if not companies:
+    #         logging.info("No companies found in the database. Prompting for initial company setup.")
+    #         prompt_dialog = PromptCompanyInfoDialog()
+    #         dialog_result = prompt_dialog.exec_()
+    #
+    #         if dialog_result == QDialog.Accepted:
+    #             if prompt_dialog.use_default_company:
+    #                 logging.info("User opted to use a default company.")
+    #                 default_company_data = {
+    #                     "company_name": "My Business", # Translatable string could be used here
+    #                     "address": "Not specified",
+    #                     "is_default": True,
+    #                     "logo_path": None, # No logo for this quick setup
+    #                     "payment_info": "",
+    #                     "other_info": "Default company created on initial setup."
+    #                 }
+    #                 new_company_id = add_company(default_company_data)
+    #                 if new_company_id:
+    #                     logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+    #                     # Mark initial setup as complete here if this is the ONLY setup step needed
+    #                     # when starting from a completely empty state.
+    #                     # However, the full InitialSetupDialog might still be relevant for other settings.
+    #                     # For now, this just ensures a company exists.
+    #                 else:
+    #                     logging.error("Failed to add default company.")
+    #                     # Critical error, perhaps exit? For now, log and continue.
+    #             else: # User entered data
+    #                 user_company_data = prompt_dialog.get_company_data()
+    #                 if user_company_data and user_company_data['company_name']:
+    #                     company_to_add = {
+    #                         "company_name": user_company_data['company_name'],
+    #                         "address": user_company_data.get('address', ''),
+    #                         "is_default": True,
+    #                         "logo_path": None, # No logo in this simplified dialog
+    #                         "payment_info": "", # Not collected in this dialog
+    #                         "other_info": "Company created via initial prompt."
+    #                     }
+    #                     new_company_id = add_company(company_to_add)
+    #                     if new_company_id:
+    #                         logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
+    #                     else:
+    #                         logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
+    #                         # Critical error, perhaps exit?
+    #                 else:
+    #                     # This case should ideally be prevented by dialog validation, but as a fallback:
+    #                     logging.warning("Save and Continue was chosen, but company name was empty. No company added.")
+    #         else: # Dialog was cancelled
+    #             logging.warning("User cancelled initial company prompt. Application might not function as expected without a company.")
+    #             # Optionally, sys.exit(app.exec_()) or app.quit() if company is critical
+    # except Exception as e:
+    #     logging.critical(f"Error during initial company check: {e}. Application may not function correctly.", exc_info=True)
+    #     # Depending on severity, could show a QMessageBox to the user and exit.
 
-            if dialog_result == QDialog.Accepted:
-                if prompt_dialog.use_default_company:
-                    logging.info("User opted to use a default company.")
-                    default_company_data = {
-                        "company_name": "My Business", # Translatable string could be used here
-                        "address": "Not specified",
-                        "is_default": True,
-                        "logo_path": None, # No logo for this quick setup
-                        "payment_info": "",
-                        "other_info": "Default company created on initial setup."
-                    }
-                    new_company_id = add_company(default_company_data)
-                    if new_company_id:
-                        logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
-                        # Mark initial setup as complete here if this is the ONLY setup step needed
-                        # when starting from a completely empty state.
-                        # However, the full InitialSetupDialog might still be relevant for other settings.
-                        # For now, this just ensures a company exists.
-                    else:
-                        logging.error("Failed to add default company.")
-                        # Critical error, perhaps exit? For now, log and continue.
-                else: # User entered data
-                    user_company_data = prompt_dialog.get_company_data()
-                    if user_company_data and user_company_data['company_name']:
-                        company_to_add = {
-                            "company_name": user_company_data['company_name'],
-                            "address": user_company_data.get('address', ''),
-                            "is_default": True,
-                            "logo_path": None, # No logo in this simplified dialog
-                            "payment_info": "", # Not collected in this dialog
-                            "other_info": "Company created via initial prompt."
-                        }
-                        new_company_id = add_company(company_to_add)
-                        if new_company_id:
-                            logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
-                        else:
-                            logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
-                            # Critical error, perhaps exit?
-                    else:
-                        # This case should ideally be prevented by dialog validation, but as a fallback:
-                        logging.warning("Save and Continue was chosen, but company name was empty. No company added.")
-            else: # Dialog was cancelled
-                logging.warning("User cancelled initial company prompt. Application might not function as expected without a company.")
-                # Optionally, sys.exit(app.exec_()) or app.quit() if company is critical
+    # --- New Initial Setup Logic based on Company Existence ---
+    try:
+        companies = db_manager.get_all_companies()
+        if not companies:
+            logging.info("No companies found in the database. Running InitialSetupDialog.")
+            initial_setup_dialog = InitialSetupDialog()
+            result = initial_setup_dialog.exec_()
+
+            if result == QDialog.Accepted:
+                logging.info("InitialSetupDialog completed and accepted.")
+                # Mark setup as complete (optional, as company existence is the primary check now)
+                # If you have a specific flag for initial setup that's different from just having companies,
+                # you might want to set it here. For now, successful dialog completion is enough.
+            else:
+                logging.warning("InitialSetupDialog was cancelled or closed. Application requires initial setup to continue.")
+                QMessageBox.critical(None, "Setup Incomplete", "Initial application setup was not completed. The application will now exit.")
+                sys.exit(1) # Exit if setup is cancelled
+        else:
+            logging.info("Existing companies found. Skipping InitialSetupDialog.")
     except Exception as e:
-        logging.critical(f"Error during initial company check: {e}. Application may not function correctly.", exc_info=True)
-        # Depending on severity, could show a QMessageBox to the user and exit.
+        logging.critical(f"Critical error during initial company check or setup dialog: {e}", exc_info=True)
+        QMessageBox.critical(None, "Application Error", f"A critical error occurred during application startup: {e}\nThe application will now exit.")
+        sys.exit(1) # Exit on any exception during this critical phase
 
 
     # Check for first launch (for other setup like users, etc.)
@@ -226,27 +250,27 @@ def main():
     # Default paths for templates and clients can be obtained from CONFIG or app_setup constants
     # For consistency, let's use what load_config in utils would expect if creating a new config
     # However, at this stage, CONFIG should already be loaded by app_setup.
-    default_templates_dir = os.path.join(APP_ROOT_DIR, "templates") # A sensible default
-    default_clients_dir = os.path.join(APP_ROOT_DIR, "clients") # A sensible default
-    if 'templates_dir' in CONFIG: # Prefer path from loaded config if available
-        default_templates_dir = CONFIG['templates_dir']
-    if 'clients_dir' in CONFIG: # Prefer path from loaded config if available
-        default_clients_dir = CONFIG['clients_dir']
-
-    if is_first_launch(APP_ROOT_DIR, default_templates_dir, default_clients_dir):
-        logging.info("This is the first launch. Running initial setup dialog.")
-        initial_setup_dialog = InitialSetupDialog()
-        result = initial_setup_dialog.exec_()
-
-        if result == QDialog.Accepted:
-            logging.info("Initial setup dialog completed and accepted.")
-            mark_initial_setup_complete(APP_ROOT_DIR, default_templates_dir, default_clients_dir)
-            logging.info("Initial setup marked as complete in config.")
-        else:
-            logging.warning("Initial setup dialog was cancelled or closed. Application may not have all necessary configurations.")
-            # Decide on behavior: exit, or proceed with limited functionality.
-            # For now, we'll log and let it proceed.
-            # QApplication.quit() # Or sys.exit(1) if cancellation is critical
+    # default_templates_dir = os.path.join(APP_ROOT_DIR, "templates") # A sensible default
+    # default_clients_dir = os.path.join(APP_ROOT_DIR, "clients") # A sensible default
+    # if 'templates_dir' in CONFIG: # Prefer path from loaded config if available
+    #     default_templates_dir = CONFIG['templates_dir']
+    # if 'clients_dir' in CONFIG: # Prefer path from loaded config if available
+    #     default_clients_dir = CONFIG['clients_dir']
+    #
+    # if is_first_launch(APP_ROOT_DIR, default_templates_dir, default_clients_dir):
+    #     logging.info("This is the first launch. Running initial setup dialog.")
+    #     initial_setup_dialog = InitialSetupDialog()
+    #     result = initial_setup_dialog.exec_()
+    #
+    #     if result == QDialog.Accepted:
+    #         logging.info("Initial setup dialog completed and accepted.")
+    #         mark_initial_setup_complete(APP_ROOT_DIR, default_templates_dir, default_clients_dir)
+    #         logging.info("Initial setup marked as complete in config.")
+    #     else:
+    #         logging.warning("Initial setup dialog was cancelled or closed. Application may not have all necessary configurations.")
+    #         # Decide on behavior: exit, or proceed with limited functionality.
+    #         # For now, we'll log and let it proceed.
+    #         # QApplication.quit() # Or sys.exit(1) if cancellation is critical
 
     # 10. Create and Show Main Window
     # DocumentManager is imported from main_window
