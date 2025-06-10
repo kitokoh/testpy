@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Proforma Invoice</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
+        </div>
+
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Phone: </p>
+                <p>Email: </p>
+                <p>VAT ID: </p>
+            </div>
+
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong></strong></p>
+                <p></p>
+                <p></p>
+                <p>Contact: </p>
+                <p>Email: </p>
+                <p>VAT ID: </p>
+            </div>
+        </div>
+
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> </p>
+            <p><strong>Date:</strong> </p>
+            <p><strong>Project ID:</strong> </p>
+            <p><strong>Payment Terms:</strong> </p>
+            <p><strong>Delivery Terms:</strong> </p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                 <!-- Populated by db.py -->
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
+
+        <div class="total-section">
+            <p>Subtotal: </p>
+            <p>Discount (%): </p>
+            <p>VAT (%): </p>
+            <h3><strong>Total Amount Due: </strong></h3>
+        </div>
+
+        <div class="footer">
+            <p>Bank Details: , Account: , Swift/BIC: </p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
+        </div>
+    </div>
+</body>
+</html>

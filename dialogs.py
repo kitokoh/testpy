@@ -77,6 +77,16 @@ class SettingsDialog(QDialog):
         self.reminder_days_spinbox = QSpinBox(); self.reminder_days_spinbox.setRange(1, 365)
         self.reminder_days_spinbox.setValue(self.current_config_data.get("default_reminder_days", 30))
         general_form_layout.addRow(self.tr("Jours avant rappel client ancien:"), self.reminder_days_spinbox)
+
+        # Session Timeout
+        self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
+        self.session_timeout_spinbox = QSpinBox()
+        self.session_timeout_spinbox.setRange(5, 240) # 5 minutes to 4 hours
+        self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
+        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
+        self.session_timeout_spinbox.setValue(default_timeout_minutes)
+        general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
+
         tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -102,10 +112,18 @@ class SettingsDialog(QDialog):
     def get_config(self):
         selected_lang_display_text = self.interface_lang_combo.currentText()
         language_code = self.lang_display_to_code.get(selected_lang_display_text, "fr")
-        return {"templates_dir": self.templates_dir_input.text(), "clients_dir": self.clients_dir_input.text(),
-                "language": language_code, "default_reminder_days": self.reminder_days_spinbox.value(),
-                "smtp_server": self.smtp_server_input_field.text(), "smtp_port": self.smtp_port_spinbox.value(),
-                "smtp_user": self.smtp_user_input_field.text(), "smtp_password": self.smtp_pass_input_field.text()}
+        config_data_to_return = {
+            "templates_dir": self.templates_dir_input.text(),
+            "clients_dir": self.clients_dir_input.text(),
+            "language": language_code,
+            "default_reminder_days": self.reminder_days_spinbox.value(),
+            "session_timeout_minutes": self.session_timeout_spinbox.value(), # Added session timeout
+            "smtp_server": self.smtp_server_input_field.text(),
+            "smtp_port": self.smtp_port_spinbox.value(),
+            "smtp_user": self.smtp_user_input_field.text(),
+            "smtp_password": self.smtp_pass_input_field.text()
+        }
+        return config_data_to_return
 
 class TemplateDialog(QDialog):
     def __init__(self, config, parent=None):
@@ -794,54 +812,146 @@ class CreateDocumentDialog(QDialog):
             for template_dict in filtered_templates:
                 name = template_dict.get('template_name', 'N/A'); lang = template_dict.get('language_code', 'N/A'); base_file_name = template_dict.get('base_file_name', 'N/A')
                 item_text = f"{name} ({lang}) - {base_file_name}"; item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, (name, lang, base_file_name)); self.templates_list.addItem(item)
+                # Store the whole template_dict for richer data access later
+                item.setData(Qt.UserRole, template_dict); self.templates_list.addItem(item)
         except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):
         selected_items = self.templates_list.selectedItems()
         if not selected_items: QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer.")); return
         created_files_count = 0
+
+        default_company_obj = db_manager.get_default_company()
+        default_company_id = default_company_obj['company_id'] if default_company_obj else None
+        if default_company_id is None:
+            QMessageBox.warning(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants."))
+            # Allow proceeding, context will handle missing seller info gracefully
+
+        client_id_for_context = self.client_info.get('client_id')
+        # Initial project_id from client_info, can be overridden by additional_context
+        project_id_for_context_arg = self.client_info.get('project_id', self.client_info.get('project_identifier'))
+
         for item in selected_items:
-            db_template_name, db_template_lang, actual_template_filename = item.data(Qt.UserRole)
+            template_data = item.data(Qt.UserRole)
+            if not isinstance(template_data, dict): # Check if data is a dict
+                QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Données de modèle invalides pour l'élément sélectionné."))
+                continue
+
+            db_template_name = template_data.get('template_name', 'N/A')
+            db_template_lang = template_data.get('language_code', 'N/A')
+            actual_template_filename = template_data.get('base_file_name', None)
+            template_type = template_data.get('template_type', 'UNKNOWN')
+            # template_id = template_data.get('template_id') # Available if needed
+
             target_dir_for_document = os.path.join(self.client_info["base_folder_path"], db_template_lang)
             os.makedirs(target_dir_for_document, exist_ok=True)
+
             if not actual_template_filename:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.").format(db_template_name)); continue
+
             template_file_found_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+
             if os.path.exists(template_file_found_abs):
                 target_path = os.path.join(target_dir_for_document, actual_template_filename)
                 try:
                     shutil.copy(template_file_found_abs, target_path)
+
+                    additional_context = {} # Initialize for each document
+                    # Copy general client info that might be used as fallbacks by get_document_context_data
+                    # or for non-packing list documents.
+                    # For instance, project_id, invoice_id if they are top-level in self.client_info
+                    if 'project_id' in self.client_info: additional_context['project_id'] = self.client_info['project_id']
+                    if 'invoice_id' in self.client_info: additional_context['invoice_id'] = self.client_info['invoice_id'] # Example
+
+                    if template_type == 'HTML_PACKING_LIST':
+                        additional_context['document_type'] = 'packing_list'
+                        additional_context['current_document_type_for_notes'] = 'HTML_PACKING_LIST' # Or template_type
+
+                        packing_details_payload = {}
+                        linked_products = db_manager.get_products_for_client_or_project(
+                            client_id_for_context,
+                            project_id=project_id_for_context_arg # Use client/project specific products
+                        )
+                        linked_products = linked_products if linked_products else []
+
+                        packing_items_data = []
+                        total_net_w = 0.0
+                        total_gross_w = 0.0
+                        total_pkg_count = 0
+
+                        for idx, prod_data in enumerate(linked_products):
+                            net_w = float(prod_data.get('weight', 0.0) or 0.0)
+                            quantity = float(prod_data.get('quantity', 1.0) or 1.0)
+                            gross_w = net_w * 1.05 # Example: 5% markup for packaging
+                            dims = prod_data.get('dimensions', 'N/A')
+                            num_pkgs = 1 # Default, could be based on quantity or product settings
+                            pkg_type = 'Carton' # Default
+
+                            packing_items_data.append({
+                                'marks_nos': f'BOX {total_pkg_count + 1}',
+                                'product_id': prod_data.get('product_id'),
+                                'product_name_override': None, # Let context resolver handle name
+                                'quantity_description': f"{quantity} {prod_data.get('unit_of_measure', 'unit(s)')}",
+                                'num_packages': num_pkgs,
+                                'package_type': pkg_type,
+                                'net_weight_kg_item': net_w * quantity,
+                                'gross_weight_kg_item': gross_w * quantity,
+                                'dimensions_cm_item': dims
+                            })
+                            total_net_w += net_w * quantity
+                            total_gross_w += gross_w * quantity
+                            total_pkg_count += num_pkgs
+
+                        if not linked_products:
+                            packing_items_data.append({
+                                'marks_nos': 'N/A', 'product_id': None, 'product_name_override': 'No products linked to client/project.',
+                                'quantity_description': '', 'num_packages': 0, 'package_type': '',
+                                'net_weight_kg_item': 0, 'gross_weight_kg_item': 0, 'dimensions_cm_item': ''
+                            })
+
+                        packing_details_payload['items'] = packing_items_data
+                        packing_details_payload['total_packages'] = total_pkg_count
+                        packing_details_payload['total_net_weight_kg'] = round(total_net_w, 2)
+                        packing_details_payload['total_gross_weight_kg'] = round(total_gross_w, 2)
+                        packing_details_payload['total_volume_cbm'] = 'N/A' # Placeholder, implement calculation if needed
+
+                        # Override IDs for the packing list document itself
+                        client_project_identifier = self.client_info.get('project_identifier', self.client_info.get('client_id', 'NOID')) # Fallback
+                        timestamp_str = datetime.now().strftime('%Y%m%d')
+                        additional_context['packing_list_id'] = f"PL-{client_project_identifier}-{timestamp_str}"
+                        additional_context['invoice_id'] = f"INVREF-{client_project_identifier}-{timestamp_str}" # Reference invoice
+                        additional_context['project_id'] = self.client_info.get('project_identifier', 'N/A') # Display project ID on doc
+
+                        additional_context['packing_details'] = packing_details_payload
+                    else:
+                        # For non-packing lists, pass relevant parts of client_info
+                        # or a more generic context.
+                        # Making a copy to avoid modifying self.client_info if it's a shared object.
+                        additional_context.update(self.client_info.copy())
+                        additional_context['document_type'] = template_type
+                        # Ensure current_document_type_for_notes is set if notes are used for other HTML docs
+                        if template_type.startswith("HTML_"):
+                             additional_context['current_document_type_for_notes'] = template_type
+
+
                     if target_path.lower().endswith(".docx"):
-                        populate_docx_template(target_path, self.client_info) # Uses global populate_docx_template
+                        # For docx, additional_context might need to be self.client_info directly
+                        # or a transformation of it, depending on populate_docx_template needs.
+                        # For now, assuming populate_docx_template uses self.client_info format.
+                        populate_docx_template(target_path, self.client_info)
                     elif target_path.lower().endswith(".html"):
                         with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
-                        default_company_obj = db_manager.get_default_company()
-                        default_company_id = default_company_obj['company_id'] if default_company_obj else None
-
-                        if default_company_id is None:
-                            QMessageBox.information(self, self.tr("Avertissement"), self.tr("Aucune société par défaut n'est définie. Les détails du vendeur peuvent être manquants dans les documents HTML."))
-                            # Decide if to proceed with a potentially incomplete context or skip
-                            # For now, let's allow proceeding but the context will lack seller info.
-
-                        # Prepare document_context for HtmlEditor.populate_html_content
-                        client_id_for_context = self.client_info.get('client_id')
-                        # Attempt to get a project_id if available in client_info.
-                        # Common keys might be 'project_id', 'project_identifier', or 'project_id_db_uuid'.
-                        # Adjust if a more specific key is known for client_info's structure.
-                        project_id_for_context = self.client_info.get('project_id', self.client_info.get('project_identifier'))
 
                         document_context = db_manager.get_document_context_data(
                             client_id=client_id_for_context,
-                            company_id=default_company_id, # This is the seller company
-                            target_language_code=db_template_lang, # language of the current template
-                            project_id=project_id_for_context,
-                            # linked_product_ids_for_doc can be omitted if not relevant here, defaults to None
-                            additional_context=self.client_info # Pass full client_info for other details
+                            company_id=default_company_id,
+                            target_language_code=db_template_lang,
+                            project_id=project_id_for_context_arg, # Main project context
+                            additional_context=additional_context # Contains overrides and specific data like packing_details
                         )
-
-                        populated_content = HtmlEditor.populate_html_content(template_content, document_context) # Now passing 2 arguments
+                        populated_content = HtmlEditor.populate_html_content(template_content, document_context)
                         with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
+
                     created_files_count += 1
                 except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
             else: QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
@@ -2379,7 +2489,8 @@ class ClientDocumentNoteDialog(QDialog):
         form_layout.addRow(self.tr("Code Langue:"), self.language_code_combo)
 
         self.note_content_edit = QTextEdit()
-        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici..."))
+
+        self.note_content_edit.setPlaceholderText(self.tr("Saisissez le contenu de la note ici. Chaque ligne sera affichée comme un élément d'une liste numérotée."))
         self.note_content_edit.setMinimumHeight(100)
         form_layout.addRow(self.tr("Contenu de la Note:"), self.note_content_edit)
 
