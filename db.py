@@ -934,6 +934,58 @@ def add_client(client_data: dict) -> str | None:
             conn.close()
 
 
+def get_or_add_country(country_name: str) -> dict | None:
+    """
+    Retrieves a country by its name. If not found, adds it to the database.
+    Returns the country data as a dictionary (including 'country_id' and 'country_name')
+    if found or successfully added, otherwise None.
+    """
+    if not country_name or not country_name.strip():
+        print("Error in get_or_add_country: country_name cannot be empty.")
+        return None
+
+    country_name_stripped = country_name.strip()
+
+    try:
+        existing_country = get_country_by_name(country_name_stripped)
+        if existing_country:
+            print(f"Country '{country_name_stripped}' found with ID: {existing_country.get('country_id')}")
+            return existing_country
+
+        print(f"Country '{country_name_stripped}' not found. Attempting to add it.")
+
+        new_country_id = add_country({'country_name': country_name_stripped})
+
+        if new_country_id is not None:
+            print(f"Country '{country_name_stripped}' processed by add_country. ID (new or existing): {new_country_id}.")
+            # add_country should return the ID of the new or existing (if UNIQUE constraint hit) country.
+            # Now, fetch the country data using this ID.
+            country_data = get_country_by_id(new_country_id)
+            if country_data:
+                return country_data
+            else:
+                # This would be unusual if new_country_id is valid.
+                print(f"Error in get_or_add_country: Could not retrieve details for country ID {new_country_id} after add_country call.")
+                return None
+        else:
+            # This implies add_country itself failed to return a valid ID, which is unexpected given its logic.
+            print(f"Error in get_or_add_country: add_country returned None for '{country_name_stripped}'.")
+            # As a fallback, try one last time to get by name, in case of race or other non-obvious scenario.
+            final_check_country = get_country_by_name(country_name_stripped)
+            if final_check_country:
+                print(f"Final check: Country '{country_name_stripped}' now exists. Returning its data.")
+                return final_check_country
+            return None
+
+    except sqlite3.Error as e: # Should ideally be caught by underlying functions
+        print(f"Database error in get_or_add_country for '{country_name_stripped}': {e}")
+        return None
+    except Exception as ex:
+        print(f"Unexpected error in get_or_add_country for '{country_name_stripped}': {ex}")
+        return None
+
+
+
 def get_client_segmentation_by_city() -> list[dict]:
     conn = None
     try:

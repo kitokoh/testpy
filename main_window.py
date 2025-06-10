@@ -53,10 +53,11 @@ class DocumentManager(QMainWindow):
 
         self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
         self.main_area_stack.addWidget(self.project_management_widget_instance)
-        
+
         self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
         self.main_area_stack.addWidget(self.statistics_dashboard_instance)
-        
+
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main() 
@@ -200,7 +201,7 @@ class DocumentManager(QMainWindow):
         
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
         self.statistics_action.triggered.connect(self.show_statistics_view)
-        
+
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
 
@@ -226,7 +227,7 @@ class DocumentManager(QMainWindow):
         
     def show_statistics_view(self):
         self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
-        
+
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
@@ -399,20 +400,65 @@ class DocumentManager(QMainWindow):
 
         # 2. Ensure the "Ajouter un Nouveau Client" form is visible/expanded
         if hasattr(self, 'form_group_box') and self.form_group_box:
-            self.form_group_box.setChecked(True) 
+            self.form_group_box.setChecked(True)
+
             if hasattr(self, 'form_container_widget'):
                  self.form_container_widget.setVisible(True) # Explicitly ensure container is visible
         else:
             print("Warning: 'form_group_box' not found in MainWindow. Cannot expand new client form.")
             return
 
-        # 3. Pre-fill the country combo box
+        # 3. Attempt to pre-fill the country combo box
+        country_successfully_selected = False
         if hasattr(self, 'country_select_combo') and self.country_select_combo:
-            found_country = False
+            # First attempt to find the country in the existing combo box items
+
             for i in range(self.country_select_combo.count()):
                 if self.country_select_combo.itemText(i).lower() == country_name_str.lower():
                     self.country_select_combo.setCurrentIndex(i)
                     print(f"Country '{country_name_str}' found and selected in combobox.")
+                    country_successfully_selected = True
+                    break
+
+            if not country_successfully_selected:
+                print(f"Country '{country_name_str}' not initially found in combobox. Attempting to add/verify in DB.")
+                try:
+                    # Use the new db_manager function to get or add the country
+                    country_data = db_manager.get_or_add_country(country_name_str)
+
+                    if country_data and country_data.get('country_id') is not None:
+                        new_country_id = country_data.get('country_id')
+                        new_country_name = country_data.get('country_name', country_name_str) # Use returned name
+
+                        print(f"Country '{new_country_name}' (ID: {new_country_id}) confirmed/added in DB.")
+
+                        # Reload countries into the combo box to include the new one
+                        self.load_countries_into_combo()
+
+                        index_to_select = -1
+                        for i in range(self.country_select_combo.count()):
+                            item_id = self.country_select_combo.itemData(i)
+                            if item_id is not None and item_id == new_country_id:
+                                index_to_select = i
+                                break
+                            elif self.country_select_combo.itemText(i).lower() == new_country_name.lower():
+                                index_to_select = i
+
+                        if index_to_select != -1:
+                            self.country_select_combo.setCurrentIndex(index_to_select)
+                            print(f"Country '{new_country_name}' selected in combobox after DB add/verify and reload.")
+                            country_successfully_selected = True
+                        else:
+                            print(f"Error: Country '{new_country_name}' was added/found in DB, but NOT found in combobox after reload. This is unexpected.")
+                            if self.country_select_combo.isEditable():
+                                self.country_select_combo.lineEdit().setText(new_country_name)
+                                print(f"Set combobox text to '{new_country_name}' as a fallback.")
+                    else:
+                        print(f"Error: Country '{country_name_str}' could not be added to or found in the database via get_or_add_country.")
+                        # QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr("Le pays '{0}' n'a pas pu être ajouté ou trouvé.").format(country_name_str))
+                except Exception as e:
+                    print(f"An exception occurred while trying to add/select country '{country_name_str}': {e}")
+                    # QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur inattendue est survenue lors de la gestion du pays."))
                     found_country = True
                     break
             if not found_country:
@@ -425,11 +471,14 @@ class DocumentManager(QMainWindow):
 
         # 4. Set focus to the client name input field
         if hasattr(self, 'client_name_input') and self.client_name_input:
-            # Using QTimer.singleShot to ensure focus is set after UI updates settle
             QTimer.singleShot(0, self.client_name_input.setFocus)
-            print("Focus set to client name input.")
+            if country_successfully_selected:
+                 print(f"Focus set to client name input for country '{country_name_str}'.")
+            else:
+                 print(f"Focus set to client name input. Country '{country_name_str}' was not selected in combobox.")
         else:
-            print("Warning: 'client_name_input' not found in MainWindow. Cannot set focus.")
+            print("Warning: 'client_name_input' not found. Cannot set focus.")
+
 
 
 # If main() and other app setup logic is moved to main.py, this file should only contain DocumentManager
