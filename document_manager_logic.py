@@ -187,13 +187,13 @@ def handle_create_client_execution(doc_manager):
                         else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le nouveau contact global."))
 
                     if contact_id_to_link:
-                        if contact_form_data['is_primary']:
+                        if contact_form_data['is_primary_for_client']:
                             client_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
                             if client_contacts:
                                 for cc in client_contacts:
                                     if cc['is_primary_for_client'] and cc.get('client_contact_id'):
                                         db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
-                        link_id = db_manager.link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary'])
+                        link_id = db_manager.link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary_for_client'])
                         if not link_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
                 except Exception as e_contact_save:
                     QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Contact"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
