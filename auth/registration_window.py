@@ -9,12 +9,14 @@ import db # For database operations
 import random # For promo text, though might share LoginWindow's list
 from .login_window import LoginWindow # To access PROMOTIONAL_TEXTS
 
+
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("RegistrationWindow") # Set object name for the dialog
         self.setWindowTitle(self.tr("Create New Account"))
         self.setMinimumWidth(800) # Keep overall dialog width for two columns
+
         self.init_ui()
 
     def init_ui(self):
@@ -31,6 +33,7 @@ class RegistrationWindow(QDialog):
         form_layout = QVBoxLayout(left_widget)
         form_layout.setContentsMargins(30, 40, 30, 40)
         form_layout.setSpacing(15)
+
 
         # Title Label
         title_label = QLabel("Create Your Account")
@@ -124,6 +127,7 @@ class RegistrationWindow(QDialog):
 
         self.update_promo_text()
 
+
         # Add left and right widgets to main horizontal layout
         main_h_layout.addWidget(left_widget, 1)
         main_h_layout.addWidget(promo_frame, 1)
@@ -214,3 +218,4 @@ if __name__ == '__main__':
     registration_window = RegistrationWindow()
     registration_window.show()
     sys.exit(app.exec_())
+

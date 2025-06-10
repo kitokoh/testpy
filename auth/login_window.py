@@ -24,6 +24,7 @@ class LoginWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("LoginWindow") # Set object name for the dialog
+
         self.setWindowTitle(self.tr("User Login"))
         self.setMinimumWidth(760)
         self.session_token = None
@@ -55,6 +56,8 @@ class LoginWindow(QDialog):
         self.form_layout = QVBoxLayout(left_widget)
         self.form_layout.setContentsMargins(30, 40, 30, 40)
         self.form_layout.setSpacing(15)
+
+
 
         # Logo
         logo_label = QLabel()
@@ -150,6 +153,7 @@ class LoginWindow(QDialog):
 
         # Add left and right widgets to main horizontal layout
         main_h_layout.addWidget(left_widget, 1)
+
         main_h_layout.addWidget(promo_frame, 1) # Give promo area a stretch factor of 1
 
         # No need to call self.setLayout() as main_h_layout was passed `self`
@@ -244,3 +248,4 @@ if __name__ == '__main__':
     login_window = LoginWindow()
     login_window.show()
     sys.exit(app.exec_())
+

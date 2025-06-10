@@ -19,32 +19,48 @@ from dialogs import (
 
 import logging # For logging errors or info
 
-def handle_create_client_execution(doc_manager):
-    client_name_val = doc_manager.client_name_input.text().strip()
-    company_name_val = doc_manager.company_name_input.text().strip()
-    need_val = doc_manager.client_need_input.text().strip()
+def handle_create_client_execution(doc_manager, client_data_dict=None):
+    if client_data_dict:
+        client_name_val = client_data_dict.get("client_name", "").strip()
+        company_name_val = client_data_dict.get("company_name", "").strip()
+        need_val = client_data_dict.get("primary_need_description", "").strip()
+        country_id_val = client_data_dict.get("country_id")
+        # Use country_name from dict for folder, ensure it's there
+        country_name_for_folder = client_data_dict.get("country_name", "").strip()
+        city_id_val = client_data_dict.get("city_id")
+        project_identifier_val = client_data_dict.get("project_identifier", "").strip()
+        price_val = 0  # Price is not part of the new dialog, initialized to 0
+        # Languages are already a list of codes in the dict, directly use it
+        selected_langs_list = client_data_dict.get("selected_languages", "fr").split(',')
+        if not country_name_for_folder and country_id_val: # If name wasn't in dict but ID was
+            country_obj = db_manager.get_country_by_id(country_id_val)
+            if country_obj: country_name_for_folder = country_obj.get('country_name',"")
 
-    country_id_val = doc_manager.country_select_combo.currentData()
-    country_name_for_folder = doc_manager.country_select_combo.currentText().strip()
-    city_id_val = doc_manager.city_select_combo.currentData()
+    else: # Fallback to old way if no dict provided - though UI is removed
+        # This block will likely be unused now but kept for logical completeness during transition
+        client_name_val = doc_manager.client_name_input.text().strip()
+        company_name_val = doc_manager.company_name_input.text().strip()
+        need_val = doc_manager.client_need_input.text().strip()
+        country_id_val = doc_manager.country_select_combo.currentData()
+        country_name_for_folder = doc_manager.country_select_combo.currentText().strip()
+        city_id_val = doc_manager.city_select_combo.currentData()
+        project_identifier_val = doc_manager.project_id_input_field.text().strip()
+        price_val = doc_manager.final_price_input.value()
+        lang_option_text = doc_manager.language_select_combo.currentText()
+        lang_map_from_display = {
+            doc_manager.tr("English only (en)"): ["en"],
+            doc_manager.tr("French only (fr)"): ["fr"],
+            doc_manager.tr("Arabic only (ar)"): ["ar"],
+            doc_manager.tr("Turkish only (tr)"): ["tr"],
+            doc_manager.tr("Portuguese only (pt)"): ["pt"],
+            doc_manager.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
+        }
+        selected_langs_list = lang_map_from_display.get(lang_option_text, ["en"])
 
-    project_identifier_val = doc_manager.project_id_input_field.text().strip()
-    price_val = doc_manager.final_price_input.value()
-    lang_option_text = doc_manager.language_select_combo.currentText()
 
     if not client_name_val or not country_id_val or not project_identifier_val:
         QMessageBox.warning(doc_manager, doc_manager.tr("Champs Requis"), doc_manager.tr("Nom client, Pays et ID Projet sont obligatoires."))
         return
-
-    lang_map_from_display = {
-        doc_manager.tr("English only (en)"): ["en"],
-        doc_manager.tr("French only (fr)"): ["fr"],
-        doc_manager.tr("Arabic only (ar)"): ["ar"],
-        doc_manager.tr("Turkish only (tr)"): ["tr"],
-        doc_manager.tr("Portuguese only (pt)"): ["pt"],
-        doc_manager.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
-    }
-    selected_langs_list = lang_map_from_display.get(lang_option_text, ["en"])
 
     folder_name_str = f"{client_name_val}_{country_name_for_folder}_{project_identifier_val}".replace(" ", "_").replace("/", "-")
     base_folder_full_path = os.path.join(doc_manager.config["clients_dir"], folder_name_str)
@@ -88,6 +104,7 @@ def handle_create_client_execution(doc_manager):
             return
 
         os.makedirs(base_folder_full_path, exist_ok=True)
+        # selected_langs_list is already a list of strings
         for lang_code in selected_langs_list:
             os.makedirs(os.path.join(base_folder_full_path, lang_code), exist_ok=True)
 
@@ -104,7 +121,7 @@ def handle_create_client_execution(doc_manager):
             'description': f"Projet pour client: {client_name_val}. Besoin initial: {need_val}",
             'start_date': datetime.now().strftime("%Y-%m-%d"),
             'deadline_date': (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d"),
-            'budget': 0.0,
+            'budget': 0.0, # Price is 0 initially from dialog
             'status_id': project_status_id_for_pm,
             'priority': 1
         }
@@ -164,10 +181,22 @@ def handle_create_client_execution(doc_manager):
             doc_manager.clients_data_map[actual_new_client_id] = ui_map_data
             doc_manager.add_client_to_list_widget(ui_map_data)
 
-        doc_manager.client_name_input.clear(); doc_manager.company_name_input.clear(); doc_manager.client_need_input.clear()
-        doc_manager.project_id_input_field.clear(); doc_manager.final_price_input.setValue(0)
+        # Removed clearing of input fields as they are in the dialog now
+        # doc_manager.client_name_input.clear(); doc_manager.company_name_input.clear(); doc_manager.client_need_input.clear()
+        # doc_manager.project_id_input_field.clear(); doc_manager.final_price_input.setValue(0)
 
         if ui_map_data: # Ensure ui_map_data is populated
+            # ContactDialog, ProductDialog, and CreateDocumentDialog calls removed as per request.
+            # The client's price will remain at its initial value (likely 0)
+            # until products are added manually via the ClientWidget.
+            # actual_new_client_id should be valid here if ui_map_data is True.
+            logging.info(f"Skipping Contact, Product, and CreateDocument dialogs for client ID: {actual_new_client_id}.")
+            # The original logic for price calculation based on dialogs is removed.
+            # Price will be initial_price (e.g. 0) or as set before this block.
+            # If there was any other logic inside this if ui_map_data block that needs to be preserved,
+            # it should have been identified and kept. For now, the assumption is this block was primarily for these dialogs.
+
+
             contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()
@@ -187,18 +216,18 @@ def handle_create_client_execution(doc_manager):
                         else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le nouveau contact global."))
 
                     if contact_id_to_link:
-                        if contact_form_data['is_primary']:
+                        if contact_form_data['is_primary_for_client']:
                             client_contacts = db_manager.get_contacts_for_client(actual_new_client_id)
                             if client_contacts:
                                 for cc in client_contacts:
                                     if cc['is_primary_for_client'] and cc.get('client_contact_id'):
                                         db_manager.update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
-                        link_id = db_manager.link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary'])
+                        link_id = db_manager.link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary_for_client'])
                         if not link_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
                 except Exception as e_contact_save:
                     QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Contact"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
 
-                product_dialog = ProductDialog(client_id=actual_new_client_id, parent=doc_manager)
+                product_dialog = ProductDialog(client_id=actual_new_client_id, app_root_dir=doc_manager.app_root_dir, parent=doc_manager) # Pass app_root_dir
                 if product_dialog.exec_() == QDialog.Accepted:
                     products_list_data = product_dialog.get_data()
                     for product_item_data in products_list_data:
@@ -272,14 +301,14 @@ def handle_create_client_execution(doc_manager):
     except OSError as e_os:
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
         if actual_new_client_id:
-             db_manager.delete_client(actual_new_client_id)
+             db_manager.delete_client(actual_new_client_id) # Attempt to rollback DB entry
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
     except Exception as e_db:
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Inattendue"), doc_manager.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
-        if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db):
-            db_manager.delete_project(new_project_id_central_db)
-        if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id):
-             db_manager.delete_client(actual_new_client_id)
+        if new_project_id_central_db and db_manager.get_project_by_id(new_project_id_central_db): # Check if project was created
+            db_manager.delete_project(new_project_id_central_db) # Attempt to rollback project
+        if actual_new_client_id and db_manager.get_client_by_id(actual_new_client_id): # Check if client was created
+             db_manager.delete_client(actual_new_client_id) # Attempt to rollback client
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
 
 def load_and_display_clients(doc_manager):

@@ -74,6 +74,7 @@ def check_session_timeout() -> bool:
     return False # Session is still valid
 
 def main():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
@@ -114,7 +115,7 @@ def main():
         QWidget {}
         QPushButton {
             padding: 6px 12px; border: 1px solid #cccccc; border-radius: 4px;
-            background-color: #f8f9fa; min-width: 80px;
+        background-color: #f8f9fa; min-width: 80px;
         }
         QPushButton:hover { background-color: #e9ecef; border-color: #adb5bd; }
         QPushButton:pressed { background-color: #dee2e6; border-color: #adb5bd; }
@@ -172,7 +173,7 @@ def main():
         QListWidget::item:alternate { background-color: #f8f9fa; }
         QListWidget::item:hover { background-color: #e9ecef; }
         QListWidget::item:selected { background-color: #007bff; /* color: white; */ }
-    """) # The # color: white; part for QListWidget::item:selected was commented out in original.
+    # """) # The # color: white; part for QListWidget::item:selected was commented out in original.
 
     # 8. Setup Translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0])
@@ -353,6 +354,37 @@ def main():
         # as either proceed_to_main_app is true or sys.exit() was called.
         logging.error("Fatal error in authentication flow. Application cannot start.")
         sys.exit(1)
+
+    login_dialog = LoginWindow() # Create LoginWindow instance
+    login_result = login_dialog.exec_() # Show login dialog modally
+
+    if login_result == QDialog.Accepted:
+        session_token = login_dialog.get_session_token()
+        logged_in_user = login_dialog.get_current_user()
+
+        CURRENT_SESSION_TOKEN = session_token
+        if logged_in_user:
+            CURRENT_USER_ROLE = logged_in_user.get('role')
+            CURRENT_USER_ID = logged_in_user.get('user_id')
+            # Set session start time
+            SESSION_START_TIME = datetime.datetime.now()
+            logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+        else:
+            logging.error("Login reported successful, but no user data retrieved. Exiting.")
+            sys.exit(1)
+
+        # 11. Create and Show Main Window (only after successful login)
+        # DocumentManager is imported from main_window
+        # APP_ROOT_DIR is imported from app_setup
+        main_window = DocumentManager(APP_ROOT_DIR) # Pass user_id and role if needed by DocumentManager
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+
+        # 12. Execute Application
+        sys.exit(app.exec_())
+    else:
+        logging.info("Login failed or cancelled. Exiting application.")
+        sys.exit() # Exit if login is not successful
 
 
 if __name__ == "__main__":

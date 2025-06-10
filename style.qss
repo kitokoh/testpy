@@ -355,17 +355,23 @@ QHeaderView::section:horizontal:last {
 
 QTableWidget::item, QListWidget::item, QTreeView::item {
     padding: 6px 8px;
-    border-bottom: 1px solid #F5F7FA;
+    border-bottom: 1px solid #F5F7FA; /* Existing bottom border for separation */
+    border-left: 1px solid transparent; /* New for selection highlight */
+    border-right: 1px solid transparent; /* New for selection highlight */
+    border-top: 1px solid transparent; /* New for selection highlight, if not covered by header */
     background-color: transparent;
 }
 
 QTableWidget::item:selected, QListWidget::item:selected, QTreeView::item:selected {
-    background-color: #007BFF;
-    color: #FFFFFF;
+    background-color: #007BFF; /* Accent blue for background */
+    color: #FFFFFF; /* White text */
+    border: 1px solid #0056B3; /* Darker blue border for selected item */
+    /* Ensure padding is maintained or adjusted if border makes it too tight */
+    /* padding: 5px 7px; */ /* Example: slightly reduce padding if border takes up space */
 }
 
 QTableWidget::item:hover:!selected, QListWidget::item:hover:!selected, QTreeView::item:hover:!selected {
-    background-color: #E3F2FD;
+    background-color: #E3F2FD; /* Light blue hover */
     color: #263238;
 }
 
@@ -898,6 +904,7 @@ QFrame#promoAreaFrame {
     background-color: #263238; /* Dark Slate Grey - professional and modern */
     border-radius: 8px;
     padding: 25px; /* Increased padding */
+
 }
 
 QFrame#imagePlaceholderFrame {
@@ -931,6 +938,7 @@ QFrame#promoAreaFrame QLabel#promoTextLabel {
     padding: 10px;
     text-align: center; /* Ensure QSS controls this */
     font-style: italic; /* Add a bit of flair */
+
 }
 
 /* Placeholder for icons needed by this QSS:

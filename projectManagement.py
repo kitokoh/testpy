@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayou
 import db as db_manager # Standardized to db_manager
 from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
+import math # Added for pagination
 import json # For CoverPageEditorDialog style_config_json
 import os # For CoverPageEditorDialog logo_name
 from dashboard_extensions import ProjectTemplateManager # Added for Project Templates
@@ -206,6 +207,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         super().__init__(parent)
         self.current_user = current_user # Use passed-in user
         self.template_manager = ProjectTemplateManager() # Initialize ProjectTemplateManager
+
+        # Task Page Pagination state
+        self.current_task_offset = 0
+        self.TASK_PAGE_LIMIT = 30  # Or a suitable default
+        self.total_tasks_count = 0
 
         # Stylesheet moved to global style.qss or specific object names
         # self.setStyleSheet(""" ... """) # Removed
@@ -779,6 +785,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(filters)
         layout.addWidget(self.tasks_table)
 
+        # Pagination controls for Tasks
+        tasks_pagination_layout = QHBoxLayout()
+        self.prev_task_button = QPushButton("<< Précédent")
+        self.prev_task_button.setObjectName("paginationButton")
+        self.prev_task_button.clicked.connect(self.prev_task_page)
+        self.task_page_info_label = QLabel("Page 1 / 1")
+        self.task_page_info_label.setObjectName("paginationLabel")
+        self.next_task_button = QPushButton("Suivant >>")
+        self.next_task_button.setObjectName("paginationButton")
+        self.next_task_button.clicked.connect(self.next_task_page)
+
+        tasks_pagination_layout.addStretch()
+        tasks_pagination_layout.addWidget(self.prev_task_button)
+        tasks_pagination_layout.addWidget(self.task_page_info_label)
+        tasks_pagination_layout.addWidget(self.next_task_button)
+        tasks_pagination_layout.addStretch()
+        layout.addLayout(tasks_pagination_layout)
+
         self.main_content.addWidget(page)
 
     def setup_reports_page(self):
@@ -1200,10 +1224,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             is_active_val = member.get('is_active', False) # In db.py, is_active is BOOLEAN (0 or 1)
             active_item = QTableWidgetItem()
             if bool(is_active_val): # Ensure it's treated as boolean
-                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setIcon(QIcon(":/icons/active.svg"))
                 active_item.setText("Active")
             else:
-                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setIcon(QIcon(":/icons/inactive.svg"))
                 active_item.setText("Inactive")
             self.team_table.setItem(row_idx, 7, active_item)
 
@@ -1223,13 +1247,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             current_member_id = member['team_member_id']
 
-            edit_btn = QPushButton("✏️")
+            edit_btn = QPushButton("")
+            edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
             edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
 
-            delete_btn = QPushButton("🗑️")
+            delete_btn = QPushButton("")
+            delete_btn.setIcon(QIcon(":/icons/trash.svg"))
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
             delete_btn.setStyleSheet(self.get_table_action_button_style())
@@ -1297,13 +1323,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             priority_val = project_dict.get('priority', 0)
             priority_item = QTableWidgetItem()
             if priority_val == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-high.svg"))
                 priority_item.setText("High")
             elif priority_val == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-medium.svg"))
                 priority_item.setText("Medium")
             else: # 0 or other = Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-low.svg"))
                 priority_item.setText("Low")
             self.projects_table.setItem(row_idx, 3, priority_item)
 
@@ -1481,24 +1507,32 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             self.projects_table.setRowHidden(row, not (name_match and status_match and priority_match))
 
+    def prev_task_page(self):
+        if self.current_task_offset > 0:
+            self.current_task_offset -= self.TASK_PAGE_LIMIT
+            self.load_tasks()
+
+    def next_task_page(self):
+        if (self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count:
+            self.current_task_offset += self.TASK_PAGE_LIMIT
+            self.load_tasks()
+
+    def update_task_pagination_controls(self):
+        if self.total_tasks_count == 0:
+            total_pages = 1
+            current_page = 1
+        else:
+            total_pages = math.ceil(self.total_tasks_count / self.TASK_PAGE_LIMIT)
+            current_page = (self.current_task_offset // self.TASK_PAGE_LIMIT) + 1
+
+        self.task_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        self.prev_task_button.setEnabled(self.current_task_offset > 0)
+        self.next_task_button.setEnabled((self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count)
+
     def filter_tasks(self):
-        search_text = self.task_search.text().lower()
-        status_filter = self.task_status_filter.currentText()
-        priority_filter = self.task_priority_filter.currentText()
-        project_filter = self.task_project_filter.currentText()
-
-        for row in range(self.tasks_table.rowCount()):
-            name = self.tasks_table.item(row, 0).text().lower()
-            project = self.tasks_table.item(row, 1).text()
-            status = self.tasks_table.item(row, 2).text()
-            priority = self.tasks_table.item(row, 3).text()
-
-            name_match = search_text in name
-            project_match = project_filter == "All Projects" or project == project_filter
-            status_match = status_filter == "All Statuses" or status == status_filter
-            priority_match = priority_filter == "All Priorities" or priority == priority_filter
-
-            self.tasks_table.setRowHidden(row, not (name_match and project_match and status_match and priority_match))
+        # Server-side filtering: reset offset and reload tasks
+        self.current_task_offset = 0
+        self.load_tasks()
 
     def update_dashboard(self):
         self.load_kpis()
