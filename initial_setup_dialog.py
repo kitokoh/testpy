@@ -23,6 +23,11 @@ class CompanyInfoStepDialog(QDialog):
         self.setWindowTitle(QCoreApplication.translate("CompanyInfoStepDialog", "Company Information"))
         self.setModal(True) # Act as a modal dialog within the setup flow
 
+        self.existing_company_id = None # Added for editing
+        self.current_logo_path_on_disk = None # Store existing logo path when editing
+        self.logo_path_selected_for_upload = None # Store path of newly selected logo by user
+
+        self.company_id = None # This will store the ID after add/update for the main dialog to use
         self.logo_path = None
         self.company_id = None
 
@@ -85,8 +90,9 @@ class CompanyInfoStepDialog(QDialog):
             options=options
         )
         if file_path:
+            self.logo_path_selected_for_upload = file_path # User selected a new logo
             self.logo_path = file_path
-            pixmap = QPixmap(file_path)
+           pixmap = QPixmap(file_path)
             self.logo_preview_label.setPixmap(pixmap.scaled(
                 self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))
@@ -100,6 +106,158 @@ class CompanyInfoStepDialog(QDialog):
         if not company_name:
             QMessageBox.warning(self, QCoreApplication.translate("CompanyInfoStepDialog", "Input Error"), QCoreApplication.translate("CompanyInfoStepDialog", "Company Name is required."))
             return None
+
+        company_data_for_db = {
+            "company_name": company_name,
+            "address": address,
+            "payment_info": payment_info,
+            "other_info": other_info,
+            # logo_path will be handled next
+        }
+
+        processed_logo_db_path = None # This will be the relative path for DB (e.g., logo_xyz.png)
+        new_logo_abs_path_for_cleanup = None # Store absolute path for potential cleanup on DB error
+
+        if self.logo_path_selected_for_upload: # User selected a new logo
+            logo_dir_abs = os.path.join(APP_ROOT_DIR, LOGO_SUBDIR)
+            os.makedirs(logo_dir_abs, exist_ok=True)
+            _, ext = os.path.splitext(self.logo_path_selected_for_upload)
+            processed_logo_db_path = f"logo_{uuid.uuid4().hex}{ext}"
+            new_logo_abs_path_for_cleanup = os.path.join(logo_dir_abs, processed_logo_db_path)
+            try:
+                shutil.copy(self.logo_path_selected_for_upload, new_logo_abs_path_for_cleanup)
+            except Exception as e:
+                QMessageBox.critical(self, QCoreApplication.translate("CompanyInfoStepDialog", "Logo Error"), QCoreApplication.translate("CompanyInfoStepDialog", f"Could not save new logo: {e}"))
+                return None
+        elif self.existing_company_id and self.current_logo_path_on_disk:
+            # Editing, no new logo selected, so keep the existing one
+            processed_logo_db_path = self.current_logo_path_on_disk
+
+        company_data_for_db['logo_path'] = processed_logo_db_path
+
+        try:
+            if self.existing_company_id:
+                # Update existing company - Ensure 'is_default' is handled correctly.
+                # For initial setup, the first company (even if edited here) should be default.
+                company_data_for_db['is_default'] = True # Or fetch current and preserve if logic changes
+                success = db_manager.update_company(self.existing_company_id, company_data_for_db)
+                if success:
+                    QMessageBox.information(self, QCoreApplication.translate("CompanyInfoStepDialog", "Success"), QCoreApplication.translate("CompanyInfoStepDialog", "Company information updated successfully."))
+                    return self.existing_company_id
+                else:
+                    QMessageBox.warning(self, QCoreApplication.translate("CompanyInfoStepDialog", "DB Error"), QCoreApplication.translate("CompanyInfoStepDialog", "Failed to update company information in the database."))
+                    # If update failed but a new logo was copied, it should ideally be cleaned up.
+                    # However, this might be complex if the original logo was overwritten by name.
+                    # For now, new logo copy remains if DB update fails.
+                    return None
+            else:
+                # Add new company
+                company_data_for_db['is_default'] = True
+                new_company_id = db_manager.add_company(company_data_for_db)
+                if new_company_id:
+                    self.company_id = new_company_id # Store the new ID
+                    QMessageBox.information(self, QCoreApplication.translate("CompanyInfoStepDialog", "Success"), QCoreApplication.translate("CompanyInfoStepDialog", "Company information saved successfully."))
+                    return new_company_id
+                else:
+                    QMessageBox.warning(self, QCoreApplication.translate("CompanyInfoStepDialog", "DB Error"), QCoreApplication.translate("CompanyInfoStepDialog", "Failed to save new company information to the database."))
+                    if new_logo_abs_path_for_cleanup and os.path.exists(new_logo_abs_path_for_cleanup):
+                        try: os.remove(new_logo_abs_path_for_cleanup)
+                        except OSError as e_rem: print(f"Error cleaning up new logo after add_company failed: {e_rem}")
+                    return None
+        except Exception as e:
+            QMessageBox.critical(self, QCoreApplication.translate("CompanyInfoStepDialog", "DB Error"), QCoreApplication.translate("CompanyInfoStepDialog", f"An error occurred: {e}"))
+            if new_logo_abs_path_for_cleanup and os.path.exists(new_logo_abs_path_for_cleanup) and not self.existing_company_id : # only cleanup if adding new
+                 try: os.remove(new_logo_abs_path_for_cleanup)
+                 except OSError as e_rem: print(f"Error cleaning up new logo after exception: {e_rem}")
+            return None
+
+    def load_company_for_editing(self, company_data: dict):
+        self.existing_company_id = company_data.get('company_id')
+        self.name_edit.setText(company_data.get('company_name', ''))
+        self.address_edit.setPlainText(company_data.get('address', ''))
+        self.payment_info_edit.setPlainText(company_data.get('payment_info', ''))
+        self.other_info_edit.setPlainText(company_data.get('other_info', ''))
+
+        self.current_logo_path_on_disk = company_data.get('logo_path') # This is relative path from DB
+        self.logo_path_selected_for_upload = None # Reset any prior user selection
+
+        if self.current_logo_path_on_disk:
+            # Construct absolute path to display existing logo
+            logo_full_path = os.path.join(APP_ROOT_DIR, LOGO_SUBDIR, self.current_logo_path_on_disk)
+            if os.path.exists(logo_full_path):
+                pixmap = QPixmap(logo_full_path)
+                self.logo_preview_label.setPixmap(pixmap.scaled(
+                    self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+                ))
+            else:
+                self.logo_preview_label.setText(QCoreApplication.translate("CompanyInfoStepDialog", "Logo not found"))
+                print(f"Warning: Existing logo not found at {logo_full_path}")
+        else:
+            self.logo_preview_label.setText(QCoreApplication.translate("CompanyInfoStepDialog", "No Logo"))
+
+
+class PromptCompanyInfoDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(QCoreApplication.translate("PromptCompanyInfoDialog", "Initial Company Information"))
+        self.setModal(True)
+        self.use_default_company = False # Flag to indicate user's choice
+
+        layout = QVBoxLayout(self)
+
+        instruction_label = QLabel(
+            QCoreApplication.translate(
+                "PromptCompanyInfoDialog",
+                "No company is configured. Please enter your company details or use a default configuration to proceed."
+            )
+        )
+        instruction_label.setWordWrap(True)
+        layout.addWidget(instruction_label)
+
+        form_layout = QFormLayout()
+        self.company_name_edit = QLineEdit()
+        form_layout.addRow(QCoreApplication.translate("PromptCompanyInfoDialog", "Company Name:"), self.company_name_edit)
+
+        self.address_edit = QTextEdit()
+        self.address_edit.setFixedHeight(60) # Smaller than the full setup dialog
+        form_layout.addRow(QCoreApplication.translate("PromptCompanyInfoDialog", "Address (Optional):"), self.address_edit)
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox()
+        # Save and Continue (AcceptRole)
+        self.save_button = self.button_box.addButton(QCoreApplication.translate("PromptCompanyInfoDialog", "Save and Continue"), QDialogButtonBox.AcceptRole)
+        # Use Default (ActionRole)
+        self.use_default_button = self.button_box.addButton(QCoreApplication.translate("PromptCompanyInfoDialog", "Use Default and Continue"), QDialogButtonBox.ActionRole)
+        # Cancel Setup (RejectRole)
+        self.cancel_button = self.button_box.addButton(QDialogButtonBox.Cancel) # Standard Cancel role
+
+        self.save_button.clicked.connect(self.accept_dialog)
+        self.use_default_button.clicked.connect(self.use_default_and_accept)
+        self.cancel_button.clicked.connect(self.reject)
+
+        layout.addWidget(self.button_box)
+
+    def accept_dialog(self):
+        if not self.company_name_edit.text().strip():
+            QMessageBox.warning(self,
+                                QCoreApplication.translate("PromptCompanyInfoDialog", "Input Error"),
+                                QCoreApplication.translate("PromptCompanyInfoDialog", "Company Name is required to save."))
+            return
+        self.use_default_company = False # Explicitly set when saving
+        super().accept()
+
+    def use_default_and_accept(self):
+        self.use_default_company = True
+        super().accept() # Accept the dialog
+
+    def get_company_data(self):
+        if self.use_default_company:
+            return None # Indicate that default should be used
+        return {
+            "company_name": self.company_name_edit.text().strip(),
+            "address": self.address_edit.toPlainText().strip()
+        }
+
 
         final_logo_name = None
         if self.logo_path:
@@ -332,6 +490,9 @@ class InitialSetupDialog(QDialog):
         self.setMinimumSize(600, 400) # Make it a bit larger
         self.setModal(True)
 
+        self.company_id = None # To store the ID of the company created/updated in the first step
+        self.default_company_to_edit_data = None
+
         self.company_id = None # To store the ID of the company created in the first step
 
         layout = QVBoxLayout(self)
@@ -341,6 +502,16 @@ class InitialSetupDialog(QDialog):
         # Step 1: Company Information
         self.company_info_step = CompanyInfoStepDialog(self) # Pass self as parent
         self.stacked_widget.addWidget(self.company_info_step)
+
+        # Load default company for editing if it exists
+        try:
+            self.default_company_to_edit_data = db_manager.get_default_company()
+            if self.default_company_to_edit_data:
+                self.company_info_step.load_company_for_editing(self.default_company_to_edit_data)
+                self.company_id = self.default_company_to_edit_data.get('company_id') # Pre-set company_id for other steps
+        except Exception as e:
+            print(f"Error loading default company for editing: {e}")
+            # Proceed without pre-filling if error occurs
 
         # Step 2: Sellers
         self.sellers_step = PersonnelStepWidget(QCoreApplication.translate("InitialSetupDialog", "Add Sellers (Optional)"))
