@@ -30,7 +30,7 @@ from document_manager_logic import (
 )
 # Dialogs directly instantiated by DocumentManager
 from dialogs import (
-    SettingsDialog, TemplateDialog, # EditClientDialog is called from logic
+    SettingsDialog, TemplateDialog, AddNewClientDialog, # EditClientDialog is called from logic
     ProductEquivalencyDialog, # Added for product equivalency
     ManageProductMasterDialog # Added for global product management
 )
@@ -119,80 +119,14 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
-        form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client"))
-        form_vbox_layout = QVBoxLayout(form_group_box)
+        # Removed form_group_box and its contents from here.
+        # Add a button to open the AddNewClientDialog
+        self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client"))
+        self.add_new_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")) # Conceptual: person outline with plus
+        self.add_new_client_button.setObjectName("primaryButton")
+        self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog)
+        left_layout.addWidget(self.add_new_client_button)
 
-        self.form_container_widget = QWidget()
-        creation_form_layout = QFormLayout(self.form_container_widget)
-        creation_form_layout.setLabelAlignment(Qt.AlignRight)
-        creation_form_layout.setSpacing(10)
-        
-        self.client_name_input = QLineEdit(); self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
-        creation_form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
-        self.company_name_input = QLineEdit(); self.company_name_input.setPlaceholderText(self.tr("Nom entreprise (optionnel)"))
-        creation_form_layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
-        self.client_need_input = QLineEdit(); self.client_need_input.setPlaceholderText(self.tr("Besoin principal du client"))
-        creation_form_layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
-        
-        country_hbox_layout = QHBoxLayout(); self.country_select_combo = QComboBox() 
-        self.country_select_combo.setEditable(True); self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
-        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
-        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country) 
-        country_hbox_layout.addWidget(self.country_select_combo)
-        self.add_country_button = QPushButton("+"); self.add_country_button.setFixedSize(30,30) 
-        self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
-        self.add_country_button.clicked.connect(self.add_new_country_dialog) 
-        country_hbox_layout.addWidget(self.add_country_button); creation_form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
-        
-        city_hbox_layout = QHBoxLayout(); self.city_select_combo = QComboBox() 
-        self.city_select_combo.setEditable(True); self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
-        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
-        city_hbox_layout.addWidget(self.city_select_combo)
-        self.add_city_button = QPushButton("+"); self.add_city_button.setFixedSize(30,30) 
-        self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
-        self.add_city_button.clicked.connect(self.add_new_city_dialog) 
-        city_hbox_layout.addWidget(self.add_city_button); creation_form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
-        
-        self.project_id_input_field = QLineEdit(); self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))
-        creation_form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
-        
-        from PyQt5.QtWidgets import QDoubleSpinBox # Ensure QDoubleSpinBox is imported
-        self.final_price_input = QDoubleSpinBox(); self.final_price_input.setPrefix("€ ") 
-        self.final_price_input.setRange(0, 10000000); self.final_price_input.setValue(0)
-        self.final_price_input.setReadOnly(True)
-        creation_form_layout.addRow(self.tr("Prix Final:"), self.final_price_input)
-        price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
-        price_info_label.setObjectName("priceInfoLabel")
-        creation_form_layout.addRow("", price_info_label)
-
-        # Hide price input, its info label, and its row label as per request
-        self.final_price_input.setVisible(False)
-        price_info_label.setVisible(False)
-        final_price_label_widget = creation_form_layout.labelForField(self.final_price_input)
-        if final_price_label_widget:
-            final_price_label_widget.setVisible(False)
-        
-        self.language_select_combo = QComboBox()
-        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
-        self.language_select_combo.addItems([
-            self.tr("English only (en)"), self.tr("French only (fr)"),
-            self.tr("Arabic only (ar)"), self.tr("Turkish only (tr)"),
-            self.tr("Portuguese only (pt)"), self.tr("All supported languages (en, fr, ar, tr, pt)")
-        ])
-        creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
-        
-        self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")) # Conceptual: person outline with plus
-        self.create_client_button.setObjectName("primaryButton")
-        self.create_client_button.clicked.connect(self.execute_create_client_slot) 
-        creation_form_layout.addRow(self.create_client_button)
-
-        form_vbox_layout.addWidget(self.form_container_widget)
-        form_group_box.setCheckable(True)
-        form_group_box.toggled.connect(self.form_container_widget.setVisible)
-        form_group_box.setChecked(False)
-        left_layout.addWidget(form_group_box)
         content_layout.addWidget(left_panel, 1)
         
         self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True) 
@@ -200,8 +134,16 @@ class DocumentManager(QMainWindow):
         content_layout.addWidget(self.client_tabs_widget, 2)
 
         self.main_area_stack.addWidget(self.documents_page_widget)
-        self.load_countries_into_combo() 
+        # self.load_countries_into_combo() # This is now part of AddNewClientDialog
         
+    def open_add_new_client_dialog(self):
+        dialog = AddNewClientDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            client_data = dialog.get_data()
+            if client_data:
+                # Pass data to the existing logic handler
+                handle_create_client_execution(self, client_data_dict=client_data)
+
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog) # Conceptual: modern gear
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog) # Conceptual: stylized page with corner fold
@@ -262,66 +204,14 @@ class DocumentManager(QMainWindow):
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
-    def load_countries_into_combo(self):
-        self.country_select_combo.clear()
-        try:
-            countries = db_manager.get_all_countries()
-            if countries is None: countries = []
-            for country_dict in countries:
-                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
-            
-    def load_cities_for_country(self, country_name_str):
-        self.city_select_combo.clear()
-        if not country_name_str: return
-        selected_country_id = self.country_select_combo.currentData()
-        if selected_country_id is None:
-            country_obj_by_name = db_manager.get_country_by_name(country_name_str)
-            if country_obj_by_name: selected_country_id = country_obj_by_name['country_id']
-            else: return
-        try:
-            cities = db_manager.get_all_cities(country_id=selected_country_id)
-            if cities is None: cities = []
-            for city_dict in cities:
-                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
-            
-    def add_new_country_dialog(self):
-        country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
-        if ok and country_text.strip():
-            try:
-                returned_country_id = db_manager.add_country({'country_name': country_text.strip()})
-                if returned_country_id is not None:
-                    self.load_countries_into_combo()
-                    index = self.country_select_combo.findText(country_text.strip())
-                    if index >= 0: self.country_select_combo.setCurrentIndex(index)
-                else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
-                
-    def add_new_city_dialog(self):
-        current_country_name = self.country_select_combo.currentText()
-        current_country_id = self.country_select_combo.currentData()
-        if not current_country_id:
-            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner un pays valide.")); return
-        city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
-        if ok and city_text.strip():
-            try:
-                returned_city_id = db_manager.add_city({'country_id': current_country_id, 'city_name': city_text.strip()})
-                if returned_city_id is not None:
-                    self.load_cities_for_country(current_country_name)
-                    index = self.city_select_combo.findText(city_text.strip())
-                    if index >= 0: self.city_select_combo.setCurrentIndex(index)
-                else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout de la ville. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+    # Removed load_countries_into_combo, load_cities_for_country,
+    # add_new_country_dialog, add_new_city_dialog as they are now in AddNewClientDialog.
                 
     # Slots for refactored logic
-    def execute_create_client_slot(self): handle_create_client_execution(self)
+    # Modified execute_create_client_slot to accept data if needed, or it will be handled by the logic function itself.
+    def execute_create_client_slot(self, client_data_dict=None): # client_data_dict can be passed if needed by future refactors
+        handle_create_client_execution(self, client_data_dict=client_data_dict) # Pass it to the handler
+
     def load_clients_from_db_slot(self): load_and_display_clients(self) # Renamed for clarity if used as slot
     def filter_client_list_display_slot(self): filter_and_display_clients(self) # Renamed
     def check_old_clients_routine_slot(self): perform_old_clients_check(self) # Renamed
@@ -332,7 +222,7 @@ class DocumentManager(QMainWindow):
     # Original methods calling the slots (if needed, or connect directly to slots)
     # These are now just wrappers if the signals are connected to these methods.
     # It's often cleaner to connect signals directly to the _slot methods if they are purely for that.
-    def execute_create_client(self): self.execute_create_client_slot()
+    def execute_create_client(self, client_data_dict=None): self.execute_create_client_slot(client_data_dict=client_data_dict) # Ensure it can take arg
     def load_clients_from_db(self): self.load_clients_from_db_slot()
     def filter_client_list_display(self): self.filter_client_list_display_slot()
     def check_old_clients_routine(self): self.check_old_clients_routine_slot()
