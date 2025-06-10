@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import QListWidgetItem
 import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
+from dialogs import ClientProductDimensionDialog # Added import
 
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
@@ -399,55 +400,18 @@ class ClientWidget(QWidget):
         # Product Selector ComboBox
         self.dim_product_selector_combo = QComboBox()
         self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
-        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # TODO
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # This connection will be done later
         prod_dims_layout.addWidget(self.dim_product_selector_combo)
 
-        # Dimensions Form GroupBox
-        self.client_dimensions_form_group = QGroupBox(self.tr("Détails des Dimensions"))
-        dimensions_form_layout = QFormLayout(self.client_dimensions_form_group)
-        dimensions_form_layout.setSpacing(10)
+        # Removed self.client_dimensions_form_group and its contents.
+        # Add new "Edit Client Product Dimensions" button
+        self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
+        self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Example icon
+        self.edit_client_product_dimensions_button.setEnabled(False) # Initially disabled
+        # Connection will be done after this block
+        prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
 
-        self.client_dimension_inputs = {}
-        for i in range(10): # For dim_A to dim_J
-            key = chr(65 + i) # A, B, C...
-            dim_label_text = self.tr(f"Dimension {key}:")
-            dim_input = QLineEdit()
-            dimensions_form_layout.addRow(dim_label_text, dim_input)
-            self.client_dimension_inputs[key] = dim_input
-
-        # Technical Image Section
-        self.client_tech_image_path_input = QLineEdit()
-        self.client_tech_image_path_input.setReadOnly(True)
-        self.client_tech_image_path_input.setPlaceholderText(self.tr("Aucune image sélectionnée"))
-
-        self.client_browse_tech_image_button = QPushButton(self.tr("Parcourir..."))
-        self.client_browse_tech_image_button.setIcon(QIcon.fromTheme("document-open"))
-        # self.client_browse_tech_image_button.clicked.connect(self.on_client_browse_tech_image) # TODO
-
-        image_path_layout = QHBoxLayout()
-        image_path_layout.addWidget(self.client_tech_image_path_input)
-        image_path_layout.addWidget(self.client_browse_tech_image_button)
-        dimensions_form_layout.addRow(self.tr("Chemin Image Technique:"), image_path_layout)
-
-        self.client_tech_image_preview_label = QLabel(self.tr("Aperçu Image Technique"))
-        self.client_tech_image_preview_label.setMinimumSize(200, 150)
-        self.client_tech_image_preview_label.setAlignment(Qt.AlignCenter)
-        self.client_tech_image_preview_label.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
-        dimensions_form_layout.addRow(self.tr("Aperçu:"), self.client_tech_image_preview_label)
-
-        prod_dims_layout.addWidget(self.client_dimensions_form_group)
-
-        # Save Button
-        self.save_client_product_dimensions_button = QPushButton(self.tr("Enregistrer Dimensions"))
-        self.save_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-save", QIcon(":/icons/check.svg")))
-        self.save_client_product_dimensions_button.setObjectName("primaryButton")
-        # self.save_client_product_dimensions_button.clicked.connect(self.on_save_client_product_dimensions) # TODO
-        prod_dims_layout.addWidget(self.save_client_product_dimensions_button)
         prod_dims_layout.addStretch() # Push elements to the top
-
-        # Initial State
-        self.client_dimensions_form_group.setEnabled(False)
-        self.save_client_product_dimensions_button.setEnabled(False)
 
         # Add Tab to Tab Widget
         produits_tab_index = -1
@@ -461,14 +425,12 @@ class ClientWidget(QWidget):
         else: # Fallback
             self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
 
-        # TODO: Call methods to populate product selector for this tab in ClientWidget constructor or refresh method
-        # self.populate_dim_product_selector()
-        self.load_products_for_dimension_tab() # Initial population of product selector for dimensions tab
+        self.load_products_for_dimension_tab() # Initial population of product selector
 
-        # Connect signals for the new Product Dimensions Tab
+        # Connect signals for the Product Dimensions Tab
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
-        self.client_browse_tech_image_button.clicked.connect(self.on_client_browse_tech_image)
-        self.save_client_product_dimensions_button.clicked.connect(self.on_save_client_product_dimensions)
+        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
 
         self.populate_doc_table(); self.load_contacts(); self.load_products()
         self.load_document_notes_filters()
@@ -511,115 +473,38 @@ class ClientWidget(QWidget):
         """Handles selection change in the product selector for the dimensions tab."""
         selected_global_product_id = self.dim_product_selector_combo.currentData()
 
-        # Clear all fields first
-        for key_char in self.client_dimension_inputs:
-            self.client_dimension_inputs[key_char].setText("")
-        self.client_tech_image_path_input.setText("")
-        self.client_tech_image_preview_label.setText(self.tr("Aperçu Image Technique"))
-        self.client_tech_image_preview_label.setPixmap(QPixmap()) # Clear pixmap
-
         if selected_global_product_id is None:
-            self.client_dimensions_form_group.setEnabled(False)
-            self.save_client_product_dimensions_button.setEnabled(False)
-            return
+            self.edit_client_product_dimensions_button.setEnabled(False)
+        else:
+            self.edit_client_product_dimensions_button.setEnabled(True)
+        # Old logic for loading dimensions into inline fields is removed.
 
-        self.client_dimensions_form_group.setEnabled(True)
-        self.save_client_product_dimensions_button.setEnabled(True)
-
-        try:
-            dimension_data = db_manager.get_product_dimension(selected_global_product_id)
-            if dimension_data:
-                for key_char, input_field in self.client_dimension_inputs.items():
-                    input_field.setText(dimension_data.get(f'dim_{key_char.lower()}', '')) # dim_a, dim_b etc.
-
-                relative_image_path = dimension_data.get('technical_image_path', '')
-                self.client_tech_image_path_input.setText(relative_image_path)
-
-                if relative_image_path and self.app_root_dir:
-                    absolute_image_path = os.path.join(self.app_root_dir, relative_image_path)
-                    if os.path.exists(absolute_image_path):
-                        pixmap = QPixmap(absolute_image_path)
-                        if not pixmap.isNull():
-                            self.client_tech_image_preview_label.setPixmap(
-                                pixmap.scaled(self.client_tech_image_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                            )
-                        else:
-                            self.client_tech_image_preview_label.setText(self.tr("Aperçu non disponible."))
-                    else:
-                        self.client_tech_image_preview_label.setText(self.tr("Image non trouvée."))
-                else:
-                    self.client_tech_image_preview_label.setText(self.tr("Aucune image."))
-            else:
-                # Fields already cleared, message in preview label is fine
-                self.client_tech_image_preview_label.setText(self.tr("Aucune dimension détaillée pour ce produit."))
-        except Exception as e:
-            print(f"Error loading dimensions for product {selected_global_product_id}: {e}")
-            QMessageBox.warning(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les dimensions pour le produit sélectionné."))
-            self.client_dimensions_form_group.setEnabled(False)
-            self.save_client_product_dimensions_button.setEnabled(False)
-
-
-    def on_client_browse_tech_image(self):
+    def on_edit_client_product_dimensions(self):
         selected_global_product_id = self.dim_product_selector_combo.currentData()
         if selected_global_product_id is None:
-            QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"), self.tr("Veuillez d'abord sélectionner un produit."))
+            QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"),
+                                self.tr("Veuillez sélectionner un produit dans la liste déroulante."))
             return
 
-        source_file_path, _ = QFileDialog.getOpenFileName(
-            self, self.tr("Sélectionner Image Technique"), os.path.expanduser("~"),
-            self.tr("Images (*.png *.jpg *.jpeg *.bmp *.gif)")
+        # Ensure client_id is available
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            QMessageBox.critical(self, self.tr("Erreur Client"),
+                                 self.tr("L'ID du client n'est pas disponible."))
+            return
+
+        dialog = ClientProductDimensionDialog(
+            client_id=client_id,
+            product_id=selected_global_product_id,
+            app_root_dir=self.app_root_dir,
+            parent=self
         )
-        if not source_file_path:
-            return
+        dialog.exec_()
+        # Optional: Refresh something if needed after dialog closes,
+        # e.g., if the main product display shows dimension summaries.
 
-        base_images_dir = "product_technical_images"
-        target_product_dir = os.path.join(self.app_root_dir, base_images_dir, str(selected_global_product_id))
-
-        try:
-            os.makedirs(target_product_dir, exist_ok=True)
-            image_filename = os.path.basename(source_file_path)
-            absolute_target_file_path = os.path.join(target_product_dir, image_filename)
-
-            shutil.copy2(source_file_path, absolute_target_file_path)
-
-            relative_image_path = os.path.join(base_images_dir, str(selected_global_product_id), image_filename).replace(os.sep, '/')
-
-            self.client_tech_image_path_input.setText(relative_image_path)
-            # Also update the internal variable that would be used for saving if we follow ProductDimensionUIDialog pattern
-            # self.current_tech_image_path = relative_image_path
-
-            pixmap = QPixmap(absolute_target_file_path)
-            if not pixmap.isNull():
-                self.client_tech_image_preview_label.setPixmap(pixmap.scaled(self.client_tech_image_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            else:
-                self.client_tech_image_preview_label.setText(self.tr("Aperçu non disponible."))
-        except shutil.Error as e_shutil:
-            QMessageBox.critical(self, self.tr("Erreur de Copie"), self.tr("Impossible de copier l'image : {0}").format(str(e_shutil)))
-        except Exception as e_general:
-            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors du traitement de l'image : {0}").format(str(e_general)))
-
-
-    def on_save_client_product_dimensions(self):
-        selected_global_product_id = self.dim_product_selector_combo.currentData()
-        if selected_global_product_id is None:
-            QMessageBox.warning(self, self.tr("Aucun Produit"), self.tr("Aucun produit sélectionné pour enregistrer les dimensions."))
-            return
-
-        dimension_data_dict = {}
-        for key_char, input_field in self.client_dimension_inputs.items():
-            dimension_data_dict[f'dim_{key_char.lower()}'] = input_field.text().strip() # dim_a, dim_b...
-
-        # Important: Ensure the path being saved is the relative path stored in the input field
-        dimension_data_dict['technical_image_path'] = self.client_tech_image_path_input.text().strip()
-
-        try:
-            success = db_manager.add_or_update_product_dimension(selected_global_product_id, dimension_data_dict)
-            if success:
-                QMessageBox.information(self, self.tr("Succès"), self.tr("Dimensions du produit enregistrées avec succès."))
-            else:
-                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'enregistrer les dimensions du produit. Vérifiez les logs."))
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Une erreur est survenue : {0}").format(str(e)))
+    # Removed on_client_browse_tech_image method
+    # Removed on_save_client_product_dimensions method
         self.load_document_notes_filters() # Initial call for new tab
         self.load_document_notes_table()   # Initial call for new tab
 
