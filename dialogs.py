@@ -783,13 +783,30 @@ class ProductDialog(QDialog):
             except(ValueError,TypeError):self.unit_price_input.setValue(0.0)
             self.quantity_input.setValue(1.0)
             self.quantity_input.setFocus()
+
+            # Populate new weight and dimensions input fields
+            product_weight = product_data.get('weight', 0.0) # Default to 0.0 if not present
+            self.weight_input.setValue(float(product_weight) if product_weight is not None else 0.0)
+
+            product_dimensions = product_data.get('dimensions', '') # Default to empty string
+            self.dimensions_input.setText(product_dimensions if product_dimensions is not None else "")
+
+            # Update global display labels (renamed ones)
+            self.global_weight_display_label.setText(f"{product_weight} kg" if product_weight is not None else self.tr("N/A"))
+            self.global_dimensions_display_label.setText(product_dimensions if product_dimensions else self.tr("N/A"))
+
             self._update_current_line_total_preview()
             # Store product_id and enable detailed dimensions button
             self.current_selected_global_product_id = product_data.get('product_id')
             self.view_detailed_dimensions_button.setEnabled(bool(self.current_selected_global_product_id))
-        else:
+        else: # This else block handles when the selection is cleared or no product data
             self.current_selected_global_product_id = None
             self.view_detailed_dimensions_button.setEnabled(False)
+            # Clear new input fields and global display labels if no product is selected
+            self.weight_input.setValue(0.0)
+            self.dimensions_input.clear()
+            self.global_weight_display_label.setText(self.tr("N/A"))
+            self.global_dimensions_display_label.setText(self.tr("N/A"))
 
     def _create_icon_label_widget(self,icon_name,label_text):widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5);icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
     def setup_ui(self):
@@ -803,14 +820,28 @@ class ProductDialog(QDialog):
         self.quantity_input=QDoubleSpinBox();self.quantity_input.setRange(0,1000000);self.quantity_input.setValue(0.0);self.quantity_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("format-list-numbered",self.tr("Quantité:")),self.quantity_input)
         self.unit_price_input=QDoubleSpinBox();self.unit_price_input.setRange(0,10000000);self.unit_price_input.setPrefix("€ ");self.unit_price_input.setValue(0.0);self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("cash",self.tr("Prix Unitaire:")),self.unit_price_input)
 
+        # Input for Weight (overridable)
+        self.weight_input = QDoubleSpinBox()
+        self.weight_input.setRange(0.0, 10000.0) # Example range, adjust as needed
+        self.weight_input.setSuffix(" kg")
+        self.weight_input.setDecimals(2) # Example decimals
+        self.weight_input.setValue(0.0)
+        # self.weight_input.valueChanged.connect(self._update_current_line_total_preview) # If weight affects total
+        form_layout.addRow(self.tr("Poids (Ligne):"), self.weight_input)
+
+        # Input for Dimensions (overridable)
+        self.dimensions_input = QLineEdit()
+        self.dimensions_input.setPlaceholderText(self.tr("LxlxH cm")) # Example placeholder
+        form_layout.addRow(self.tr("Dimensions (Ligne):"), self.dimensions_input)
+
         # Display for Weight and Dimensions (read-only from selected global product)
-        self.weight_display_label = QLabel(self.tr("N/A"))
-        form_layout.addRow(self.tr("Poids (Global):"), self.weight_display_label)
-        self.dimensions_display_label = QLabel(self.tr("N/A"))
-        form_layout.addRow(self.tr("Dimensions (Global):"), self.dimensions_display_label)
+        self.global_weight_display_label = QLabel(self.tr("N/A")) # Renamed for clarity
+        form_layout.addRow(self.tr("Poids (Global Produit):"), self.global_weight_display_label) # Updated label text
+        self.global_dimensions_display_label = QLabel(self.tr("N/A")) # Renamed for clarity
+        form_layout.addRow(self.tr("Dimensions (Global Produit):"), self.global_dimensions_display_label) # Updated label text
 
         # Button for detailed dimensions
-        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées"))
+        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées (Global Produit)")) # Updated button text
         self.view_detailed_dimensions_button.setIcon(QIcon.fromTheme("view-fullscreen")) # Example icon
         self.view_detailed_dimensions_button.setEnabled(False) # Disabled initially
         self.view_detailed_dimensions_button.clicked.connect(self.on_view_detailed_dimensions)
@@ -826,17 +857,35 @@ class ProductDialog(QDialog):
     def _update_current_line_total_preview(self):quantity=self.quantity_input.value();unit_price=self.unit_price_input.value();current_quantity=quantity if isinstance(quantity,(int,float)) else 0.0;current_unit_price=unit_price if isinstance(unit_price,(int,float)) else 0.0;line_total=current_quantity*current_unit_price;self.current_line_total_label.setText(f"€ {line_total:.2f}")
     def _add_current_line_to_table(self):
         name=self.name_input.text().strip();description=self.description_input.toPlainText().strip();quantity=self.quantity_input.value();unit_price=self.unit_price_input.value()
+        current_weight = self.weight_input.value()
+        current_dimensions = self.dimensions_input.text().strip()
+
         if not name:QMessageBox.warning(self,self.tr("Champ Requis"),self.tr("Le nom du produit est requis."));self.name_input.setFocus();return
         if quantity<=0:QMessageBox.warning(self,self.tr("Quantité Invalide"),self.tr("La quantité doit être supérieure à zéro."));self.quantity_input.setFocus();return
         line_total=quantity*unit_price;row_position=self.products_table.rowCount();self.products_table.insertRow(row_position);name_item=QTableWidgetItem(name);current_lang_code=self.product_language_filter_combo.currentText()
         if current_lang_code==self.tr("All"):current_lang_code="fr"
-        name_item.setData(Qt.UserRole+1,current_lang_code);self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
+        name_item.setData(Qt.UserRole+1,current_lang_code)
+        name_item.setData(Qt.UserRole+2, current_weight) # Store weight
+        name_item.setData(Qt.UserRole+3, current_dimensions) # Store dimensions
+        # Store the global product ID if one was selected, for later use in EditProductLineDialog or other features
+        if self.current_selected_global_product_id is not None: # This ID comes from _populate_form_from_selected_product
+            name_item.setData(Qt.UserRole + 4, self.current_selected_global_product_id)
+        else: # Ensure UserRole+4 is explicitly None if no global product was selected for this line item
+            name_item.setData(Qt.UserRole + 4, None)
+
+
+        self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
+
         # Clear form and disable detailed dimensions button after adding line
         self.name_input.clear();self.description_input.clear();self.quantity_input.setValue(0.0);self.unit_price_input.setValue(0.0)
-        self.current_selected_global_product_id = None
+        self.weight_input.setValue(0.0) # Clear new weight input
+        self.dimensions_input.clear() # Clear new dimensions input
+
+        self.current_selected_global_product_id = None # Reset the stored global product ID for the form
         self.view_detailed_dimensions_button.setEnabled(False)
-        self.weight_display_label.setText(self.tr("N/A")) # Reset display labels
-        self.dimensions_display_label.setText(self.tr("N/A"))
+        self.global_weight_display_label.setText(self.tr("N/A")) # Reset global display labels (renamed ones)
+        self.global_dimensions_display_label.setText(self.tr("N/A")) # Reset global display labels (renamed ones)
+
         self._update_current_line_total_preview();self._update_overall_total();self.name_input.setFocus()
 
     def on_view_detailed_dimensions(self):
@@ -865,8 +914,30 @@ class ProductDialog(QDialog):
     def get_data(self):
         products_list=[]
         for row in range(self.products_table.rowCount()):
-            name=self.products_table.item(row,0).text();description=self.products_table.item(row,1).text();qty_str=self.products_table.item(row,2).text().replace(",",".");quantity=float(qty_str) if qty_str else 0.0;unit_price_str=self.products_table.item(row,3).text().replace("€","").replace(",",".").strip();unit_price=float(unit_price_str) if unit_price_str else 0.0;line_total_str=self.products_table.item(row,4).text().replace("€","").replace(",",".").strip();line_total=float(line_total_str) if line_total_str else 0.0;name_item=self.products_table.item(row,0);language_code=name_item.data(Qt.UserRole+1) if name_item else "fr"
-            products_list.append({"client_id":self.client_id,"name":name,"description":description,"quantity":quantity,"unit_price":unit_price,"total_price":line_total,"language_code":language_code})
+            name_item=self.products_table.item(row,0) # This is the QTableWidgetItem for the name column
+            name=name_item.text()
+            description=self.products_table.item(row,1).text()
+            qty_str=self.products_table.item(row,2).text().replace(",",".");quantity=float(qty_str) if qty_str else 0.0
+            unit_price_str=self.products_table.item(row,3).text().replace("€","").replace(",",".").strip();unit_price=float(unit_price_str) if unit_price_str else 0.0
+            line_total_str=self.products_table.item(row,4).text().replace("€","").replace(",",".").strip();line_total=float(line_total_str) if line_total_str else 0.0
+
+            language_code=name_item.data(Qt.UserRole+1) if name_item else "fr" # Default to 'fr' if no data
+            retrieved_weight = name_item.data(Qt.UserRole+2) # Retrieve weight
+            retrieved_dimensions = name_item.data(Qt.UserRole+3) # Retrieve dimensions
+            retrieved_global_product_id = name_item.data(Qt.UserRole+4) # Retrieve global product ID for this line
+
+            products_list.append({
+                "client_id":self.client_id,
+                "name":name,
+                "description":description,
+                "quantity":quantity,
+                "unit_price":unit_price,
+                "total_price":line_total,
+                "language_code":language_code,
+                "weight": float(retrieved_weight) if retrieved_weight is not None else 0.0, # Add weight to dict
+                "dimensions": str(retrieved_dimensions) if retrieved_dimensions is not None else "", # Add dimensions to dict
+                "product_id": retrieved_global_product_id # Add global product_id (can be None)
+            })
         return products_list
 
 class EditProductLineDialog(QDialog):
@@ -887,19 +958,21 @@ class EditProductLineDialog(QDialog):
         self.description_input.setFixedHeight(80)
         form_layout.addRow(self.tr("Description:"), self.description_input)
 
-        # Display Weight and Dimensions (read-only) in EditProductLineDialog
-        # These values should be part of the product_data passed from ClientWidget.load_products
-        weight_val = self.product_data.get('weight')
-        weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
-        self.weight_display = QLabel(weight_str)
-        form_layout.addRow(self.tr("Poids:"), self.weight_display)
+        # Editable Weight and Dimensions for the specific client product line
+        self.weight_input_edit = QDoubleSpinBox()
+        self.weight_input_edit.setSuffix(" kg")
+        self.weight_input_edit.setRange(0.0, 10000.0) # Adjust range as needed
+        self.weight_input_edit.setDecimals(2) # Adjust decimals as needed
+        retrieved_weight = self.product_data.get('weight', 0.0)
+        self.weight_input_edit.setValue(float(retrieved_weight) if retrieved_weight is not None else 0.0)
+        form_layout.addRow(self.tr("Poids (Ligne):"), self.weight_input_edit)
 
-        dimensions_val = self.product_data.get('dimensions', self.tr("N/A"))
-        self.dimensions_display = QLabel(dimensions_val)
-        form_layout.addRow(self.tr("Dimensions (Globales):"), self.dimensions_display)
+        self.dimensions_input_edit = QLineEdit(self.product_data.get('dimensions', ''))
+        self.dimensions_input_edit.setPlaceholderText(self.tr("LxlxH cm"))
+        form_layout.addRow(self.tr("Dimensions (Ligne):"), self.dimensions_input_edit)
 
-        # Add View Detailed Dimensions Button
-        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées"))
+        # Add View Detailed Dimensions Button (references global product)
+        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées (Global Produit)"))
         self.view_detailed_dimensions_button.setIcon(QIcon.fromTheme("view-fullscreen")) # Example icon
         self.view_detailed_dimensions_button.clicked.connect(self.on_view_detailed_dimensions)
         if not self.product_data.get('product_id'): # Disable if no product_id
@@ -929,9 +1002,16 @@ class EditProductLineDialog(QDialog):
             QMessageBox.information(self, self.tr("ID Produit Manquant"), self.tr("Aucun ID de produit global associé à cette ligne."))
 
     def get_data(self) -> dict:
-        return {"name": self.name_input.text().strip(), "description": self.description_input.toPlainText().strip(),
-                "quantity": self.quantity_input.value(), "unit_price": self.unit_price_input.value(),
-                "product_id": self.product_data.get('product_id'), "client_project_product_id": self.product_data.get('client_project_product_id')}
+        return {
+            "name": self.name_input.text().strip(),
+            "description": self.description_input.toPlainText().strip(),
+            "quantity": self.quantity_input.value(),
+            "unit_price": self.unit_price_input.value(),
+            "weight": self.weight_input_edit.value(), # Get value from new QDoubleSpinBox
+            "dimensions": self.dimensions_input_edit.text().strip(), # Get text from new QLineEdit
+            "product_id": self.product_data.get('product_id'), # This is the global product ID
+            "client_project_product_id": self.product_data.get('client_project_product_id') # ID of this specific client product line
+        }
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
