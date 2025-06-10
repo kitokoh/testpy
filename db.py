@@ -3051,8 +3051,8 @@ def unlink_contact_from_client(client_id: str, contact_id: int) -> bool:
     finally:
         if conn: conn.close()
 
-def get_contacts_for_client(client_id: str) -> list[dict]:
-    """Retrieves all contacts for a given client, including link details."""
+def get_contacts_for_client(client_id: str, limit: int = None, offset: int = 0) -> list[dict]:
+    """Retrieves contacts for a given client, including link details, with optional pagination."""
     conn = None
     try:
         conn = get_db_connection()
@@ -3062,8 +3062,15 @@ def get_contacts_for_client(client_id: str) -> list[dict]:
             FROM Contacts c
             JOIN ClientContacts cc ON c.contact_id = cc.contact_id
             WHERE cc.client_id = ?
+            ORDER BY c.name  -- Or any other preferred order
         """
-        cursor.execute(sql, (client_id,))
+        params = [client_id]
+
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+        cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
