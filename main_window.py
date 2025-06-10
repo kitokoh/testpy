@@ -35,6 +35,7 @@ from dialogs import (
 )
 from client_widget import ClientWidget # For client tabs
 from projectManagement import MainDashboard as ProjectManagementDashboard # For PM tab
+from statistics_module import StatisticsDashboard
 from utils import save_config # For saving config in settings and closeEvent
 
 
@@ -52,6 +53,10 @@ class DocumentManager(QMainWindow):
 
         self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
         self.main_area_stack.addWidget(self.project_management_widget_instance)
+
+        self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
+        self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main() 
@@ -181,6 +186,9 @@ class DocumentManager(QMainWindow):
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self) # Conceptual: clean folder with document symbol
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
+        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+        self.statistics_action.triggered.connect(self.show_statistics_view)
+
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
 
@@ -193,6 +201,7 @@ class DocumentManager(QMainWindow):
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action)
         modules_menu.addAction(self.project_management_action)
+        modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -203,6 +212,9 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         
+    def show_statistics_view(self):
+        self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
