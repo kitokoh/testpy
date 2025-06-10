@@ -441,6 +441,10 @@ class ClientWidget(QWidget):
         self.load_document_notes_filters()
         self.load_document_notes_table()
 
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
 
     def load_products_for_dimension_tab(self):
         """Populates the product selector combo box in the Product Dimensions tab."""
