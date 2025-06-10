@@ -21,6 +21,7 @@ else:
 
 DEFAULT_TEMPLATES_DIR = os.path.join(APP_ROOT_DIR, "templates") # Standardized subdir name
 DEFAULT_CLIENTS_DIR = os.path.join(APP_ROOT_DIR, "clients")   # Standardized subdir name
+LOGO_SUBDIR = "company_logos"
 
 DATABASE_NAME = CENTRAL_DATABASE_NAME
 
@@ -32,7 +33,7 @@ os.makedirs(CONFIG["templates_dir"], exist_ok=True)
 os.makedirs(CONFIG["clients_dir"], exist_ok=True)
 # These were in main.py's global scope after config loading, seem appropriate here.
 os.makedirs(os.path.join(APP_ROOT_DIR, "translations"), exist_ok=True)
-os.makedirs(os.path.join(APP_ROOT_DIR, "company_logos"), exist_ok=True)
+os.makedirs(os.path.join(APP_ROOT_DIR, LOGO_SUBDIR), exist_ok=True)
 
 SPEC_TECH_TEMPLATE_NAME = "specification_technique_template.xlsx"
 PROFORMA_TEMPLATE_NAME = "proforma_template.xlsx"

@@ -36,16 +36,19 @@ def _import_main_elements():
            MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
-        import main as main_module # This is the potential circular import point
-        from dialogs import SendEmailDialog # Direct import for SendEmailDialog
-        MAIN_MODULE_CONTACT_DIALOG = main_module.ContactDialog
-        MAIN_MODULE_PRODUCT_DIALOG = main_module.ProductDialog
-        MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = main_module.EditProductLineDialog
-        MAIN_MODULE_CREATE_DOCUMENT_DIALOG = main_module.CreateDocumentDialog
-        MAIN_MODULE_COMPILE_PDF_DIALOG = main_module.CompilePdfDialog
-        MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = main_module.generate_pdf_for_document
-        MAIN_MODULE_CONFIG = main_module.CONFIG
-        MAIN_MODULE_DATABASE_NAME = main_module.DATABASE_NAME # Used in load_statuses, save_client_notes
+        # import main as main_module # No longer needed
+        from dialogs import SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog, CreateDocumentDialog, CompilePdfDialog
+        from utils import generate_pdf_for_document as utils_generate_pdf_for_document
+        from app_setup import CONFIG as APP_CONFIG
+        from db import DATABASE_NAME as DB_NAME
+        MAIN_MODULE_CONTACT_DIALOG = ContactDialog # Assign directly
+        MAIN_MODULE_PRODUCT_DIALOG = ProductDialog # Assign directly
+        MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
+        MAIN_MODULE_CREATE_DOCUMENT_DIALOG = CreateDocumentDialog
+        MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
+        MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
+        MAIN_MODULE_CONFIG = APP_CONFIG
+        MAIN_MODULE_DATABASE_NAME = DB_NAME # Used in load_statuses, save_client_notes
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
 
 
