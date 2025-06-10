@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# import os # Removed as not used
+import os
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGroupBox,
     QStyledItemDelegate, QStyleOptionViewItem, QStyle # QListWidgetItem was not used directly here

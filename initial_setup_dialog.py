@@ -92,7 +92,7 @@ class CompanyInfoStepDialog(QDialog):
         if file_path:
             self.logo_path_selected_for_upload = file_path # User selected a new logo
             self.logo_path = file_path
-           pixmap = QPixmap(file_path)
+            pixmap = QPixmap(file_path)
             self.logo_preview_label.setPixmap(pixmap.scaled(
                 self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))
@@ -375,9 +375,13 @@ class PersonnelStepWidget(QWidget):
     def set_company_id(self, company_id):
         self.company_id = company_id
 
-    def add_person_row(self, name="", phone="", email=""): # Allow pre-filling data
+    def add_person_row(self, name_or_checked="", phone="", email=""): # Allow pre-filling data
+        # If name_or_checked is a boolean (from button signal), use default empty string for name.
+        # Otherwise, it's actual name data.
+        actual_name = name_or_checked if isinstance(name_or_checked, str) else ""
+
         row_widget = PersonnelInputRowWidget()
-        row_widget.name_edit.setText(name)
+        row_widget.name_edit.setText(actual_name)
         row_widget.phone_edit.setText(phone)
         row_widget.email_edit.setText(email)
         row_widget.remove_signal.connect(self.handle_remove_person_row)

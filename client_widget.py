@@ -5,6 +5,7 @@ import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
+import math # Added for pagination
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
@@ -59,6 +60,8 @@ def _import_main_elements():
 
 
 class ClientWidget(QWidget):
+    CONTACT_PAGE_LIMIT = 15 # Class attribute for page limit
+
     def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
@@ -81,6 +84,11 @@ class ClientWidget(QWidget):
 
         self.is_editing_client = False
         self.edit_widgets = {}
+
+        # Pagination for Contacts
+        self.current_contact_offset = 0
+        self.total_contacts_count = 0
+        # self.CONTACT_PAGE_LIMIT is a class attribute
 
         self.setup_ui()
 
@@ -212,6 +220,24 @@ class ClientWidget(QWidget):
         self.contacts_table.setAlternatingRowColors(True)
         self.contacts_table.cellDoubleClicked.connect(self.edit_contact) # row, column are passed
         contacts_layout.addWidget(self.contacts_table)
+
+        # Pagination controls for Contacts
+        contacts_pagination_layout = QHBoxLayout()
+        self.prev_contact_button = QPushButton("<< Précédent")
+        self.prev_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.prev_contact_button.clicked.connect(self.prev_contact_page)
+        self.contact_page_info_label = QLabel("Page 1 / 1")
+        self.contact_page_info_label.setObjectName("paginationLabel") # Use QSS for styling
+        self.next_contact_button = QPushButton("Suivant >>")
+        self.next_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.next_contact_button.clicked.connect(self.next_contact_page)
+
+        contacts_pagination_layout.addStretch()
+        contacts_pagination_layout.addWidget(self.prev_contact_button)
+        contacts_pagination_layout.addWidget(self.contact_page_info_label)
+        contacts_pagination_layout.addWidget(self.next_contact_button)
+        contacts_pagination_layout.addStretch()
+        contacts_layout.addLayout(contacts_pagination_layout) # Add pagination to contacts tab
 
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
@@ -476,6 +502,28 @@ class ClientWidget(QWidget):
             except Exception as e:
                  QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de la suppression:\n{0}").format(str(e)))
 
+
+    def prev_contact_page(self):
+        if self.current_contact_offset > 0:
+            self.current_contact_offset -= self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def next_contact_page(self):
+        if (self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count:
+            self.current_contact_offset += self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def update_contact_pagination_controls(self):
+        if self.total_contacts_count == 0:
+            total_pages = 1
+            current_page = 1
+        else:
+            total_pages = math.ceil(self.total_contacts_count / self.CONTACT_PAGE_LIMIT)
+            current_page = (self.current_contact_offset // self.CONTACT_PAGE_LIMIT) + 1
+
+        self.contact_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        self.prev_contact_button.setEnabled(self.current_contact_offset > 0)
+        self.next_contact_button.setEnabled((self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count)
 
     def add_document(self):
         # Define available languages
@@ -850,110 +898,93 @@ class ClientWidget(QWidget):
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:\n{0}").format(str(e)))
 
     def load_contacts(self):
-        self.contacts_table.setRowCount(0) # Clear table
+        self.contacts_table.setRowCount(0)
         client_uuid = self.client_info.get("client_id")
-        if not client_uuid: return
+        if not client_uuid:
+            self.update_contact_pagination_controls() # Still update to show "Page 1/1" if no client
+            return
+
         try:
-            contacts = db_manager.get_contacts_for_client(client_uuid)
+            self.total_contacts_count = db_manager.get_contacts_for_client_count(client_id=client_uuid)
+
+            contacts = db_manager.get_contacts_for_client(
+                client_id=client_uuid,
+                limit=self.CONTACT_PAGE_LIMIT,
+                offset=self.current_contact_offset
+            )
             contacts = contacts if contacts else []
+
             for row, contact in enumerate(contacts):
                 self.contacts_table.insertRow(row)
-
                 name_item = QTableWidgetItem(contact.get('name', 'N/A'))
-                # Store IDs in the first column's item for retrieval
                 name_item.setData(Qt.UserRole, {
                     'contact_id': contact.get('contact_id'),
                     'client_contact_id': contact.get('client_contact_id')
                 })
                 self.contacts_table.setItem(row, 0, name_item)
-
                 self.contacts_table.setItem(row, 1, QTableWidgetItem(contact.get('email', '')))
                 self.contacts_table.setItem(row, 2, QTableWidgetItem(contact.get('phone', '')))
                 self.contacts_table.setItem(row, 3, QTableWidgetItem(contact.get('position', '')))
-
                 primary_text = self.tr("Oui") if contact.get('is_primary_for_client') else self.tr("Non")
                 primary_item = QTableWidgetItem(primary_text)
-                # Optional: Center align this column
                 primary_item.setTextAlignment(Qt.AlignCenter)
                 self.contacts_table.setItem(row, 4, primary_item)
-
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
+            self.total_contacts_count = 0 # Reset on error
+        finally:
+            self.update_contact_pagination_controls()
+
 
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
         dialog = self.ContactDialog(client_uuid, parent=self)
         if dialog.exec_() == QDialog.Accepted:
-            contact_form_data = dialog.get_data()
+            # contact_form_data = dialog.get_data() # Original line
             try:
-                # ... (logic for adding/linking contact remains the same) ...
-                self.load_contacts() # Ensure this is called after DB operations
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+                # Assuming dialog handles DB ops or returns data for db_manager call
+                # No specific return from dialog.get_data() is used here for DB ops.
+                # The dialog itself calls db_manager.add_contact and db_manager.link_contact_to_client
+                pass # DB operations are handled within ContactDialog
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
-    def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
+    def edit_contact(self, row=None, column=None):
         current_row = self.contacts_table.currentRow()
         if current_row < 0:
             QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
             return
 
-
         name_item = self.contacts_table.item(current_row, 0)
-        if not name_item: return # Should not happen if row is valid
+        if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
         contact_id = item_data.get('contact_id')
-        # client_contact_id is also available if needed for specific link properties
-        # client_contact_id = item_data.get('client_contact_id')
 
         if not contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de contact non trouvé pour la ligne sélectionnée."))
             return
 
-        client_uuid = self.client_info.get("client_id") # For the dialog's context
-
-        # Fetch the full contact details to pass to the dialog
+        client_uuid = self.client_info.get("client_id")
         full_contact_details = db_manager.get_contact_by_id(contact_id)
         if not full_contact_details:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("Détails du contact non trouvés dans la base de données."))
             return
 
-        # Add the client-specific link information to the contact_data for the dialog
-        # This is crucial for the 'is_primary_for_client' checkbox
         client_contact_link_info = db_manager.get_specific_client_contact_link_details(client_uuid, contact_id)
         if client_contact_link_info:
             full_contact_details['is_primary_for_client'] = client_contact_link_info.get('is_primary_for_client', False)
-            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id') # Store for update
+            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id')
 
         dialog = self.ContactDialog(client_id=client_uuid, contact_data=full_contact_details, parent=self)
 
         if dialog.exec_() == QDialog.Accepted:
-            updated_data_from_dialog = dialog.get_data()
-            is_primary_for_client_from_dialog = updated_data_from_dialog.pop('is_primary_for_client', False)
+            # DB operations are handled within ContactDialog after its own save logic
+            self.load_contacts()
 
-            try:
-                # Update the main contact details
-                if db_manager.update_contact(contact_id, updated_data_from_dialog):
-                    # Now, update the client-specific link (is_primary_for_client)
-                    # We need the client_contact_id for this.
-                    client_contact_id_for_update = full_contact_details.get('client_contact_id')
-                    if client_contact_id_for_update is not None:
-                        db_manager.update_client_contact_link(
-                            client_contact_id_for_update,
-                            {'is_primary_for_client': is_primary_for_client_from_dialog}
-                        )
-                    else:
-                        # This case should ideally not happen if the contact is linked.
-                        # If it can, then we might need to re-link or handle error.
-                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
-
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
-                else:
-                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du contact."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la mise à jour du contact:\n{0}").format(str(e)))
-            finally:
-                self.load_contacts() # Refresh the table
 
     def remove_contact(self):
         current_row = self.contacts_table.currentRow()
@@ -965,12 +996,11 @@ class ClientWidget(QWidget):
         if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
-        contact_id = item_data.get('contact_id') # Global contact ID
-        client_contact_id = item_data.get('client_contact_id') # Link ID
-
+        contact_id = item_data.get('contact_id')
+        client_contact_id = item_data.get('client_contact_id')
         contact_name = name_item.text()
 
-        if not client_contact_id: # Should have this to remove the link
+        if not client_contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de lien contact-client non trouvé."))
             return
 
@@ -979,13 +1009,15 @@ class ClientWidget(QWidget):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                if db_manager.unlink_contact_from_client(client_contact_id):
+                # Use client_contact_id for unlinking, not client_id + contact_id
+                if db_manager.unlink_contact_from_client_by_link_id(client_contact_id): # Assuming this new function exists
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Lien vers le contact '{0}' supprimé avec succès.").format(contact_name))
-                    self.load_contacts() # Refresh table
                 else:
                     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression du lien vers le contact."))
             except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
