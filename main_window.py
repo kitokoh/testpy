@@ -364,7 +364,7 @@ class DocumentManager(QMainWindow):
             os.makedirs(self.config["clients_dir"], exist_ok=True)
             QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés.")) # self for parent
             
-    def open_template_manager_dialog(self): TemplateDialog(self).exec_() # Pass self as parent
+    def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_() # Pass self as parent
         
     def open_status_manager_dialog(self): 
         QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité de gestion des statuts personnalisés à implémenter."))
