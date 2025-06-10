@@ -3,15 +3,17 @@ from PyQt5.QtWidgets import (
     QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QMessageBox, QSpacerItem, QSizePolicy, QFrame, QWidget
 )
-from PyQt5.QtGui import QFont # QPixmap can be added if a different logo/image is desired here
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 import db # For database operations
+import random # For promo text, though might share LoginWindow's list
+# from auth.login_window import LoginWindow # To access PROMOTIONAL_TEXTS
 
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Create New Account")
-        self.setMinimumWidth(800) # Increased width for two columns, slightly more for more fields
+        self.setWindowTitle(self.tr("Create New Account"))
+        self.setMinimumWidth(800)
         self.init_ui()
 
     def init_ui(self):
@@ -100,25 +102,52 @@ class RegistrationWindow(QDialog):
         promo_layout.setSpacing(20)
         promo_layout.setAlignment(Qt.AlignCenter)
 
-        promo_header = QLabel("Create Your Account") # Text updated as per instruction
-        promo_header.setObjectName("promoHeaderLabel")
-        promo_header.setAlignment(Qt.AlignCenter)
-        promo_header.setWordWrap(True)
-        promo_layout.addWidget(promo_header)
+        self.promoHeaderLabel = QLabel(self.tr("Create Your Account"))
+        self.promoHeaderLabel.setObjectName("promoHeaderLabel")
+        self.promoHeaderLabel.setAlignment(Qt.AlignCenter)
+        self.promoHeaderLabel.setWordWrap(True)
 
-        promo_text_content = "Join us to manage your documents and projects with ease. Sign up in seconds!" # Text updated
-        promo_text = QLabel(promo_text_content)
-        promo_text.setObjectName("promoTextLabel")
-        promo_text.setAlignment(Qt.AlignCenter)
-        promo_text.setWordWrap(True)
-        promo_layout.addWidget(promo_text)
+        # Image Placeholder
+        self.image_placeholder = QFrame()
+        self.image_placeholder.setObjectName("imagePlaceholderFrame")
+        placeholder_layout = QVBoxLayout(self.image_placeholder)
+        placeholder_layout.setAlignment(Qt.AlignCenter)
+        lbl_placeholder_text = QLabel(self.tr("Showcase Your Brand"))
+        lbl_placeholder_text.setObjectName("imagePlaceholderLabel")
+        lbl_placeholder_text.setAlignment(Qt.AlignCenter)
+        placeholder_layout.addWidget(lbl_placeholder_text)
 
-        promo_layout.addStretch(1)
+        # Promotional Text Label
+        self.promoTextLabel = QLabel()
+        self.promoTextLabel.setObjectName("promoTextLabel")
+        self.promoTextLabel.setAlignment(Qt.AlignCenter)
+        self.promoTextLabel.setWordWrap(True)
+
+        # Order: Header, Image Placeholder, Promo Text
+        promo_layout.addWidget(self.promoHeaderLabel)
+        promo_layout.addSpacing(15) # Space between header and image placeholder
+        promo_layout.addWidget(self.image_placeholder, 1) # Placeholder takes some stretch
+        promo_layout.addSpacing(15) # Space between image and text
+        promo_layout.addWidget(self.promoTextLabel)
+
+        self.update_promo_text()
+
+        promo_layout.addStretch(0) # Less aggressive stretch at the bottom
 
         # Add left and right widgets to main horizontal layout
         main_h_layout.addWidget(left_widget, 1)
-        main_h_layout.addWidget(promo_frame, 1) # Use the updated promo_frame
+        main_h_layout.addWidget(promo_frame, 1)
 
+    def update_promo_text(self):
+        # Using a specific text for registration page, or could randomize from a specific list
+        registration_promo_text = "Join us to manage your documents and projects with ease. Sign up in seconds!"
+        if hasattr(self, 'promoTextLabel'):
+             self.promoTextLabel.setText(self.tr(registration_promo_text))
+
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_promo_text()
 
     def handle_registration(self):
         username = self.username_input.text().strip()

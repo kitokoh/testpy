@@ -6838,6 +6838,637 @@ def get_document_context_data(
     return context
 
 
+
+
+if __name__ == '__main__':
+    initialize_database()
+    print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
+
+    # Example Usage (Illustrative - uncomment and adapt to test)
+
+    # --- Test Companies and CompanyPersonnel ---
+    print("\n--- Testing Companies and CompanyPersonnel ---")
+    comp1_id = add_company({'company_name': 'Default Corp', 'address': '123 Main St', 'is_default': True})
+    if comp1_id:
+        print(f"Added company 'Default Corp' with ID: {comp1_id}")
+        set_default_company(comp1_id) # Ensure it's default
+        ret_comp1 = get_company_by_id(comp1_id)
+        print(f"Retrieved company: {ret_comp1['company_name']}, Default: {ret_comp1['is_default']}")
+
+        pers1_id = add_company_personnel({'company_id': comp1_id, 'name': 'John Doe', 'role': 'seller'})
+        if pers1_id:
+            print(f"Added personnel 'John Doe' with ID: {pers1_id} to {comp1_id}")
+
+        pers2_id = add_company_personnel({'company_id': comp1_id, 'name': 'Jane Smith', 'role': 'technical_manager'})
+        if pers2_id:
+            print(f"Added personnel 'Jane Smith' with ID: {pers2_id} to {comp1_id}")
+
+        all_personnel = get_personnel_for_company(comp1_id)
+        print(f"All personnel for Default Corp: {len(all_personnel)}")
+        sellers = get_personnel_for_company(comp1_id, role='seller')
+        print(f"Sellers for Default Corp: {len(sellers)}")
+
+        if pers1_id:
+            update_company_personnel(pers1_id, {'name': 'Johnathan Doe', 'role': 'senior_seller'})
+            updated_pers1 = get_personnel_for_company(comp1_id, role='senior_seller') # Check if update worked
+            if updated_pers1: print(f"Updated personnel: {updated_pers1[0]['name']}")
+
+    comp2_id = add_company({'company_name': 'Second Ent.', 'address': '456 Side Ave'})
+    if comp2_id:
+        print(f"Added company 'Second Ent.' with ID: {comp2_id}")
+        set_default_company(comp1_id) # Try setting first one as default again
+        ret_comp2 = get_company_by_id(comp2_id)
+        if ret_comp2: print(f"Company 'Second Ent.' is_default: {ret_comp2['is_default']}")
+        ret_comp1_after = get_company_by_id(comp1_id)
+        if ret_comp1_after: print(f"Company 'Default Corp' is_default after re-set: {ret_comp1_after['is_default']}")
+
+
+    all_companies = get_all_companies()
+    print(f"Total companies: {len(all_companies)}")
+
+    # Cleanup (optional, for testing)
+    # if pers1_id: delete_company_personnel(pers1_id)
+    # if pers2_id: delete_company_personnel(pers2_id)
+    # if comp1_id: delete_company(comp1_id) # This would cascade delete personnel
+    # if comp2_id: delete_company(comp2_id)
+
+
+    # --- Pre-populate base data for FK constraints (Countries, Cities, StatusSettings) ---
+    # (This setup code is largely the same as the previous step, ensuring essential lookup data)
+    conn_main_setup = get_db_connection()
+    try:
+        cursor_main_setup = conn_main_setup.cursor()
+        # ... (Country, City, StatusSettings insertions as before) ...
+        cursor_main_setup.execute("INSERT OR IGNORE INTO Countries (country_id, country_name) VALUES (1, 'Default Country')")
+        cursor_main_setup.execute("INSERT OR IGNORE INTO Cities (city_id, country_id, city_name) VALUES (1, 1, 'Default City')")
+        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type) VALUES (1, 'Active Client', 'Client')")
+        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type, is_completion_status) VALUES (10, 'Project Planning', 'Project', FALSE)")
+        cursor_main_setup.execute("INSERT OR IGNORE INTO StatusSettings (status_id, status_name, status_type, is_completion_status) VALUES (22, 'Task Done', 'Task', TRUE)")
+
+        conn_main_setup.commit()
+        print("Default data for Countries, Cities, StatusSettings ensured for testing.")
+    except sqlite3.Error as e_setup:
+        print(f"Error ensuring default lookup data in __main__: {e_setup}")
+    finally:
+        if conn_main_setup:
+            conn_main_setup.close()
+
+    # --- Setup common entities for tests: User, Client, Project, Template ---
+    test_user_id = add_user({'username': 'docuser', 'password': 'password', 'full_name': 'Doc User', 'email': 'doc@example.com', 'role': 'editor'})
+    if test_user_id: print(f"Created user 'docuser' (ID: {test_user_id}) for document tests.")
+
+    test_client_id_for_docs = None
+    existing_doc_clients = get_all_clients({'client_name': 'Doc Test Client'})
+    if not existing_doc_clients:
+        test_client_id_for_docs = add_client({'client_name': 'Doc Test Client', 'created_by_user_id': test_user_id})
+        if test_client_id_for_docs: print(f"Added 'Doc Test Client' (ID: {test_client_id_for_docs})")
+    else:
+        test_client_id_for_docs = existing_doc_clients[0]['client_id']
+        print(f"Using existing 'Doc Test Client' (ID: {test_client_id_for_docs})")
+    
+    test_project_id_for_docs = None
+    if test_client_id_for_docs and test_user_id:
+        client_projects_for_docs = get_projects_by_client_id(test_client_id_for_docs)
+        if not client_projects_for_docs:
+            test_project_id_for_docs = add_project({
+                'client_id': test_client_id_for_docs, 
+                'project_name': 'Doc Test Project', 
+                'manager_team_member_id': test_user_id, 
+                'status_id': 10
+            })
+            if test_project_id_for_docs: print(f"Added 'Doc Test Project' (ID: {test_project_id_for_docs})")
+        else:
+            test_project_id_for_docs = client_projects_for_docs[0]['project_id']
+            print(f"Using existing 'Doc Test Project' (ID: {test_project_id_for_docs})")
+
+    test_template_id = None
+    # Assuming a template might be needed for source_template_id
+    templates = get_templates_by_type('general_document') # or some relevant type
+    if not templates:
+        test_template_id = add_template({
+            'template_name': 'General Document Template for Docs', 
+            'template_type': 'general_document', 
+            'language_code': 'en_US',
+            'created_by_user_id': test_user_id
+        })
+        if test_template_id: print(f"Added a test template (ID: {test_template_id}) for documents.")
+    else:
+        test_template_id = templates[0]['template_id']
+        print(f"Using existing test template (ID: {test_template_id}) for documents.")
+
+
+    print("\n--- ClientDocuments CRUD Examples ---")
+    doc1_id = None
+    if test_client_id_for_docs and test_user_id:
+        doc1_id = add_client_document({
+            'client_id': test_client_id_for_docs,
+            'project_id': test_project_id_for_docs, # Optional
+            'document_name': 'Initial Proposal.pdf',
+            'file_name_on_disk': 'proposal_v1_final.pdf',
+            'file_path_relative': f"{test_client_id_for_docs}/{test_project_id_for_docs if test_project_id_for_docs else '_client'}/proposal_v1_final.pdf",
+            'document_type_generated': 'Proposal',
+            'source_template_id': test_template_id, # Optional
+            'created_by_user_id': test_user_id
+        })
+        if doc1_id:
+            print(f"Added client document 'Initial Proposal.pdf' with ID: {doc1_id}")
+            ret_doc = get_document_by_id(doc1_id)
+            print(f"Retrieved document by ID: {ret_doc['document_name'] if ret_doc else 'Not found'}")
+
+            update_doc_success = update_client_document(doc1_id, {'notes': 'Client approved.', 'version_tag': 'v1.1'})
+            print(f"Client document update successful: {update_doc_success}")
+        else:
+            print("Failed to add client document.")
+
+    if test_client_id_for_docs:
+        client_docs = get_documents_for_client(test_client_id_for_docs, filters={'document_type_generated': 'Proposal'})
+        print(f"Proposal documents for client {test_client_id_for_docs}: {len(client_docs)}")
+        
+        # Test fetching client-general documents (project_id IS NULL)
+        client_general_doc_id = add_client_document({
+            'client_id': test_client_id_for_docs,
+            'document_name': 'Client Onboarding Checklist.docx',
+            'file_name_on_disk': 'client_onboarding.docx',
+            'file_path_relative': f"{test_client_id_for_docs}/client_onboarding.docx",
+            'document_type_generated': 'Checklist',
+            'created_by_user_id': test_user_id
+        })
+        if client_general_doc_id: print(f"Added client-general document ID: {client_general_doc_id}")
+        
+        client_general_docs = get_documents_for_client(test_client_id_for_docs, filters={'project_id': None})
+        print(f"Client-general documents for client {test_client_id_for_docs}: {len(client_general_docs)}")
+
+
+    if test_project_id_for_docs:
+        project_docs = get_documents_for_project(test_project_id_for_docs)
+        print(f"Documents for project {test_project_id_for_docs}: {len(project_docs)}")
+
+
+    print("\n--- SmtpConfigs CRUD Examples ---")
+    # Assuming password is encrypted elsewhere before calling add/update
+    encrypted_pass = "dummy_encrypted_password_string" 
+    
+    smtp1_id = add_smtp_config({
+        'config_name': 'Primary Gmail', 'smtp_server': 'smtp.gmail.com', 'smtp_port': 587,
+        'username': 'user@gmail.com', 'password_encrypted': encrypted_pass, 
+        'use_tls': True, 'is_default': True, 
+        'sender_email_address': 'user@gmail.com', 'sender_display_name': 'My Gmail Account'
+    })
+    if smtp1_id:
+        print(f"Added SMTP config 'Primary Gmail' with ID: {smtp1_id}")
+        ret_smtp = get_smtp_config_by_id(smtp1_id)
+        print(f"Retrieved SMTP by ID: {ret_smtp['config_name'] if ret_smtp else 'Not found'}, Default: {ret_smtp.get('is_default') if ret_smtp else ''}")
+    else:
+        print("Failed to add 'Primary Gmail' SMTP config.")
+
+    smtp2_id = add_smtp_config({
+        'config_name': 'Secondary Outlook', 'smtp_server': 'smtp.office365.com', 'smtp_port': 587,
+        'username': 'user@outlook.com', 'password_encrypted': encrypted_pass, 
+        'is_default': False, # Explicitly false
+        'sender_email_address': 'user@outlook.com', 'sender_display_name': 'My Outlook Account'
+    })
+    if smtp2_id:
+        print(f"Added SMTP config 'Secondary Outlook' with ID: {smtp2_id}")
+        default_conf = get_default_smtp_config()
+        print(f"Current default SMTP config: {default_conf['config_name'] if default_conf else 'None'}") # Should still be Gmail
+    else:
+        print("Failed to add 'Secondary Outlook' SMTP config.")
+
+    if smtp2_id: # Set Outlook as default
+        set_default_success = set_default_smtp_config(smtp2_id)
+        print(f"Set 'Secondary Outlook' as default successful: {set_default_success}")
+        default_conf_after_set = get_default_smtp_config()
+        print(f"New default SMTP config: {default_conf_after_set['config_name'] if default_conf_after_set else 'None'}")
+        
+        # Verify Gmail is no longer default
+        gmail_conf_after_set = get_smtp_config_by_id(smtp1_id)
+        if gmail_conf_after_set:
+            print(f"'Primary Gmail' is_default status: {gmail_conf_after_set['is_default']}")
+
+
+    all_smtps = get_all_smtp_configs()
+    print(f"Total SMTP configs: {len(all_smtps)}")
+
+    if smtp1_id:
+        update_smtp_success = update_smtp_config(smtp1_id, {'sender_display_name': 'Updated Gmail Name', 'is_default': True})
+        print(f"SMTP config update for Gmail (set default again) successful: {update_smtp_success}")
+        updated_smtp1 = get_smtp_config_by_id(smtp1_id)
+        print(f"Updated Gmail display name: {updated_smtp1['sender_display_name'] if updated_smtp1 else ''}, Default: {updated_smtp1.get('is_default') if updated_smtp1 else ''}")
+        
+        # Verify Outlook is no longer default
+        outlook_conf_after_gmail_default = get_smtp_config_by_id(smtp2_id)
+        if outlook_conf_after_gmail_default:
+            print(f"'Secondary Outlook' is_default status: {outlook_conf_after_gmail_default['is_default']}")
+
+
+    # Cleanup examples (use with caution)
+    # if doc1_id: delete_client_document(doc1_id)
+    # if client_general_doc_id: delete_client_document(client_general_doc_id)
+    # if smtp1_id: delete_smtp_config(smtp1_id)
+    # if smtp2_id: delete_smtp_config(smtp2_id)
+    # # test_project_id_for_docs, test_client_id_for_docs, test_user_id, test_template_id might be deleted by previous test block's commented out deletions
+    # # Consider re-fetching or ensuring they exist before these deletions if running sequentially multiple times
+    # if test_project_id_for_docs and get_project_by_id(test_project_id_for_docs): delete_project(test_project_id_for_docs)
+    # if test_client_id_for_docs and get_client_by_id(test_client_id_for_docs): delete_client(test_client_id_for_docs)
+    # if test_template_id and get_template_by_id(test_template_id): delete_template(test_template_id)
+    # if test_user_id and get_user_by_id(test_user_id): delete_user(test_user_id)
+
+    print("\n--- TeamMembers Extended Fields and KPIs CRUD Examples ---")
+
+    # --- Cover Page Templates and Cover Pages Test ---
+    print("\n--- Testing Cover Page Templates and Cover Pages ---")
+    cpt_user_id = add_user({'username': 'cpt_user', 'password': 'password123', 'full_name': 'Cover Template User', 'email': 'cpt@example.com', 'role': 'designer'})
+    if not cpt_user_id: cpt_user_id = get_user_by_username('cpt_user')['user_id']
+
+    cpt_custom_id = add_cover_page_template({ # Renamed to avoid confusion with defaults
+        'template_name': 'My Custom Report',
+        'description': 'A custom template for special reports.',
+        'default_title': 'Custom Report Title',
+        'style_config_json': {'font': 'Georgia', 'primary_color': '#AA00AA'},
+        'created_by_user_id': cpt_user_id,
+        'is_default_template': 0 # Explicitly not default
+    })
+    if cpt_custom_id: print(f"Added Custom Cover Page Template 'My Custom Report' ID: {cpt_custom_id}, IsDefault: 0")
+
+    if cpt_custom_id:
+        ret_cpt_custom = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved Custom CPT by ID: {ret_cpt_custom['template_name'] if ret_cpt_custom else 'Not found'}, IsDefault: {ret_cpt_custom.get('is_default_template') if ret_cpt_custom else 'N/A'}")
+
+        # Test update: make it a default template (then change back for other tests)
+        update_cpt_success = update_cover_page_template(cpt_custom_id, {'description': 'Updated custom description.', 'is_default_template': 1})
+        print(f"Update Custom CPT 'My Custom Report' to be default success: {update_cpt_success}")
+        ret_cpt_custom_updated = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved updated Custom CPT: {ret_cpt_custom_updated['template_name'] if ret_cpt_custom_updated else 'N/A'}, IsDefault: {ret_cpt_custom_updated.get('is_default_template') if ret_cpt_custom_updated else 'N/A'}")
+        assert ret_cpt_custom_updated.get('is_default_template') == 1
+
+        # Change it back to not default
+        update_cpt_success_back = update_cover_page_template(cpt_custom_id, {'is_default_template': 0})
+        print(f"Update Custom CPT 'My Custom Report' back to NOT default success: {update_cpt_success_back}")
+        ret_cpt_custom_final = get_cover_page_template_by_id(cpt_custom_id)
+        print(f"Retrieved final Custom CPT: {ret_cpt_custom_final['template_name'] if ret_cpt_custom_final else 'N/A'}, IsDefault: {ret_cpt_custom_final.get('is_default_template') if ret_cpt_custom_final else 'N/A'}")
+        assert ret_cpt_custom_final.get('is_default_template') == 0
+
+
+    print(f"\n--- Testing get_all_cover_page_templates with is_default filter ---")
+    all_tmpls = get_all_cover_page_templates() # No filter
+    print(f"Total templates (no filter): {len(all_tmpls)}")
+
+    default_tmpls = get_all_cover_page_templates(is_default=True)
+    print(f"Default templates (is_default=True): {len(default_tmpls)}")
+    for t in default_tmpls:
+        print(f"  - Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
+        assert t['is_default_template'] == 1, f"Template '{t['template_name']}' should be default!"
+
+    non_default_tmpls = get_all_cover_page_templates(is_default=False)
+    print(f"Non-default templates (is_default=False): {len(non_default_tmpls)}")
+    if cpt_custom_id and ret_cpt_custom_final and ret_cpt_custom_final.get('is_default_template') == 0:
+        found_in_non_default = any(t['template_id'] == cpt_custom_id for t in non_default_tmpls)
+        assert found_in_non_default, "'My Custom Report' was set to non-default but NOT found in non-defaults."
+        print(f"'My Custom Report' correctly found in non-default list.")
+    for t in non_default_tmpls:
+         print(f"  - Non-Default: {t['template_name']} (IsDefault: {t['is_default_template']})")
+         assert t['is_default_template'] == 0, f"Template '{t['template_name']}' should be non-default!"
+
+    # Test get_cover_page_template_by_name for a default template
+    standard_report_template = get_cover_page_template_by_name('Standard Report Cover')
+    if standard_report_template:
+        print(f"Retrieved 'Standard Report Cover' by name. IsDefault: {standard_report_template.get('is_default_template')}")
+        assert standard_report_template.get('is_default_template') == 1, "'Standard Report Cover' should be default by name."
+    else:
+        print("Could not retrieve 'Standard Report Cover' by name for is_default check.")
+
+    # Cover Page instance
+    cp_client_id = add_client({'client_name': 'CoverPage Client', 'project_identifier': 'CP_Test_001'})
+    if not cp_client_id: cp_client_id = get_all_clients({'client_name': 'CoverPage Client'})[0]['client_id']
+
+    cp1_id = None
+    if cp_client_id and cpt1_id and cpt_user_id:
+        cp1_id = add_cover_page({
+            'cover_page_name': 'Client X - Proposal Cover V1',
+            'client_id': cp_client_id,
+            'template_id': cpt1_id,
+            'title': 'Specific Project Proposal',
+            'subtitle': 'For CoverPage Client',
+            'author_text': 'Sales Team', # Updated field name
+            'institution_text': 'Our Company LLC',
+            'department_text': 'Sales Department',
+            'document_type_text': 'Proposal',
+            'document_version': '1.0',
+            'creation_date': datetime.utcnow().date().isoformat(),
+            'logo_name': 'specific_logo.png', # Updated field name
+            'logo_data': b'somedummyimagedata',   # Added field
+            'custom_style_config_json': {'secondary_color': '#FF0000'},
+            'created_by_user_id': cpt_user_id
+        })
+        if cp1_id: print(f"Added Cover Page instance ID: {cp1_id}")
+
+    if cp1_id:
+        ret_cp1 = get_cover_page_by_id(cp1_id)
+        print(f"Retrieved Cover Page by ID: {ret_cp1['title'] if ret_cp1 else 'Not found'}")
+        print(f"  Custom Style: {ret_cp1.get('custom_style_config_json') if ret_cp1 else ''}")
+
+    if cp_client_id:
+        client_cover_pages = get_cover_pages_for_client(cp_client_id)
+        print(f"Cover pages for client {cp_client_id}: {len(client_cover_pages)}")
+
+    # Clean up Cover Page related test data
+    if cp1_id and get_cover_page_by_id(cp1_id): delete_cover_page(cp1_id) # cp1_id is a cover page instance
+    if cpt_custom_id and get_cover_page_template_by_id(cpt_custom_id): # cpt_custom_id is a template
+        delete_cover_page_template(cpt_custom_id)
+        print(f"Cleaned up custom template ID {cpt_custom_id}")
+    # Default templates (like 'Classic Formal' referenced by cpt2_id) should not be deleted here by tests.
+
+    # Test get_cover_pages_for_user (using cpt_user_id for whom defaults were made)
+    if cpt_user_id:
+        # Add a cover page specifically for this user to test retrieval
+        # Ensure cp_client_id is still valid or re-fetch/re-create.
+        # For simplicity, assume cp_client_id created earlier is still usable for this test.
+        # If cp_client_id was deleted, this part needs adjustment or ensure it's created before this block.
+
+        # Let's ensure a client exists for this test section
+        test_get_user_pages_client_id = cp_client_id # Try to reuse if available
+        if not test_get_user_pages_client_id or not get_client_by_id(test_get_user_pages_client_id):
+            test_get_user_pages_client_id = add_client({'client_name': 'ClientForUserPageTest', 'project_identifier': 'CPUPT_001', 'created_by_user_id': cpt_user_id})
+
+        temp_cp_for_user_test_id = None
+        if test_get_user_pages_client_id and cpt_user_id:
+             temp_cp_for_user_test_id = add_cover_page({
+                'cover_page_name': 'User Specific Cover Test for Get',
+                'client_id': test_get_user_pages_client_id,
+                'title': 'User Test Document - Get Test',
+                'created_by_user_id': cpt_user_id
+            })
+
+        if temp_cp_for_user_test_id:
+            print(f"\n--- Testing get_cover_pages_for_user for user: {cpt_user_id} ---")
+            user_cover_pages = get_cover_pages_for_user(cpt_user_id)
+            print(f"Found {len(user_cover_pages)} cover page(s) for user {cpt_user_id}.")
+            if user_cover_pages:
+                print(f"First cover page found: '{user_cover_pages[0]['cover_page_name']}' with title '{user_cover_pages[0]['title']}'")
+            delete_cover_page(temp_cp_for_user_test_id) # Cleanup
+            print(f"Cleaned up temporary cover page ID: {temp_cp_for_user_test_id}")
+        else:
+            print(f"\nCould not create a temporary cover page for user {cpt_user_id} for get_cover_pages_for_user test.")
+
+        if test_get_user_pages_client_id and test_get_user_pages_client_id != cp_client_id: # If we created a new one for this test
+             delete_client(test_get_user_pages_client_id)
+
+
+    if cp_client_id and get_client_by_id(cp_client_id): delete_client(cp_client_id)
+    if cpt_user_id and get_user_by_id(cpt_user_id): delete_user(cpt_user_id)
+    print("--- Cover Page testing completed and cleaned up. ---")
+
+    initialize_database() # Ensure tables are created with new schema
+
+    # --- Populate Default Cover Page Templates ---
+    # This should be called AFTER initialize_database() to ensure tables exist.
+    _populate_default_cover_page_templates()
+
+    # Test TeamMembers
+    print("\nTesting TeamMembers...")
+    tm_email = "new.teammember@example.com"
+    # Clean up if exists from previous failed run
+    existing_tm_list = get_all_team_members()
+    for tm in existing_tm_list:
+        if tm['email'] == tm_email:
+            delete_team_member(tm['team_member_id'])
+            print(f"Deleted existing test team member with email {tm_email}")
+
+    team_member_id = add_team_member({
+        'full_name': 'New Member',
+        'email': tm_email,
+        'role_or_title': 'Developer',
+        'department': 'Engineering',
+        'hire_date': '2024-01-15',
+        'performance': 8,
+        'skills': 'Python, SQL, FastAPI'
+    })
+    if team_member_id:
+        print(f"Added team member 'New Member' with ID: {team_member_id}")
+        member = get_team_member_by_id(team_member_id)
+        print(f"Retrieved member: {member}")
+
+        updated = update_team_member(team_member_id, {
+            'performance': 9,
+            'skills': 'Python, SQL, FastAPI, Docker'
+        })
+        print(f"Team member update successful: {updated}")
+        member = get_team_member_by_id(team_member_id)
+        print(f"Updated member: {member}")
+    else:
+        print("Failed to add team member.")
+
+    # Test KPIs - Requires a project
+    print("\nTesting KPIs...")
+    # Need a client and user for project
+    kpi_test_user_id = add_user({'username': 'kpi_user', 'password': 'password', 'full_name': 'KPI User', 'email': 'kpi@example.com', 'role': 'manager'})
+    if not kpi_test_user_id:
+        # Attempt to get existing user if add failed due to uniqueness
+        kpi_user_existing = get_user_by_username('kpi_user')
+        if kpi_user_existing:
+            kpi_test_user_id = kpi_user_existing['user_id']
+            print(f"Using existing user 'kpi_user' (ID: {kpi_test_user_id})")
+        else:
+            print("Failed to create or find user 'kpi_user' for KPI tests. Aborting KPI tests.")
+            kpi_test_user_id = None
+
+    kpi_test_client_id = None
+    if kpi_test_user_id:
+        kpi_test_client_id = add_client({'client_name': 'KPI Test Client', 'created_by_user_id': kpi_test_user_id})
+        if not kpi_test_client_id:
+            existing_kpi_client = get_all_clients({'client_name': 'KPI Test Client'})
+            if existing_kpi_client:
+                kpi_test_client_id = existing_kpi_client[0]['client_id']
+                print(f"Using existing client 'KPI Test Client' (ID: {kpi_test_client_id})")
+            else:
+                print("Failed to create or find client 'KPI Test Client'. Aborting KPI tests.")
+                kpi_test_client_id = None
+
+    test_project_for_kpi_id = None
+    if kpi_test_client_id and kpi_test_user_id:
+        # Clean up existing project if any
+        existing_projects = get_projects_by_client_id(kpi_test_client_id)
+        for p in existing_projects:
+            if p['project_name'] == 'KPI Test Project':
+                # Need to delete KPIs associated with this project first
+                kpis_to_delete = get_kpis_for_project(p['project_id'])
+                for kpi_del in kpis_to_delete:
+                    delete_kpi(kpi_del['kpi_id'])
+                delete_project(p['project_id'])
+                print(f"Deleted existing 'KPI Test Project' and its KPIs.")
+
+        test_project_for_kpi_id = add_project({
+            'client_id': kpi_test_client_id,
+            'project_name': 'KPI Test Project',
+            'manager_team_member_id': kpi_test_user_id, # Assuming user_id can be used here as per schema
+            'status_id': 10 # Assuming status_id 10 exists ('Project Planning')
+        })
+        if test_project_for_kpi_id:
+            print(f"Added 'KPI Test Project' with ID: {test_project_for_kpi_id} for KPI tests.")
+        else:
+            print("Failed to add project for KPI tests.")
+
+    if test_project_for_kpi_id:
+        kpi_id = add_kpi({
+            'project_id': test_project_for_kpi_id,
+            'name': 'Customer Satisfaction',
+            'value': 85.5,
+            'target': 90.0,
+            'trend': 'up',
+            'unit': '%'
+        })
+        if kpi_id:
+            print(f"Added KPI 'Customer Satisfaction' with ID: {kpi_id}")
+
+            ret_kpi = get_kpi_by_id(kpi_id)
+            print(f"Retrieved KPI by ID: {ret_kpi}")
+
+            kpis_for_proj = get_kpis_for_project(test_project_for_kpi_id)
+            print(f"KPIs for project {test_project_for_kpi_id}: {kpis_for_proj}")
+
+            updated_kpi = update_kpi(kpi_id, {'value': 87.0, 'trend': 'stable'})
+            print(f"KPI update successful: {updated_kpi}")
+            ret_kpi_updated = get_kpi_by_id(kpi_id)
+            print(f"Updated KPI: {ret_kpi_updated}")
+
+            deleted_kpi = delete_kpi(kpi_id)
+            print(f"KPI delete successful: {deleted_kpi}")
+        else:
+            print("Failed to add KPI.")
+    else:
+        print("Skipping KPI tests as project setup failed.")
+
+    # Clean up test data
+    print("\nCleaning up test data...")
+    if team_member_id and get_team_member_by_id(team_member_id):
+        delete_team_member(team_member_id)
+        print(f"Deleted team member ID: {team_member_id}")
+
+    if test_project_for_kpi_id and get_project_by_id(test_project_for_kpi_id):
+        # Ensure KPIs are deleted if any test failed mid-way
+        kpis_left = get_kpis_for_project(test_project_for_kpi_id)
+        for kpi_left_obj in kpis_left:
+            delete_kpi(kpi_left_obj['kpi_id'])
+            print(f"Cleaned up leftover KPI ID: {kpi_left_obj['kpi_id']}")
+        delete_project(test_project_for_kpi_id)
+        print(f"Deleted project ID: {test_project_for_kpi_id}")
+
+    if kpi_test_client_id and get_client_by_id(kpi_test_client_id):
+        delete_client(kpi_test_client_id)
+        print(f"Deleted client ID: {kpi_test_client_id}")
+
+    if kpi_test_user_id and get_user_by_id(kpi_test_user_id):
+        delete_user(kpi_test_user_id)
+        print(f"Deleted user ID: {kpi_test_user_id}")
+
+    print("\n--- Schema changes and basic tests completed. ---")
+
+    print("\n--- Testing get_default_company ---")
+    initialize_database() # Ensure tables are fresh or correctly set up
+
+    company_name1 = "Test Default Co"
+    company_name2 = "New Default Co"
+    test_comp1_id = None
+    test_comp2_id = None
+
+    # Clean up any previous test companies with the same names to ensure test idempotency
+    all_comps_initial = get_all_companies()
+    for comp_init in all_comps_initial:
+        if comp_init['company_name'] == company_name1:
+            print(f"Deleting pre-existing company: {comp_init['company_name']} (ID: {comp_init['company_id']})")
+            delete_company(comp_init['company_id'])
+        if comp_init['company_name'] == company_name2:
+            print(f"Deleting pre-existing company: {comp_init['company_name']} (ID: {comp_init['company_id']})")
+            delete_company(comp_init['company_id'])
+
+    # 1. Add first company
+    test_comp1_id = add_company({'company_name': company_name1, 'address': '1 First St'})
+    if test_comp1_id:
+        print(f"Added company '{company_name1}' with ID: {test_comp1_id}")
+    else:
+        print(f"Failed to add company '{company_name1}'")
+        # Cannot proceed with test if this fails
+        exit()
+
+    # 2. Set first company as default
+    print(f"Setting '{company_name1}' as default...")
+    set_default_company(test_comp1_id)
+
+    # 3. Get default company and assert it's the first one
+    default_co = get_default_company()
+    if default_co:
+        print(f"Retrieved default company: {default_co['company_name']} (ID: {default_co['company_id']})")
+        assert default_co['company_name'] == company_name1, f"Assertion Failed: Expected default company name to be '{company_name1}', got '{default_co['company_name']}'"
+        assert default_co['company_id'] == test_comp1_id, f"Assertion Failed: Expected default company ID to be '{test_comp1_id}', got '{default_co['company_id']}'"
+        print(f"SUCCESS: '{company_name1}' is correctly set and retrieved as default.")
+    else:
+        print(f"Assertion Failed: Expected to retrieve '{company_name1}' as default, but got None.")
+        # Cannot proceed reliably if this fails
+        if test_comp1_id: delete_company(test_comp1_id)
+        exit()
+
+    # 4. Add second company
+    test_comp2_id = add_company({'company_name': company_name2, 'address': '2 Second St'})
+    if test_comp2_id:
+        print(f"Added company '{company_name2}' with ID: {test_comp2_id}")
+    else:
+        print(f"Failed to add company '{company_name2}'")
+        if test_comp1_id: delete_company(test_comp1_id) # Clean up first company
+        exit()
+
+    # 5. Set second company as default
+    print(f"Setting '{company_name2}' as default...")
+    set_default_company(test_comp2_id)
+
+    # 6. Get default company and assert it's the second one
+    default_co_new = get_default_company()
+    if default_co_new:
+        print(f"Retrieved new default company: {default_co_new['company_name']} (ID: {default_co_new['company_id']})")
+        assert default_co_new['company_name'] == company_name2, f"Assertion Failed: Expected new default company name to be '{company_name2}', got '{default_co_new['company_name']}'"
+        assert default_co_new['company_id'] == test_comp2_id, f"Assertion Failed: Expected new default company ID to be '{test_comp2_id}', got '{default_co_new['company_id']}'"
+        print(f"SUCCESS: '{company_name2}' is correctly set and retrieved as new default.")
+    else:
+        print(f"Assertion Failed: Expected to retrieve '{company_name2}' as new default, but got None.")
+        # Clean up both companies before exiting
+        if test_comp1_id: delete_company(test_comp1_id)
+        if test_comp2_id: delete_company(test_comp2_id)
+        exit()
+
+    # 7. Assert that the first company is no longer the default
+    comp1_check = get_company_by_id(test_comp1_id)
+    if comp1_check:
+        assert not comp1_check['is_default'], f"Assertion Failed: Company '{company_name1}' should no longer be default, but 'is_default' is {comp1_check['is_default']}"
+        print(f"SUCCESS: Company '{company_name1}' is_default is correctly False after '{company_name2}' became default.")
+    else:
+        print(f"Error: Could not retrieve company '{company_name1}' for final check.")
+        # Fallback check: ensure get_default_company doesn't return it
+        current_default_still_comp2 = get_default_company()
+        if current_default_still_comp2 and current_default_still_comp2['company_id'] == test_comp2_id:
+             print(f"Fallback check: Current default is still '{company_name2}', so '{company_name1}' is not default. This is acceptable.")
+        else:
+            print(f"Fallback check failed: Default company is not '{company_name2}' or is None.")
+
+
+    # 8. Clean up
+    print("Cleaning up test companies...")
+    if test_comp1_id:
+        delete_company(test_comp1_id)
+        print(f"Deleted company '{company_name1}' (ID: {test_comp1_id})")
+    if test_comp2_id:
+        delete_company(test_comp2_id)
+        print(f"Deleted company '{company_name2}' (ID: {test_comp2_id})")
+
+    final_default_check = get_default_company()
+    if final_default_check is None:
+        print("SUCCESS: Default company is None after cleanup, as expected.")
+    else:
+        print(f"Warning: A default company still exists after cleanup: {final_default_check['company_name']}. This might indicate issues in other tests or test setup.")
+
+
+    print("--- Finished testing get_default_company ---")
+
+
+
 if __name__ == '__main__':
     initialize_database()
     print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")

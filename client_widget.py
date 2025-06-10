@@ -16,6 +16,7 @@ from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor # Added QFont and
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
+from PyQt5.QtGui import QPixmap
 
 import db as db_manager
 from excel_editor import ExcelEditor
@@ -407,6 +408,7 @@ class ClientWidget(QWidget):
         self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
         self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
         self.edit_client_product_dimensions_button.setEnabled(False) # Initially disabled
+
         prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
 
         prod_dims_layout.addStretch() # Push elements to the top
@@ -428,6 +430,20 @@ class ClientWidget(QWidget):
         # Connect signals for the Product Dimensions Tab
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+
+        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
 
         self.populate_doc_table(); self.load_contacts(); self.load_products()
         self.load_document_notes_filters()

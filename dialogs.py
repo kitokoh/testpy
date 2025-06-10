@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import logging
 import shutil
 from datetime import datetime
 import smtplib
@@ -268,8 +269,10 @@ class SettingsDialog(QDialog):
         # Session Timeout
         self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
         self.session_timeout_spinbox = QSpinBox()
-        self.session_timeout_spinbox.setRange(5, 240) # 5 minutes to 4 hours
+        self.session_timeout_spinbox.setRange(5, 129600) # Min 5 minutes, Max 90 days (90*24*60)
         self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
+        self.session_timeout_spinbox.setToolTip(self.tr("Set session duration in minutes. E.g., 1440 for 1 day, 10080 for 1 week, 43200 for 30 days."))
+
         default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
@@ -743,6 +746,8 @@ class ProductDialog(QDialog):
         super().__init__(parent)
         self.client_id=client_id
         self.app_root_dir = app_root_dir # Store app_root_dir
+        if not self.app_root_dir or not isinstance(self.app_root_dir, str) or not self.app_root_dir.strip():
+            logging.warning("ProductDialog initialized with invalid or empty app_root_dir: %s", self.app_root_dir)
         self.current_selected_global_product_id = None
         self.setWindowTitle(self.tr("Ajouter Produits au Client"))
         self.setMinimumSize(900,800)
@@ -752,6 +757,7 @@ class ProductDialog(QDialog):
         self._filter_products_by_language_and_search()
 
     def _set_initial_language_filter(self):
+        client_langs = None
         primary_language=None
         if self.client_info:client_langs=self.client_info.get('selected_languages');
         if client_langs:primary_language=client_langs.split(',')[0].strip()
@@ -2542,8 +2548,11 @@ class ManageProductMasterDialog(QDialog):
                 lang_idx = self.language_code_combo.findText(product_data.get('language_code', 'fr'))
                 self.language_code_combo.setCurrentIndex(lang_idx if lang_idx != -1 else 0)
 
-                self.base_unit_price_input.setValue(product_data.get('base_unit_price', 0.0))
-                self.weight_input.setValue(product_data.get('weight', 0.0))
+                base_price_from_db = product_data.get('base_unit_price')
+                self.base_unit_price_input.setValue(float(base_price_from_db) if base_price_from_db is not None else 0.0)
+
+                weight_from_db = product_data.get('weight')
+                self.weight_input.setValue(float(weight_from_db) if weight_from_db is not None else 0.0)
                 self.general_dimensions_input.setText(product_data.get('dimensions', ''))
 
                 self.save_product_button.setText(self.tr("Enregistrer Modifications"))
