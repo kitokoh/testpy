@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
-                             QGridLayout, QGroupBox, QProgressBar,
+                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
-                             QTableWidgetItem, QHeaderView, QPushButton) # Added QPushButton
-from PyQt5.QtWebEngineWidgets import QWebEngineView  # ✅ BON MODULE
-from PyQt5.QtGui import QIcon # Added QIcon
-from PyQt5.QtCore import Qt, QUrl
+                             QTableWidgetItem, QHeaderView, QPushButton)
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, QUrl, QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtWebChannel import QWebChannel
+
 import db as db_manager
 import folium
 import io
@@ -14,7 +15,20 @@ import json
 import requests
 import pandas as pd
 
+class MapInteractionHandler(QObject):
+    country_clicked_signal = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    @pyqtSlot(str)
+    def countryClicked(self, country_name):
+        print(f"[MapInteractionHandler] countryClicked slot called with: {country_name}")
+        self.country_clicked_signal.emit(country_name)
+
 class StatisticsDashboard(QWidget):
+    country_selected_for_new_client = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Tableau de Bord Statistiques"))
@@ -26,6 +40,14 @@ class StatisticsDashboard(QWidget):
         self.map_view = QWebEngineView()
         self.map_view.setMinimumHeight(400)
         self.map_view.setObjectName("presenceMapView")
+
+        self.map_interaction_handler = MapInteractionHandler(self)
+        self.map_interaction_handler.country_clicked_signal.connect(self._on_map_country_selected)
+
+        self.web_channel = QWebChannel(self.map_view.page())
+        self.map_view.page().setWebChannel(self.web_channel)
+        self.web_channel.registerObject("pyMapConnector", self.map_interaction_handler)
+
         map_group_box = QGroupBox(self.tr("Carte de Présence"))
         map_group_box.setObjectName("mapGroupBox")
         map_group_layout = QVBoxLayout(map_group_box)
@@ -42,7 +64,6 @@ class StatisticsDashboard(QWidget):
         self.right_panel_layout.setAlignment(Qt.AlignTop)
         self.right_panel_layout.setSpacing(15)
 
-        # --- Refresh Button ---
         refresh_section_layout = QHBoxLayout()
         self.refresh_button = QPushButton(self.tr("Actualiser"))
         self.refresh_button.setObjectName("refreshStatsButton")
@@ -52,7 +73,7 @@ class StatisticsDashboard(QWidget):
         else:
             print("Warning: Refresh icon ':/icons/refresh-cw.svg' not found.")
         self.refresh_button.setToolTip(self.tr("Actualiser toutes les données statistiques"))
-        self.refresh_button.clicked.connect(self.refresh_all_statistics) # Connect signal
+        self.refresh_button.clicked.connect(self.refresh_all_statistics)
         refresh_section_layout.addStretch()
         refresh_section_layout.addWidget(self.refresh_button)
         self.right_panel_layout.addLayout(refresh_section_layout)
@@ -63,6 +84,7 @@ class StatisticsDashboard(QWidget):
         self.right_panel_layout.addWidget(title_label)
 
         global_stats_group = QGroupBox(self.tr("Aperçu Global"))
+        # ... (rest of __init__ remains the same as previous correct version)
         global_stats_layout = QGridLayout(global_stats_group)
         self.stats_labels = {}
         stats_to_show = [
@@ -115,7 +137,12 @@ class StatisticsDashboard(QWidget):
         self.right_scroll_area.setWidget(self.right_panel_widget)
         self.main_h_layout.addWidget(self.right_scroll_area, 1)
 
-        self.refresh_all_statistics() # Initial data load
+        self.refresh_all_statistics()
+
+    @pyqtSlot(str)
+    def _on_map_country_selected(self, country_name):
+        print(f"[StatisticsDashboard] _on_map_country_selected: {country_name}")
+        self.country_selected_for_new_client.emit(country_name)
 
     def refresh_all_statistics(self):
         print("Refreshing all statistics...")
@@ -126,6 +153,7 @@ class StatisticsDashboard(QWidget):
         print("All statistics refreshed.")
 
     def _setup_segmentation_tab_ui(self):
+        # ... (remains the same)
         layout_country = QVBoxLayout(self.country_segment_tab)
         self.table_segment_country = QTableWidget()
         self.table_segment_country.setColumnCount(2)
@@ -168,6 +196,7 @@ class StatisticsDashboard(QWidget):
         layout_category.addWidget(self.table_segment_category)
 
     def _populate_table(self, table_widget, data_list, column_keys_info):
+        # ... (remains the same)
         table_widget.setRowCount(0)
         table_widget.setSortingEnabled(False)
         for row_idx, data_item in enumerate(data_list):
@@ -185,6 +214,7 @@ class StatisticsDashboard(QWidget):
         table_widget.setSortingEnabled(True)
 
     def update_customer_segmentation_views(self):
+        # ... (remains the same)
         try:
             country_data = db_manager.get_client_counts_by_country()
             self._populate_table(self.table_segment_country, country_data, [('country_name', self.tr("Pays")), ('client_count', self.tr("Nombre de Clients"))])
@@ -205,6 +235,7 @@ class StatisticsDashboard(QWidget):
                 table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
     def update_global_stats(self):
+        # ... (remains the same)
         for func_name, label_widget in self.stats_labels.items():
             if hasattr(db_manager, func_name):
                 try:
@@ -237,7 +268,6 @@ class StatisticsDashboard(QWidget):
                 try:
                     with open(local_geojson_file, 'r', encoding='utf-8') as f:
                         geojson_data = json.load(f)
-                    print("Loaded GeoJSON data from local file: assets/world_countries.geojson")
                 except Exception as e:
                     print(f"Error loading local GeoJSON file: {e}. Will attempt to fetch from URL.")
                     geojson_data = None
@@ -265,22 +295,27 @@ class StatisticsDashboard(QWidget):
                 print("Critical error: GeoJSON data is not available. Map cannot be displayed.")
                 return
 
-            df_counts = pd.DataFrame(client_counts_by_country)
+            df_counts = pd.DataFrame(client_counts_by_country if client_counts_by_country else []) # Ensure df_counts is always a DataFrame
             tooltip_data = {row['country_name']: row['client_count'] for _, row in df_counts.iterrows()}
+
+            for feature in geojson_data.get('features', []):
+                country_name = feature.get('properties', {}).get('name')
+                client_count = tooltip_data.get(country_name, 0) # Default to 0 for tooltip
+                if 'properties' not in feature: feature['properties'] = {}
+                feature['properties']['client_count'] = client_count
+                # Format popup content carefully, ensure country_name is properly escaped if necessary for JS
+                js_safe_country_name = country_name.replace("'", "\\'") if country_name else ""
+                feature['properties']['popup_content'] = f"<b>{country_name}</b><br>{self.tr('Clients')}: {client_count}<br><button onclick=\"onCountryFeatureClick('{js_safe_country_name}')\">{self.tr('Ajouter Client Ici')}</button>"
 
             choropleth_layer = folium.Choropleth(
                 geo_data=geojson_data,
-                name="choropleth", data=df_counts,
+                name=self.tr("Clients par Pays"),
+                data=df_counts,
                 columns=["country_name", "client_count"], key_on="feature.properties.name",
                 fill_color="YlGnBu", fill_opacity=0.7, line_opacity=0.2,
                 legend_name=self.tr("Nombre de Clients par Pays"), nan_fill_color='lightgray',
                 highlight=True,
             ).add_to(world_map)
-
-            for feature in geojson_data['features']:
-                country_name_prop = feature['properties'].get('name')
-                client_count_prop = tooltip_data.get(country_name_prop, 0)
-                feature['properties']['client_count'] = client_count_prop
 
             folium.GeoJsonTooltip(
                 fields=['name', 'client_count'],
@@ -289,11 +324,68 @@ class StatisticsDashboard(QWidget):
                 style="background-color: #F0EFEF; border: 2px solid black; border-radius: 3px; box-shadow: 3px;"
             ).add_to(choropleth_layer.geojson)
 
+            popup_geojson_layer = folium.GeoJson(
+                geojson_data,
+                name=self.tr("Infos Pays & Action"),
+                style_function=lambda x: {'fillColor': 'transparent', 'color': 'transparent', 'weight': 0},
+                popup=folium.features.GeoJsonPopup(
+                    fields=['popup_content'],
+                    aliases=[''],
+                    localize=False,
+                    parse_html=True
+                )
+            ).add_to(world_map)
+
             folium.LayerControl().add_to(world_map)
 
             map_html_data = io.BytesIO()
             world_map.save(map_html_data, close_file=False)
             html_content = map_html_data.getvalue().decode("utf-8")
+
+            qwebchannel_script = '<script src="qrc:///qtwebchannel/qwebchannel.js"></script>'
+            if qwebchannel_script not in html_content:
+                if "<head>" in html_content:
+                    html_content = html_content.replace("<head>", "<head>\n" + qwebchannel_script, 1)
+                else:
+                    html_content = qwebchannel_script + "\n" + html_content
+
+            js_to_inject = """
+            <script type="text/javascript">
+                var pyMapConnectorInstance = null;
+                function initializeQWebChannel() {
+                    if (typeof QWebChannel !== 'undefined') {
+                        new QWebChannel(qt.webChannelTransport, function(channel) {
+                            pyMapConnectorInstance = channel.objects.pyMapConnector;
+                            if (pyMapConnectorInstance) {
+                                console.log("Successfully connected to pyMapConnector.");
+                            } else {
+                                console.error("Failed to bind pyMapConnector. Check if it's registered in Python.");
+                            }
+                        });
+                    } else {
+                        console.error("QWebChannel.js not loaded or QWebChannel object not found.");
+                    }
+                }
+                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                    initializeQWebChannel();
+                } else {
+                    document.addEventListener('DOMContentLoaded', initializeQWebChannel);
+                }
+                function onCountryFeatureClick(countryName) {
+                    if (pyMapConnectorInstance) {
+                        console.log("JS: onCountryFeatureClick called with: " + countryName);
+                        pyMapConnectorInstance.countryClicked(countryName);
+                    } else {
+                        console.error("JS: pyMapConnectorInstance is not available.");
+                    }
+                }
+            </script>
+            """
+            if "</body>" in html_content:
+                html_content = html_content.replace("</body>", js_to_inject + "\n</body>", 1)
+            else:
+                html_content += js_to_inject
+
             self.map_view.setHtml(html_content, QUrl("about:blank"))
 
         except ImportError:
@@ -305,6 +397,7 @@ class StatisticsDashboard(QWidget):
             print(f"Error updating presence map: {e}")
 
     def update_business_health_score(self):
+        # ... (remains the same)
         try:
             total_clients = db_manager.get_total_clients_count()
             active_clients = db_manager.get_active_clients_count()
@@ -332,13 +425,9 @@ class StatisticsDashboard(QWidget):
         super().closeEvent(event)
 
     def showEvent(self, event):
-        """
-        Called when the widget is shown.
-        Overrides QWidget.showEvent().
-        """
-        print("StatisticsDashboard is now visible, refreshing all statistics...") # For debugging
+        print("StatisticsDashboard is now visible, refreshing all statistics...")
         self.refresh_all_statistics()
-        super().showEvent(event) # Call the base class implementation
+        super().showEvent(event)
 
 if __name__ == '__main__':
     import sys
@@ -355,8 +444,8 @@ if __name__ == '__main__':
         #healthScoreValueLabel { font-size: 20px; font-weight: bold; color: #17a2b8; margin-top: 5px; margin-bottom: 5px;}
         #refreshStatsButton {
             font-weight: bold;
-            padding: 5px 10px; /* Reduced padding */
-            margin-bottom: 5px; /* Reduced margin */
+            padding: 5px 10px;
+            margin-bottom: 5px;
             min-width: 90px;
         }
         QProgressBar {

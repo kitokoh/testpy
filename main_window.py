@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QStackedWidget, QDoubleSpinBox # QDoubleSpinBox for final_price_input
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
-from PyQt5.QtCore import Qt, QUrl, QTimer
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
 
 # Project-specific imports
 import db as db_manager
@@ -61,6 +61,17 @@ class DocumentManager(QMainWindow):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main() 
+        self.create_menus_main()
+
+        # Connect signal from statistics dashboard
+        if hasattr(self, 'statistics_dashboard_instance') and self.statistics_dashboard_instance:
+            if hasattr(self.statistics_dashboard_instance, 'country_selected_for_new_client'):
+                self.statistics_dashboard_instance.country_selected_for_new_client.connect(self.prepare_new_client_for_country)
+                print("Connected statistics_dashboard_instance.country_selected_for_new_client to prepare_new_client_for_country")
+            else:
+                print("Error: statistics_dashboard_instance does not have 'country_selected_for_new_client' signal.")
+        else:
+            print("Error: statistics_dashboard_instance not found for signal connection.")
         self.create_menus_main() 
 
         # Set initial checked state for the default view action
@@ -119,6 +130,73 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
+        self.form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")) # Made it self.form_group_box
+        form_vbox_layout = QVBoxLayout(self.form_group_box)
+
+        self.form_container_widget = QWidget()
+        creation_form_layout = QFormLayout(self.form_container_widget)
+        creation_form_layout.setLabelAlignment(Qt.AlignRight)
+        creation_form_layout.setSpacing(10)
+        
+        self.client_name_input = QLineEdit(); self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
+        creation_form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
+        self.company_name_input = QLineEdit(); self.company_name_input.setPlaceholderText(self.tr("Nom entreprise (optionnel)"))
+        creation_form_layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
+        self.client_need_input = QLineEdit(); self.client_need_input.setPlaceholderText(self.tr("Besoin principal du client"))
+        creation_form_layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
+        
+        country_hbox_layout = QHBoxLayout(); self.country_select_combo = QComboBox() 
+        self.country_select_combo.setEditable(True); self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
+        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country) 
+        country_hbox_layout.addWidget(self.country_select_combo)
+        self.add_country_button = QPushButton("+"); self.add_country_button.setFixedSize(30,30) 
+        self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
+        self.add_country_button.clicked.connect(self.add_new_country_dialog) 
+        country_hbox_layout.addWidget(self.add_country_button); creation_form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
+        
+        city_hbox_layout = QHBoxLayout(); self.city_select_combo = QComboBox() 
+        self.city_select_combo.setEditable(True); self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
+        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
+        city_hbox_layout.addWidget(self.city_select_combo)
+        self.add_city_button = QPushButton("+"); self.add_city_button.setFixedSize(30,30) 
+        self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
+        self.add_city_button.clicked.connect(self.add_new_city_dialog) 
+        city_hbox_layout.addWidget(self.add_city_button); creation_form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
+        
+        self.project_id_input_field = QLineEdit(); self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))
+        creation_form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
+        
+        from PyQt5.QtWidgets import QDoubleSpinBox # Ensure QDoubleSpinBox is imported
+        self.final_price_input = QDoubleSpinBox(); self.final_price_input.setPrefix("€ ") 
+        self.final_price_input.setRange(0, 10000000); self.final_price_input.setValue(0)
+        self.final_price_input.setReadOnly(True)
+        creation_form_layout.addRow(self.tr("Prix Final:"), self.final_price_input)
+        price_info_label = QLabel(self.tr("Le prix final est calculé automatiquement à partir des produits ajoutés."))
+        price_info_label.setObjectName("priceInfoLabel")
+        creation_form_layout.addRow("", price_info_label)
+        
+        self.language_select_combo = QComboBox()
+        self.language_select_combo.addItems([
+            self.tr("English only (en)"), self.tr("French only (fr)"),
+            self.tr("Arabic only (ar)"), self.tr("Turkish only (tr)"),
+            self.tr("Portuguese only (pt)"), self.tr("All supported languages (en, fr, ar, tr, pt)")
+        ])
+        creation_form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
+        
+        self.create_client_button = QPushButton(self.tr("Créer Client")); self.create_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")) # Conceptual: person outline with plus
+        self.create_client_button.setObjectName("primaryButton")
+        self.create_client_button.clicked.connect(self.execute_create_client_slot) 
+        creation_form_layout.addRow(self.create_client_button)
+
+        form_vbox_layout.addWidget(self.form_container_widget)
+        self.form_group_box.setCheckable(True)
+        self.form_group_box.toggled.connect(self.form_container_widget.setVisible)
+        self.form_group_box.setChecked(False)
+        left_layout.addWidget(self.form_group_box)
+
         # Removed form_group_box and its contents from here.
         # Add a button to open the AddNewClientDialog
         self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client"))
@@ -160,6 +238,7 @@ class DocumentManager(QMainWindow):
         
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
 
+
         self.statistics_action.setCheckable(True)
         self.statistics_action.triggered.connect(self.show_statistics_view)
 
@@ -198,6 +277,7 @@ class DocumentManager(QMainWindow):
         
     def show_statistics_view(self):
         self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+
 
         self.statistics_action.setChecked(True)
         self.documents_view_action.setChecked(False)
@@ -316,6 +396,48 @@ class DocumentManager(QMainWindow):
     def closeEvent(self, event): 
         save_config(self.config) # save_config from utils, self.config is CONFIG
         super().closeEvent(event)
+
+    @pyqtSlot(str)
+    def prepare_new_client_for_country(self, country_name_str):
+        print(f"[MainWindow] prepare_new_client_for_country called for: {country_name_str}")
+
+        # 1. Switch to the documents page where the client form is
+        self.show_documents_view()
+
+        # 2. Ensure the "Ajouter un Nouveau Client" form is visible/expanded
+        if hasattr(self, 'form_group_box') and self.form_group_box:
+            self.form_group_box.setChecked(True)
+            if hasattr(self, 'form_container_widget'):
+                 self.form_container_widget.setVisible(True) # Explicitly ensure container is visible
+        else:
+            print("Warning: 'form_group_box' not found in MainWindow. Cannot expand new client form.")
+            return
+
+        # 3. Pre-fill the country combo box
+        if hasattr(self, 'country_select_combo') and self.country_select_combo:
+            found_country = False
+            for i in range(self.country_select_combo.count()):
+                if self.country_select_combo.itemText(i).lower() == country_name_str.lower():
+                    self.country_select_combo.setCurrentIndex(i)
+                    print(f"Country '{country_name_str}' found and selected in combobox.")
+                    found_country = True
+                    break
+            if not found_country:
+                print(f"Warning: Country '{country_name_str}' not found in the country combobox. User may need to add it.")
+                # If editable, we could set the text directly:
+                # self.country_select_combo.lineEdit().setText(country_name_str)
+                # Or, attempt to add it via a non-interactive version of add_new_country_dialog if that were possible.
+        else:
+            print("Warning: 'country_select_combo' not found in MainWindow. Cannot pre-fill country.")
+
+        # 4. Set focus to the client name input field
+        if hasattr(self, 'client_name_input') and self.client_name_input:
+            # Using QTimer.singleShot to ensure focus is set after UI updates settle
+            QTimer.singleShot(0, self.client_name_input.setFocus)
+            print("Focus set to client name input.")
+        else:
+            print("Warning: 'client_name_input' not found in MainWindow. Cannot set focus.")
+
 
 # If main() and other app setup logic is moved to main.py, this file should only contain DocumentManager
 # and its necessary imports.

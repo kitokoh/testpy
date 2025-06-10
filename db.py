@@ -7468,6 +7468,7 @@ if __name__ == '__main__':
     print("--- Finished testing get_default_company ---")
 
 
+
 if __name__ == '__main__':
     initialize_database()
     print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
