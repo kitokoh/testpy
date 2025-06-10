@@ -5,13 +5,14 @@ import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
+import math # Added for pagination
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QFont # Added QFont
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor # Added QFont and QColor
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
@@ -21,6 +22,8 @@ from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 
 # Globals imported from main (temporary, to be refactored)
+SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
+
 MAIN_MODULE_CONTACT_DIALOG = None
 MAIN_MODULE_PRODUCT_DIALOG = None
 MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = None
@@ -59,6 +62,8 @@ def _import_main_elements():
 
 
 class ClientWidget(QWidget):
+    CONTACT_PAGE_LIMIT = 15 # Class attribute for page limit
+
     def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
         super().__init__(parent)
         self.client_info = client_info
@@ -81,6 +86,11 @@ class ClientWidget(QWidget):
 
         self.is_editing_client = False
         self.edit_widgets = {}
+
+        # Pagination for Contacts
+        self.current_contact_offset = 0
+        self.total_contacts_count = 0
+        # self.CONTACT_PAGE_LIMIT is a class attribute
 
         self.setup_ui()
 
@@ -164,6 +174,15 @@ class ClientWidget(QWidget):
 
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
+
+        # Create and add the empty state label for documents
+        self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+        self.documents_empty_label.setAlignment(Qt.AlignCenter)
+        font_docs_empty = self.documents_empty_label.font() # Use a different variable name for font
+        font_docs_empty.setPointSize(10) # Adjust size as needed
+        self.documents_empty_label.setFont(font_docs_empty)
+        docs_layout.addWidget(self.documents_empty_label) # Add before the table
+
         self.doc_table = QTableWidget()
         self.doc_table.setColumnCount(5)
         self.doc_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Type"), self.tr("Langue"), self.tr("Date"), self.tr("Actions")])
@@ -172,8 +191,9 @@ class ClientWidget(QWidget):
         self.doc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
-        self.add_doc_btn = QPushButton(self.tr("Ajouter"))
+        self.add_doc_btn = QPushButton(self.tr("Importer Document"))
         self.add_doc_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_doc_btn.setToolTip(self.tr("Importer un fichier document existant pour ce client"))
         self.add_doc_btn.clicked.connect(self.add_document) # Connect the signal
         doc_btn_layout.addWidget(self.add_doc_btn)
 
@@ -182,18 +202,18 @@ class ClientWidget(QWidget):
         self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
         doc_btn_layout.addWidget(self.refresh_docs_btn)
 
-        self.open_doc_btn = QPushButton(self.tr("Ouvrir"))
-        self.open_doc_btn.setIcon(QIcon.fromTheme("document-open"))
-        self.open_doc_btn.clicked.connect(self.open_selected_doc)
-        doc_btn_layout.addWidget(self.open_doc_btn)
+        # self.open_doc_btn = QPushButton(self.tr("Ouvrir"))
+        # self.open_doc_btn.setIcon(QIcon.fromTheme("document-open"))
+        # self.open_doc_btn.clicked.connect(self.open_selected_doc)
+        # doc_btn_layout.addWidget(self.open_doc_btn)
 
-        self.delete_doc_btn = QPushButton(self.tr("Ajouter Modèle")) # New text
-        self.delete_doc_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # New icon
-        self.delete_doc_btn.setToolTip(self.tr("Ajouter un modèle de document pour ce client")) # New tooltip
+        self.add_template_btn = QPushButton(self.tr("Générer via Modèle")) # Renamed variable & new text
+        self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # Renamed variable
+        self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle")) # Renamed variable & new tooltip
         # The original .connect(self.delete_selected_doc) is removed by replacing these lines.
         # Now, connect to the new function.
-        self.delete_doc_btn.clicked.connect(self.open_create_docs_dialog)
-        doc_btn_layout.addWidget(self.delete_doc_btn)
+        self.add_template_btn.clicked.connect(self.open_create_docs_dialog) # Renamed variable
+        doc_btn_layout.addWidget(self.add_template_btn) # Renamed variable
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
@@ -211,7 +231,37 @@ class ClientWidget(QWidget):
         # self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive) # Example for specific column
         self.contacts_table.setAlternatingRowColors(True)
         self.contacts_table.cellDoubleClicked.connect(self.edit_contact) # row, column are passed
+
+        # Create and add the empty state label for contacts
+        self.contacts_empty_label = QLabel(self.tr("Aucun contact ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+        self.contacts_empty_label.setAlignment(Qt.AlignCenter)
+        font = self.contacts_empty_label.font()
+        font.setPointSize(10) # Adjust size as needed
+        # Optional: Make it italic or a bit greyed out
+        # font.setItalic(True)
+        # self.contacts_empty_label.setStyleSheet("color: grey;")
+        self.contacts_empty_label.setFont(font)
+        contacts_layout.addWidget(self.contacts_empty_label) # Add before the table
+
         contacts_layout.addWidget(self.contacts_table)
+
+        # Pagination controls for Contacts
+        contacts_pagination_layout = QHBoxLayout()
+        self.prev_contact_button = QPushButton("<< Précédent")
+        self.prev_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.prev_contact_button.clicked.connect(self.prev_contact_page)
+        self.contact_page_info_label = QLabel("Page 1 / 1")
+        self.contact_page_info_label.setObjectName("paginationLabel") # Use QSS for styling
+        self.next_contact_button = QPushButton("Suivant >>")
+        self.next_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.next_contact_button.clicked.connect(self.next_contact_page)
+
+        contacts_pagination_layout.addStretch()
+        contacts_pagination_layout.addWidget(self.prev_contact_button)
+        contacts_pagination_layout.addWidget(self.contact_page_info_label)
+        contacts_pagination_layout.addWidget(self.next_contact_button)
+        contacts_pagination_layout.addStretch()
+        contacts_layout.addLayout(contacts_pagination_layout) # Add pagination to contacts tab
 
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
@@ -238,6 +288,14 @@ class ClientWidget(QWidget):
         product_filters_layout.addWidget(self.product_lang_filter_combo)
         product_filters_layout.addStretch()
         products_layout.addLayout(product_filters_layout)
+
+        # Create and add the empty state label for products
+        self.products_empty_label = QLabel(self.tr("Aucun produit ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+        self.products_empty_label.setAlignment(Qt.AlignCenter)
+        font_products_empty = self.products_empty_label.font() # Use a different variable name for font
+        font_products_empty.setPointSize(10) # Adjust size as needed
+        self.products_empty_label.setFont(font_products_empty)
+        products_layout.addWidget(self.products_empty_label) # Add before the table
 
         self.products_table = QTableWidget()
         self.products_table.setColumnCount(8) # ID, Name, Desc, Weight, Dimensions, Qty, Unit Price, Total Price
@@ -395,9 +453,27 @@ class ClientWidget(QWidget):
 
                 self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
 
-                content_preview = note.get("note_content", "")
-                if len(content_preview) > 70: content_preview = content_preview[:67] + "..."
-                self.document_notes_table.setItem(row_idx, 2, QTableWidgetItem(content_preview))
+                # --- New HTML list for note content ---
+                note_content = note.get("note_content", "")
+                lines = [line.strip() for line in note_content.split('\n') if line.strip()]
+
+                html_content = ""
+                if lines:
+                    html_content = "<ol style='margin:0px; padding-left: 15px;'>" # Adjust padding as needed
+                    for line in lines:
+                        # Basic HTML escaping for safety, can be more robust if needed
+                        escaped_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        html_content += f"<li>{escaped_line}</li>"
+                    html_content += "</ol>"
+                else:
+                    html_content = f"<p style='margin:0px; font-style:italic;'>{self.tr('Aucune note.')}</p>"
+
+                note_label = QLabel()
+                note_label.setText(html_content)
+                note_label.setWordWrap(True)
+                # note_label.setStyleSheet("background-color: #f0f0f0;") # Optional: for debugging layout
+                self.document_notes_table.setCellWidget(row_idx, 2, note_label)
+                # --- End new HTML list ---
 
                 active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
                 active_item = QTableWidgetItem(active_text)
@@ -476,6 +552,28 @@ class ClientWidget(QWidget):
             except Exception as e:
                  QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de la suppression:\n{0}").format(str(e)))
 
+
+    def prev_contact_page(self):
+        if self.current_contact_offset > 0:
+            self.current_contact_offset -= self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def next_contact_page(self):
+        if (self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count:
+            self.current_contact_offset += self.CONTACT_PAGE_LIMIT
+            self.load_contacts()
+
+    def update_contact_pagination_controls(self):
+        if self.total_contacts_count == 0:
+            total_pages = 1
+            current_page = 1
+        else:
+            total_pages = math.ceil(self.total_contacts_count / self.CONTACT_PAGE_LIMIT)
+            current_page = (self.current_contact_offset // self.CONTACT_PAGE_LIMIT) + 1
+
+        self.contact_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        self.prev_contact_button.setEnabled(self.current_contact_offset > 0)
+        self.next_contact_button.setEnabled((self.current_contact_offset + self.CONTACT_PAGE_LIMIT) < self.total_contacts_count)
 
     def add_document(self):
         # Define available languages
@@ -575,44 +673,44 @@ class ClientWidget(QWidget):
                 )
 
     def _handle_open_pdf_action(self, file_path):
-        if not self.client_info or 'client_id' not in self.client_info:
-            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
-            return
-
-        # Extract target_language_code from the file_path
-        # Assumes path structure like .../base_folder/lang_code/filename.html
+        QApplication.setOverrideCursor(Qt.WaitCursor) # Set wait cursor
         try:
-            target_language_code = os.path.basename(os.path.dirname(file_path))
-            # Basic validation if it's a known lang code, though db function will handle it more robustly
-            if target_language_code not in ["en", "fr", "ar", "tr", "pt"]: # Add other supported codes
-                # Fallback or error if lang code is not as expected
-                QMessageBox.warning(self, self.tr("Erreur Langue"), self.tr("Code langue non reconnu depuis le chemin du fichier: {0}").format(target_language_code))
-                # Decide on fallback: use client's primary language or abort? For now, let's try client's primary.
-                client_langs = self.client_info.get("selected_languages", [])
-                if isinstance(client_langs, str):
-                    client_langs = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
-                target_language_code = client_langs[0] if client_langs else "fr" # Default to fr if no client lang
-                QMessageBox.information(self, self.tr("Info Langue"), self.tr("Utilisation de la langue par défaut '{0}' pour la génération du document.").format(target_language_code))
+            if not self.client_info or 'client_id' not in self.client_info:
+                QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("Les informations du client ne sont pas disponibles."))
+                return # Return early, finally will still execute
 
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur Chemin Fichier"), self.tr("Impossible d'extraire le code langue depuis le chemin:\n{0}\nErreur: {1}").format(file_path, str(e)))
-            return
+            # Extract target_language_code from the file_path
+            try:
+                target_language_code = os.path.basename(os.path.dirname(file_path))
+                if target_language_code not in ["en", "fr", "ar", "tr", "pt"]:
+                    client_langs = self.client_info.get("selected_languages", [])
+                    if isinstance(client_langs, str):
+                        client_langs = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+                    target_language_code = client_langs[0] if client_langs else "fr"
+                    logging.info(f"Language code not recognized from path {file_path}. Using fallback/default: {target_language_code}")
 
-        # app_root_dir should be available in self.config if main.py sets it up.
-        # MAIN_MODULE_CONFIG should have app_root_dir if it's set in main.py's CONFIG
-        app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0])) # Fallback, might not be ideal for frozen apps
-        if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG: # Prefer this if available
-            app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
+            except Exception as e:
+                QMessageBox.warning(self, self.tr("Erreur Chemin Fichier"), self.tr("Impossible d'extraire le code langue depuis le chemin:\n{0}\nErreur: {1}").format(file_path, str(e)))
+                return # Return early
 
-        generated_pdf_path = self.generate_pdf_for_document(
-            source_file_path=file_path,
-            client_info=self.client_info,
-            app_root_dir=app_root_dir,
-            parent_widget=self,
-            target_language_code=target_language_code # Pass the new parameter
-        )
-        if generated_pdf_path:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+            app_root_dir = self.config.get('app_root_dir', os.path.dirname(sys.argv[0]))
+            if MAIN_MODULE_CONFIG and 'app_root_dir' in MAIN_MODULE_CONFIG:
+                app_root_dir = MAIN_MODULE_CONFIG['app_root_dir']
+
+            generated_pdf_path = self.generate_pdf_for_document(
+                source_file_path=file_path,
+                client_info=self.client_info,
+                app_root_dir=app_root_dir,
+                parent_widget=self,
+                target_language_code=target_language_code
+            )
+            if generated_pdf_path:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(generated_pdf_path))
+            # else:
+                # Optional: If generate_pdf_for_document returns None on failure, inform user
+                # QMessageBox.warning(self, self.tr("Erreur PDF"), self.tr("Le fichier PDF n'a pas pu être généré."))
+        finally:
+            QApplication.restoreOverrideCursor() # Restore cursor in all cases
 
     def populate_details_layout(self):
         # Clear existing rows from the layout
@@ -772,8 +870,19 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
 
     def populate_doc_table(self):
-        self.doc_table.setRowCount(0); client_path = self.client_info["base_folder_path"]
-        if not os.path.exists(client_path): return
+        self.doc_table.setRowCount(0)
+        if hasattr(self, 'documents_empty_label'):
+            self.documents_empty_label.setVisible(True)
+        self.doc_table.setVisible(False)
+
+        client_path = self.client_info["base_folder_path"]
+        if not os.path.exists(client_path):
+            # Ensure correct state if path doesn't exist (label visible, table hidden)
+            if hasattr(self, 'documents_empty_label'):
+                self.documents_empty_label.setVisible(True)
+            self.doc_table.setVisible(False)
+            return
+
         row = 0
         for lang in self.client_info.get("selected_languages", ["fr"]):
             lang_dir = os.path.join(client_path, lang)
@@ -796,6 +905,14 @@ class ClientWidget(QWidget):
                     else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
                     delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p)); action_layout.addWidget(delete_btn)
                     action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row, 4, action_widget); row +=1
+
+        if hasattr(self, 'documents_empty_label'):
+            if self.doc_table.rowCount() > 0:
+                self.documents_empty_label.setVisible(False)
+                self.doc_table.setVisible(True)
+            else:
+                self.documents_empty_label.setVisible(True)
+                self.doc_table.setVisible(False)
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -850,110 +967,113 @@ class ClientWidget(QWidget):
             except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de supprimer le fichier:\n{0}").format(str(e)))
 
     def load_contacts(self):
+        # Initially, show empty label and hide table
+        if hasattr(self, 'contacts_empty_label'): # Ensure label exists
+            self.contacts_empty_label.setVisible(True)
+        self.contacts_table.setVisible(False)
         self.contacts_table.setRowCount(0) # Clear table
+
         client_uuid = self.client_info.get("client_id")
-        if not client_uuid: return
+        if not client_uuid:
+            # Still ensure empty label is visible if client_uuid is missing for some reason
+            if hasattr(self, 'contacts_empty_label'):
+                 self.contacts_empty_label.setVisible(True)
+
+            return
+
         try:
-            contacts = db_manager.get_contacts_for_client(client_uuid)
+            self.total_contacts_count = db_manager.get_contacts_for_client_count(client_id=client_uuid)
+
+            contacts = db_manager.get_contacts_for_client(
+                client_id=client_uuid,
+                limit=self.CONTACT_PAGE_LIMIT,
+                offset=self.current_contact_offset
+            )
             contacts = contacts if contacts else []
+
+            if not contacts:
+                # No contacts, ensure empty label is visible and table is hidden
+                if hasattr(self, 'contacts_empty_label'):
+                    self.contacts_empty_label.setVisible(True)
+                self.contacts_table.setVisible(False)
+                return # Exit early
+
+            # If contacts exist, hide empty label and show table
+            if hasattr(self, 'contacts_empty_label'):
+                self.contacts_empty_label.setVisible(False)
+            self.contacts_table.setVisible(True)
+
             for row, contact in enumerate(contacts):
                 self.contacts_table.insertRow(row)
-
                 name_item = QTableWidgetItem(contact.get('name', 'N/A'))
-                # Store IDs in the first column's item for retrieval
                 name_item.setData(Qt.UserRole, {
                     'contact_id': contact.get('contact_id'),
                     'client_contact_id': contact.get('client_contact_id')
                 })
                 self.contacts_table.setItem(row, 0, name_item)
-
                 self.contacts_table.setItem(row, 1, QTableWidgetItem(contact.get('email', '')))
                 self.contacts_table.setItem(row, 2, QTableWidgetItem(contact.get('phone', '')))
                 self.contacts_table.setItem(row, 3, QTableWidgetItem(contact.get('position', '')))
-
                 primary_text = self.tr("Oui") if contact.get('is_primary_for_client') else self.tr("Non")
                 primary_item = QTableWidgetItem(primary_text)
-                # Optional: Center align this column
                 primary_item.setTextAlignment(Qt.AlignCenter)
                 self.contacts_table.setItem(row, 4, primary_item)
-
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des contacts:\n{0}").format(str(e)))
+            self.total_contacts_count = 0 # Reset on error
+        finally:
+            self.update_contact_pagination_controls()
+
 
     def add_contact(self):
         client_uuid = self.client_info.get("client_id");
         if not client_uuid: return
         dialog = self.ContactDialog(client_uuid, parent=self)
         if dialog.exec_() == QDialog.Accepted:
-            contact_form_data = dialog.get_data()
+            # contact_form_data = dialog.get_data() # Original line
             try:
-                # ... (logic for adding/linking contact remains the same) ...
-                self.load_contacts() # Ensure this is called after DB operations
-            except Exception as e: QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+                # Assuming dialog handles DB ops or returns data for db_manager call
+                # No specific return from dialog.get_data() is used here for DB ops.
+                # The dialog itself calls db_manager.add_contact and db_manager.link_contact_to_client
+                pass # DB operations are handled within ContactDialog
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
-    def edit_contact(self, row=None, column=None): # row, column can be passed by cellDoubleClicked
+    def edit_contact(self, row=None, column=None):
         current_row = self.contacts_table.currentRow()
         if current_row < 0:
             QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un contact à modifier."))
             return
 
-
         name_item = self.contacts_table.item(current_row, 0)
-        if not name_item: return # Should not happen if row is valid
+        if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
         contact_id = item_data.get('contact_id')
-        # client_contact_id is also available if needed for specific link properties
-        # client_contact_id = item_data.get('client_contact_id')
 
         if not contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de contact non trouvé pour la ligne sélectionnée."))
             return
 
-        client_uuid = self.client_info.get("client_id") # For the dialog's context
-
-        # Fetch the full contact details to pass to the dialog
+        client_uuid = self.client_info.get("client_id")
         full_contact_details = db_manager.get_contact_by_id(contact_id)
         if not full_contact_details:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("Détails du contact non trouvés dans la base de données."))
             return
 
-        # Add the client-specific link information to the contact_data for the dialog
-        # This is crucial for the 'is_primary_for_client' checkbox
         client_contact_link_info = db_manager.get_specific_client_contact_link_details(client_uuid, contact_id)
         if client_contact_link_info:
             full_contact_details['is_primary_for_client'] = client_contact_link_info.get('is_primary_for_client', False)
-            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id') # Store for update
+            full_contact_details['client_contact_id'] = client_contact_link_info.get('client_contact_id')
 
         dialog = self.ContactDialog(client_id=client_uuid, contact_data=full_contact_details, parent=self)
 
         if dialog.exec_() == QDialog.Accepted:
-            updated_data_from_dialog = dialog.get_data()
-            is_primary_for_client_from_dialog = updated_data_from_dialog.pop('is_primary_for_client', False)
+            # DB operations are handled within ContactDialog after its own save logic
+            self.load_contacts()
 
-            try:
-                # Update the main contact details
-                if db_manager.update_contact(contact_id, updated_data_from_dialog):
-                    # Now, update the client-specific link (is_primary_for_client)
-                    # We need the client_contact_id for this.
-                    client_contact_id_for_update = full_contact_details.get('client_contact_id')
-                    if client_contact_id_for_update is not None:
-                        db_manager.update_client_contact_link(
-                            client_contact_id_for_update,
-                            {'is_primary_for_client': is_primary_for_client_from_dialog}
-                        )
-                    else:
-                        # This case should ideally not happen if the contact is linked.
-                        # If it can, then we might need to re-link or handle error.
-                        print(f"Warning: client_contact_id not found for contact_id {contact_id} during update.")
-
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
-                else:
-                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du contact."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la mise à jour du contact:\n{0}").format(str(e)))
-            finally:
-                self.load_contacts() # Refresh the table
 
     def remove_contact(self):
         current_row = self.contacts_table.currentRow()
@@ -965,12 +1085,11 @@ class ClientWidget(QWidget):
         if not name_item: return
 
         item_data = name_item.data(Qt.UserRole)
-        contact_id = item_data.get('contact_id') # Global contact ID
-        client_contact_id = item_data.get('client_contact_id') # Link ID
-
+        contact_id = item_data.get('contact_id')
+        client_contact_id = item_data.get('client_contact_id')
         contact_name = name_item.text()
 
-        if not client_contact_id: # Should have this to remove the link
+        if not client_contact_id:
             QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID de lien contact-client non trouvé."))
             return
 
@@ -979,13 +1098,15 @@ class ClientWidget(QWidget):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                if db_manager.unlink_contact_from_client(client_contact_id):
+                # Use client_contact_id for unlinking, not client_id + contact_id
+                if db_manager.unlink_contact_from_client_by_link_id(client_contact_id): # Assuming this new function exists
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Lien vers le contact '{0}' supprimé avec succès.").format(contact_name))
-                    self.load_contacts() # Refresh table
                 else:
                     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression du lien vers le contact."))
             except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur de suppression du lien contact:\n{0}").format(str(e)))
+            finally:
+                self.load_contacts()
 
     def add_product(self):
         client_uuid = self.client_info.get("client_id");
@@ -997,60 +1118,99 @@ class ClientWidget(QWidget):
             if products_list_data: self.load_products() # Refresh only if data was processed
 
     def edit_product(self):
-        selected_row = self.products_table.currentRow();
-        if selected_row < 0: QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier.")); return
-
-        # Fetch existing data to pass to the dialog
-        # Assuming the first column (hidden) stores client_project_product_id
-        # and other columns have display data. We need to fetch full data for the dialog.
-        link_id_item = self.products_table.item(selected_row, 0)
-        if not link_id_item:
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du lien produit."))
+        selected_row = self.products_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier."))
             return
-        link_id = link_id_item.data(Qt.UserRole)
 
-        # Construct product_link_data similar to how it might be if fetched fresh
-        # This needs all relevant fields that EditProductLineDialog and its subsequent logic expect.
-        # This is a simplified example; in a real app, you'd fetch this from DB or have it structured.
-        product_link_data = {
-            'client_project_product_id': link_id,
-            'name': self.products_table.item(selected_row, 1).text(),
-            'description': self.products_table.item(selected_row, 2).text(),
-            'weight': self.products_table.item(selected_row, 3).text().replace(' kg', ''), # Assuming format "X kg"
-            'dimensions': self.products_table.item(selected_row, 4).text(),
-            'quantity': float(self.products_table.item(selected_row, 5).text()),
-            'unit_price': float(self.products_table.item(selected_row, 6).text().replace('€', '').strip()),
-            # 'product_id' (global product ID) needs to be fetched if not already in table item data
-            # For now, assuming it might be part of what get_products_for_client_or_project returns
-            # and could be stored in one of the items' UserRole if needed.
-            # Let's assume it's retrieved via link_id if necessary by EditProductLineDialog or its save logic.
-        }
-        # Attempt to retrieve global product_id if stored, e.g. in name_item's UserRole+1 or similar
-        # This part is speculative based on common patterns, adjust if product_id is stored differently
-        name_item_for_global_id = self.products_table.item(selected_row, 1) # Assuming name item might hold it
-        if name_item_for_global_id and name_item_for_global_id.data(Qt.UserRole + 2): # Example: UserRole+2 for global_product_id
-             product_link_data['product_id'] = name_item_for_global_id.data(Qt.UserRole + 2)
+        id_item = self.products_table.item(selected_row, 0)
+        if not id_item:
+            logging.error("Edit Product: Could not find ID item for selected row.")
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du produit sélectionné."))
+            return
 
+        link_id = id_item.data(Qt.UserRole)
+        if link_id is None:
+            logging.error(f"Edit Product: No client_project_product_id found for row {selected_row}.")
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID de lien produit non trouvé."))
+            return
 
         try:
-            dialog = self.EditProductLineDialog(product_link_data, self.app_root_dir, self) # Pass app_root_dir
-            if dialog.exec_() == QDialog.Accepted:
-                updated_line_data = dialog.get_data()
-                if updated_line_data:
-                    update_payload = {
-                        'quantity': updated_line_data.get('quantity'),
-                        'unit_price_override': updated_line_data.get('unit_price')
-                    }
-                    update_payload = {k: v for k, v in update_payload.items() if v is not None}
+            linked_product_data = db_manager.get_client_project_product_by_id(link_id)
+            if not linked_product_data:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Détails du produit lié non trouvés."))
+                return
 
-                    if db_manager.update_client_project_product(link_id, update_payload):
-                        QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour."))
-                    else:
-                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit."))
-            self.load_products() # Refresh after successful update or error
+            product_id = linked_product_data.get('product_id')
+            global_product_data = db_manager.get_product_by_id(product_id)
+            if not global_product_data:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Détails du produit global non trouvés."))
+                return
+
+            product_name = global_product_data.get('product_name', self.tr("Produit Inconnu"))
+            current_quantity = linked_product_data.get('quantity', 0)
+            current_unit_price_override = linked_product_data.get('unit_price_override')
+            base_unit_price = global_product_data.get('base_unit_price', 0.0)
+
+            # Effective price shown to user for editing is override or base
+            effective_current_unit_price = current_unit_price_override if current_unit_price_override is not None else base_unit_price
+
+            dialog = self.EditProductLineDialog(
+                product_name,
+                current_quantity,
+                effective_current_unit_price,
+                base_unit_price, # Pass base_unit_price for reference/display in dialog
+                parent=self
+            )
+
+            if dialog.exec_() == QDialog.Accepted:
+                new_data = dialog.get_data()
+                if not new_data or 'quantity' not in new_data or 'unit_price' not in new_data:
+                     QMessageBox.warning(self, self.tr("Erreur Dialogue"), self.tr("Les données retournées par le dialogue de modification sont invalides."))
+                     return
+
+                new_quantity = new_data['quantity']
+                new_unit_price_for_client = new_data['unit_price']
+
+                if new_quantity <= 0:
+                    QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("La quantité doit être positive."))
+                    return
+                if new_unit_price_for_client < 0:
+                    QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("Le prix unitaire ne peut être négatif."))
+                    return
+
+                # Determine if the new price should be an override
+                new_override_price = new_unit_price_for_client if float(new_unit_price_for_client) != float(base_unit_price) else None
+
+                update_payload = {
+                    'quantity': new_quantity,
+                    'unit_price_override': new_override_price
+                }
+
+                if db_manager.update_client_project_product(link_id, update_payload):
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))
+                    self.load_products() # Refresh table
+
+                    # Update client's total price
+                    client_uuid = self.client_info.get("client_id")
+                    if client_uuid:
+                        linked_prods = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
+                        if linked_prods is None: linked_prods = []
+                        new_total_client_price = sum(p.get('total_price_calculated', 0.0) for p in linked_prods if p.get('total_price_calculated') is not None)
+
+                        if db_manager.update_client(client_uuid, {'price': new_total_client_price}):
+                            self.client_info['price'] = new_total_client_price
+                            if not self.is_editing_client and hasattr(self, 'populate_details_layout'):
+                                self.populate_details_layout()
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du produit lié."))
+        except AttributeError as ae:
+            logging.error(f"Error during product edit, possibly with EditProductLineDialog: {ae}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur s'est produite lors de l'ouverture du dialogue de modification de produit. Vérifiez les logs."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
-            self.load_products() # Ensure table is reloaded even on unexpected error
+            logging.error(f"Erreur inattendue lors de la modification du produit: {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+
 
     def remove_product(self):
         selected_row = self.products_table.currentRow();
@@ -1064,10 +1224,21 @@ class ClientWidget(QWidget):
     def load_products(self):
         self.products_table.blockSignals(True)
         self.products_table.setRowCount(0)
+
+        # Initial state: empty label visible, table hidden
+        if hasattr(self, 'products_empty_label'): # Ensure label exists
+            self.products_empty_label.setVisible(True)
+        self.products_table.setVisible(False)
+
         client_uuid = self.client_info.get("client_id")
         if not client_uuid:
-            self.products_table.blockSignals(False)
+            # If no client_uuid, it's an empty state for products.
+            # The initial state set above handles this.
+            self.products_table.blockSignals(False) # Don't forget to unblock
             return
+
+        editable_cell_bg_color = QColor(Qt.yellow).lighter(185) # Example: very light yellow
+        # Or use a named color like: editable_cell_bg_color = QColor("AliceBlue")
 
         try:
             all_linked_products = db_manager.get_products_for_client_or_project(client_uuid, project_id=None)
@@ -1084,8 +1255,19 @@ class ClientWidget(QWidget):
             else: # "All Languages" selected
                 filtered_products = all_linked_products
 
-            for row_idx, prod_link_data in enumerate(filtered_products):
-                self.products_table.insertRow(row_idx)
+            if not filtered_products:
+                # Empty state remains: label visible, table hidden
+                # (already set at the beginning of the method)
+                # No need to do anything here, the finally block will unblock signals.
+                pass
+            else:
+                # Products exist, show table, hide empty label
+                if hasattr(self, 'products_empty_label'):
+                    self.products_empty_label.setVisible(False)
+                self.products_table.setVisible(True)
+
+                for row_idx, prod_link_data in enumerate(filtered_products):
+                    self.products_table.insertRow(row_idx)
 
                 id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
                 id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
@@ -1119,6 +1301,7 @@ class ClientWidget(QWidget):
                 qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
                 qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                qty_item.setBackground(editable_cell_bg_color) # Apply background
                 self.products_table.setItem(row_idx, 5, qty_item)
 
                 # Unit Price (Column 6 - Editable)
@@ -1129,6 +1312,7 @@ class ClientWidget(QWidget):
                 unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
                 unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                unit_price_item.setBackground(editable_cell_bg_color) # Apply background
                 self.products_table.setItem(row_idx, 6, unit_price_item)
 
                 # Total Price (Column 7 - Not Editable)
@@ -1344,6 +1528,29 @@ class ClientWidget(QWidget):
         folder_value_edit = QLabel(self.client_info.get('base_folder_path','')) # Not editable
         self.details_layout.addRow(folder_label_edit, folder_value_edit)
 
+        # Add QListWidget for languages
+        self.edit_widgets['languages_list'] = QListWidget()
+        self.edit_widgets['languages_list'].setMaximumHeight(100) # Adjust height as needed
+
+        current_selected_langs_value = self.client_info.get("selected_languages", [])
+        # Ensure current_selected_langs is a list of strings
+        if isinstance(current_selected_langs_value, str):
+            current_selected_langs = [lang.strip() for lang in current_selected_langs_value.split(',') if lang.strip()]
+        elif isinstance(current_selected_langs_value, list):
+            current_selected_langs = current_selected_langs_value
+        else:
+            current_selected_langs = []
+
+        for lang_code in SUPPORTED_LANGUAGES:
+            item = QListWidgetItem(lang_code)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            if lang_code in current_selected_langs:
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
+            self.edit_widgets['languages_list'].addItem(item)
+        self.details_layout.addRow(self.tr("Langues Documents:"), self.edit_widgets['languages_list'])
+
     def _populate_country_edit_combo(self, combo, current_country_id):
         combo.blockSignals(True)
         combo.clear()
@@ -1418,7 +1625,17 @@ class ClientWidget(QWidget):
         data_to_save['status_id'] = self.status_combo.currentData() # status_combo is reused
         data_to_save['category'] = self.edit_widgets['category'].text().strip()
         data_to_save['primary_need_description'] = self.edit_widgets['need'].toPlainText().strip()
-        data_to_save['notes'] = self.notes_edit.toPlainText().strip()
+        data_to_save['notes'] = self.notes_edit.toPlainText().strip() # Notes are from the main notes_edit
+
+        # Retrieve selected languages from the QListWidget
+        selected_langs_to_save = []
+        if 'languages_list' in self.edit_widgets:
+            lang_list_widget = self.edit_widgets['languages_list']
+            for i in range(lang_list_widget.count()):
+                item = lang_list_widget.item(i)
+                if item.checkState() == Qt.Checked:
+                    selected_langs_to_save.append(item.text()) # Assuming item text is the lang code
+        data_to_save['selected_languages'] = ",".join(selected_langs_to_save)
 
         if not data_to_save['client_name'] or not data_to_save['project_identifier']:
             QMessageBox.warning(self, self.tr("Champs Requis"), self.tr("Nom client et ID Projet sont obligatoires."))
