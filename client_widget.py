@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
+import logging
 import shutil
 from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager

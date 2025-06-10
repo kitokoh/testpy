@@ -885,4 +885,5 @@ QLabel#pageTitleLabel {
     :/icons/chevron-down-light.svg (for dark topbar menu buttons)
 */
 
-[end of style.qss]
+
+/* End of Modern Theme for ClientDocManager */
