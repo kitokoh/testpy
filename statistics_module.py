@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
-                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
+                             QGridLayout, QGroupBox, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
                              QTableWidgetItem, QHeaderView, QPushButton) # Added QPushButton
+from PyQt5.QtWebEngineWidgets import QWebEngineView  # ✅ BON MODULE
 from PyQt5.QtGui import QIcon # Added QIcon
 from PyQt5.QtCore import Qt, QUrl
 import db as db_manager
