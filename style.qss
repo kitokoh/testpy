@@ -37,7 +37,7 @@ QMainWindow::separator {
 QDialog {
     background-color: #FFFFFF; /* Primary Background */
     border-radius: 6px;
-    border: 1px solid #DDE2E6; /* Border Color */
+    /* border: 1px solid #DDE2E6; */ /* Border Color - Removing default dialog border for two-column layout */
 }
 
 /* Dialog Specific Styles */
@@ -301,6 +301,22 @@ QPushButton#cancelButton:hover, QPushButton#rejectButton:hover {
     background-color: #F5F7FA;
     border-color: #B0BEC5;
     color: #263238;
+}
+
+QPushButton#linkButton {
+    background-color: transparent;
+    border: none;
+    color: #007BFF; /* Accent Blue */
+    text-decoration: underline;
+    padding: 6px 2px; /* Minimal padding */
+    font-weight: normal; /* Ensure it's not bold like primary buttons */
+    text-align: center;
+}
+QPushButton#linkButton:hover {
+    color: #0056B3; /* Darker Accent Blue */
+}
+QPushButton#linkButton:pressed {
+    color: #004085; /* Even Darker Accent Blue */
 }
 
 QPushButton#removeProductLineButton {
@@ -877,6 +893,45 @@ QLabel#pageTitleLabel {
     background-color: transparent;
 }
 
+/* Auth Page Specific Styles */
+QFrame#promoAreaFrame {
+    background-color: #263238; /* Dark Slate Grey - professional and modern */
+    border-radius: 8px;
+    padding: 25px; /* Increased padding */
+}
+
+QFrame#imagePlaceholderFrame {
+    background-color: #CFD8DC; /* Neutral placeholder color */
+    border: 1px dashed #78909C;
+    border-radius: 6px;
+    min-height: 150px; /* Or a fixed height */
+}
+
+QLabel#imagePlaceholderLabel { /* If using a QLabel for text inside placeholder */
+    color: #546E7A;
+    font-size: 10pt;
+    font-style: italic;
+    background-color: transparent;
+}
+
+QFrame#promoAreaFrame QLabel#promoHeaderLabel {
+    font-size: 20pt; /* Larger for more impact */
+    font-weight: bold;
+    color: #FFFFFF; /* White text for contrast */
+    margin-bottom: 15px;
+    background-color: transparent;
+    text-align: center; /* Ensure QSS controls this if possible */
+}
+
+QFrame#promoAreaFrame QLabel#promoTextLabel {
+    font-size: 12pt; /* Slightly larger */
+    color: #E0E0E0; /* Light grey text for contrast */
+    /* line-height: 1.6; */ /* Handled by wordWrap and layout spacing */
+    background-color: transparent;
+    padding: 10px;
+    text-align: center; /* Ensure QSS controls this */
+    font-style: italic; /* Add a bit of flair */
+}
 
 /* Placeholder for icons needed by this QSS:
     :/icons/chevron-up.svg, :/icons/chevron-down.svg, :/icons/check.svg,

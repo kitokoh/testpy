@@ -2479,6 +2479,22 @@ def get_user_by_id(user_id: str) -> dict | None:
         if conn:
             conn.close()
 
+def get_user_by_email(email: str) -> dict | None:
+    """Retrieves a user by their email address."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_user_by_email: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
 def get_user_by_username(username: str) -> dict | None:
     """Retrieves a user by their username."""
     conn = None
