@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paket Listesi</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; font-size: 12px; }
+        .container { width: 90%; margin: 20px auto; border: 1px solid #ccc; padding: 20px; }
+        .header, .footer { text-align: center; margin-bottom: 20px; }
+        .logo { max-width: 150px; max-height: 75px; margin-bottom: 10px; }
+        .company-details, .client-details, .shipment-info { margin-bottom: 20px; }
+        .company-details div, .client-details div, .shipment-info div { margin-bottom: 5px; }
+        .details-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .details-table th, .details-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .details-table th { background-color: #f2f2f2; }
+        .totals-summary { margin-top: 20px; }
+        .totals-summary table { width: 50%; border-collapse: collapse; margin-left: auto; /* Align to right */ }
+        .totals-summary td { padding: 5px; border: 1px solid #ddd;}
+        .totals-summary .label { font-weight: bold; }
+        .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
+        .signature-block { width: 45%; text-align: center; }
+        .signature-block p { margin-top: 50px; border-top: 1px solid #000; padding-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            {% if seller.company_logo_path %}
+                <img src="{{ seller.company_logo_path }}" alt="Şirket Logosu" class="logo" />
+            {% else %}
+                <p>(Şirket Logosu)</p>
+            {% endif %}
+            <h1>Paket Listesi</h1>
+        </div>
+
+        <table style="width:100%; margin-bottom: 20px;">
+            <tr>
+                <td style="width:50%; vertical-align:top;">
+                    <div class="company-details">
+                        <strong>İhracatçı:</strong><br>
+                        {{ seller.company_name | default:"Belirtilmemiş" }}<br>
+                        {{ seller.full_address | default:"Belirtilmemiş" }}<br>
+                        Telefon: {{ seller.phone | default:"Belirtilmemiş" }}<br>
+                        E-posta: {{ seller.email | default:"Belirtilmemiş" }}
+                    </div>
+                </td>
+                <td style="width:50%; vertical-align:top;">
+                    <div class="client-details">
+                        <strong>Alıcı (Konsinye):</strong><br>
+                        {{ client.company_name | default:"Belirtilmemiş" }}<br>
+                        {{ client.full_address | default:"Belirtilmemiş" }}<br>
+                        İlgili Kişi: {{ primary_contact_name | default:"Belirtilmemiş" }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="shipment-info">
+            <table style="width:100%; border-collapse: collapse;">
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Paket Listesi No.:</strong> {{ packing_list_id | default:"Belirtilmemiş" }}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Tarih:</strong> {{ date | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Fatura No.:</strong> {{ invoice_id | default:"Belirtilmemiş" }}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Proje ID:</strong> {{ project_id | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Gemi/Uçuş No.:</strong> {{ vessel_flight_no | default:"Belirtilmemiş" }}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Yükleme Limanı:</strong> {{ port_of_loading | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Boşaltma Limanı:</strong> {{ port_of_discharge | default:"Belirtilmemiş" }}</td>
+                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Nihai Varış Ülkesi:</strong> {{ final_destination_country | default:"Belirtilmemiş" }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <table class="details-table">
+            <thead>
+                <tr>
+                    <th>Marka ve No.</th>
+                    <th>Malın Tanımı</th>
+                    <th>Paket Sayısı</th>
+                    <th>Paket Tipi</th>
+                    <th>Net Ağırlık (kg)</th>
+                    <th>Brüt Ağırlık (kg)</th>
+                    <th>Boyutlar (UxGxY cm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ doc.packing_list_items | safe }}
+            </tbody>
+        </table>
+
+        <div class="totals-summary">
+            <table>
+                <tr>
+                    <td class="label">Toplam Paket Sayısı:</td>
+                    <td>{{ total_packages | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Toplam Net Ağırlık (kg):</td>
+                    <td>{{ total_net_weight | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Toplam Brüt Ağırlık (kg):</td>
+                    <td>{{ total_gross_weight | default:"Belirtilmemiş" }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Toplam Hacim (CBM):</td>
+                    <td>{{ total_volume_cbm | default:"Belirtilmemiş" }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="footer">
+            <div class="signatures">
+                <div class="signature-block">
+                    <p>İhracatçının İmzası</p>
+                    <p>Tarih: {{ date }}</p>
+                </div>
+                <div class="signature-block">
+                    <p>Alıcının İmzası (İsteğe Bağlı)</p>
+                    <p>Tarih: </p>
+                </div>
+            </div>
+            <p>&copy; {{ seller.company_name }} {{ doc.current_year }}</p>
+        </div>
+    </div>
+</body>
+</html>
