@@ -28,6 +28,8 @@ class CompanyInfoStepDialog(QDialog):
         self.logo_path_selected_for_upload = None # Store path of newly selected logo by user
 
         self.company_id = None # This will store the ID after add/update for the main dialog to use
+        self.logo_path = None
+        self.company_id = None
 
         layout = QVBoxLayout(self)
 
@@ -89,7 +91,8 @@ class CompanyInfoStepDialog(QDialog):
         )
         if file_path:
             self.logo_path_selected_for_upload = file_path # User selected a new logo
-            pixmap = QPixmap(file_path)
+            self.logo_path = file_path
+           pixmap = QPixmap(file_path)
             self.logo_preview_label.setPixmap(pixmap.scaled(
                 self.logo_preview_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
             ))
@@ -255,6 +258,50 @@ class PromptCompanyInfoDialog(QDialog):
             "address": self.address_edit.toPlainText().strip()
         }
 
+
+        final_logo_name = None
+        if self.logo_path:
+            # Ensure LOGO_SUBDIR exists
+            logo_dir_abs = os.path.join(APP_ROOT_DIR, LOGO_SUBDIR)
+            os.makedirs(logo_dir_abs, exist_ok=True)
+
+            _, ext = os.path.splitext(self.logo_path)
+            # Generate a unique name for the logo, e.g., using UUID for now
+            # Once company_id is available, could rename or use it in the first place if db.add_company returns id before saving logo
+            final_logo_name = f"logo_{uuid.uuid4().hex}{ext}"
+            new_logo_path_abs = os.path.join(logo_dir_abs, final_logo_name)
+            try:
+                shutil.copy(self.logo_path, new_logo_path_abs)
+            except Exception as e:
+                QMessageBox.critical(self, QCoreApplication.translate("CompanyInfoStepDialog", "Logo Error"), QCoreApplication.translate("CompanyInfoStepDialog", f"Could not save logo: {e}"))
+                return None # Stop if logo saving fails
+
+        try:
+            # Add company to DB. `final_logo_name` is relative to LOGO_SUBDIR
+            self.company_id = db_manager.add_company(
+                name=company_name,
+                address=address,
+                logo_filename=final_logo_name, # Store only filename or relative path
+                payment_info=payment_info,
+                other_info=other_info,
+                is_default=True # First company added is default
+            )
+            if self.company_id:
+                QMessageBox.information(self, QCoreApplication.translate("CompanyInfoStepDialog", "Success"), QCoreApplication.translate("CompanyInfoStepDialog", "Company information saved successfully."))
+                return self.company_id
+            else:
+                # This case should ideally be handled by an exception from add_company
+                QMessageBox.warning(self, QCoreApplication.translate("CompanyInfoStepDialog", "DB Error"), QCoreApplication.translate("CompanyInfoStepDialog", "Failed to save company information to the database."))
+                return None
+        except Exception as e:
+            QMessageBox.critical(self, QCoreApplication.translate("CompanyInfoStepDialog", "DB Error"), QCoreApplication.translate("CompanyInfoStepDialog", f"An error occurred while saving company data: {e}"))
+            # If DB write failed, attempt to remove copied logo if it exists
+            if final_logo_name and os.path.exists(new_logo_path_abs):
+                try:
+                    os.remove(new_logo_path_abs)
+                except OSError as e_remove:
+                    print(f"Error removing logo after DB failure: {e_remove}") # Log this error
+            return None
 
 # --- Personnel Entry Widgets ---
 class PersonnelInputRowWidget(QWidget):
@@ -446,6 +493,7 @@ class InitialSetupDialog(QDialog):
         self.company_id = None # To store the ID of the company created/updated in the first step
         self.default_company_to_edit_data = None
 
+        self.company_id = None # To store the ID of the company created in the first step
 
         layout = QVBoxLayout(self)
         self.stacked_widget = QStackedWidget()
@@ -486,7 +534,7 @@ class InitialSetupDialog(QDialog):
         self.button_box = QDialogButtonBox()
         self.prev_button = self.button_box.addButton(QCoreApplication.translate("InitialSetupDialog", "Previous"), QDialogButtonBox.ActionRole)
         self.next_button = self.button_box.addButton(QCoreApplication.translate("InitialSetupDialog", "Next"), QDialogButtonBox.ActionRole)
-        self.finish_button = self.button_box.addButton(QDialogButtonBox.Finish)
+        self.finish_button = self.button_box.addButton(QDialogButtonBox.Ok)
         self.cancel_button = self.button_box.addButton(QDialogButtonBox.Cancel)
 
         self.prev_button.clicked.connect(self.go_previous)

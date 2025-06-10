@@ -21,6 +21,10 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 import db as db_manager
 from db import get_all_companies, add_company # Specific imports for company check
 
+
+from initial_setup_dialog import InitialSetupDialog # Import the new dialog
+from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
+import db as db_manager # For db initialization
 from main_window import DocumentManager # The main application window
 
 # Initialize the central database using db_manager.
@@ -217,6 +221,7 @@ def main():
 
 
     # Check for first launch (for other setup like users, etc.)
+    # Check for first launch
     # Ensure CONFIG is loaded and paths are available before calling this
     # Default paths for templates and clients can be obtained from CONFIG or app_setup constants
     # For consistency, let's use what load_config in utils would expect if creating a new config
