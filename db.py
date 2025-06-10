@@ -338,6 +338,27 @@ def initialize_database():
     )
     """)
 
+    # Create ProductDimensions table (New)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ProductDimensions (
+        product_id INTEGER PRIMARY KEY,
+        dim_A TEXT,
+        dim_B TEXT,
+        dim_C TEXT,
+        dim_D TEXT,
+        dim_E TEXT,
+        dim_F TEXT,
+        dim_G TEXT,
+        dim_H TEXT,
+        dim_I TEXT,
+        dim_J TEXT,
+        technical_image_path TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE
+    )
+    """)
+
     # Create ProductEquivalencies table (New)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ProductEquivalencies (
@@ -668,6 +689,22 @@ def initialize_database():
         FOREIGN KEY (project_id) REFERENCES Projects (project_id),
         FOREIGN KEY (source_template_id) REFERENCES Templates (template_id),
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+    )
+    """)
+
+    # Create ClientDocumentNotes table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ClientDocumentNotes (
+        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        document_type TEXT NOT NULL, -- e.g., 'Proforma', 'Invoice', 'PackingList', 'CertificateOfOrigin'
+        language_code TEXT NOT NULL, -- e.g., 'fr', 'en'
+        note_content TEXT NOT NULL,  -- The actual notes, potentially multi-line
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        UNIQUE (client_id, document_type, language_code)
     )
     """)
 
@@ -3237,6 +3274,107 @@ def get_equivalent_products(product_id: int) -> list[dict]:
     finally:
         if conn: conn.close()
 
+# CRUD functions for ProductDimensions
+def add_or_update_product_dimension(product_id: int, dimension_data: dict) -> bool:
+    """
+    Adds or updates a product's dimensions.
+    Performs an "upsert" operation. Updates 'updated_at' timestamp.
+    Returns True on success, False on failure.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+
+        # Check if record exists
+        cursor.execute("SELECT product_id FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        exists = cursor.fetchone()
+
+        if exists:
+            # Update existing record
+            dimension_data['updated_at'] = now
+            set_clauses = [f"{key} = ?" for key in dimension_data.keys() if key != 'product_id']
+            # Filter out product_id from params if it was accidentally included in dimension_data keys
+            params = [value for key, value in dimension_data.items() if key != 'product_id']
+
+            if not set_clauses: # No actual dimension data to update, only product_id was passed
+                # Still, we might want to update the 'updated_at' timestamp
+                # Forcing an update to 'updated_at' even if other fields are empty
+                cursor.execute("UPDATE ProductDimensions SET updated_at = ? WHERE product_id = ?", (now, product_id))
+                conn.commit()
+                return True
+
+            params.append(product_id)
+            sql = f"UPDATE ProductDimensions SET {', '.join(set_clauses)} WHERE product_id = ?"
+            cursor.execute(sql, params)
+        else:
+            # Insert new record
+            # Ensure all dimension columns are potentially included, defaulting to None if not in dimension_data
+            all_dim_columns = ['dim_A', 'dim_B', 'dim_C', 'dim_D', 'dim_E', 'dim_F', 'dim_G', 'dim_H', 'dim_I', 'dim_J', 'technical_image_path']
+
+            columns_to_insert = ['product_id', 'created_at', 'updated_at']
+            values_to_insert = [product_id, now, now]
+
+            for col in all_dim_columns:
+                columns_to_insert.append(col)
+                values_to_insert.append(dimension_data.get(col))
+
+            placeholders = ', '.join(['?'] * len(columns_to_insert))
+            sql = f"INSERT INTO ProductDimensions ({', '.join(columns_to_insert)}) VALUES ({placeholders})"
+            cursor.execute(sql, tuple(values_to_insert))
+
+        conn.commit()
+        return cursor.rowcount > 0 or (not exists and cursor.lastrowid is not None) # For INSERT, check lastrowid
+    except sqlite3.Error as e:
+        print(f"Database error in add_or_update_product_dimension for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_product_dimension(product_id: int) -> dict | None:
+    """
+    Fetches the dimension data for the given product_id.
+    Returns a dictionary of the dimension data if found, otherwise None.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_product_dimension for product_id {product_id}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def delete_product_dimension(product_id: int) -> bool:
+    """
+    Deletes the dimension record for the given product_id.
+    Returns True if a row was deleted, False otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ProductDimensions WHERE product_id = ?", (product_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_product_dimension for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # CRUD functions for Products
 def add_product(product_data: dict) -> int | None:
     """Adds a new product, including weight and dimensions. Returns product_id or None."""
@@ -3801,6 +3939,168 @@ def delete_client_document(document_id: str) -> bool:
         return False
     finally:
         if conn: conn.close()
+
+# --- ClientDocumentNotes CRUD Functions ---
+def add_client_document_note(data: dict) -> int | None:
+    """
+    Adds a new client document note.
+    data should contain client_id, document_type, language_code, note_content.
+    Optionally is_active (defaults to True).
+    Returns note_id on success, None on failure (e.g., UNIQUE constraint violation).
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+
+        sql = """
+            INSERT INTO ClientDocumentNotes (
+                client_id, document_type, language_code, note_content,
+                is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            data.get('client_id'),
+            data.get('document_type'),
+            data.get('language_code'),
+            data.get('note_content'),
+            data.get('is_active', True),
+            now, # created_at
+            now  # updated_at
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as ie: # Catches UNIQUE constraint violation
+        print(f"Database IntegrityError in add_client_document_note (likely duplicate): {ie}")
+        if conn: conn.rollback()
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in add_client_document_note: {e}")
+        if conn: conn.rollback()
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_client_document_notes(client_id: str, document_type: str = None, language_code: str = None, is_active: bool = None) -> list[dict]:
+    """
+    Fetches client document notes based on provided filters.
+    If a filter is None, it's not applied.
+    is_active=None means fetch all regardless of active status.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql = "SELECT * FROM ClientDocumentNotes WHERE client_id = ?"
+        params = [client_id]
+
+        if document_type is not None:
+            sql += " AND document_type = ?"
+            params.append(document_type)
+        if language_code is not None:
+            sql += " AND language_code = ?"
+            params.append(language_code)
+        if is_active is not None: # True or False
+            sql += " AND is_active = ?"
+            params.append(1 if is_active else 0)
+
+        sql += " ORDER BY created_at DESC"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_document_notes: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_client_document_note(note_id: int, data: dict) -> bool:
+    """
+    Updates an existing client document note.
+    data can contain document_type, language_code, note_content, is_active.
+    Updates 'updated_at'. Returns True on success, False otherwise.
+    """
+    conn = None
+    if not data: return False
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+
+        set_clauses = []
+        params = []
+
+        valid_update_columns = ['document_type', 'language_code', 'note_content', 'is_active']
+
+        for key, value in data.items():
+            if key in valid_update_columns:
+                set_clauses.append(f"{key} = ?")
+                params.append(value)
+
+        if not set_clauses:
+            print("Warning: No valid fields provided for update_client_document_note.")
+            return False
+
+        set_clauses.append("updated_at = ?")
+        params.append(now)
+
+        params.append(note_id)
+
+        sql = f"UPDATE ClientDocumentNotes SET {', '.join(set_clauses)} WHERE note_id = ?"
+
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError as ie:
+        print(f"Database IntegrityError in update_client_document_note (likely duplicate on update): {ie}")
+        if conn: conn.rollback()
+        return False
+    except sqlite3.Error as e:
+        print(f"Database error in update_client_document_note for note_id {note_id}: {e}")
+        if conn: conn.rollback()
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_client_document_note(note_id: int) -> bool:
+    """Deletes a client document note by its note_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ClientDocumentNotes WHERE note_id = ?", (note_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_client_document_note for note_id {note_id}: {e}")
+        if conn: conn.rollback()
+        return False
+    finally:
+        if conn: conn.close()
+
+def get_client_document_note_by_id(note_id: int) -> dict | None:
+    """
+    Fetches a single client document note by its note_id.
+    Returns a dictionary containing all fields of the note, or None if not found.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ClientDocumentNotes WHERE note_id = ?", (note_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_document_note_by_id for note_id {note_id}: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 # CRUD functions for SmtpConfigs
 def _ensure_single_default_smtp(cursor: sqlite3.Cursor, exclude_id: int | None = None):
@@ -5392,6 +5692,7 @@ def get_document_context_data(
 
     # Initialize packing list specific fields (will be populated if packing_details are provided)
     context["doc"]["packing_list_id"] = context["additional"].get("packing_list_id", f"PL-{now_dt.strftime('%Y%m%d-%H%M%S')}")
+    context["doc"]["client_specific_footer_notes"] = "" # Initialize for document notes
     context["doc"]["notify_party_name"] = "N/A"
     context["doc"]["notify_party_address"] = "N/A"
     context["doc"]["vessel_flight_no"] = "N/A"
@@ -6061,6 +6362,28 @@ def get_document_context_data(
     # No need to re-assign unless overriding logic is intended.
     # context["document_title"] = context["additional"].get("document_title", "Document")
     # ... and so on
+
+    # --- Fetch Client-Specific Document Notes ---
+    current_document_type_for_notes = context["additional"].get('current_document_type_for_notes', None)
+    if current_document_type_for_notes and client_id and target_language_code:
+        try:
+            notes_list = get_client_document_notes(
+                client_id=client_id,
+                document_type=current_document_type_for_notes,
+                language_code=target_language_code,
+                is_active=True
+            )
+            if notes_list:
+                # Assuming one note per client/type/lang due to UNIQUE constraint
+                note_content = notes_list[0].get('note_content', "")
+                # Format for HTML: replace newlines with <br>
+                formatted_note_content = note_content.replace('\n', '<br>')
+                context['doc']['client_specific_footer_notes'] = formatted_note_content
+            # If no notes_list, it remains "" as initialized
+        except Exception as e_notes:
+            # Log error but don't break context generation
+            print(f"Error fetching or formatting client document notes: {e_notes}")
+            context['doc']['client_specific_footer_notes'] = "" # Ensure it's empty on error
 
     return context
 
