@@ -14,10 +14,30 @@ from app_setup import (
     setup_logging, load_stylesheet_global, initialize_default_templates
 )
 from utils import is_first_launch, mark_initial_setup_complete
-from initial_setup_dialog import InitialSetupDialog # Import the new dialog
+# Import InitialSetupDialog and PromptCompanyInfoDialog
+from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
-import db as db_manager # For db initialization
+# Import specific db functions needed
+import db as db_manager
+from db import get_all_companies, add_company # Specific imports for company check
+from auth.login_window import LoginWindow # Added for authentication
+from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
+
+
+from initial_setup_dialog import InitialSetupDialog # Import the new dialog
+# import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
+
+import datetime # Added for session timeout
+from PyQt5.QtCore import QSettings # Added for Remember Me
+
+# Global variables for session information
+CURRENT_SESSION_TOKEN = None
+CURRENT_USER_ROLE = None
+CURRENT_USER_ID = None
+SESSION_START_TIME = None
+# Initialize from CONFIG, providing a default if key is missing
+SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
 # Initialize the central database using db_manager.
 # This should be called once, early in the application startup,
@@ -30,11 +50,36 @@ if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app_main
     if __name__ != "__main__": # For import scenarios (e.g. testing)
         db_manager._initialized_main_app_main_py = True
 
+def expire_session():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
+    CURRENT_SESSION_TOKEN = None
+    CURRENT_USER_ROLE = None
+    CURRENT_USER_ID = None
+    SESSION_START_TIME = None
+    logging.info("Session expired and token/user info cleared.")
+    # In a real app, this would likely trigger a re-login UI flow.
+
+def check_session_timeout() -> bool:
+    """Checks if the current session has timed out. Returns True if timed out, False otherwise."""
+    global CURRENT_SESSION_TOKEN, SESSION_START_TIME, SESSION_TIMEOUT_SECONDS
+    if CURRENT_SESSION_TOKEN is None or SESSION_START_TIME is None:
+        # No active session or session already marked as expired
+        return False # Not "timed out now", but "no valid session"
+
+    elapsed_time = datetime.datetime.now() - SESSION_START_TIME
+    if elapsed_time.total_seconds() > SESSION_TIMEOUT_SECONDS:
+        logging.info(f"Session timed out. Elapsed: {elapsed_time.total_seconds()}s, Timeout: {SESSION_TIMEOUT_SECONDS}s")
+        expire_session()
+        return True # Session has timed out
+    return False # Session is still valid
 
 def main():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
+    # Log the configured session timeout value
+    logging.info(f"Session timeout is set to: {SESSION_TIMEOUT_SECONDS // 60} minutes ({SESSION_TIMEOUT_SECONDS} seconds).")
 
     # 2. Initialize Database (already done outside main for direct script execution,
     #    but if main could be called from elsewhere without the above block, ensure it's done)
@@ -51,6 +96,7 @@ def main():
 
     # 5. Set Application Name and Style
     app.setApplicationName("ClientDocManager")
+    app.setOrganizationName("SaadiyaManagement") # Added for QSettings consistency
     app.setStyle("Fusion") # Or any other style like "Windows", "GTK+"
 
     # 6. Set Default Font
@@ -69,7 +115,7 @@ def main():
         QWidget {}
         QPushButton {
             padding: 6px 12px; border: 1px solid #cccccc; border-radius: 4px;
-            background-color: #f8f9fa; min-width: 80px;
+        background-color: #f8f9fa; min-width: 80px;
         }
         QPushButton:hover { background-color: #e9ecef; border-color: #adb5bd; }
         QPushButton:pressed { background-color: #dee2e6; border-color: #adb5bd; }
@@ -127,7 +173,7 @@ def main():
         QListWidget::item:alternate { background-color: #f8f9fa; }
         QListWidget::item:hover { background-color: #e9ecef; }
         QListWidget::item:selected { background-color: #007bff; /* color: white; */ }
-    """) # The # color: white; part for QListWidget::item:selected was commented out in original.
+    # """) # The # color: white; part for QListWidget::item:selected was commented out in original.
 
     # 8. Setup Translations
     language_code = CONFIG.get("language", QLocale.system().name().split('_')[0])
@@ -153,6 +199,66 @@ def main():
     # initialize_default_templates is imported from app_setup
     initialize_default_templates(CONFIG, APP_ROOT_DIR)
 
+    # --- Company Existence Check ---
+    # This check runs before the "first_launch" specific dialog for sellers/techs.
+    # It ensures there's at least one company (ours) in the DB.
+    try:
+        companies = get_all_companies()
+        if not companies:
+            logging.info("No companies found in the database. Prompting for initial company setup.")
+            prompt_dialog = PromptCompanyInfoDialog()
+            dialog_result = prompt_dialog.exec_()
+
+            if dialog_result == QDialog.Accepted:
+                if prompt_dialog.use_default_company:
+                    logging.info("User opted to use a default company.")
+                    default_company_data = {
+                        "company_name": "My Business", # Translatable string could be used here
+                        "address": "Not specified",
+                        "is_default": True,
+                        "logo_path": None, # No logo for this quick setup
+                        "payment_info": "",
+                        "other_info": "Default company created on initial setup."
+                    }
+                    new_company_id = add_company(default_company_data)
+                    if new_company_id:
+                        logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+                        # Mark initial setup as complete here if this is the ONLY setup step needed
+                        # when starting from a completely empty state.
+                        # However, the full InitialSetupDialog might still be relevant for other settings.
+                        # For now, this just ensures a company exists.
+                    else:
+                        logging.error("Failed to add default company.")
+                        # Critical error, perhaps exit? For now, log and continue.
+                else: # User entered data
+                    user_company_data = prompt_dialog.get_company_data()
+                    if user_company_data and user_company_data['company_name']:
+                        company_to_add = {
+                            "company_name": user_company_data['company_name'],
+                            "address": user_company_data.get('address', ''),
+                            "is_default": True,
+                            "logo_path": None, # No logo in this simplified dialog
+                            "payment_info": "", # Not collected in this dialog
+                            "other_info": "Company created via initial prompt."
+                        }
+                        new_company_id = add_company(company_to_add)
+                        if new_company_id:
+                            logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
+                        else:
+                            logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
+                            # Critical error, perhaps exit?
+                    else:
+                        # This case should ideally be prevented by dialog validation, but as a fallback:
+                        logging.warning("Save and Continue was chosen, but company name was empty. No company added.")
+            else: # Dialog was cancelled
+                logging.warning("User cancelled initial company prompt. Application might not function as expected without a company.")
+                # Optionally, sys.exit(app.exec_()) or app.quit() if company is critical
+    except Exception as e:
+        logging.critical(f"Error during initial company check: {e}. Application may not function correctly.", exc_info=True)
+        # Depending on severity, could show a QMessageBox to the user and exit.
+
+
+    # Check for first launch (for other setup like users, etc.)
     # Check for first launch
     # Ensure CONFIG is loaded and paths are available before calling this
     # Default paths for templates and clients can be obtained from CONFIG or app_setup constants
@@ -180,15 +286,105 @@ def main():
             # For now, we'll log and let it proceed.
             # QApplication.quit() # Or sys.exit(1) if cancellation is critical
 
-    # 10. Create and Show Main Window
-    # DocumentManager is imported from main_window
-    # APP_ROOT_DIR is imported from app_setup
-    main_window = DocumentManager(APP_ROOT_DIR) 
-    main_window.show()
-    logging.info("Main window shown. Application is running.")
+    # 10. Authentication Flow
+    settings = QSettings()
+    remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+    proceed_to_main_app = False
 
-    # 11. Execute Application
-    sys.exit(app.exec_())
+    if remember_me_active:
+        logging.info("Found active 'Remember Me' flag.")
+        stored_token = settings.value("auth/session_token", None)
+        stored_user_id = settings.value("auth/user_id", None)
+        stored_username = settings.value("auth/username", "Unknown") # Default for logging
+        stored_user_role = settings.value("auth/user_role", None)
+
+        if stored_token and stored_user_id and stored_user_role:
+            logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
+
+            global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME
+            CURRENT_SESSION_TOKEN = stored_token
+            CURRENT_USER_ID = stored_user_id
+            CURRENT_USER_ROLE = stored_user_role
+            SESSION_START_TIME = datetime.datetime.now() # Reset session timer
+
+            logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
+            logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
+            proceed_to_main_app = True
+        else:
+            logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
+            settings.setValue("auth/remember_me_active", False)
+            settings.remove("auth/session_token")
+            settings.remove("auth/user_id")
+            settings.remove("auth/username")
+            settings.remove("auth/user_role")
+    else:
+        logging.info("'Remember Me' is not active.")
+
+    if not proceed_to_main_app:
+        logging.info("Proceeding to show LoginWindow.")
+        login_dialog = LoginWindow()
+        login_result = login_dialog.exec_()
+
+        if login_result == QDialog.Accepted:
+            session_token = login_dialog.get_session_token()
+            logged_in_user = login_dialog.get_current_user()
+
+            # global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME # Already global
+            CURRENT_SESSION_TOKEN = session_token # These are assigned again here for clarity
+            if logged_in_user:
+                CURRENT_USER_ROLE = logged_in_user.get('role')
+                CURRENT_USER_ID = logged_in_user.get('user_id')
+                SESSION_START_TIME = datetime.datetime.now()
+                logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+            else: # Should not happen if dialog.accept() is called correctly
+                logging.error("Login reported successful by dialog, but no user data retrieved. Exiting.")
+                sys.exit(1)
+            proceed_to_main_app = True # Mark to proceed
+        else:
+            logging.info("Login failed or cancelled by user. Exiting application.")
+            sys.exit()
+
+    if proceed_to_main_app:
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+        sys.exit(app.exec_())
+    else:
+        # This path should ideally not be reached if logic is correct,
+        # as either proceed_to_main_app is true or sys.exit() was called.
+        logging.error("Fatal error in authentication flow. Application cannot start.")
+        sys.exit(1)
+    login_dialog = LoginWindow() # Create LoginWindow instance
+    login_result = login_dialog.exec_() # Show login dialog modally
+
+    if login_result == QDialog.Accepted:
+        session_token = login_dialog.get_session_token()
+        logged_in_user = login_dialog.get_current_user()
+
+        CURRENT_SESSION_TOKEN = session_token
+        if logged_in_user:
+            CURRENT_USER_ROLE = logged_in_user.get('role')
+            CURRENT_USER_ID = logged_in_user.get('user_id')
+            # Set session start time
+            SESSION_START_TIME = datetime.datetime.now()
+            logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+        else:
+            logging.error("Login reported successful, but no user data retrieved. Exiting.")
+            sys.exit(1)
+
+        # 11. Create and Show Main Window (only after successful login)
+        # DocumentManager is imported from main_window
+        # APP_ROOT_DIR is imported from app_setup
+        main_window = DocumentManager(APP_ROOT_DIR) # Pass user_id and role if needed by DocumentManager
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+
+        # 12. Execute Application
+        sys.exit(app.exec_())
+    else:
+        logging.info("Login failed or cancelled. Exiting application.")
+        sys.exit() # Exit if login is not successful
+
 
 if __name__ == "__main__":
     main()
