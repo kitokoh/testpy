@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QStackedWidget, QDoubleSpinBox # QDoubleSpinBox for final_price_input
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
-from PyQt5.QtCore import Qt, QUrl, QTimer
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
 
 # Project-specific imports
 import db as db_manager
@@ -35,6 +35,7 @@ from dialogs import (
 )
 from client_widget import ClientWidget # For client tabs
 from projectManagement import MainDashboard as ProjectManagementDashboard # For PM tab
+from statistics_module import StatisticsDashboard
 from utils import save_config # For saving config in settings and closeEvent
 
 
@@ -52,10 +53,24 @@ class DocumentManager(QMainWindow):
 
         self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
         self.main_area_stack.addWidget(self.project_management_widget_instance)
+
+        self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
+        self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main() 
-        self.create_menus_main() 
+        self.create_menus_main()
+
+        # Connect signal from statistics dashboard
+        if hasattr(self, 'statistics_dashboard_instance') and self.statistics_dashboard_instance:
+            if hasattr(self.statistics_dashboard_instance, 'country_selected_for_new_client'):
+                self.statistics_dashboard_instance.country_selected_for_new_client.connect(self.prepare_new_client_for_country)
+                print("Connected statistics_dashboard_instance.country_selected_for_new_client to prepare_new_client_for_country")
+            else:
+                print("Error: statistics_dashboard_instance does not have 'country_selected_for_new_client' signal.")
+        else:
+            print("Error: statistics_dashboard_instance not found for signal connection.")
         
         # Calls to refactored logic functions
         load_and_display_clients(self) 
@@ -96,8 +111,8 @@ class DocumentManager(QMainWindow):
         self.client_list_widget.customContextMenuRequested.connect(self.show_client_context_menu)
         left_layout.addWidget(self.client_list_widget)
         
-        form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client"))
-        form_vbox_layout = QVBoxLayout(form_group_box)
+        self.form_group_box = QGroupBox(self.tr("Ajouter un Nouveau Client")) # Made it self.form_group_box
+        form_vbox_layout = QVBoxLayout(self.form_group_box)
 
         self.form_container_widget = QWidget()
         creation_form_layout = QFormLayout(self.form_container_widget)
@@ -158,10 +173,10 @@ class DocumentManager(QMainWindow):
         creation_form_layout.addRow(self.create_client_button)
 
         form_vbox_layout.addWidget(self.form_container_widget)
-        form_group_box.setCheckable(True)
-        form_group_box.toggled.connect(self.form_container_widget.setVisible)
-        form_group_box.setChecked(False)
-        left_layout.addWidget(form_group_box)
+        self.form_group_box.setCheckable(True)
+        self.form_group_box.toggled.connect(self.form_container_widget.setVisible)
+        self.form_group_box.setChecked(False)
+        left_layout.addWidget(self.form_group_box)
         content_layout.addWidget(left_panel, 1)
         
         self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True) 
@@ -181,6 +196,9 @@ class DocumentManager(QMainWindow):
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self) # Conceptual: clean folder with document symbol
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
+        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+        self.statistics_action.triggered.connect(self.show_statistics_view)
+
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
 
@@ -193,6 +211,7 @@ class DocumentManager(QMainWindow):
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action)
         modules_menu.addAction(self.project_management_action)
+        modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -203,6 +222,9 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         
+    def show_statistics_view(self):
+        self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
@@ -364,6 +386,86 @@ class DocumentManager(QMainWindow):
     def closeEvent(self, event): 
         save_config(self.config) # save_config from utils, self.config is CONFIG
         super().closeEvent(event)
+
+    @pyqtSlot(str)
+    def prepare_new_client_for_country(self, country_name_str):
+        print(f"[MainWindow] prepare_new_client_for_country called for: {country_name_str}")
+
+        # 1. Switch to the documents page where the client form is
+        self.show_documents_view()
+
+        # 2. Ensure the "Ajouter un Nouveau Client" form is visible/expanded
+        if hasattr(self, 'form_group_box') and self.form_group_box:
+            self.form_group_box.setChecked(True)
+            if hasattr(self, 'form_container_widget'):
+                 self.form_container_widget.setVisible(True) # Explicitly ensure container is visible
+        else:
+            print("Warning: 'form_group_box' not found in MainWindow. Cannot expand new client form.")
+            return
+
+        # 3. Attempt to pre-fill the country combo box
+        country_successfully_selected = False
+        if hasattr(self, 'country_select_combo') and self.country_select_combo:
+            # First attempt to find the country in the existing combo box items
+            for i in range(self.country_select_combo.count()):
+                if self.country_select_combo.itemText(i).lower() == country_name_str.lower():
+                    self.country_select_combo.setCurrentIndex(i)
+                    print(f"Country '{country_name_str}' found and selected in combobox.")
+                    country_successfully_selected = True
+                    break
+
+            if not country_successfully_selected:
+                print(f"Country '{country_name_str}' not initially found in combobox. Attempting to add/verify in DB.")
+                try:
+                    # Use the new db_manager function to get or add the country
+                    country_data = db_manager.get_or_add_country(country_name_str)
+
+                    if country_data and country_data.get('country_id') is not None:
+                        new_country_id = country_data.get('country_id')
+                        new_country_name = country_data.get('country_name', country_name_str) # Use returned name
+
+                        print(f"Country '{new_country_name}' (ID: {new_country_id}) confirmed/added in DB.")
+
+                        # Reload countries into the combo box to include the new one
+                        self.load_countries_into_combo()
+
+                        index_to_select = -1
+                        for i in range(self.country_select_combo.count()):
+                            item_id = self.country_select_combo.itemData(i)
+                            if item_id is not None and item_id == new_country_id:
+                                index_to_select = i
+                                break
+                            elif self.country_select_combo.itemText(i).lower() == new_country_name.lower():
+                                index_to_select = i
+
+                        if index_to_select != -1:
+                            self.country_select_combo.setCurrentIndex(index_to_select)
+                            print(f"Country '{new_country_name}' selected in combobox after DB add/verify and reload.")
+                            country_successfully_selected = True
+                        else:
+                            print(f"Error: Country '{new_country_name}' was added/found in DB, but NOT found in combobox after reload. This is unexpected.")
+                            if self.country_select_combo.isEditable():
+                                self.country_select_combo.lineEdit().setText(new_country_name)
+                                print(f"Set combobox text to '{new_country_name}' as a fallback.")
+                    else:
+                        print(f"Error: Country '{country_name_str}' could not be added to or found in the database via get_or_add_country.")
+                        # QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr("Le pays '{0}' n'a pas pu être ajouté ou trouvé.").format(country_name_str))
+                except Exception as e:
+                    print(f"An exception occurred while trying to add/select country '{country_name_str}': {e}")
+                    # QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur inattendue est survenue lors de la gestion du pays."))
+        else:
+            print("Warning: 'country_select_combo' not found in MainWindow. Cannot pre-fill country.")
+
+        # 4. Set focus to the client name input field
+        if hasattr(self, 'client_name_input') and self.client_name_input:
+            QTimer.singleShot(0, self.client_name_input.setFocus)
+            if country_successfully_selected:
+                 print(f"Focus set to client name input for country '{country_name_str}'.")
+            else:
+                 print(f"Focus set to client name input. Country '{country_name_str}' was not selected in combobox.")
+        else:
+            print("Warning: 'client_name_input' not found. Cannot set focus.")
+
 
 # If main() and other app setup logic is moved to main.py, this file should only contain DocumentManager
 # and its necessary imports.
