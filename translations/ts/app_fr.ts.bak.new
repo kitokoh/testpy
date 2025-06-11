@@ -1,5 +1,5 @@
-<?xml version='1.0' encoding='utf-8'?>
-<TS version="2.1" language="en_US">
+<!DOCTYPE TS>
+<TS version="2.1" language="fr_FR">
 <context>
     <name>Application</name>
     <message>
@@ -32,91 +32,91 @@
     </message>
     <message>
         <source>Actualiser</source>
-        <translation>Refresh</translation>
+        <translation>Actualiser</translation>
     </message>
     <message>
         <source>Adresse email du destinataire:</source>
-        <translation>Recipient's email address:</translation>
+        <translation>Adresse email du destinataire:</translation>
     </message>
     <message>
         <source>Afficher la ligne horizontale</source>
-        <translation>Show horizontal line</translation>
+        <translation>Afficher la ligne horizontale</translation>
     </message>
     <message>
         <source>Ajouter Contact</source>
-        <translation>Add Contact</translation>
+        <translation>Ajouter Contact</translation>
     </message>
     <message>
         <source>Ajouter Modèle</source>
-        <translation>Add Template</translation>
+        <translation>Ajouter Modèle</translation>
     </message>
     <message>
         <source>Ajouter PDF</source>
-        <translation>Add PDF</translation>
+        <translation>Ajouter PDF</translation>
     </message>
     <message>
         <source>Ajouter Produit</source>
-        <translation>Add Product</translation>
+        <translation>Ajouter Produit</translation>
     </message>
     <message>
         <source>Ajouter colonne</source>
-        <translation>Add column</translation>
+        <translation>Ajouter colonne</translation>
     </message>
     <message>
         <source>Ajouter des notes sur ce client...</source>
-        <translation>Add notes about this client...</translation>
+        <translation>Ajouter des notes sur ce client...</translation>
     </message>
     <message>
         <source>Ajouter ligne</source>
-        <translation>Add row</translation>
+        <translation>Ajouter ligne</translation>
     </message>
     <message>
         <source>Ajouter un Nouveau Client</source>
-        <translation>Add New Client</translation>
+        <translation>Ajouter un Nouveau Client</translation>
     </message>
     <message>
         <source>Ajouter un nouveau pays</source>
-        <translation>Add new country</translation>
+        <translation>Ajouter un nouveau pays</translation>
     </message>
     <message>
         <source>Ajouter une nouvelle ville</source>
-        <translation>Add new city</translation>
+        <translation>Ajouter une nouvelle ville</translation>
     </message>
     <message>
         <source>Annuler</source>
-        <translation>Cancel</translation>
+        <translation>Annuler</translation>
     </message>
     <message>
-        <source>Aucun document n'a pu être créé.</source>
-        <translation>No document could be created.</translation>
+        <source>Aucun document n&apos;a pu être créé.</source>
+        <translation>Aucun document n&apos;a pu être créé.</translation>
     </message>
     <message>
         <source>Aucun document sélectionné</source>
-        <translation>No document selected</translation>
+        <translation>Aucun document sélectionné</translation>
     </message>
     <message>
         <source>Aucun logo chargé.</source>
-        <translation>No logo loaded.</translation>
+        <translation>Aucun logo chargé.</translation>
     </message>
     <message>
         <source>Auteur par défaut:</source>
-        <translation>Default author:</translation>
+        <translation>Auteur par défaut:</translation>
     </message>
     <message>
         <source>Auteur:</source>
-        <translation>Author:</translation>
+        <translation>Auteur:</translation>
     </message>
     <message>
         <source>Besoin Client:</source>
-        <translation>Client Need:</translation>
+        <translation>Besoin Client:</translation>
     </message>
     <message>
         <source>Besoin Principal:</source>
-        <translation>Main Need:</translation>
+        <translation>Besoin Principal:</translation>
     </message>
     <message>
         <source>Besoin:</source>
-        <translation>Need:</translation>
+        <translation>Besoin:</translation>
     </message>
     <message>
         <source>Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</source>
@@ -124,47 +124,47 @@
     </message>
     <message>
         <source>Ce pays existe déjà.</source>
-        <translation>This country already exists.</translation>
+        <translation>Ce pays existe déjà.</translation>
     </message>
     <message>
         <source>Cette ville existe déjà pour ce pays.</source>
-        <translation>This city already exists for this country.</translation>
+        <translation>Cette ville existe déjà pour ce pays.</translation>
     </message>
     <message>
         <source>Champs Requis</source>
-        <translation>Required Fields</translation>
+        <translation>Champs Requis</translation>
     </message>
     <message>
         <source>Charger Logo</source>
-        <translation>Load Logo</translation>
+        <translation>Charger Logo</translation>
     </message>
     <message>
         <source>Charger Modèle</source>
-        <translation>Load Template</translation>
+        <translation>Charger Modèle</translation>
     </message>
     <message>
         <source>Charger</source>
-        <translation>Load</translation>
+        <translation>Charger</translation>
     </message>
     <message>
         <source>Chemin base de données:</source>
-        <translation>Database path:</translation>
+        <translation>Chemin base de données:</translation>
     </message>
     <message>
         <source>Chemin Dossier:</source>
-        <translation>Folder Path:</translation>
+        <translation>Chemin Dossier:</translation>
     </message>
     <message>
-        <source>Chemin vers l'image du logo</source>
-        <translation>Path to logo image</translation>
+        <source>Chemin vers l&apos;image du logo</source>
+        <translation>Chemin vers l&apos;image du logo</translation>
     </message>
     <message>
         <source>Choisir Couleur</source>
-        <translation>Choose Color</translation>
+        <translation>Choisir Couleur</translation>
     </message>
     <message>
         <source>Choisir un Logo</source>
-        <translation>Choose a Logo</translation>
+        <translation>Choisir un Logo</translation>
     </message>
     <message>
         <source>Client Info Placeholder for: {0}</source>
@@ -176,19 +176,19 @@
     </message>
     <message>
         <source>Clients Totaux</source>
-        <translation>Total Clients</translation>
+        <translation>Clients Totaux</translation>
     </message>
     <message>
         <source>Client Créé</source>
-        <translation>Client Created</translation>
+        <translation>Client Créé</translation>
     </message>
     <message>
         <source>Client Supprimé</source>
-        <translation>Client Deleted</translation>
+        <translation>Client Supprimé</translation>
     </message>
     <message>
         <source>Client {0} créé (ID: {1}).</source>
-        <translation>Client {0} created (ID: {1}).</translation>
+        <translation>Client {0} créé (ID: {1}).</translation>
     </message>
     <message>
         <source>Close</source>
@@ -196,47 +196,47 @@
     </message>
     <message>
         <source>Colonne {0}</source>
-        <translation>Column {0}</translation>
+        <translation>Colonne {0}</translation>
     </message>
     <message>
         <source>Compilation de Documents - Projet: {0}</source>
-        <translation>Document Compilation - Project: {0}</translation>
+        <translation>Compilation de Documents - Projet: {0}</translation>
     </message>
     <message>
         <source>Compilation de Documents</source>
-        <translation>Document Compilation</translation>
+        <translation>Compilation de Documents</translation>
     </message>
     <message>
         <source>Compilation réussie</source>
-        <translation>Compilation successful</translation>
+        <translation>Compilation réussie</translation>
     </message>
     <message>
         <source>Compiler PDF</source>
-        <translation>Compile PDF</translation>
+        <translation>Compiler PDF</translation>
     </message>
     <message>
         <source>Compiler des PDF</source>
-        <translation>Compile PDFs</translation>
+        <translation>Compiler des PDF</translation>
     </message>
     <message>
         <source>Confirmer Suppression</source>
-        <translation>Confirm Deletion</translation>
+        <translation>Confirmer Suppression</translation>
     </message>
     <message>
         <source>Confirmer la suppression</source>
-        <translation>Confirm deletion</translation>
+        <translation>Confirmer la suppression</translation>
     </message>
     <message>
         <source>Configuration manquante</source>
-        <translation>Missing configuration</translation>
+        <translation>Configuration manquante</translation>
     </message>
     <message>
         <source>Conflit de Données</source>
-        <translation>Data Conflict</translation>
+        <translation>Conflit de Données</translation>
     </message>
     <message>
         <source>Contact principal</source>
-        <translation>Main contact</translation>
+        <translation>Contact principal</translation>
     </message>
     <message>
         <source>Contacts</source>
@@ -252,19 +252,19 @@
     </message>
     <message>
         <source>Couleur du Texte Principal:</source>
-        <translation>Main Text Color:</translation>
+        <translation>Couleur du Texte Principal:</translation>
     </message>
     <message>
         <source>Créer Client</source>
-        <translation>Create Client</translation>
+        <translation>Créer Client</translation>
     </message>
     <message>
         <source>Créer Documents</source>
-        <translation>Create Documents</translation>
+        <translation>Créer Documents</translation>
     </message>
     <message>
         <source>Créer des Documents</source>
-        <translation>Create Documents</translation>
+        <translation>Créer des Documents</translation>
     </message>
     <message>
         <source>Date (YYYY-MM-DD):</source>
@@ -272,11 +272,11 @@
     </message>
     <message>
         <source>Date Création:</source>
-        <translation>Creation Date:</translation>
+        <translation>Date Création:</translation>
     </message>
     <message>
-        <source>Date d'émission:</source>
-        <translation>Issue Date:</translation>
+        <source>Date d&apos;émission:</source>
+        <translation>Date d&apos;émission:</translation>
     </message>
     <message>
         <source>Date</source>
@@ -284,11 +284,11 @@
     </message>
     <message>
         <source>Descendre</source>
-        <translation>Move Down</translation>
+        <translation>Descendre</translation>
     </message>
     <message>
         <source>Description du besoin</source>
-        <translation>Description of need</translation>
+        <translation>Description du besoin</translation>
     </message>
     <message>
         <source>Description:</source>
@@ -296,11 +296,11 @@
     </message>
     <message>
         <source>Document compilé le {0}</source>
-        <translation>Document compiled on {0}</translation>
+        <translation>Document compilé le {0}</translation>
     </message>
     <message>
         <source>Documents créés</source>
-        <translation>Documents created</translation>
+        <translation>Documents créés</translation>
     </message>
     <message>
         <source>Documents</source>
@@ -308,35 +308,35 @@
     </message>
     <message>
         <source>Dossier Existant</source>
-        <translation>Existing Folder</translation>
+        <translation>Dossier Existant</translation>
     </message>
     <message>
         <source>Dossier des Clients:</source>
-        <translation>Clients Folder:</translation>
+        <translation>Dossier des Clients:</translation>
     </message>
     <message>
         <source>Dossier des Modèles:</source>
-        <translation>Templates Folder:</translation>
+        <translation>Dossier des Modèles:</translation>
     </message>
     <message>
         <source>Définir par Défaut</source>
-        <translation>Set as Default</translation>
+        <translation>Définir par Défaut</translation>
     </message>
     <message>
         <source>Département ou faculté (optionnel)</source>
-        <translation>Department or faculty (optional)</translation>
+        <translation>Département ou faculté (optionnel)</translation>
     </message>
     <message>
         <source>Département/Faculté:</source>
-        <translation>Department/Faculty:</translation>
+        <translation>Département/Faculté:</translation>
     </message>
     <message>
         <source>Défaut</source>
-        <translation>Default</translation>
+        <translation>Défaut</translation>
     </message>
     <message>
         <source>Email envoyé</source>
-        <translation>Email sent</translation>
+        <translation>Email envoyé</translation>
     </message>
     <message>
         <source>Email:</source>
@@ -352,51 +352,51 @@
     </message>
     <message>
         <source>Entrez le nom de la nouvelle ville pour {0}:</source>
-        <translation>Enter the name of the new city for {0}:</translation>
+        <translation>Entrez le nom de la nouvelle ville pour {0}:</translation>
     </message>
     <message>
         <source>Entrez le nom du nouveau pays:</source>
-        <translation>Enter the name of the new country:</translation>
+        <translation>Entrez le nom du nouveau pays:</translation>
     </message>
     <message>
         <source>Entrez un nom pour ce modèle:</source>
-        <translation>Enter a name for this template:</translation>
+        <translation>Entrez un nom pour ce modèle:</translation>
     </message>
     <message>
         <source>Envoyer par email</source>
-        <translation>Send by email</translation>
+        <translation>Envoyer par email</translation>
     </message>
     <message>
         <source>Erreur DB Gestion de Projet</source>
-        <translation>Project Management DB Error</translation>
+        <translation>Erreur DB Gestion de Projet</translation>
     </message>
     <message>
         <source>Erreur DB</source>
-        <translation>DB Error</translation>
+        <translation>Erreur DB</translation>
     </message>
     <message>
         <source>Erreur DB recherche email: {0}</source>
-        <translation>DB email search error: {0}</translation>
+        <translation>Erreur DB recherche email: {0}</translation>
     </message>
     <message>
         <source>Erreur DOCX</source>
-        <translation>DOCX Error</translation>
+        <translation>Erreur DOCX</translation>
     </message>
     <message>
         <source>Erreur HTML</source>
-        <translation>HTML Error</translation>
+        <translation>Erreur HTML</translation>
     </message>
     <message>
         <source>Erreur Modèle</source>
-        <translation>Template Error</translation>
+        <translation>Erreur Modèle</translation>
     </message>
     <message>
         <source>Erreur Page de Garde</source>
-        <translation>Cover Page Error</translation>
+        <translation>Erreur Page de Garde</translation>
     </message>
     <message>
         <source>Erreur PDF</source>
-        <translation>PDF Error</translation>
+        <translation>Erreur PDF</translation>
     </message>
     <message>
         <source>Erreur lors de la compilation du PDF:\n{0}</source>
@@ -404,35 +404,35 @@
     </message>
     <message>
         <source>Erreur lors de la génération de la page de garde via pagedegrde: {0}</source>
-        <translation>Error generating cover page via pagedegrde: {0}</translation>
+        <translation>Erreur lors de la génération de la page de garde via pagedegrde: {0}</translation>
     </message>
     <message>
-        <source>Erreur lors de l'ajout de {0}:\n{1}</source>
-        <translation>Erreur lors de l'ajout de {0}:\n{1}</translation>
+        <source>Erreur lors de l&apos;ajout de {0}:\n{1}</source>
+        <translation>Erreur lors de l&apos;ajout de {0}:\n{1}</translation>
     </message>
     <message>
-        <source>Erreur lors de l'envoi de l'email:\n{0}</source>
-        <translation>Erreur lors de l'envoi de l'email:\n{0}</translation>
+        <source>Erreur lors de l&apos;envoi de l&apos;email:\n{0}</source>
+        <translation>Erreur lors de l&apos;envoi de l&apos;email:\n{0}</translation>
     </message>
     <message>
         <source>Erreur</source>
-        <translation>Error</translation>
+        <translation>Erreur</translation>
     </message>
     <message>
         <source>Erreur Base de Données</source>
-        <translation>Database Error</translation>
+        <translation>Erreur Base de Données</translation>
     </message>
     <message>
         <source>Erreur de Configuration</source>
-        <translation>Configuration Error</translation>
+        <translation>Erreur de Configuration</translation>
     </message>
     <message>
         <source>Erreur de Chargement</source>
-        <translation>Loading Error</translation>
+        <translation>Erreur de Chargement</translation>
     </message>
     <message>
         <source>Erreur de Sauvegarde</source>
-        <translation>Save Error</translation>
+        <translation>Erreur de Sauvegarde</translation>
     </message>
     <message>
         <source>Erreur de chargement des contacts:\n{0}</source>
@@ -460,11 +460,11 @@
     </message>
     <message>
         <source>Erreur de chargement de la feuille</source>
-        <translation>Sheet loading error</translation>
+        <translation>Erreur de chargement de la feuille</translation>
     </message>
     <message>
         <source>Erreur de chargement statuts pour filtre: {0}</source>
-        <translation>Error loading statuses for filter: {0}</translation>
+        <translation>Erreur de chargement statuts pour filtre: {0}</translation>
     </message>
     <message>
         <source>Erreur de mise à jour du modèle:\n{str(e)}</source>
@@ -491,48 +491,48 @@
         <translation>Erreur de suppression du produit:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'Ouverture Fichier</source>
-        <translation>File Open Error</translation>
+        <source>Erreur d&apos;Ouverture Fichier</source>
+        <translation>Erreur d&apos;Ouverture Fichier</translation>
     </message>
     <message>
-        <source>Erreur d'accès au modèle:\n{str(e)}</source>
-        <translation>Erreur d'accès au modèle:\n{str(e)}</translation>
+        <source>Erreur d&apos;accès au modèle:\n{str(e)}</source>
+        <translation>Erreur d&apos;accès au modèle:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout de la ville:\n{0}</source>
-        <translation>Erreur d'ajout de la ville:\n{0}</translation>
+        <source>Erreur d&apos;ajout de la ville:\n{0}</source>
+        <translation>Erreur d&apos;ajout de la ville:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du contact:\n{0}</source>
-        <translation>Erreur d'ajout du contact:\n{0}</translation>
+        <source>Erreur d&apos;ajout du contact:\n{0}</source>
+        <translation>Erreur d&apos;ajout du contact:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du modèle:\n{str(e)}</source>
-        <translation>Erreur d'ajout du modèle:\n{str(e)}</translation>
+        <source>Erreur d&apos;ajout du modèle:\n{str(e)}</source>
+        <translation>Erreur d&apos;ajout du modèle:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du pays:\n{0}</source>
-        <translation>Erreur d'ajout du pays:\n{0}</translation>
+        <source>Erreur d&apos;ajout du pays:\n{0}</source>
+        <translation>Erreur d&apos;ajout du pays:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du produit:\n{0}</source>
-        <translation>Erreur d'ajout du produit:\n{0}</translation>
+        <source>Erreur d&apos;ajout du produit:\n{0}</source>
+        <translation>Erreur d&apos;ajout du produit:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'export PDF</source>
-        <translation>PDF Export Error</translation>
+        <source>Erreur d&apos;export PDF</source>
+        <translation>Erreur d&apos;export PDF</translation>
     </message>
     <message>
-        <source>Erreur d'export PDF: {0}</source>
-        <translation>PDF Export Error: {0}</translation>
+        <source>Erreur d&apos;export PDF: {0}</source>
+        <translation>Erreur d&apos;export PDF: {0}</translation>
     </message>
     <message>
-        <source>Erreur d'envoi</source>
-        <translation>Send Error</translation>
+        <source>Erreur d&apos;envoi</source>
+        <translation>Erreur d&apos;envoi</translation>
     </message>
     <message>
-        <source>Erreur d'ouverture du PDF: {0}</source>
-        <translation>Error opening PDF: {0}</translation>
+        <source>Erreur d&apos;ouverture du PDF: {0}</source>
+        <translation>Erreur d&apos;ouverture du PDF: {0}</translation>
     </message>
     <message>
         <source>Excel</source>
@@ -540,87 +540,87 @@
     </message>
     <message>
         <source>Exporter PDF</source>
-        <translation>Export PDF</translation>
+        <translation>Exporter PDF</translation>
     </message>
     <message>
         <source>Exporter en PDF</source>
-        <translation>Export to PDF</translation>
+        <translation>Exporter en PDF</translation>
     </message>
     <message>
         <source>Fermer</source>
-        <translation>Close</translation>
+        <translation>Fermer</translation>
     </message>
     <message>
         <source>Fichier Inexistant</source>
-        <translation>File Not Found</translation>
+        <translation>Fichier Inexistant</translation>
     </message>
     <message>
         <source>Fichier Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)</source>
-        <translation>Template Files (*.xlsx *.docx *.html);;Excel Files (*.xlsx);;Word Documents (*.docx);;HTML Documents (*.html);;All files (*)</translation>
+        <translation>Fichiers Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)</translation>
     </message>
     <message>
         <source>Fichier PDF (*.pdf);;Tous les fichiers (*)</source>
-        <translation>PDF Files (*.pdf);;All files (*)</translation>
+        <translation>Fichiers PDF (*.pdf);;Tous les fichiers (*)</translation>
     </message>
     <message>
         <source>Fichier PDF compilé</source>
-        <translation>Compiled PDF File</translation>
+        <translation>Fichier PDF compilé</translation>
     </message>
     <message>
         <source>Fichier introuvable.</source>
-        <translation>File not found.</translation>
+        <translation>Fichier introuvable.</translation>
     </message>
     <message>
-        <source>Fichier modèle '{0}' introuvable pour '{1}'.</source>
-        <translation>Template file '{0}' not found for '{1}'.</translation>
+        <source>Fichier modèle &apos;{0}&apos; introuvable pour &apos;{1}&apos;.</source>
+        <translation>Fichier modèle &apos;{0}&apos; introuvable pour &apos;{1}&apos;.</translation>
     </message>
     <message>
         <source>Fichier non trouvé</source>
-        <translation>File not found</translation>
+        <translation>Fichier non trouvé</translation>
     </message>
     <message>
         <source>Fichier supprimé</source>
-        <translation>File deleted</translation>
+        <translation>Fichier supprimé</translation>
     </message>
     <message>
         <source>Fichier</source>
-        <translation>File</translation>
+        <translation>Fichier</translation>
     </message>
     <message>
         <source>Filtrer par statut:</source>
-        <translation>Filter by status:</translation>
+        <translation>Filtrer par statut:</translation>
     </message>
     <message>
-        <source>Formulaire d'Offre</source>
-        <translation>Offer Form</translation>
+        <source>Formulaire d&apos;Offre</source>
+        <translation>Formulaire d&apos;Offre</translation>
     </message>
     <message>
         <source>Français (fr)</source>
-        <translation>French (fr)</translation>
+        <translation>Français (fr)</translation>
     </message>
     <message>
         <source>Français uniquement (fr)</source>
-        <translation>French only (fr)</translation>
+        <translation>Français uniquement (fr)</translation>
     </message>
     <message>
         <source>Gestion des Contacts</source>
-        <translation>Contact Management</translation>
+        <translation>Gestion des Contacts</translation>
     </message>
     <message>
         <source>Gestion des Modèles</source>
-        <translation>Template Management</translation>
+        <translation>Gestion des Modèles</translation>
     </message>
     <message>
         <source>Gestion des Statuts</source>
-        <translation>Status Management</translation>
+        <translation>Gestion des Statuts</translation>
     </message>
     <message>
         <source>Gestionnaire de Documents Client</source>
-        <translation>Client Document Manager</translation>
+        <translation>Gestionnaire de Documents Client</translation>
     </message>
     <message>
         <source>Général</source>
-        <translation>General</translation>
+        <translation>Général</translation>
     </message>
     <message>
         <source>HTML Editor - {0}</source>
@@ -632,11 +632,11 @@
     </message>
     <message>
         <source>ID Projet Existant</source>
-        <translation>Existing Project ID</translation>
+        <translation>ID Projet Existant</translation>
     </message>
     <message>
         <source>ID Projet:</source>
-        <translation>Project ID:</translation>
+        <translation>ID Projet:</translation>
     </message>
     <message>
         <source>ID</source>
@@ -644,27 +644,27 @@
     </message>
     <message>
         <source>Identifiant du projet</source>
-        <translation>Project identifier</translation>
+        <translation>Identifiant du projet</translation>
     </message>
     <message>
         <source>Identifiant unique du projet</source>
-        <translation>Unique project identifier</translation>
+        <translation>Identifiant unique du projet</translation>
     </message>
     <message>
-        <source>Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</source>
-        <translation>Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</translation>
+        <source>Impossible d&apos;initialiser la base de données: {0}\nL&apos;application pourrait ne pas fonctionner correctement.</source>
+        <translation>Impossible d&apos;initialiser la base de données: {0}\nL&apos;application pourrait ne pas fonctionner correctement.</translation>
     </message>
     <message>
-        <source>Impossible d'enregistrer la configuration: {0}</source>
-        <translation>Could not save configuration: {0}</translation>
+        <source>Impossible d&apos;enregistrer la configuration: {0}</source>
+        <translation>Impossible d&apos;enregistrer la configuration: {0}</translation>
     </message>
     <message>
-        <source>Impossible d'ouvrir le fichier:\n{0}</source>
-        <translation>Impossible d'ouvrir le fichier:\n{0}</translation>
+        <source>Impossible d&apos;ouvrir le fichier:\n{0}</source>
+        <translation>Impossible d&apos;ouvrir le fichier:\n{0}</translation>
     </message>
     <message>
-        <source>Impossible de charger la feuille '{0}':\n{1}</source>
-        <translation>Impossible de charger la feuille '{0}':\n{1}</translation>
+        <source>Impossible de charger la feuille &apos;{0}&apos;:\n{1}</source>
+        <translation>Impossible de charger la feuille &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
         <source>Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</source>
@@ -672,15 +672,15 @@
     </message>
     <message>
         <source>Impossible de générer la page de garde personnalisée: {0}</source>
-        <translation>Could not generate custom cover page: {0}</translation>
+        <translation>Impossible de générer la page de garde personnalisée: {0}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle HTML '{0}':\n{1}</source>
-        <translation>Impossible de populer le modèle HTML '{0}':\n{1}</translation>
+        <source>Impossible de populer le modèle HTML &apos;{0}&apos;:\n{1}</source>
+        <translation>Impossible de populer le modèle HTML &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle Word '{0}':\n{1}</source>
-        <translation>Impossible de populer le modèle Word '{0}':\n{1}</translation>
+        <source>Impossible de populer le modèle Word &apos;{0}&apos;:\n{1}</source>
+        <translation>Impossible de populer le modèle Word &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
         <source>Impossible de supprimer le fichier:\n{0}</source>
@@ -688,39 +688,39 @@
     </message>
     <message>
         <source>Informations Client</source>
-        <translation>Client Information</translation>
+        <translation>Informations Client</translation>
     </message>
     <message>
         <source>Institution par défaut:</source>
-        <translation>Default institution:</translation>
+        <translation>Institution par défaut:</translation>
     </message>
     <message>
         <source>Inconnu</source>
-        <translation>Unknown</translation>
+        <translation>Inconnu</translation>
     </message>
     <message>
         <source>Jours avant rappel client ancien:</source>
-        <translation>Days before old client reminder:</translation>
+        <translation>Jours avant rappel client ancien:</translation>
     </message>
     <message>
-        <source>L'ID Projet '{0}' est déjà utilisé.</source>
-        <translation>Project ID '{0}' is already in use.</translation>
+        <source>L&apos;ID Projet &apos;{0}&apos; est déjà utilisé.</source>
+        <translation>L&apos;ID Projet &apos;{0}&apos; est déjà utilisé.</translation>
     </message>
     <message>
         <source>Langue Interface (redémarrage requis):</source>
-        <translation>Interface Language (restart required):</translation>
+        <translation>Langue Interface (redémarrage requis):</translation>
     </message>
     <message>
         <source>Langue du Modèle</source>
-        <translation>Template Language</translation>
+        <translation>Langue du Modèle</translation>
     </message>
     <message>
         <source>Langue:</source>
-        <translation>Language:</translation>
+        <translation>Langue:</translation>
     </message>
     <message>
         <source>Langues:</source>
-        <translation>Languages:</translation>
+        <translation>Langues:</translation>
     </message>
     <message>
         <source>Le PDF compilé a été sauvegardé dans:\n{0}</source>
@@ -728,35 +728,35 @@
     </message>
     <message>
         <source>Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</source>
-        <translation>Client {0} was created, but the corresponding project creation failed: {1}</translation>
+        <translation>Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</translation>
     </message>
     <message>
         <source>Le document a été envoyé avec succès.</source>
-        <translation>The document was sent successfully.</translation>
+        <translation>Le document a été envoyé avec succès.</translation>
     </message>
     <message>
-        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</source>
-        <translation>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</translation>
+        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l&apos;ouvrir ?</source>
+        <translation>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l&apos;ouvrir ?</translation>
     </message>
     <message>
-        <source>Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</source>
-        <translation>Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</translation>
+        <source>Le fichier {0} n&apos;existe pas.\nUn nouveau fichier sera créé.</source>
+        <translation>Le fichier {0} n&apos;existe pas.\nUn nouveau fichier sera créé.</translation>
     </message>
     <message>
         <source>Le fichier a été sauvegardé avec succès:\n{0}</source>
         <translation>Le fichier a été sauvegardé avec succès:\n{0}</translation>
     </message>
     <message>
-        <source>Le fichier n'existe plus.</source>
-        <translation>The file no longer exists.</translation>
+        <source>Le fichier n&apos;existe plus.</source>
+        <translation>Le fichier n&apos;existe plus.</translation>
     </message>
     <message>
-        <source>Le tableau est vide. Impossible d'exporter en PDF.</source>
-        <translation>The table is empty. Cannot export to PDF.</translation>
+        <source>Le tableau est vide. Impossible d&apos;exporter en PDF.</source>
+        <translation>Le tableau est vide. Impossible d&apos;exporter en PDF.</translation>
     </message>
     <message>
         <source>Les préférences ont été appliquées.</source>
-        <translation>Preferences have been applied.</translation>
+        <translation>Les préférences ont été appliquées.</translation>
     </message>
     <message>
         <source>Load Error</source>
@@ -764,67 +764,67 @@
     </message>
     <message>
         <source>Modifications Non Sauvegardées</source>
-        <translation>Unsaved Changes</translation>
+        <translation>Modifications Non Sauvegardées</translation>
     </message>
     <message>
         <source>Modèle Copié</source>
-        <translation>Template Copied</translation>
+        <translation>Modèle Copié</translation>
     </message>
     <message>
         <source>Modèle Existant</source>
-        <translation>Existing Template</translation>
+        <translation>Modèle Existant</translation>
     </message>
     <message>
         <source>Modèle Supprimé</source>
-        <translation>Template Deleted</translation>
+        <translation>Modèle Supprimé</translation>
     </message>
     <message>
         <source>Modèle défini comme modèle par défaut pour sa catégorie et langue.</source>
-        <translation>Template set as default for its category and language.</translation>
+        <translation>Modèle défini comme modèle par défaut pour sa catégorie et langue.</translation>
     </message>
     <message>
         <source>Modèle ajouté avec succès.</source>
-        <translation>Template added successfully.</translation>
+        <translation>Modèle ajouté avec succès.</translation>
     </message>
     <message>
         <source>Modèle supprimé avec succès.</source>
-        <translation>Template deleted successfully.</translation>
+        <translation>Modèle supprimé avec succès.</translation>
     </message>
     <message>
         <source>Modèle {0} chargé</source>
-        <translation>Template {0} loaded</translation>
+        <translation>Modèle {0} chargé</translation>
     </message>
     <message>
         <source>Modèle enregistre.</source>
-        <translation>Template saved.</translation>
+        <translation>Modèle enregistre.</translation>
     </message>
     <message>
         <source>Modèles</source>
-        <translation>Templates</translation>
+        <translation>Modèles</translation>
     </message>
     <message>
         <source>Moderne</source>
-        <translation>Modern</translation>
+        <translation>Moderne</translation>
     </message>
     <message>
         <source>Modifier Contact</source>
-        <translation>Edit Contact</translation>
+        <translation>Modifier Contact</translation>
     </message>
     <message>
         <source>Modifier Produit</source>
-        <translation>Edit Product</translation>
+        <translation>Modifier Produit</translation>
     </message>
     <message>
         <source>Modifier</source>
-        <translation>Edit</translation>
+        <translation>Modifier</translation>
     </message>
     <message>
         <source>Monter</source>
-        <translation>Move Up</translation>
+        <translation>Monter</translation>
     </message>
     <message>
         <source>Mot de passe SMTP:</source>
-        <translation>SMTP Password:</translation>
+        <translation>Mot de passe SMTP:</translation>
     </message>
     <message>
         <source>N/A</source>
@@ -832,75 +832,75 @@
     </message>
     <message>
         <source>Nouveau Modèle</source>
-        <translation>New Template</translation>
+        <translation>Nouveau Modèle</translation>
     </message>
     <message>
         <source>Nouveau Pays</source>
-        <translation>New Country</translation>
+        <translation>Nouveau Pays</translation>
     </message>
     <message>
         <source>Nouvelle Ville</source>
-        <translation>New City</translation>
+        <translation>Nouvelle Ville</translation>
     </message>
     <message>
         <source>Nom Client:</source>
-        <translation>Client Name:</translation>
+        <translation>Nom Client:</translation>
     </message>
     <message>
         <source>Nom Entreprise:</source>
-        <translation>Company Name:</translation>
+        <translation>Entreprise du client</translation>
     </message>
     <message>
         <source>Nom Produit</source>
-        <translation>Product Name</translation>
+        <translation>Nom Produit</translation>
     </message>
     <message>
-        <source>Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.</source>
-        <translation>Missing filename for template '{0}'. Cannot create.</translation>
+        <source>Nom de fichier manquant pour le modèle &apos;{0}&apos;. Impossible de créer.</source>
+        <translation>Nom de fichier manquant pour le modèle &apos;{0}&apos;. Impossible de créer.</translation>
     </message>
     <message>
         <source>Nom du Modèle</source>
-        <translation>Template Name</translation>
+        <translation>Nom du Modèle</translation>
     </message>
     <message>
         <source>Nom du Produit:</source>
-        <translation>Product Name:</translation>
+        <translation>Nom du Produit:</translation>
     </message>
     <message>
         <source>Nom du client</source>
-        <translation>Client name</translation>
+        <translation>Nom du client</translation>
     </message>
     <message>
         <source>Nom du client:</source>
-        <translation>Client name:</translation>
+        <translation>Nom du client:</translation>
     </message>
     <message>
         <source>Nom du fichier compilé:</source>
-        <translation>Compiled file name:</translation>
+        <translation>Nom du fichier compilé:</translation>
     </message>
     <message>
         <source>Nom du fichier</source>
-        <translation>File name</translation>
+        <translation>Nom du fichier</translation>
     </message>
     <message>
         <source>Nom entreprise (optionnel)</source>
-        <translation>Company name (optional)</translation>
+        <translation>Nom entreprise (optionnel)</translation>
     </message>
     <message>
         <source>Nom complet:</source>
-        <translation>Full name:</translation>
+        <translation>Nom complet:</translation>
     </message>
     <message>
         <source>Nom manquant</source>
-        <translation>Name missing</translation>
+        <translation>Nom manquant</translation>
     </message>
     <message>
         <source>Nom:</source>
-        <translation>Name:</translation>
+        <translation>Nom:</translation>
     </message>
     <message>
         <source>Nom</source>
-        <translation>Name</translation>
+        <translation>Nom</translation>
     </message>
     <message>
         <source>Notes</source>
@@ -908,7 +908,7 @@
     </message>
     <message>
         <source>Nous contacter</source>
-        <translation>Contact us</translation>
+        <translation>Nous contacter</translation>
     </message>
     <message>
         <source>OK</source>
@@ -916,135 +916,135 @@
     </message>
     <message>
         <source>Ouvrir Dossier Client</source>
-        <translation>Open Client Folder</translation>
+        <translation>Ouvrir Dossier Client</translation>
     </message>
     <message>
         <source>Ouvrir Fiche Client</source>
-        <translation>Open Client File</translation>
+        <translation>Ouvrir Fiche Client</translation>
     </message>
     <message>
         <source>Ouvrir</source>
-        <translation>Open</translation>
+        <translation>Ouvrir</translation>
     </message>
     <message>
         <source>PDF</source>
         <translation>PDF</translation>
     </message>
     <message>
-        <source>Paramètres de l'Application</source>
-        <translation>Application Settings</translation>
+        <source>Paramètres de l&apos;Application</source>
+        <translation>Paramètres de l&apos;Application</translation>
     </message>
     <message>
         <source>Paramètres Sauvegardés</source>
-        <translation>Settings Saved</translation>
+        <translation>Paramètres Sauvegardés</translation>
     </message>
     <message>
         <source>Paramètres</source>
-        <translation>Settings</translation>
+        <translation>Paramètres</translation>
     </message>
     <message>
         <source>Parcourir...</source>
-        <translation>Browse...</translation>
+        <translation>Parcourir...</translation>
     </message>
     <message>
         <source>Pays Client:</source>
-        <translation>Client Country:</translation>
+        <translation>Pays Client:</translation>
     </message>
     <message>
         <source>Pays Existant</source>
-        <translation>Existing Country</translation>
+        <translation>Pays Existant</translation>
     </message>
     <message>
         <source>Pays Inconnu</source>
-        <translation>Unknown Country</translation>
+        <translation>Pays Inconnu</translation>
     </message>
     <message>
         <source>Pays Requis</source>
-        <translation>Country Required</translation>
+        <translation>Pays Requis</translation>
     </message>
     <message>
         <source>Pays:</source>
-        <translation>Country:</translation>
+        <translation>Pays:</translation>
     </message>
     <message>
         <source>Police par défaut:</source>
-        <translation>Default font:</translation>
+        <translation>Police par défaut:</translation>
     </message>
     <message>
         <source>Port SMTP:</source>
-        <translation>SMTP Port:</translation>
+        <translation>Port SMTP:</translation>
     </message>
     <message>
         <source>Poste:</source>
-        <translation>Position:</translation>
+        <translation>Poste:</translation>
     </message>
     <message>
         <source>Pour toute question: contact@example.com</source>
-        <translation>For any questions: contact@example.com</translation>
+        <translation>Pour toute question: contact@example.com</translation>
     </message>
     <message>
         <source>Préférences</source>
-        <translation>Preferences</translation>
+        <translation>Préférences</translation>
     </message>
     <message>
         <source>Principal</source>
-        <translation>Main</translation>
+        <translation>Principal</translation>
     </message>
     <message>
         <source>Prix Final:</source>
-        <translation>Final Price:</translation>
+        <translation>Prix Final:</translation>
     </message>
     <message>
         <source>Prix Total:</source>
-        <translation>Total Price:</translation>
+        <translation>Prix Total:</translation>
     </message>
     <message>
         <source>Prix Unitaire:</source>
-        <translation>Unit Price:</translation>
+        <translation>Prix Unitaire:</translation>
     </message>
     <message>
         <source>Prix:</source>
-        <translation>Price:</translation>
+        <translation>Prix:</translation>
     </message>
     <message>
         <source>Produits</source>
-        <translation>Products</translation>
+        <translation>Produits</translation>
     </message>
     <message>
         <source>Projet Créé</source>
-        <translation>Project Created</translation>
+        <translation>Projet Créé</translation>
     </message>
     <message>
         <source>Projet: {0}</source>
-        <translation>Project: {0}</translation>
+        <translation>Projet: {0}</translation>
     </message>
     <message>
         <source>Projets Urgents</source>
-        <translation>Urgent Projects</translation>
+        <translation>Projets Urgents</translation>
     </message>
     <message>
         <source>Projets en Cours</source>
-        <translation>Ongoing Projects</translation>
+        <translation>Projets en Cours</translation>
     </message>
     <message>
         <source>Prêt</source>
-        <translation>Ready</translation>
+        <translation>Prêt</translation>
     </message>
     <message>
         <source>Qté</source>
-        <translation>Qty</translation>
+        <translation>Qté</translation>
     </message>
     <message>
         <source>Quantité:</source>
-        <translation>Quantity:</translation>
+        <translation>Quantité:</translation>
     </message>
     <message>
         <source>Quitter</source>
-        <translation>Exit</translation>
+        <translation>Quitter</translation>
     </message>
     <message>
         <source>Rechercher client...</source>
-        <translation>Search client...</translation>
+        <translation>Rechercher client...</translation>
     </message>
     <message>
         <source>Refresh Preview</source>
@@ -1052,15 +1052,15 @@
     </message>
     <message>
         <source>Retirer Logo</source>
-        <translation>Remove Logo</translation>
+        <translation>Retirer Logo</translation>
     </message>
     <message>
         <source>Réessayer</source>
-        <translation>Retry</translation>
+        <translation>Réessayer</translation>
     </message>
     <message>
         <source>Réussi</source>
-        <translation>Successful</translation>
+        <translation>Réussi</translation>
     </message>
     <message>
         <source>Save Error</source>
@@ -1072,99 +1072,99 @@
     </message>
     <message>
         <source>Sauvegarde Réussie</source>
-        <translation>Save Successful</translation>
+        <translation>Sauvegarde Réussie</translation>
     </message>
     <message>
         <source>Sauvegarde en cours...</source>
-        <translation>Saving...</translation>
+        <translation>Sauvegarde en cours...</translation>
     </message>
     <message>
         <source>Sauvegarder</source>
-        <translation>Save</translation>
+        <translation>Sauvegarder</translation>
     </message>
     <message>
         <source>Serveur SMTP:</source>
-        <translation>SMTP Server:</translation>
+        <translation>Serveur SMTP:</translation>
     </message>
     <message>
         <source>Statut:</source>
-        <translation>Status:</translation>
+        <translation>Statut:</translation>
     </message>
     <message>
         <source>Succès</source>
-        <translation>Success</translation>
+        <translation>Succès</translation>
     </message>
     <message>
         <source>Supprimer Client</source>
-        <translation>Delete Client</translation>
+        <translation>Supprimer Client</translation>
     </message>
     <message>
         <source>Supprimer Contact</source>
-        <translation>Delete Contact</translation>
+        <translation>Supprimer Contact</translation>
     </message>
     <message>
         <source>Supprimer Modèle</source>
-        <translation>Delete Template</translation>
+        <translation>Supprimer Modèle</translation>
     </message>
     <message>
         <source>Supprimer Produit</source>
-        <translation>Delete Product</translation>
+        <translation>Supprimer Produit</translation>
     </message>
     <message>
         <source>Supprimer</source>
-        <translation>Delete</translation>
+        <translation>Supprimer</translation>
     </message>
     <message>
         <source>Sélection</source>
-        <translation>Selection</translation>
+        <translation>Sélection</translation>
     </message>
     <message>
         <source>Sélectionner dossier clients</source>
-        <translation>Select clients folder</translation>
+        <translation>Sélectionner dossier clients</translation>
     </message>
     <message>
         <source>Sélectionner dossier modèles</source>
-        <translation>Select templates folder</translation>
+        <translation>Sélectionner dossier modèles</translation>
     </message>
     <message>
         <source>Sélectionner la langue:</source>
-        <translation>Select language:</translation>
+        <translation>Sélectionner la langue:</translation>
     </message>
     <message>
         <source>Sélectionner les PDF à compiler:</source>
-        <translation>Select PDFs to compile:</translation>
+        <translation>Sélectionner les PDF à compiler:</translation>
     </message>
     <message>
         <source>Sélectionner les documents à créer:</source>
-        <translation>Select documents to create:</translation>
+        <translation>Sélectionner les documents à créer:</translation>
     </message>
     <message>
         <source>Sélectionner un modèle</source>
-        <translation>Select a template</translation>
+        <translation>Sélectionner un modèle</translation>
     </message>
     <message>
         <source>Taille de police par défaut:</source>
-        <translation>Default font size:</translation>
+        <translation>Taille de police par défaut:</translation>
     </message>
     <message>
         <source>Tous les statuts</source>
-        <translation>All statuses</translation>
+        <translation>Tous les statuts</translation>
     </message>
     <message>
         <source>Toutes les langues (fr, ar, tr)</source>
-        <translation>All languages (fr, ar, tr)</translation>
+        <translation>Toutes les langues (fr, ar, tr)</translation>
     </message>
     <message>
         <source>Turc (tr)</source>
-        <translation>Turkish (tr)</translation>
+        <translation>Turc (tr)</translation>
     </message>
     <message>
         <source>Turc uniquement (tr)</source>
-        <translation>Turkish only (tr)</translation>
+        <translation>Turc uniquement (tr)</translation>
     </message>
     <message>
         <source>Type de document:</source>
-        <translation>Document type:</translation>
+        <translation>Type de document:</translation>
     </message>
     <message>
         <source>Type</source>
@@ -1172,27 +1172,27 @@
     </message>
     <message>
         <source>Télécharger</source>
-        <translation>Download</translation>
+        <translation>Télécharger</translation>
     </message>
     <message>
         <source>Téléphone:</source>
-        <translation>Phone:</translation>
+        <translation>Téléphone:</translation>
     </message>
     <message>
         <source>Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}</source>
-        <translation>A client with a similar folder path already exists or other DB constraint violated: {0}</translation>
+        <translation>Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}</translation>
     </message>
     <message>
         <source>Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.</source>
-        <translation>A client folder with these identifiers (name, country, project) already exists.</translation>
+        <translation>Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.</translation>
     </message>
     <message>
         <source>Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.</source>
-        <translation>A corresponding project for {0} has been automatically created in the project management system.</translation>
+        <translation>Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.</translation>
     </message>
     <message>
-        <source>Une erreur inattendue s'est produite:\n{0}</source>
-        <translation>Une erreur inattendue s'est produite:\n{0}</translation>
+        <source>Une erreur inattendue s&apos;est produite:\n{0}</source>
+        <translation>Une erreur inattendue s&apos;est produite:\n{0}</translation>
     </message>
     <message>
         <source>Urgent</source>
@@ -1200,47 +1200,47 @@
     </message>
     <message>
         <source>Utilisateur SMTP:</source>
-        <translation>SMTP User:</translation>
+        <translation>Utilisateur SMTP:</translation>
     </message>
     <message>
         <source>Valeur Totale</source>
-        <translation>Total Value</translation>
+        <translation>Valeur Totale</translation>
     </message>
     <message>
         <source>Version:</source>
         <translation>Version:</translation>
     </message>
     <message>
-        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l'application.</source>
-        <translation>Please configure SMTP settings in the application settings.</translation>
+        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l&apos;application.</source>
+        <translation>Veuillez configurer les paramètres SMTP dans les paramètres de l&apos;application.</translation>
     </message>
     <message>
-        <source>Veuillez d'abord sélectionner un pays.</source>
-        <translation>Please select a country first.</translation>
+        <source>Veuillez d&apos;abord sélectionner un pays.</source>
+        <translation>Veuillez d&apos;abord sélectionner un pays.</translation>
     </message>
     <message>
         <source>Veuillez sélectionner au moins un document à créer.</source>
-        <translation>Please select at least one document to create.</translation>
+        <translation>Veuillez sélectionner au moins un document à créer.</translation>
     </message>
     <message>
         <source>Veuillez spécifier un nom de fichier pour la compilation.</source>
-        <translation>Please specify a filename for compilation.</translation>
+        <translation>Veuillez spécifier un nom de fichier pour la compilation.</translation>
     </message>
     <message>
         <source>Ville Client:</source>
-        <translation>Client City:</translation>
+        <translation>Ville Client:</translation>
     </message>
     <message>
         <source>Ville Existante</source>
-        <translation>Existing City</translation>
+        <translation>Ville Existante</translation>
     </message>
     <message>
         <source>Ville:</source>
-        <translation>City:</translation>
+        <translation>Ville:</translation>
     </message>
     <message>
         <source>Votre Entreprise</source>
-        <translation>Your Company</translation>
+        <translation>Votre Entreprise</translation>
     </message>
     <message>
         <source>Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</source>
@@ -1251,8 +1251,8 @@
         <translation>Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</translation>
     </message>
     <message>
-        <source>Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
-        <translation>Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</translation>
+        <source>Vous avez des modifications non sauvegardées dans &apos;{0}&apos;.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
+        <translation>Vous avez des modifications non sauvegardées dans &apos;{0}&apos;.\nVoulez-vous sauvegarder avant de changer de feuille ?</translation>
     </message>
     <message>
         <source>Word</source>
@@ -1260,7 +1260,7 @@
     </message>
     <message>
         <source>all ou 1-3,5</source>
-        <translation>all or 1-3,5</translation>
+        <translation>all ou 1-3,5</translation>
     </message>
     <message>
         <source>compilation</source>
@@ -1268,51 +1268,51 @@
     </message>
     <message>
         <source>&lt;b&gt;Gestionnaire de Documents Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Application de gestion de documents clients avec templates Excel.&lt;br&gt;&lt;br&gt;Développé par Saadiya Management (Concept)</source>
-        <translation>&lt;b&gt;Client Document Manager&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Client document management application with Excel templates.&lt;br&gt;&lt;br&gt;Developed by Saadiya Management (Concept)</translation>
+        <translation>&lt;b&gt;Gestionnaire de Documents Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Application de gestion de documents clients avec templates Excel.&lt;br&gt;&lt;br&gt;Développé par Saadiya Management (Concept)</translation>
     </message>
     <message>
         <source>&lt;b&gt;Personnel responsable:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tél:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</source>
-        <translation>&lt;b&gt;Contact person:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tel:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</translation>
+        <translation>&lt;b&gt;Personnel responsable:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tél:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Conditions d'achat:&lt;/b&gt;</source>
-        <translation>&lt;b&gt;Purchase Conditions:&lt;/b&gt;</translation>
+        <source>&lt;b&gt;Conditions d&apos;achat:&lt;/b&gt;</source>
+        <translation>&lt;b&gt;Conditions d&apos;achat:&lt;/b&gt;</translation>
     </message>
     <message>
         <source>À propos</source>
-        <translation>About</translation>
+        <translation>À propos</translation>
     </message>
     <message>
         <source>Éditer</source>
-        <translation>Edit</translation>
+        <translation>Éditer</translation>
     </message>
     <message>
         <source>Éditeur Excel - {0}</source>
-        <translation>Excel Editor - {0}</translation>
+        <translation>Éditeur Excel - {0}</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer ce contact?</source>
-        <translation>Are you sure you want to delete this contact?</translation>
+        <translation>Êtes-vous sûr de vouloir supprimer ce contact?</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer ce modèle ?</source>
-        <translation>Are you sure you want to delete this template?</translation>
+        <translation>Êtes-vous sûr de vouloir supprimer ce modèle ?</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer le fichier {0} ?</source>
-        <translation>Are you sure you want to delete file {0}?</translation>
+        <translation>Êtes-vous sûr de vouloir supprimer le fichier {0} ?</translation>
     </message>
     <message>
-        <source>Êtes-vous sûr de vouloir supprimer le produit '{0}'?</source>
-        <translation>Are you sure you want to delete product '{0}'?</translation>
+        <source>Êtes-vous sûr de vouloir supprimer le produit &apos;{0}&apos;?</source>
+        <translation>Êtes-vous sûr de vouloir supprimer le produit &apos;{0}&apos;?</translation>
     </message>
     <message>
         <source>&amp;Fichier</source>
-        <translation>&amp;File</translation>
+        <translation>&amp;Fichier</translation>
     </message>
     <message>
         <source>&amp;Nouveau</source>
-        <translation>&amp;New</translation>
+        <translation>&amp;Nouveau</translation>
     </message>
 </context>
 </TS>
