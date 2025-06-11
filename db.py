@@ -4438,6 +4438,64 @@ def delete_product(product_id: int) -> bool:
     finally:
         if conn: conn.close()
 
+def get_products(language_code: str = None) -> list[dict]:
+    """
+    Fetches products from the Products table.
+    If language_code is provided, it filters products by this language.
+    Returns a list of dictionaries, where each dictionary represents a product.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql = "SELECT product_id, product_name, description, base_unit_price, language_code, category, unit_of_measure, weight, dimensions, is_active FROM Products"
+        params = []
+
+        if language_code:
+            sql += " WHERE language_code = ? AND is_active = TRUE"
+            params.append(language_code)
+        else:
+            sql += " WHERE is_active = TRUE"
+
+        sql += " ORDER BY product_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_products: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_product_price(product_id: int, new_price: float) -> bool:
+    """
+    Updates the base_unit_price of the product with the given product_id.
+    Returns True if the update was successful, False otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = "UPDATE Products SET base_unit_price = ?, updated_at = ? WHERE product_id = ?"
+        params = (new_price, now, product_id)
+
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_product_price for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
     """
     Retrieves products where the product_name matches the given pattern (LIKE %pattern%).
