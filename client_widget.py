@@ -88,6 +88,14 @@ class ClientWidget(QWidget):
 
         self.is_editing_client = False
         self.edit_widgets = {}
+        self.default_company_id = None
+        try:
+            default_company = db_manager.get_default_company()
+            if default_company:
+                self.default_company_id = default_company.get('company_id')
+        except Exception as e:
+            print(f"Error fetching default company ID in ClientWidget: {e}")
+            # Log this, user might not be able to assign personnel if no default company found
 
         # Pagination for Contacts
         self.current_contact_offset = 0
@@ -451,8 +459,109 @@ class ClientWidget(QWidget):
         self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
         self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
 
+        # --- Assignments Tab ---
+        self.assignments_tab = QWidget()
+        assignments_main_layout = QVBoxLayout(self.assignments_tab)
+        self.assignments_sub_tabs = QTabWidget()
+        assignments_main_layout.addWidget(self.assignments_sub_tabs)
+        self.tab_widget.addTab(self.assignments_tab, self.tr("Affectations"))
+
+        # Sub-Tab: Assigned Vendors/Sellers (CompanyPersonnel)
+        assigned_vendors_widget = QWidget()
+        assigned_vendors_layout = QVBoxLayout(assigned_vendors_widget)
+        self.assigned_vendors_table = QTableWidget()
+        self.assigned_vendors_table.setColumnCount(4)
+        self.assigned_vendors_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+        self.assigned_vendors_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.assigned_vendors_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.assigned_vendors_table.horizontalHeader().setStretchLastSection(True)
+        assigned_vendors_layout.addWidget(self.assigned_vendors_table)
+        vendor_buttons_layout = QHBoxLayout()
+        self.add_assigned_vendor_btn = QPushButton(self.tr("Ajouter Vendeur/Personnel"))
+        self.add_assigned_vendor_btn.clicked.connect(self.handle_add_assigned_vendor)
+        self.remove_assigned_vendor_btn = QPushButton(self.tr("Retirer Vendeur/Personnel"))
+        self.remove_assigned_vendor_btn.clicked.connect(self.handle_remove_assigned_vendor)
+        vendor_buttons_layout.addWidget(self.add_assigned_vendor_btn)
+        vendor_buttons_layout.addWidget(self.remove_assigned_vendor_btn)
+        assigned_vendors_layout.addLayout(vendor_buttons_layout)
+        self.assignments_sub_tabs.addTab(assigned_vendors_widget, self.tr("Vendeurs & Personnel"))
+
+        # Sub-Tab: Assigned Technicians (CompanyPersonnel with different role context or from TeamMembers)
+        # For now, assuming Technicians are also CompanyPersonnel, filtered by a role like 'Technicien'
+        assigned_technicians_widget = QWidget()
+        assigned_technicians_layout = QVBoxLayout(assigned_technicians_widget)
+        self.assigned_technicians_table = QTableWidget()
+        self.assigned_technicians_table.setColumnCount(4)
+        self.assigned_technicians_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+        self.assigned_technicians_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.assigned_technicians_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.assigned_technicians_table.horizontalHeader().setStretchLastSection(True)
+        assigned_technicians_layout.addWidget(self.assigned_technicians_table)
+        technician_buttons_layout = QHBoxLayout()
+        self.add_assigned_technician_btn = QPushButton(self.tr("Ajouter Technicien"))
+        self.add_assigned_technician_btn.clicked.connect(self.handle_add_assigned_technician)
+        self.remove_assigned_technician_btn = QPushButton(self.tr("Retirer Technicien"))
+        self.remove_assigned_technician_btn.clicked.connect(self.handle_remove_assigned_technician)
+        technician_buttons_layout.addWidget(self.add_assigned_technician_btn)
+        technician_buttons_layout.addWidget(self.remove_assigned_technician_btn)
+        assigned_technicians_layout.addLayout(technician_buttons_layout)
+        self.assignments_sub_tabs.addTab(assigned_technicians_widget, self.tr("Techniciens"))
+
+        # Sub-Tab: Assigned Transporters
+        assigned_transporters_widget = QWidget()
+        assigned_transporters_layout = QVBoxLayout(assigned_transporters_widget)
+        self.assigned_transporters_table = QTableWidget()
+        self.assigned_transporters_table.setColumnCount(5)
+        self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé")])
+        self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.assigned_transporters_table.horizontalHeader().setStretchLastSection(True)
+        assigned_transporters_layout.addWidget(self.assigned_transporters_table)
+        transporter_buttons_layout = QHBoxLayout()
+        self.add_assigned_transporter_btn = QPushButton(self.tr("Ajouter Transporteur"))
+        self.add_assigned_transporter_btn.clicked.connect(self.handle_add_assigned_transporter)
+        self.remove_assigned_transporter_btn = QPushButton(self.tr("Retirer Transporteur"))
+        self.remove_assigned_transporter_btn.clicked.connect(self.handle_remove_assigned_transporter)
+        transporter_buttons_layout.addWidget(self.add_assigned_transporter_btn)
+        transporter_buttons_layout.addWidget(self.remove_assigned_transporter_btn)
+        assigned_transporters_layout.addLayout(transporter_buttons_layout)
+        self.assignments_sub_tabs.addTab(assigned_transporters_widget, self.tr("Transporteurs"))
+
+        # Sub-Tab: Assigned Freight Forwarders
+        assigned_forwarders_widget = QWidget()
+        assigned_forwarders_layout = QVBoxLayout(assigned_forwarders_widget)
+        self.assigned_forwarders_table = QTableWidget()
+        self.assigned_forwarders_table.setColumnCount(5)
+        self.assigned_forwarders_table.setHorizontalHeaderLabels([self.tr("Nom Transitaire"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Description Tâche"), self.tr("Coût Estimé")])
+        self.assigned_forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.assigned_forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.assigned_forwarders_table.horizontalHeader().setStretchLastSection(True)
+        assigned_forwarders_layout.addWidget(self.assigned_forwarders_table)
+        forwarder_buttons_layout = QHBoxLayout()
+        self.add_assigned_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire"))
+        self.add_assigned_forwarder_btn.clicked.connect(self.handle_add_assigned_forwarder)
+        self.remove_assigned_forwarder_btn = QPushButton(self.tr("Retirer Transitaire"))
+        self.remove_assigned_forwarder_btn.clicked.connect(self.handle_remove_assigned_forwarder)
+        forwarder_buttons_layout.addWidget(self.add_assigned_forwarder_btn)
+        forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
+        assigned_forwarders_layout.addLayout(forwarder_buttons_layout)
+        self.assignments_sub_tabs.addTab(assigned_forwarders_widget, self.tr("Transitaires"))
+        # --- End Assignments Tab ---
+
         # Call to load SAV tickets table initially if tab is visible
         self.update_sav_tab_visibility() # This will also call load_sav_tickets_table if visible
+
+        # Initial load for assignment tabs
+        self.load_assigned_vendors_personnel()
+        self.load_assigned_technicians()
+        self.load_assigned_transporters()
+        self.load_assigned_freight_forwarders()
+
+        # Connect selection changed signals for assignment tables
+        self.assigned_vendors_table.itemSelectionChanged.connect(self.update_assigned_vendors_buttons_state)
+        self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
+        self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
+        self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
 
     def load_sav_tickets_table(self):
@@ -573,6 +682,248 @@ class ClientWidget(QWidget):
         dialog = SAVTicketDialog(client_id=client_id, purchased_products=purchased_items, ticket_data=ticket_data, parent=self)
         if dialog.exec_() == QDialog.Accepted:
             self.load_sav_tickets_table()
+
+    # Placeholder handlers for new Assignment buttons
+    def handle_add_assigned_vendor(self):
+        if not self.default_company_id:
+            QMessageBox.warning(self, self.tr("Société par Défaut Manquante"),
+                                self.tr("Aucune société par défaut n'est configurée. Impossible d'assigner du personnel."))
+            return
+        # Assuming "seller" role for this button, adjust as needed or make role_filter dynamic
+        dialog = AssignPersonnelDialog(client_id=self.client_info['client_id'],
+                                       role_filter=None, # Or "seller", "sales", etc.
+                                       company_id=self.default_company_id,
+                                       parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_vendors_personnel()
+
+    def handle_remove_assigned_vendor(self):
+        selected_items = self.assigned_vendors_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un membre du personnel à retirer."))
+            return
+
+        assignment_id = selected_items[0].data(Qt.UserRole) # Assuming ID is stored in the first item
+        if assignment_id is None and self.assigned_vendors_table.currentItem(): # Fallback if UserRole was not on first item
+             assignment_id = self.assigned_vendors_table.currentItem().data(Qt.UserRole)
+
+
+        if assignment_id is None:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'assignation."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer ce membre du personnel?"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.unassign_personnel_from_client(assignment_id):
+                self.load_assigned_vendors_personnel()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de retirer le membre du personnel."))
+
+    def update_assigned_vendors_buttons_state(self):
+        has_selection = bool(self.assigned_vendors_table.selectedItems())
+        self.remove_assigned_vendor_btn.setEnabled(has_selection)
+
+
+    def handle_add_assigned_technician(self):
+        if not self.default_company_id:
+            QMessageBox.warning(self, self.tr("Société par Défaut Manquante"),
+                                self.tr("Aucune société par défaut n'est configurée. Impossible d'assigner des techniciens."))
+            return
+        # Assuming "technical_manager" or similar role for technicians
+        dialog = AssignPersonnelDialog(client_id=self.client_info['client_id'],
+                                       role_filter="technical_manager", # Or more generic like "technician"
+                                       company_id=self.default_company_id,
+                                       parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_technicians()
+
+    def handle_remove_assigned_technician(self):
+        selected_items = self.assigned_technicians_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un technicien à retirer."))
+            return
+        assignment_id = selected_items[0].data(Qt.UserRole)
+        if assignment_id is None and self.assigned_technicians_table.currentItem():
+             assignment_id = self.assigned_technicians_table.currentItem().data(Qt.UserRole)
+
+        if assignment_id is None:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'assignation."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer ce technicien?"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.unassign_personnel_from_client(assignment_id):
+                self.load_assigned_technicians()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de retirer le technicien."))
+
+    def update_assigned_technicians_buttons_state(self):
+        has_selection = bool(self.assigned_technicians_table.selectedItems())
+        self.remove_assigned_technician_btn.setEnabled(has_selection)
+
+    def handle_add_assigned_transporter(self):
+        dialog = AssignTransporterDialog(client_id=self.client_info['client_id'], parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_transporters()
+
+    def handle_remove_assigned_transporter(self):
+        selected_items = self.assigned_transporters_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un transporteur à retirer."))
+            return
+
+        client_transporter_id = selected_items[0].data(Qt.UserRole)
+        if client_transporter_id is None and self.assigned_transporters_table.currentItem():
+             client_transporter_id = self.assigned_transporters_table.currentItem().data(Qt.UserRole)
+
+        if client_transporter_id is None:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'assignation du transporteur."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer ce transporteur?"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.unassign_transporter_from_client(client_transporter_id):
+                self.load_assigned_transporters()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de retirer le transporteur."))
+
+    def update_assigned_transporters_buttons_state(self):
+        has_selection = bool(self.assigned_transporters_table.selectedItems())
+        self.remove_assigned_transporter_btn.setEnabled(has_selection)
+
+
+    def handle_add_assigned_forwarder(self):
+        dialog = AssignFreightForwarderDialog(client_id=self.client_info['client_id'], parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_freight_forwarders()
+
+    def handle_remove_assigned_forwarder(self):
+        selected_items = self.assigned_forwarders_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un transitaire à retirer."))
+            return
+
+        client_forwarder_id = selected_items[0].data(Qt.UserRole)
+        if client_forwarder_id is None and self.assigned_forwarders_table.currentItem():
+             client_forwarder_id = self.assigned_forwarders_table.currentItem().data(Qt.UserRole)
+
+        if client_forwarder_id is None:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'assignation du transitaire."))
+            return
+
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer ce transitaire?"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if db_manager.unassign_forwarder_from_client(client_forwarder_id):
+                self.load_assigned_freight_forwarders()
+            else:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible de retirer le transitaire."))
+
+    def update_assigned_forwarders_buttons_state(self):
+        has_selection = bool(self.assigned_forwarders_table.selectedItems())
+        self.remove_assigned_forwarder_btn.setEnabled(has_selection)
+
+
+    # Data Loading methods for Assignment Tables
+    def load_assigned_vendors_personnel(self):
+        self.assigned_vendors_table.setRowCount(0)
+        self.assigned_vendors_table.setSortingEnabled(False)
+        client_id = self.client_info.get('client_id')
+        if not client_id: return
+        try:
+            # Example: Load all assigned personnel, or filter by a general "vendor/sales" role_in_project
+            # For now, role_filter=None fetches all personnel assigned to this client.
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter=None)
+            for row, item_data in enumerate(assigned_list):
+                self.assigned_vendors_table.insertRow(row)
+                name_item = QTableWidgetItem(item_data.get('personnel_name'))
+                name_item.setData(Qt.UserRole, item_data.get('assignment_id')) # Store assignment_id
+                self.assigned_vendors_table.setItem(row, 0, name_item)
+                self.assigned_vendors_table.setItem(row, 1, QTableWidgetItem(item_data.get('role_in_project')))
+                self.assigned_vendors_table.setItem(row, 2, QTableWidgetItem(item_data.get('personnel_email')))
+                self.assigned_vendors_table.setItem(row, 3, QTableWidgetItem(item_data.get('personnel_phone')))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger le personnel assigné: {0}").format(str(e)))
+        self.assigned_vendors_table.setSortingEnabled(True)
+        self.update_assigned_vendors_buttons_state()
+
+
+    def load_assigned_technicians(self):
+        self.assigned_technicians_table.setRowCount(0)
+        self.assigned_technicians_table.setSortingEnabled(False)
+        client_id = self.client_info.get('client_id')
+        if not client_id: return
+        try:
+            # Example: Filter for personnel assigned with a role_in_project like 'Technicien assigné'
+            # Or, if AssignPersonnelDialog uses a role_filter for DB CompanyPersonnel.role, that's different.
+            # Assuming here role_in_project is the primary filter criteria from Client_AssignedPersonnel table.
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter="Technicien") # Or specific role
+            for row, item_data in enumerate(assigned_list): # This list now comes from get_assigned_personnel_for_client
+                self.assigned_technicians_table.insertRow(row)
+                name_item = QTableWidgetItem(item_data.get('personnel_name'))
+                name_item.setData(Qt.UserRole, item_data.get('assignment_id'))
+                self.assigned_technicians_table.setItem(row, 0, name_item)
+                self.assigned_technicians_table.setItem(row, 1, QTableWidgetItem(item_data.get('role_in_project')))
+                self.assigned_technicians_table.setItem(row, 2, QTableWidgetItem(item_data.get('personnel_email')))
+                self.assigned_technicians_table.setItem(row, 3, QTableWidgetItem(item_data.get('personnel_phone')))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les techniciens assignés: {0}").format(str(e)))
+        self.assigned_technicians_table.setSortingEnabled(True)
+        self.update_assigned_technicians_buttons_state()
+
+
+    def load_assigned_transporters(self):
+        self.assigned_transporters_table.setRowCount(0)
+        self.assigned_transporters_table.setSortingEnabled(False)
+        client_id = self.client_info.get('client_id')
+        if not client_id: return
+        try:
+            assigned_list = db_manager.get_assigned_transporters_for_client(client_id)
+            for row, item_data in enumerate(assigned_list):
+                self.assigned_transporters_table.insertRow(row)
+                name_item = QTableWidgetItem(item_data.get('transporter_name'))
+                name_item.setData(Qt.UserRole, item_data.get('client_transporter_id'))
+                self.assigned_transporters_table.setItem(row, 0, name_item)
+                self.assigned_transporters_table.setItem(row, 1, QTableWidgetItem(item_data.get('contact_person')))
+                self.assigned_transporters_table.setItem(row, 2, QTableWidgetItem(item_data.get('phone')))
+                self.assigned_transporters_table.setItem(row, 3, QTableWidgetItem(item_data.get('transport_details')))
+                cost_item = QTableWidgetItem(f"{item_data.get('cost_estimate', 0.0):.2f} €")
+                cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.assigned_transporters_table.setItem(row, 4, cost_item)
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les transporteurs assignés: {0}").format(str(e)))
+        self.assigned_transporters_table.setSortingEnabled(True)
+        self.update_assigned_transporters_buttons_state()
+
+    def load_assigned_freight_forwarders(self):
+        self.assigned_forwarders_table.setRowCount(0)
+        self.assigned_forwarders_table.setSortingEnabled(False)
+        client_id = self.client_info.get('client_id')
+        if not client_id: return
+        try:
+            assigned_list = db_manager.get_assigned_forwarders_for_client(client_id)
+            for row, item_data in enumerate(assigned_list):
+                self.assigned_forwarders_table.insertRow(row)
+                name_item = QTableWidgetItem(item_data.get('forwarder_name'))
+                name_item.setData(Qt.UserRole, item_data.get('client_forwarder_id'))
+                self.assigned_forwarders_table.setItem(row, 0, name_item)
+                self.assigned_forwarders_table.setItem(row, 1, QTableWidgetItem(item_data.get('contact_person')))
+                self.assigned_forwarders_table.setItem(row, 2, QTableWidgetItem(item_data.get('phone')))
+                self.assigned_forwarders_table.setItem(row, 3, QTableWidgetItem(item_data.get('task_description')))
+                cost_item = QTableWidgetItem(f"{item_data.get('cost_estimate', 0.0):.2f} €")
+                cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.assigned_forwarders_table.setItem(row, 4, cost_item)
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les transitaires assignés: {0}").format(str(e)))
+        self.assigned_forwarders_table.setSortingEnabled(True)
+        self.update_assigned_forwarders_buttons_state()
 
 
     def load_products_for_dimension_tab(self):
@@ -2182,4 +2533,4 @@ class ClientWidget(QWidget):
 # The direct use of self.DATABASE_NAME in load_statuses and save_client_notes should be refactored
 # to use db_manager for all database interactions.
 
-[end of client_widget.py]
+# [end of client_widget.py]

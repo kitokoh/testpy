@@ -920,6 +920,92 @@ def initialize_database():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_importantdates_date_value ON ImportantDates(date_value)")
 
+    # Create Transporters table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Transporters (
+        transporter_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        service_area TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transporters_name ON Transporters(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transporters_service_area ON Transporters(service_area)")
+
+    # Create FreightForwarders table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS FreightForwarders (
+        forwarder_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        services_offered TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_freightforwarders_name ON FreightForwarders(name)")
+
+    # Create Client_AssignedPersonnel association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_AssignedPersonnel (
+        assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        personnel_id INTEGER NOT NULL,
+        role_in_project TEXT,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE CASCADE,
+        UNIQUE (client_id, personnel_id, role_in_project)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_client_id ON Client_AssignedPersonnel(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_personnel_id ON Client_AssignedPersonnel(personnel_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_role ON Client_AssignedPersonnel(role_in_project)")
+
+    # Create Client_Transporters association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_Transporters (
+        client_transporter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        transporter_id TEXT NOT NULL,
+        transport_details TEXT,
+        cost_estimate REAL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (transporter_id) REFERENCES Transporters (transporter_id) ON DELETE CASCADE,
+        UNIQUE (client_id, transporter_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_client_id ON Client_Transporters(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_transporter_id ON Client_Transporters(transporter_id)")
+
+    # Create Client_FreightForwarders association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_FreightForwarders (
+        client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        forwarder_id TEXT NOT NULL,
+        task_description TEXT,
+        cost_estimate REAL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE,
+        UNIQUE (client_id, forwarder_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+
     # --- Seed Data ---
     try:
         # 1. Users
@@ -8248,7 +8334,7 @@ if __name__ == '__main__':
             print(f"Error fetching or formatting client document notes: {e_notes}")
             context['doc']['client_specific_footer_notes'] = "" # Ensure it's empty on error
 
-    return context
+    # return context
 
 
 
@@ -9647,3 +9733,391 @@ def get_total_products_count() -> int:
         if conn:
             conn.close()
     return row['total_count'] if row else 0  # Corrected indentation for this return
+
+
+# --- CRUD functions for Transporters ---
+def add_transporter(data: dict) -> str | None:
+    """Adds a new transporter. Returns transporter_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_transporter_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Transporters (
+                transporter_id, name, contact_person, phone, email, address,
+                service_area, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_transporter_id, data.get('name'), data.get('contact_person'),
+            data.get('phone'), data.get('email'), data.get('address'),
+            data.get('service_area'), data.get('notes'), now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_transporter_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_transporter: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_transporter_by_id(transporter_id: str) -> dict | None:
+    """Retrieves a transporter by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Transporters WHERE transporter_id = ?", (transporter_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_transporter_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_transporters() -> list[dict]:
+    """Retrieves all transporters."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Transporters ORDER BY name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_transporters: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_transporter(transporter_id: str, data: dict) -> bool:
+    """Updates a transporter. Returns True on success."""
+    conn = None
+    if not data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+        set_clauses = [f"{key} = ?" for key in data.keys() if key != 'transporter_id']
+        params = [value for key, value in data.items() if key != 'transporter_id']
+        if not set_clauses: return False
+        params.append(transporter_id)
+        sql = f"UPDATE Transporters SET {', '.join(set_clauses)} WHERE transporter_id = ?"
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_transporter: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_transporter(transporter_id: str) -> bool:
+    """Deletes a transporter. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consider ON DELETE SET NULL or RESTRICT for Client_Transporters if direct deletion is too destructive
+        cursor.execute("DELETE FROM Transporters WHERE transporter_id = ?", (transporter_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_transporter: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for FreightForwarders ---
+def add_freight_forwarder(data: dict) -> str | None:
+    """Adds a new freight forwarder. Returns forwarder_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_forwarder_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO FreightForwarders (
+                forwarder_id, name, contact_person, phone, email, address,
+                services_offered, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_forwarder_id, data.get('name'), data.get('contact_person'),
+            data.get('phone'), data.get('email'), data.get('address'),
+            data.get('services_offered'), data.get('notes'), now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_forwarder_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_freight_forwarder: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_freight_forwarder_by_id(forwarder_id: str) -> dict | None:
+    """Retrieves a freight forwarder by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM FreightForwarders WHERE forwarder_id = ?", (forwarder_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_freight_forwarder_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_freight_forwarders() -> list[dict]:
+    """Retrieves all freight forwarders."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM FreightForwarders ORDER BY name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_freight_forwarders: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_freight_forwarder(forwarder_id: str, data: dict) -> bool:
+    """Updates a freight forwarder. Returns True on success."""
+    conn = None
+    if not data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+        set_clauses = [f"{key} = ?" for key in data.keys() if key != 'forwarder_id']
+        params = [value for key, value in data.items() if key != 'forwarder_id']
+        if not set_clauses: return False
+        params.append(forwarder_id)
+        sql = f"UPDATE FreightForwarders SET {', '.join(set_clauses)} WHERE forwarder_id = ?"
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_freight_forwarder: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_freight_forwarder(forwarder_id: str) -> bool:
+    """Deletes a freight forwarder. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consider ON DELETE SET NULL or RESTRICT for Client_FreightForwarders
+        cursor.execute("DELETE FROM FreightForwarders WHERE forwarder_id = ?", (forwarder_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_freight_forwarder: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for Client_AssignedPersonnel ---
+def assign_personnel_to_client(client_id: str, personnel_id: int, role_in_project: str) -> int | None:
+    """Assigns a personnel to a client with a specific role. Returns assignment_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_AssignedPersonnel (client_id, personnel_id, role_in_project, assigned_at)
+            VALUES (?, ?, ?, ?)
+        """
+        params = (client_id, personnel_id, role_in_project, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Personnel {personnel_id} already assigned to client {client_id} with role '{role_in_project}'.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_personnel_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_personnel_for_client(client_id: str, role_filter: str = None) -> list[dict]:
+    """Retrieves assigned personnel for a client, optionally filtered by role.
+       Joins with CompanyPersonnel to get personnel details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cap.*, cp.name as personnel_name, cp.role as personnel_role, cp.email as personnel_email, cp.phone as personnel_phone
+            FROM Client_AssignedPersonnel cap
+            JOIN CompanyPersonnel cp ON cap.personnel_id = cp.personnel_id
+            WHERE cap.client_id = ?
+        """
+        params = [client_id]
+        if role_filter:
+            sql += " AND cap.role_in_project = ?"
+            params.append(role_filter)
+        sql += " ORDER BY cp.name"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_personnel_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_personnel_from_client(assignment_id: int) -> bool:
+    """Unassigns a personnel from a client by assignment_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_AssignedPersonnel WHERE assignment_id = ?", (assignment_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_personnel_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for Client_Transporters ---
+def assign_transporter_to_client(client_id: str, transporter_id: str, transport_details: str = None, cost_estimate: float = None) -> int | None:
+    """Assigns a transporter to a client. Returns client_transporter_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_Transporters (client_id, transporter_id, transport_details, cost_estimate, assigned_at)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        params = (client_id, transporter_id, transport_details, cost_estimate, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Transporter {transporter_id} already assigned to client {client_id}.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_transporter_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_transporters_for_client(client_id: str) -> list[dict]:
+    """Retrieves assigned transporters for a client.
+       Joins with Transporters table to get transporter details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT ct.*, t.name as transporter_name, t.contact_person, t.phone, t.email
+            FROM Client_Transporters ct
+            JOIN Transporters t ON ct.transporter_id = t.transporter_id
+            WHERE ct.client_id = ?
+            ORDER BY t.name
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_transporters_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_transporter_from_client(client_transporter_id: int) -> bool:
+    """Unassigns a transporter from a client by client_transporter_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_Transporters WHERE client_transporter_id = ?", (client_transporter_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_transporter_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for Client_FreightForwarders ---
+def assign_forwarder_to_client(client_id: str, forwarder_id: str, task_description: str = None, cost_estimate: float = None) -> int | None:
+    """Assigns a freight forwarder to a client. Returns client_forwarder_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_FreightForwarders (client_id, forwarder_id, task_description, cost_estimate, assigned_at)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        params = (client_id, forwarder_id, task_description, cost_estimate, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Freight forwarder {forwarder_id} already assigned to client {client_id}.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_forwarder_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_forwarders_for_client(client_id: str) -> list[dict]:
+    """Retrieves assigned freight forwarders for a client.
+       Joins with FreightForwarders table to get forwarder details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cff.*, ff.name as forwarder_name, ff.contact_person, ff.phone, ff.email
+            FROM Client_FreightForwarders cff
+            JOIN FreightForwarders ff ON cff.forwarder_id = ff.forwarder_id
+            WHERE cff.client_id = ?
+            ORDER BY ff.name
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_forwarders_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_forwarder_from_client(client_forwarder_id: int) -> bool:
+    """Unassigns a freight forwarder from a client by client_forwarder_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_FreightForwarders WHERE client_forwarder_id = ?", (client_forwarder_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_forwarder_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
