@@ -1006,248 +1006,275 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-    # --- Seed Data ---
-    try:
-        # 1. Users
-        cursor.execute("SELECT COUNT(*) FROM Users")
-        if cursor.fetchone()[0] == 0:
-            admin_user_id = str(uuid.uuid4())
-            admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
-            cursor.execute("""
-                INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
-            print("Seeded admin user.")
-
-        # 2. Companies
-        default_company_id = None
-        cursor.execute("SELECT COUNT(*) FROM Companies")
-        if cursor.fetchone()[0] == 0:
-            default_company_id = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
-                VALUES (?, ?, ?, ?)
-            """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
-            print("Seeded default company.")
-        else:
-            # If company exists, try to get the default one for personnel and other linking
-            cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
-            row = cursor.fetchone()
-            if row:
-                default_company_id = row[0]
-
-
-        # 3. CompanyPersonnel
-        if default_company_id:
-            cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
-            if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
-                cursor.execute("""
-                    INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
-                print("Seeded default company personnel.")
-
-        # 4. TeamMembers (link to admin user if created)
-        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
-        admin_user_row = cursor.fetchone()
-        if admin_user_row:
-            admin_user_id_for_tm = admin_user_row[0]
-            cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
-                    VALUES (?, ?, ?, ?)
-                """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
-                print("Seeded admin team member.")
-
-        # 5. Countries
-        default_countries = [
-            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
-        ]
-        for country in default_countries:
-            cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
-        print(f"Seeded {len(default_countries)} countries.")
-
-        # 6. Cities
-        default_cities_map = {
-            'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
-        }
-        for country_name, city_name in default_cities_map.items():
-            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
-            country_row = cursor.fetchone()
-            if country_row:
-                country_id = country_row[0]
-                cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
-        print(f"Seeded {len(default_cities_map)} cities.")
-
-        # 7. Clients
-        cursor.execute("SELECT COUNT(*) FROM Clients")
-        if cursor.fetchone()[0] == 0:
-            # Fetch IDs needed for a sample client
-            admin_user_for_client = get_user_by_username('admin') # Use existing function if available
-            admin_user_id_for_client = admin_user_for_client['user_id'] if admin_user_for_client else None
-
-            default_country_for_client = get_country_by_name('France') # Use existing function
-            default_country_id_for_client = default_country_for_client['country_id'] if default_country_for_client else None
-
-            default_city_for_client = None
-            if default_country_id_for_client:
-                default_city_for_client = get_city_by_name_and_country_id('Paris', default_country_id_for_client)
-            default_city_id_for_client = default_city_for_client['city_id'] if default_city_for_client else None
-
-            active_client_status = get_status_setting_by_name('Actif', 'Client') # Use existing function
-            active_client_status_id = active_client_status['status_id'] if active_client_status else None
-
-            if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
-                client_uuid = str(uuid.uuid4())
-                cursor.execute("""
-                    INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
-                print("Seeded sample client.")
-            else:
-                print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
-
-        # 8. Projects
-        cursor.execute("SELECT COUNT(*) FROM Projects")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
-            sample_client_row = cursor.fetchone()
-            if sample_client_row:
-                sample_client_id = sample_client_row[0]
-                planning_project_status = get_status_setting_by_name('Planning', 'Project')
-                planning_project_status_id = planning_project_status['status_id'] if planning_project_status else None
-                admin_user_for_project = get_user_by_username('admin')
-                admin_user_id_for_project = admin_user_for_project['user_id'] if admin_user_for_project else None
-
-                if sample_client_id and planning_project_status_id and admin_user_id_for_project:
-                    project_uuid = str(uuid.uuid4())
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
-                    print("Seeded sample project.")
-                else:
-                    print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
-
-        # 9. Contacts
-        # Add a generic contact
-        cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
-        if cursor.fetchone()[0] == 0:
-             cursor.execute("""
-                INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
-                VALUES (?, ?, ?, ?, ?)
-            """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
-             print("Seeded generic contact.")
-
-        # 10. Products
-        cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
-            print("Seeded default product.")
-
-        # 11. SmtpConfigs
-        cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
-            print("Seeded placeholder SMTP config.")
-
-        # 12. ApplicationSettings
-        set_setting('initial_data_seeded_version', '1') # Uses existing function
-        set_setting('default_app_language', 'en')    # Uses existing function
-        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE') # New setting
-        print("Seeded application settings.")
-
-        # 13. Email Templates (New)
-        add_default_template_if_not_exists({
-            'template_name': 'SAV Ticket Ouvert (FR)',
-            'template_type': 'email_sav_ticket_opened',
-            'language_code': 'fr',
-            'base_file_name': 'sav_ticket_opened_fr.html', # Assumes it's in email_template_designs
-            'description': 'Email envoyé quand un ticket SAV est ouvert.',
-            'category_name': 'Modèles Email SAV', # This category will be auto-created if not exists
-            'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
-            'is_default_for_type_lang': True
-        })
-        add_default_template_if_not_exists({
-            'template_name': 'SAV Ticket Résolu (FR)',
-            'template_type': 'email_sav_ticket_resolved',
-            'language_code': 'fr',
-            'base_file_name': 'sav_ticket_resolved_fr.html',
-            'description': 'Email envoyé quand un ticket SAV est résolu.',
-            'category_name': 'Modèles Email SAV',
-            'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
-            'is_default_for_type_lang': True
-        })
-        add_default_template_if_not_exists({
-            'template_name': 'Suivi Prospect Proforma (FR)',
-            'template_type': 'email_follow_up_prospect',
-            'language_code': 'fr',
-            'base_file_name': 'follow_up_prospect_fr.html',
-            'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
-            'category_name': 'Modèles Email Marketing/Suivi',
-            'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
-            'is_default_for_type_lang': True
-        })
-        add_default_template_if_not_exists({
-            'template_name': 'Vœux Noël (FR)',
-            'template_type': 'email_greeting_christmas',
-            'language_code': 'fr',
-            'base_file_name': 'greeting_holiday_christmas_fr.html',
-            'description': 'Email de vœux pour Noël.',
-            'category_name': 'Modèles Email Vœux',
-            'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
-            'is_default_for_type_lang': True
-        })
-        add_default_template_if_not_exists({
-            'template_name': 'Vœux Nouvelle Année (FR)',
-            'template_type': 'email_greeting_newyear',
-            'language_code': 'fr',
-            'base_file_name': 'greeting_holiday_newyear_fr.html',
-            'description': 'Email de vœux pour la nouvelle année.',
-            'category_name': 'Modèles Email Vœux',
-            'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
-            'is_default_for_type_lang': True
-        })
-        add_default_template_if_not_exists({
-            'template_name': 'Message Générique (FR)',
-            'template_type': 'email_generic_message',
-            'language_code': 'fr',
-            'base_file_name': 'generic_message_fr.html',
-            'description': 'Modèle générique pour communication spontanée.',
-            'category_name': 'Modèles Email Généraux', # This category will also be auto-created
-            'email_subject_template': 'Un message de {{seller.company_name}}',
-            'is_default_for_type_lang': True
-        })
-        print("Seeded new email templates.")
-
-        # 14. CoverPageTemplates (Call the existing population function - renumbered)
-        # Ensure this is called after CoverPageTemplates table is created and before final commit for initialize_database
-        _populate_default_cover_page_templates() # This function handles its own prints and commits if any internally
-        print("Called _populate_default_cover_page_templates for seeding.")
-
-        conn.commit() # Commit all seeding changes
-        print("Data seeding completed.")
-
-    except sqlite3.Error as e:
-        print(f"An error occurred during data seeding: {e}")
-        if conn:
-            conn.rollback() # Rollback on error
-    finally:
-        # The main initialize_database function will close the connection if it opened it.
-        # If conn was passed, it should be closed by the caller.
-        # Here, we assume conn is local to this seeding block if it were standalone,
-        # but it's part of initialize_database, so no separate close here.
-        pass
-
-    conn.commit() # Final commit for initialize_database itself
+    # Schema creation is done. Commit and close connection for initialize_database.
+    conn.commit()
     conn.close()
+
+
+def seed_initial_data(cursor: sqlite3.Cursor):
+    """
+    Seeds the database with initial data using the provided cursor.
+    All database operations within this function and any helper functions it calls
+    must use this provided cursor.
+    """
+    # Helper functions like get_user_by_username, get_country_by_name, etc.,
+    # which create their own connections, cannot be directly used here if we are to
+    # strictly use the provided cursor. Such logic needs to be adapted for direct cursor use
+    # or the helper functions refactored to accept a cursor.
+
+    # 1. Users
+    cursor.execute("SELECT COUNT(*) FROM Users")
+    if cursor.fetchone()[0] == 0:
+        admin_user_id = str(uuid.uuid4())
+        admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
+        cursor.execute("""
+            INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
+        print("Seeded admin user.")
+
+    # The rest of the seeding logic will be moved here incrementally.
+    # For now, this function only seeds users.
+
+    # 2. Companies
+    default_company_id = None
+    cursor.execute("SELECT COUNT(*) FROM Companies")
+    if cursor.fetchone()[0] == 0:
+        default_company_id = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
+            VALUES (?, ?, ?, ?)
+        """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
+        print("Seeded default company.")
+    else:
+        # If company exists, try to get the default one for personnel and other linking
+        cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
+        row = cursor.fetchone()
+        if row:
+            default_company_id = row[0]
+
+    # 3. CompanyPersonnel
+    if default_company_id:
+        cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
+        if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
+            cursor.execute("""
+                INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
+                VALUES (?, ?, ?, ?, ?)
+            """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
+            print("Seeded default company personnel.")
+
+    # 4. TeamMembers (link to admin user if created)
+    # Note: get_user_by_username will need to be adapted or this logic changed for direct cursor use
+    # For now, assuming direct cursor usage for this specific check during seeding
+    cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+    admin_user_row = cursor.fetchone()
+    if admin_user_row:
+        admin_user_id_for_tm = admin_user_row[0]
+        cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
+                VALUES (?, ?, ?, ?)
+            """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
+            print("Seeded admin team member.")
+
+    # 5. Countries
+    default_countries = [
+        {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
+    ]
+    for country in default_countries:
+        cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
+    print(f"Seeded {len(default_countries)} countries.")
+
+    # 6. Cities
+    default_cities_map = {
+        'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
+    }
+    for country_name, city_name in default_cities_map.items():
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+        country_row = cursor.fetchone()
+        if country_row:
+            country_id = country_row[0]
+            cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+    print(f"Seeded {len(default_cities_map)} cities.")
+
+    # 7. Clients
+    # Note: The following get_user_by_username, get_country_by_name, etc. create their own connections.
+    # This will need to be refactored to use the provided cursor or adapt logic.
+    # For this step, moving as is, refactoring helpers later.
+    cursor.execute("SELECT COUNT(*) FROM Clients")
+    if cursor.fetchone()[0] == 0:
+        admin_user_id_for_client = None
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+        admin_user_client_row = cursor.fetchone()
+        if admin_user_client_row: admin_user_id_for_client = admin_user_client_row[0]
+
+        default_country_id_for_client = None
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = 'France'")
+        country_client_row = cursor.fetchone()
+        if country_client_row: default_country_id_for_client = country_client_row[0]
+
+        default_city_id_for_client = None
+        if default_country_id_for_client:
+            cursor.execute("SELECT city_id FROM Cities WHERE city_name = 'Paris' AND country_id = ?", (default_country_id_for_client,))
+            city_client_row = cursor.fetchone()
+            if city_client_row: default_city_id_for_client = city_client_row[0]
+
+        active_client_status_id = None
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Actif' AND status_type = 'Client'")
+        status_client_row = cursor.fetchone()
+        if status_client_row: active_client_status_id = status_client_row[0]
+
+        if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
+            client_uuid = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
+            print("Seeded sample client.")
+        else:
+            print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+
+    # 8. Projects
+    cursor.execute("SELECT COUNT(*) FROM Projects")
+    if cursor.fetchone()[0] == 0:
+        sample_client_id = None
+        cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
+        sample_client_proj_row = cursor.fetchone()
+        if sample_client_proj_row: sample_client_id = sample_client_proj_row[0]
+
+        planning_project_status_id = None
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Planning' AND status_type = 'Project'")
+        status_proj_row = cursor.fetchone()
+        if status_proj_row: planning_project_status_id = status_proj_row[0]
+
+        admin_user_id_for_project = None
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'") # Assuming admin user is manager
+        admin_user_proj_row = cursor.fetchone()
+        if admin_user_proj_row: admin_user_id_for_project = admin_user_proj_row[0]
+
+        if sample_client_id and planning_project_status_id and admin_user_id_for_project:
+            project_uuid = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
+            print("Seeded sample project.")
+        else:
+            print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
+
+    # 9. Contacts
+    cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
+    if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+            INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
+            VALUES (?, ?, ?, ?, ?)
+        """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
+            print("Seeded generic contact.")
+
+    # 10. Products
+    cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
+        print("Seeded default product.")
+
+    # 11. SmtpConfigs
+    cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
+        print("Seeded placeholder SMTP config.")
+
+    # 12. ApplicationSettings
+    # Calls to set_setting now correctly pass the cursor.
+    set_setting('initial_data_seeded_version', '1', cursor)
+    set_setting('default_app_language', 'en', cursor)
+    set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
+    print("Seeded application settings.")
+
+    # 13. Email Templates (New)
+    # Calls to add_default_template_if_not_exists now pass the cursor.
+    add_default_template_if_not_exists({
+        'template_name': 'SAV Ticket Ouvert (FR)',
+        'template_type': 'email_sav_ticket_opened',
+        'language_code': 'fr',
+        'base_file_name': 'sav_ticket_opened_fr.html',
+        'description': 'Email envoyé quand un ticket SAV est ouvert.',
+        'category_name': 'Modèles Email SAV',
+        'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'SAV Ticket Résolu (FR)',
+        'template_type': 'email_sav_ticket_resolved',
+        'language_code': 'fr',
+        'base_file_name': 'sav_ticket_resolved_fr.html',
+        'description': 'Email envoyé quand un ticket SAV est résolu.',
+        'category_name': 'Modèles Email SAV',
+        'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Suivi Prospect Proforma (FR)',
+        'template_type': 'email_follow_up_prospect',
+        'language_code': 'fr',
+        'base_file_name': 'follow_up_prospect_fr.html',
+        'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
+        'category_name': 'Modèles Email Marketing/Suivi',
+        'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Vœux Noël (FR)',
+        'template_type': 'email_greeting_christmas',
+        'language_code': 'fr',
+        'base_file_name': 'greeting_holiday_christmas_fr.html',
+        'description': 'Email de vœux pour Noël.',
+        'category_name': 'Modèles Email Vœux',
+        'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Vœux Nouvelle Année (FR)',
+        'template_type': 'email_greeting_newyear',
+        'language_code': 'fr',
+        'base_file_name': 'greeting_holiday_newyear_fr.html',
+        'description': 'Email de vœux pour la nouvelle année.',
+        'category_name': 'Modèles Email Vœux',
+        'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Message Générique (FR)',
+        'template_type': 'email_generic_message',
+        'language_code': 'fr',
+        'base_file_name': 'generic_message_fr.html',
+        'description': 'Modèle générique pour communication spontanée.',
+        'category_name': 'Modèles Email Généraux',
+        'email_subject_template': 'Un message de {{seller.company_name}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    print("Seeded new email templates.")
+
+    # 14. CoverPageTemplates
+    _populate_default_cover_page_templates(cursor)
+    print("Called _populate_default_cover_page_templates for seeding.")
+
+    # All seeding operations that were previously in initialize_database's try block are now moved here.
+    # The main try...except...finally for the whole seeding process is around these calls within seed_initial_data.
+    # The commit for seed_initial_data will be handled by its caller.
+    print("Data seeding operations completed within seed_initial_data.")
+
+except sqlite3.Error as e: # This except is part of seed_initial_data
+    print(f"An error occurred during data seeding within seed_initial_data: {e}")
+    # Rollback should be handled by the caller who owns the connection and cursor
+    raise # Re-raise the exception so the caller can handle rollback
+    # No finally block here for seed_initial_data, connection management is external.
 
 # CRUD functions for SAVTickets
 def add_sav_ticket(ticket_data: dict) -> str | None:
@@ -2230,35 +2257,46 @@ def delete_company_personnel(personnel_id: int) -> bool:
             conn.close()
 
 # CRUD functions for TemplateCategories
-def add_template_category(category_name: str, description: str = None) -> int | None:
+def add_template_category(category_name: str, description: str = None, cursor: sqlite3.Cursor = None) -> int | None:
     """
     Adds a new template category if it doesn't exist by name.
+    If a cursor is provided, it uses it for database operations and does not commit.
+    If no cursor is provided, it manages its own connection and transaction.
     Returns the category_id of the new or existing category, or None on error.
     """
-    conn = None
+    is_external_cursor = cursor is not None
+    conn_internal = None
+
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if is_external_cursor:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to add_template_category.")
+            cursor_to_use = cursor
+        else:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
 
-        # Check if category already exists
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
+        cursor_to_use.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor_to_use.fetchone()
         if row:
-            return row['category_id']
+            return row[0] if isinstance(row, tuple) else row['category_id']
 
-        # If not, insert new category
         sql = "INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)"
-        cursor.execute(sql, (category_name, description))
-        conn.commit()
-        return cursor.lastrowid
+        cursor_to_use.execute(sql, (category_name, description))
+
+        if not is_external_cursor and conn_internal:
+            conn_internal.commit()
+
+        return cursor_to_use.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_template_category: {e}")
-        if conn:
-            conn.rollback()
+        print(f"Database error in add_template_category for '{category_name}': {e}")
+        if not is_external_cursor and conn_internal:
+            conn_internal.rollback()
+        # If using an external cursor, the caller is responsible for rollback.
         return None
     finally:
-        if conn:
-            conn.close()
+        if not is_external_cursor and conn_internal:
+            conn_internal.close()
 
 def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, default_category_id: int | None) -> int | None:
     """
@@ -2792,26 +2830,17 @@ def set_default_template_by_id(template_id: int) -> bool:
             conn.isolation_level = '' # Reset isolation level
             conn.close()
 
-def add_default_template_if_not_exists(template_data: dict) -> int | None:
+def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Cursor) -> int | None:
     """
     Adds a template to the Templates table if it doesn't already exist
     based on template_name, template_type, and language_code.
+    Uses the provided cursor and does not manage connection or transaction.
     Returns the template_id of the new or existing template, or None on error.
-    Expects template_data to include:
-        'template_name' (e.g., "Proforma"),
-        'template_type' (e.g., "document_excel", "document_word"),
-        'language_code' (e.g., "fr", "en"),
-        'base_file_name' (e.g., "proforma_template.xlsx"),
-        'description' (optional),
-        'category' (optional, e.g., "Finance", "Technical"),
-        'is_default_for_type_lang' (optional, boolean, defaults to False),
-        'category_name' (optional, string, defaults to "General")
     """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor() # Get a cursor from the connection
+    if not isinstance(cursor, sqlite3.Cursor):
+        raise ValueError("Invalid cursor object passed to add_default_template_if_not_exists.")
 
+    try:
         name = template_data.get('template_name')
         ttype = template_data.get('template_type')
         lang = template_data.get('language_code')
@@ -2822,15 +2851,14 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
             print(f"Error: Missing required fields for default template: {template_data}")
             return None
 
-        # Get or create category_id (using a separate connection for this, or pass cursor)
-        # For simplicity here, calling the public function.
-        # In a high-performance scenario, might pass the cursor.
-        category_id = add_template_category(category_name_text, f"{category_name_text} (auto-created)")
+        # Call add_template_category with the provided cursor
+        category_id = add_template_category(category_name_text,
+                                            f"{category_name_text} (auto-created)",
+                                            cursor=cursor) # Pass the cursor
         if category_id is None:
-            print(f"Error: Could not get or create category_id for '{category_name_text}'.")
-            return None # Cannot proceed without a category_id
+            print(f"Error: Could not get or create category_id for '{category_name_text}' using provided cursor.")
+            return None
 
-        # Check if this specific template (name, type, lang) already exists
         cursor.execute("""
             SELECT template_id FROM Templates
             WHERE template_name = ? AND template_type = ? AND language_code = ?
@@ -2838,20 +2866,17 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
         existing_template = cursor.fetchone()
 
         if existing_template:
-            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
-            return existing_template['template_id']
+            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template[0]}.")
+            return existing_template[0]
         else:
             raw_template_content = None
-            # Determine project root.
             db_dir_name = os.path.basename(APP_ROOT_DIR_CONTEXT)
-            if db_dir_name in ['core', 'db', 'database', 'src']: # Common subdirectory names for source/db logic
+            if db_dir_name in ['core', 'db', 'database', 'src']:
                 project_root = os.path.dirname(APP_ROOT_DIR_CONTEXT)
-            else: # Assume db.py is at the project root or email_template_designs is relative to it
+            else:
                 project_root = APP_ROOT_DIR_CONTEXT
 
             template_file_path = os.path.join(project_root, "email_template_designs", filename)
-
-            # Fallback if the above path construction was wrong (e.g. APP_ROOT_DIR_CONTEXT was already project root)
             if not os.path.exists(template_file_path):
                 template_file_path_alt = os.path.join(APP_ROOT_DIR_CONTEXT, "email_template_designs", filename)
                 if os.path.exists(template_file_path_alt):
@@ -2868,42 +2893,34 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
                     print(f"Error reading template file {filename} from {template_file_path}: {e_read}. raw_template_file_data will be NULL.")
 
             now = datetime.utcnow().isoformat() + "Z"
-            sql = """
+            sql_insert_template = """
                 INSERT INTO Templates (
                     template_name, template_type, language_code, base_file_name,
                     description, category_id, is_default_for_type_lang,
                     email_subject_template, raw_template_file_data,
                     created_at, updated_at
-                    -- created_by_user_id could be NULL or a system user ID
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
-            params = (
-                name,
-                ttype,
-                lang,
-                filename,
+            params_template = (
+                name, ttype, lang, filename,
                 template_data.get('description', f"Default {name} template"),
-                category_id, # Use the fetched/created category_id
+                category_id,
                 template_data.get('is_default_for_type_lang', True),
-                template_data.get('email_subject_template'), # Get email_subject_template
-                raw_template_content.encode('utf-8') if raw_template_content else None, # Store as BLOB
-                now,
-                now
+                template_data.get('email_subject_template'),
+                raw_template_content.encode('utf-8') if raw_template_content else None,
+                now, now
             )
-            cursor.execute(sql, params)
-            conn.commit()
+            cursor.execute(sql_insert_template, params_template)
+            # No commit here, handled by the caller managing the transaction
             new_id = cursor.lastrowid
             print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
             return new_id
 
     except sqlite3.Error as e:
         print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
-        if conn:
-            conn.rollback() # Rollback on error
+        # Rollback should be handled by the caller managing the cursor and transaction
         return None
-    finally:
-        if conn:
-            conn.close()
+    # No finally block, cursor and connection management is external
 
 def get_template_by_type_lang_default(template_type: str, language_code: str) -> dict | None:
     """
@@ -5720,7 +5737,7 @@ def delete_kpi(kpi_id: int) -> bool:
             conn.close()
 
 # --- ApplicationSettings Functions ---
-def get_setting(key: str) -> str | None:
+def get_setting(key: str) -> str | None: # Will need similar refactoring if used during seeding with a passed cursor
     conn = None
     try:
         conn = get_db_connection()
@@ -5734,21 +5751,37 @@ def get_setting(key: str) -> str | None:
     finally:
         if conn: conn.close()
 
-def set_setting(key: str, value: str) -> bool:
-    conn = None
+def set_setting(key: str, value: str, cursor: sqlite3.Cursor = None) -> bool:
+    """
+    Sets an application setting. Uses the provided cursor if available,
+    otherwise manages its own connection.
+    """
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Using INSERT OR REPLACE (UPSERT)
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to set_setting.")
+            cursor_to_use = cursor
+
         sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
-        cursor.execute(sql, (key, value))
-        conn.commit()
-        return cursor.rowcount > 0
+        cursor_to_use.execute(sql, (key, value))
+
+        if manage_connection and conn_internal:
+            conn_internal.commit()
+
+        return cursor_to_use.rowcount > 0 # Should be > 0 on success
     except sqlite3.Error as e:
-        print(f"DB error in set_setting: {e}")
+        print(f"DB error in set_setting for key '{key}': {e}")
+        if manage_connection and conn_internal:
+            conn_internal.rollback()
         return False
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 # --- ActivityLog Functions ---
 def add_activity_log(log_data: dict) -> int | None:
@@ -5843,24 +5876,23 @@ DEFAULT_COVER_PAGE_TEMPLATES = [
     }
 ]
 
-def _populate_default_cover_page_templates():
+def _populate_default_cover_page_templates(cursor: sqlite3.Cursor):
     """
     Populates the CoverPageTemplates table with predefined default templates
-    if they do not already exist by name.
+    if they do not already exist by name. Uses the provided cursor.
     """
-    print("Attempting to populate default cover page templates...")
-    # Optionally, fetch a system user ID if you want to set created_by_user_id
-    # system_user = get_user_by_username('system_user') # Define or fetch a system user
-    # system_user_id = system_user['user_id'] if system_user else None
+    if not isinstance(cursor, sqlite3.Cursor):
+        raise ValueError("Invalid cursor object passed to _populate_default_cover_page_templates.")
 
+    print("Attempting to populate default cover page templates...")
     for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
-        existing_template = get_cover_page_template_by_name(template_def['template_name'])
+        # Use get_cover_page_template_by_name with the passed cursor
+        existing_template = get_cover_page_template_by_name(template_def['template_name'], cursor=cursor)
         if existing_template:
             print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
         else:
-            # template_def_with_user = {**template_def, 'created_by_user_id': system_user_id}
-            # new_id = add_cover_page_template(template_def_with_user)
-            new_id = add_cover_page_template(template_def) # Simpler: no user_id for defaults for now
+            # Pass the cursor to add_cover_page_template
+            new_id = add_cover_page_template(template_def, cursor=cursor)
             if new_id:
                 print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
             else:
@@ -5868,17 +5900,24 @@ def _populate_default_cover_page_templates():
     print("Default cover page templates population attempt finished.")
 
 # --- CoverPageTemplates CRUD ---
-def add_cover_page_template(template_data: dict) -> str | None:
-    """Adds a new cover page template. Returns template_id or None."""
-    conn = None
+def add_cover_page_template(template_data: dict, cursor: sqlite3.Cursor = None) -> str | None:
+    """Adds a new cover page template. Returns template_id or None. Uses provided cursor if available."""
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to add_cover_page_template.")
+            cursor_to_use = cursor
+
         new_template_id = uuid.uuid4().hex
         now = datetime.utcnow().isoformat() + "Z"
 
         style_config = template_data.get('style_config_json')
-        if isinstance(style_config, dict): # Ensure it's a JSON string
+        if isinstance(style_config, dict):
             style_config = json.dumps(style_config)
 
         sql = """
@@ -5896,18 +5935,24 @@ def add_cover_page_template(template_data: dict) -> str | None:
             template_data.get('default_subtitle'),
             template_data.get('default_author'),
             style_config,
-            template_data.get('is_default_template', 0), # Handle new field, default to 0
+            template_data.get('is_default_template', 0),
             now, now,
             template_data.get('created_by_user_id')
         )
-        cursor.execute(sql, params)
-        conn.commit()
+        cursor_to_use.execute(sql, params)
+
+        if manage_connection and conn_internal:
+            conn_internal.commit()
+
         return new_template_id
     except sqlite3.Error as e:
         print(f"Database error in add_cover_page_template: {e}")
+        if manage_connection and conn_internal:
+            conn_internal.rollback()
         return None
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 def get_cover_page_template_by_id(template_id: str) -> dict | None:
     """Retrieves a cover page template by its ID."""
@@ -5924,7 +5969,6 @@ def get_cover_page_template_by_id(template_id: str) -> dict | None:
                     data['style_config_json'] = json.loads(data['style_config_json'])
                 except json.JSONDecodeError:
                     print(f"Warning: Could not parse style_config_json for template {template_id}")
-                    # Keep as string or set to default dict? For now, keep as is.
             return data
         return None
     except sqlite3.Error as e:
@@ -5933,14 +5977,24 @@ def get_cover_page_template_by_id(template_id: str) -> dict | None:
     finally:
         if conn: conn.close()
 
-def get_cover_page_template_by_name(template_name: str) -> dict | None:
-    """Retrieves a cover page template by its unique name."""
-    conn = None
+def get_cover_page_template_by_name(template_name: str, cursor: sqlite3.Cursor = None) -> dict | None:
+    """
+    Retrieves a cover page template by its unique name.
+    Uses provided cursor if available, otherwise manages its own connection.
+    """
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
-        row = cursor.fetchone()
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to get_cover_page_template_by_name.")
+            cursor_to_use = cursor
+
+        cursor_to_use.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
+        row = cursor_to_use.fetchone()
         if row:
             data = dict(row)
             if data.get('style_config_json'):
@@ -5954,7 +6008,8 @@ def get_cover_page_template_by_name(template_name: str) -> dict | None:
         print(f"Database error in get_cover_page_template_by_name: {e}")
         return None
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offset: int = 0) -> list[dict]:
     """

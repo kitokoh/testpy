@@ -207,7 +207,40 @@ def main():
 
     # 9. Initialize Default Templates (after DB and CONFIG are ready)
     # initialize_default_templates is imported from app_setup
+    # This function is now responsible for ensuring default template FILES (Excel, general HTML) exist on disk.
+    # Database seeding for templates is handled by db_manager.seed_initial_data.
     initialize_default_templates(CONFIG, APP_ROOT_DIR)
+    logging.info("Call to app_setup.initialize_default_templates completed (ensures template files on disk).")
+
+    # --- Coordinated Data Seeding ---
+    # This block handles the seeding of initial data after the schema is created.
+    # It uses a single connection and transaction for all seeding operations defined in db_manager.seed_initial_data.
+    conn_seed = None
+    try:
+        logging.info("Attempting to connect for data seeding...")
+        conn_seed = db_manager.get_db_connection() # Get a fresh connection for seeding
+        cursor_seed = conn_seed.cursor()
+        logging.info("Connection successful. Seeding initial data if necessary...")
+        db_manager.seed_initial_data(cursor_seed) # Call the centralized seeding function
+        conn_seed.commit() # Commit all seeding changes
+        logging.info("Data seeding transaction committed successfully.")
+    except db_manager.sqlite3.Error as e_seed: # Catch SQLite specific errors
+        logging.error(f"Error during data seeding: {e_seed}")
+        if conn_seed:
+            conn_seed.rollback()
+            logging.info("Data seeding transaction rolled back due to SQLite error.")
+        # Depending on the severity, you might want to inform the user or exit.
+        # For now, logging the error and attempting to continue.
+    except Exception as e_general_seed: # Catch other potential errors during seeding
+        logging.error(f"A non-database error occurred during data seeding: {e_general_seed}", exc_info=True)
+        if conn_seed: # If connection was made, attempt rollback
+            conn_seed.rollback()
+            logging.info("Data seeding transaction rolled back due to non-database error.")
+    finally:
+        if conn_seed:
+            conn_seed.close()
+            logging.info("Seeding connection closed.")
+    # --- End Coordinated Data Seeding ---
 
     # --- Startup Dialog Logic ---
     # Default paths for templates and clients, used by is_first_launch and mark_initial_setup_complete
