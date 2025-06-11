@@ -9022,6 +9022,7 @@ def get_active_projects_count() -> int:
 
 def get_total_products_count() -> int:
     conn = None
+    row = None  # Initialize row here
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -9029,10 +9030,11 @@ def get_total_products_count() -> int:
         # Or, more simply, just count rows in Products table if each row is a distinct product offering
         cursor.execute("SELECT COUNT(product_id) as total_count FROM Products")
         row = cursor.fetchone()
-        return row['total_count'] if row else 0
+        # Original return removed from here
     except sqlite3.Error as e:
         print(f"Database error in get_total_products_count: {e}")
-        return 0
+        return 0  # Return 0 on error
     finally:
         if conn:
             conn.close()
+    return row['total_count'] if row else 0  # Corrected indentation for this return
