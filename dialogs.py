@@ -109,7 +109,8 @@ class AddNewClientDialog(QDialog):
             self.tr("Arabic only (ar)"): ["ar"],
             self.tr("Turkish only (tr)"): ["tr"],
             self.tr("Portuguese only (pt)"): ["pt"],
-            self.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
+            self.tr("Russian only (ru)"): ["ru"],
+            self.tr("All supported languages (en, fr, ar, tr, pt, ru)"): ["en", "fr", "ar", "tr", "pt", "ru"]
         }
         self.language_select_combo.addItems(list(self.language_options_map.keys()))
         self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
@@ -280,6 +281,11 @@ class SettingsDialog(QDialog):
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
 
+        # Google Maps Review URL
+        self.google_maps_url_input = QLineEdit(self.current_config_data.get("google_maps_review_url", "https://maps.google.com/?cid=YOUR_CID_HERE"))
+        self.google_maps_url_input.setPlaceholderText(self.tr("Entrez l'URL complète pour les avis Google Maps"))
+        general_form_layout.addRow(self.tr("Lien Avis Google Maps:"), self.google_maps_url_input)
+
         tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -314,7 +320,8 @@ class SettingsDialog(QDialog):
             "smtp_server": self.smtp_server_input_field.text(),
             "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(),
-            "smtp_password": self.smtp_pass_input_field.text()
+            "smtp_password": self.smtp_pass_input_field.text(),
+            "google_maps_review_url": self.google_maps_url_input.text().strip()
         }
         return config_data_to_return
 
@@ -1507,7 +1514,15 @@ class EditClientDialog(QDialog):
                         self.city_select_combo.setCurrentIndex(index_name)
         layout.addRow(self.tr("Ville Client:"), self.city_select_combo)
         self.language_select_combo = QComboBox()
-        self.lang_display_to_codes_map = {self.tr("Français uniquement (fr)"): ["fr"], self.tr("Arabe uniquement (ar)"): ["ar"], self.tr("Turc uniquement (tr)"): ["tr"], self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]}
+        self.lang_display_to_codes_map = {
+            self.tr("Français uniquement (fr)"): ["fr"],
+            self.tr("English only (en)"): ["en"], # Adding English for consistency with AddNewClientDialog
+            self.tr("Arabe uniquement (ar)"): ["ar"],
+            self.tr("Turc uniquement (tr)"): ["tr"],
+            self.tr("Portuguese only (pt)"): ["pt"], # Adding Portuguese
+            self.tr("Russian only (ru)"): ["ru"],
+            self.tr("Toutes les langues (fr, en, ar, tr, pt, ru)"): ["fr", "en", "ar", "tr", "pt", "ru"] # Updated "All"
+        }
         self.language_select_combo.addItems(list(self.lang_display_to_codes_map.keys()))
         current_lang_codes = self.client_info.get('selected_languages', ['fr'])
         if not isinstance(current_lang_codes, list): current_lang_codes = [code.strip() for code in str(current_lang_codes).split(',') if code.strip()]
@@ -3449,6 +3464,428 @@ class ClientProductDimensionDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Enregistrement"),
                                  self.tr("Une erreur est survenue: {0}").format(str(e)))
-# [end of dialogs.py]
 
-# [end of dialogs.py]
+class TransporterDialog(QDialog):
+    def __init__(self, transporter_data=None, parent=None):
+        super().__init__(parent)
+        self.transporter_data = transporter_data
+        self.setWindowTitle(self.tr("Ajouter/Modifier Transporteur"))
+        self.setMinimumWidth(400)
+        self.setup_ui()
+        if self.transporter_data:
+            self.load_transporter_data()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.name_input = QLineEdit()
+        form_layout.addRow(self.tr("Nom:"), self.name_input)
+        self.contact_person_input = QLineEdit()
+        form_layout.addRow(self.tr("Personne à contacter:"), self.contact_person_input)
+        self.phone_input = QLineEdit()
+        form_layout.addRow(self.tr("Téléphone:"), self.phone_input)
+        self.email_input = QLineEdit()
+        form_layout.addRow(self.tr("Email:"), self.email_input)
+        self.address_input = QLineEdit()
+        form_layout.addRow(self.tr("Adresse:"), self.address_input)
+        self.service_area_input = QLineEdit()
+        form_layout.addRow(self.tr("Zone de service:"), self.service_area_input)
+        self.notes_input = QTextEdit()
+        self.notes_input.setFixedHeight(80)
+        form_layout.addRow(self.tr("Notes:"), self.notes_input)
+
+        main_layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("Enregistrer"))
+        self.button_box.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_transporter_data(self):
+        self.name_input.setText(self.transporter_data.get('name', ''))
+        self.contact_person_input.setText(self.transporter_data.get('contact_person', ''))
+        self.phone_input.setText(self.transporter_data.get('phone', ''))
+        self.email_input.setText(self.transporter_data.get('email', ''))
+        self.address_input.setText(self.transporter_data.get('address', ''))
+        self.service_area_input.setText(self.transporter_data.get('service_area', ''))
+        self.notes_input.setPlainText(self.transporter_data.get('notes', ''))
+
+    def get_data(self):
+        return {
+            "name": self.name_input.text().strip(),
+            "contact_person": self.contact_person_input.text().strip(),
+            "phone": self.phone_input.text().strip(),
+            "email": self.email_input.text().strip(),
+            "address": self.address_input.text().strip(),
+            "service_area": self.service_area_input.text().strip(),
+            "notes": self.notes_input.toPlainText().strip()
+        }
+
+    def accept(self):
+        data = self.get_data()
+        if not data['name']:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du transporteur est requis."))
+            self.name_input.setFocus()
+            return
+
+        try:
+            if self.transporter_data and 'transporter_id' in self.transporter_data: # Editing
+                success = db_manager.update_transporter(self.transporter_data['transporter_id'], data)
+                if success:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Transporteur mis à jour avec succès."))
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le transporteur."))
+                    return # Do not accept if failed
+            else: # Adding
+                new_id = db_manager.add_transporter(data)
+                if new_id:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Transporteur ajouté avec succès (ID: {0}).").format(new_id))
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le transporteur."))
+                    return # Do not accept if failed
+            super().accept()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue: {0}").format(str(e)))
+
+
+class FreightForwarderDialog(QDialog):
+    def __init__(self, forwarder_data=None, parent=None):
+        super().__init__(parent)
+        self.forwarder_data = forwarder_data
+        self.setWindowTitle(self.tr("Ajouter/Modifier Transitaire"))
+        self.setMinimumWidth(400)
+        self.setup_ui()
+        if self.forwarder_data:
+            self.load_forwarder_data()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.name_input = QLineEdit()
+        form_layout.addRow(self.tr("Nom:"), self.name_input)
+        self.contact_person_input = QLineEdit()
+        form_layout.addRow(self.tr("Personne à contacter:"), self.contact_person_input)
+        self.phone_input = QLineEdit()
+        form_layout.addRow(self.tr("Téléphone:"), self.phone_input)
+        self.email_input = QLineEdit()
+        form_layout.addRow(self.tr("Email:"), self.email_input)
+        self.address_input = QLineEdit()
+        form_layout.addRow(self.tr("Adresse:"), self.address_input)
+        self.services_offered_input = QTextEdit()
+        self.services_offered_input.setFixedHeight(60)
+        form_layout.addRow(self.tr("Services Offerts:"), self.services_offered_input)
+        self.notes_input = QTextEdit()
+        self.notes_input.setFixedHeight(60)
+        form_layout.addRow(self.tr("Notes:"), self.notes_input)
+
+        main_layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("Enregistrer"))
+        self.button_box.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_forwarder_data(self):
+        self.name_input.setText(self.forwarder_data.get('name', ''))
+        self.contact_person_input.setText(self.forwarder_data.get('contact_person', ''))
+        self.phone_input.setText(self.forwarder_data.get('phone', ''))
+        self.email_input.setText(self.forwarder_data.get('email', ''))
+        self.address_input.setText(self.forwarder_data.get('address', ''))
+        self.services_offered_input.setPlainText(self.forwarder_data.get('services_offered', ''))
+        self.notes_input.setPlainText(self.forwarder_data.get('notes', ''))
+
+    def get_data(self):
+        return {
+            "name": self.name_input.text().strip(),
+            "contact_person": self.contact_person_input.text().strip(),
+            "phone": self.phone_input.text().strip(),
+            "email": self.email_input.text().strip(),
+            "address": self.address_input.text().strip(),
+            "services_offered": self.services_offered_input.toPlainText().strip(),
+            "notes": self.notes_input.toPlainText().strip()
+        }
+
+    def accept(self):
+        data = self.get_data()
+        if not data['name']:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du transitaire est requis."))
+            self.name_input.setFocus()
+            return
+
+        try:
+            if self.forwarder_data and 'forwarder_id' in self.forwarder_data: # Editing
+                success = db_manager.update_freight_forwarder(self.forwarder_data['forwarder_id'], data)
+                if success:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Transitaire mis à jour avec succès."))
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le transitaire."))
+                    return # Do not accept if failed
+            else: # Adding
+                new_id = db_manager.add_freight_forwarder(data)
+                if new_id:
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Transitaire ajouté avec succès (ID: {0}).").format(new_id))
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le transitaire."))
+                    return # Do not accept if failed
+            super().accept()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue: {0}").format(str(e)))
+
+class AssignPersonnelDialog(QDialog):
+    def __init__(self, client_id, role_filter, company_id, parent=None):
+        super().__init__(parent)
+        self.client_id = client_id
+        self.role_filter = role_filter # e.g., "seller", "technical_manager", or None for all
+        self.company_id = company_id   # To fetch personnel from the client's default company or a selected one
+
+        self.setWindowTitle(self.tr("Assigner Personnel au Client"))
+        self.setMinimumWidth(400)
+        self.setup_ui()
+        self.load_available_personnel()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.personnel_combo = QComboBox()
+        form_layout.addRow(self.tr("Personnel Disponible:"), self.personnel_combo)
+
+        self.role_in_project_edit = QLineEdit()
+        self.role_in_project_edit.setPlaceholderText(self.tr("Ex: Vendeur principal, Support Technique"))
+        form_layout.addRow(self.tr("Rôle pour ce Client/Projet:"), self.role_in_project_edit)
+
+        main_layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("Assigner"))
+        self.button_box.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_available_personnel(self):
+        self.personnel_combo.clear()
+        try:
+            # Fetch personnel based on company_id and optionally role_filter
+            # If role_filter is None, get_personnel_for_company should return all for that company.
+            personnel_list = db_manager.get_personnel_for_company(self.company_id, role=self.role_filter)
+            if not personnel_list:
+                self.personnel_combo.addItem(self.tr("Aucun personnel disponible pour ce filtre."), None)
+                self.personnel_combo.setEnabled(False)
+                return
+
+            for p in personnel_list:
+                display_text = f"{p.get('name', 'N/A')} ({p.get('role', 'N/A')})"
+                self.personnel_combo.addItem(display_text, p.get('personnel_id'))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de charger le personnel: {0}").format(str(e)))
+            self.personnel_combo.setEnabled(False)
+
+    def accept(self):
+        selected_personnel_id = self.personnel_combo.currentData()
+        role_in_project_text = self.role_in_project_edit.text().strip()
+
+        if selected_personnel_id is None:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Veuillez sélectionner un membre du personnel."))
+            self.personnel_combo.setFocus()
+            return
+
+        if not role_in_project_text:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Veuillez définir un rôle pour ce personnel pour ce client/projet."))
+            self.role_in_project_edit.setFocus()
+            return
+
+        try:
+            assignment_id = db_manager.assign_personnel_to_client(
+                client_id=self.client_id,
+                personnel_id=selected_personnel_id,
+                role_in_project=role_in_project_text
+            )
+            if assignment_id:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Personnel assigné avec succès."))
+                super().accept()
+            else:
+                # This could be due to UNIQUE constraint (already assigned with same role) or other DB error
+                QMessageBox.warning(self, self.tr("Échec Assignation"),
+                                    self.tr("Impossible d'assigner le personnel. Vérifiez s'il est déjà assigné avec ce rôle ou consultez les logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur est survenue: {0}").format(str(e)))
+
+
+class AssignTransporterDialog(QDialog):
+    def __init__(self, client_id, parent=None):
+        super().__init__(parent)
+        self.client_id = client_id
+        self.setWindowTitle(self.tr("Assigner Transporteur au Client"))
+        self.setMinimumWidth(450)
+        self.setup_ui()
+        self.load_available_transporters()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.transporter_combo = QComboBox()
+        form_layout.addRow(self.tr("Transporteur Disponible:"), self.transporter_combo)
+
+        self.transport_details_edit = QTextEdit()
+        self.transport_details_edit.setPlaceholderText(self.tr("Ex: Route A vers B, instructions spécifiques..."))
+        self.transport_details_edit.setFixedHeight(80)
+        form_layout.addRow(self.tr("Détails du Transport:"), self.transport_details_edit)
+
+        self.cost_estimate_spinbox = QDoubleSpinBox()
+        self.cost_estimate_spinbox.setRange(0.0, 9999999.99)
+        self.cost_estimate_spinbox.setDecimals(2)
+        self.cost_estimate_spinbox.setPrefix("€ ") # Adjust currency as needed
+        form_layout.addRow(self.tr("Coût Estimé:"), self.cost_estimate_spinbox)
+
+        main_layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("Assigner"))
+        self.button_box.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_available_transporters(self):
+        self.transporter_combo.clear()
+        try:
+            transporters = db_manager.get_all_transporters()
+            if not transporters:
+                self.transporter_combo.addItem(self.tr("Aucun transporteur disponible."), None)
+                self.transporter_combo.setEnabled(False)
+                return
+            for t in transporters:
+                self.transporter_combo.addItem(t.get('name', 'N/A'), t.get('transporter_id'))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de charger les transporteurs: {0}").format(str(e)))
+            self.transporter_combo.setEnabled(False)
+
+    def accept(self):
+        selected_transporter_id = self.transporter_combo.currentData()
+        details_text = self.transport_details_edit.toPlainText().strip()
+        cost_value = self.cost_estimate_spinbox.value()
+
+        if selected_transporter_id is None:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Veuillez sélectionner un transporteur."))
+            self.transporter_combo.setFocus()
+            return
+
+        # Details and cost can be optional depending on requirements
+
+        try:
+            assignment_id = db_manager.assign_transporter_to_client(
+                client_id=self.client_id,
+                transporter_id=selected_transporter_id,
+                transport_details=details_text,
+                cost_estimate=cost_value
+            )
+            if assignment_id:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Transporteur assigné avec succès."))
+                super().accept()
+            else:
+                QMessageBox.warning(self, self.tr("Échec Assignation"),
+                                    self.tr("Impossible d'assigner le transporteur. Vérifiez s'il est déjà assigné ou consultez les logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur est survenue: {0}").format(str(e)))
+
+
+class AssignFreightForwarderDialog(QDialog):
+    def __init__(self, client_id, parent=None):
+        super().__init__(parent)
+        self.client_id = client_id
+        self.setWindowTitle(self.tr("Assigner Transitaire au Client"))
+        self.setMinimumWidth(450)
+        self.setup_ui()
+        self.load_available_forwarders()
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.forwarder_combo = QComboBox()
+        form_layout.addRow(self.tr("Transitaire Disponible:"), self.forwarder_combo)
+
+        self.task_description_edit = QTextEdit()
+        self.task_description_edit.setPlaceholderText(self.tr("Ex: Dédouanement pour l'expédition XYZ..."))
+        self.task_description_edit.setFixedHeight(80)
+        form_layout.addRow(self.tr("Description de la Tâche:"), self.task_description_edit)
+
+        self.cost_estimate_spinbox = QDoubleSpinBox()
+        self.cost_estimate_spinbox.setRange(0.0, 9999999.99)
+        self.cost_estimate_spinbox.setDecimals(2)
+        self.cost_estimate_spinbox.setPrefix("€ ") # Adjust currency
+        form_layout.addRow(self.tr("Coût Estimé:"), self.cost_estimate_spinbox)
+
+        main_layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText(self.tr("Assigner"))
+        self.button_box.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+        self.button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+        self.setLayout(main_layout)
+
+    def load_available_forwarders(self):
+        self.forwarder_combo.clear()
+        try:
+            forwarders = db_manager.get_all_freight_forwarders()
+            if not forwarders:
+                self.forwarder_combo.addItem(self.tr("Aucun transitaire disponible."), None)
+                self.forwarder_combo.setEnabled(False)
+                return
+            for ff in forwarders:
+                self.forwarder_combo.addItem(ff.get('name', 'N/A'), ff.get('forwarder_id'))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de charger les transitaires: {0}").format(str(e)))
+            self.forwarder_combo.setEnabled(False)
+
+    def accept(self):
+        selected_forwarder_id = self.forwarder_combo.currentData()
+        description_text = self.task_description_edit.toPlainText().strip()
+        cost_value = self.cost_estimate_spinbox.value()
+
+        if selected_forwarder_id is None:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Veuillez sélectionner un transitaire."))
+            self.forwarder_combo.setFocus()
+            return
+
+        # Description and cost can be optional
+
+        try:
+            assignment_id = db_manager.assign_forwarder_to_client(
+                client_id=self.client_id,
+                forwarder_id=selected_forwarder_id,
+                task_description=description_text,
+                cost_estimate=cost_value
+            )
+            if assignment_id:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Transitaire assigné avec succès."))
+                super().accept()
+            else:
+                QMessageBox.warning(self, self.tr("Échec Assignation"),
+                                    self.tr("Impossible d'assigner le transitaire. Vérifiez s'il est déjà assigné ou consultez les logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur est survenue: {0}").format(str(e)))
