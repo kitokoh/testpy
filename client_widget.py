@@ -12,8 +12,8 @@ from PyQt5.QtWidgets import (
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
-from PyQt5.QtCore import Qt, QUrl, QCoreApplication
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap, QTextCursor
+from PyQt5.QtCore import Qt, QUrl, QCoreApplication, QEvent
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
 from PyQt5.QtGui import QPixmap
@@ -179,10 +179,50 @@ class ClientWidget(QWidget):
 
         self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
         self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
-        self.notes_edit.textChanged.connect(self.save_client_notes)
-        # The QGroupBox for notes is removed, notes_edit will be added to a tab later
+        # self.notes_edit.textChanged.connect(self.save_client_notes) # Disconnected old signal
+        try:
+            self.notes_edit.textChanged.disconnect(self.save_client_notes)
+        except TypeError:
+            pass # Signal was not connected or already disconnected
+        self.notes_edit.installEventFilter(self)
+
+
+        # --- Collapsible Notes Section ---
+        self.notes_group_box = QGroupBox(self.tr("Notes"))
+        self.notes_group_box.setCheckable(True)
+        notes_group_layout = QVBoxLayout(self.notes_group_box)
+
+        # self.notes_edit is already initialized earlier
+        # Move self.notes_edit into this new group box
+        # notes_group_layout.addWidget(self.notes_edit) # Directly adding notes_edit
+
+        self.notes_group_box.setChecked(True) # Expanded by default
+        self.notes_container_widget = QWidget() # Create a container for the notes_edit
+        notes_container_layout = QVBoxLayout(self.notes_container_widget)
+        notes_container_layout.setContentsMargins(0, 5, 0, 0)
+        notes_container_layout.addWidget(self.notes_edit) # Add notes_edit to the container
+        notes_group_layout.addWidget(self.notes_container_widget) # Add container to group_layout
+        self.notes_group_box.toggled.connect(self.notes_container_widget.setVisible)
+
+        # Add the new notes group box to the main layout
+        layout.addWidget(self.notes_group_box)
+        # --- End Collapsible Notes Section ---
+
+        # --- Collapsible Tabs Section ---
+        self.tabs_group_box = QGroupBox(self.tr("Autres Informations")) # Or "Details Supplementaires" / "Tabs"
+        self.tabs_group_box.setCheckable(True)
+        tabs_group_layout = QVBoxLayout(self.tabs_group_box)
 
         self.tab_widget = QTabWidget()
+        # Move self.tab_widget into this new group box
+        tabs_group_layout.addWidget(self.tab_widget)
+
+        self.tabs_group_box.setChecked(False) # Collapsed by default
+        # Add the new tabs_group_box to the main layout instead of tab_widget directly
+        # layout.addWidget(self.tab_widget) # This line will be replaced by:
+        layout.addWidget(self.tabs_group_box)
+        # --- End Collapsible Tabs Section ---
+
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
 
         # Create and add the empty state label for documents
@@ -312,21 +352,7 @@ class ClientWidget(QWidget):
         products_layout.addLayout(products_btn_layout)
         self.tab_widget.addTab(products_tab, self.tr("Produits"))
 
-        notes_content_tab = QWidget()
-        notes_tab_layout = QVBoxLayout(notes_content_tab)
-        notes_tab_layout.addWidget(self.notes_edit)
-
-        produits_tab_index = -1
-        for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == self.tr("Produits"):
-                produits_tab_index = i
-                break
-        if produits_tab_index != -1:
-            self.tab_widget.insertTab(produits_tab_index + 1, notes_content_tab, self.tr("Notes"))
-        else:
-            self.tab_widget.addTab(notes_content_tab, self.tr("Notes"))
-
-        layout.addWidget(self.tab_widget)
+        # layout.addWidget(self.tab_widget) # This was moved into tabs_group_box
 
         self.document_notes_tab = QWidget()
         doc_notes_layout = QVBoxLayout(self.document_notes_tab)
@@ -563,8 +589,29 @@ class ClientWidget(QWidget):
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
+        # Accordion logic connections
+        if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
+            self.notes_group_box.toggled.connect(self._handle_notes_toggled)
+            self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
+
+
+    def _handle_notes_toggled(self, checked):
+        if checked and hasattr(self, 'tabs_group_box') and self.tabs_group_box.isChecked():
+            self.tabs_group_box.setChecked(False)
+
+    def _handle_tabs_toggled(self, checked):
+        if checked and hasattr(self, 'notes_group_box') and self.notes_group_box.isChecked():
+            self.notes_group_box.setChecked(False)
 
     def load_sav_tickets_table(self):
+        # Ensure sav_tickets_table is initialized before use
+        if not hasattr(self, 'sav_tickets_table'):
+            # This might indicate an issue if SAV tab is created but table isn't part of its layout yet.
+            # For now, just return to prevent error, but this should be reviewed if SAV tab is expected.
+            # It's possible this method is called before SAV tab UI is fully set up during initial __init__.
+            print("Warning: load_sav_tickets_table called before sav_tickets_table is initialized.")
+            return
+
         self.sav_tickets_table.setRowCount(0)
         client_id = self.client_info.get('client_id')
         if not client_id:
@@ -2523,6 +2570,79 @@ class ClientWidget(QWidget):
         # Ensure tickets table is loaded if tab is now enabled
         if self.tab_widget.isTabEnabled(self.sav_tab_index):
             self.load_sav_tickets_table()
+
+    def eventFilter(self, obj, event):
+        if obj is self.notes_edit and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
+                    return super().eventFilter(obj, event)
+                else: # Enter pressed
+                    self.append_new_note_with_timestamp()
+                    return True # Event handled
+        return super().eventFilter(obj, event)
+
+    def append_new_note_with_timestamp(self):
+        cursor = self.notes_edit.textCursor()
+        current_block = cursor.block()
+        current_block_text_stripped = current_block.text().strip()
+
+        is_already_timestamped = False
+        text_after_timestamp = current_block_text_stripped # Assume no timestamp initially
+
+        if current_block_text_stripped.startswith("[") and "]" in current_block_text_stripped:
+            try:
+                potential_ts_part = current_block_text_stripped.split("]", 1)[0] + "]"
+                datetime.strptime(potential_ts_part, "[%Y-%m-%d %H:%M:%S]")
+                is_already_timestamped = True
+                # Get the actual text after the timestamp, if any
+                text_after_timestamp = current_block_text_stripped.split("]", 1)[1].strip()
+            except ValueError:
+                is_already_timestamped = False # Not a valid timestamp start
+
+        timestamp_prefix = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+
+        if not is_already_timestamped and current_block_text_stripped:
+            # Case 1: Line has text but no timestamp yet
+            new_content_for_current_line = f"{timestamp_prefix} {current_block_text_stripped}"
+
+            cursor.beginEditBlock()
+            cursor.movePosition(QTextCursor.StartOfBlock)
+            cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+            cursor.removeSelectedText()
+            cursor.insertText(new_content_for_current_line)
+            cursor.endEditBlock()
+
+            cursor.movePosition(QTextCursor.EndOfBlock)
+            self.notes_edit.setTextCursor(cursor)
+
+            self.notes_edit.insertPlainText("\n" + f"{timestamp_prefix} ")
+
+        elif is_already_timestamped and text_after_timestamp:
+            # Case 2: Line was already timestamped, and there is some (new or old) text after it.
+            # User pressed Enter on an existing note. Preserve current line, add new timestamped line.
+            cursor.movePosition(QTextCursor.EndOfBlock)
+            self.notes_edit.setTextCursor(cursor)
+            self.notes_edit.insertPlainText("\n" + f"{timestamp_prefix} ")
+
+        elif not current_block_text_stripped:
+            # Case 3: Current line is effectively empty (could be truly empty, or just spaces, or an old timestamp placeholder)
+            # Action: Replace current line content with a new timestamp.
+            cursor.beginEditBlock()
+            cursor.movePosition(QTextCursor.StartOfBlock)
+            cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+            cursor.removeSelectedText() # Clear the line
+            cursor.insertText(f"{timestamp_prefix} ")
+            cursor.endEditBlock()
+            self.notes_edit.setTextCursor(cursor)
+
+        else: # Fallback: (is_already_timestamped and not text_after_timestamp)
+              # This means the line ONLY contains a timestamp and maybe spaces. User pressed Enter.
+              # Action: Add a new timestamped line below.
+            cursor.movePosition(QTextCursor.EndOfBlock)
+            self.notes_edit.setTextCursor(cursor)
+            self.notes_edit.insertPlainText("\n" + f"{timestamp_prefix} ")
+
+        self.save_client_notes()
 
 
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
