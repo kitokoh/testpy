@@ -28,4 +28,3 @@ class MobileApp(App):
 
 if __name__ == '__main__':
     MobileApp().run()
-
