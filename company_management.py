@@ -210,6 +210,8 @@ class PersonnelDialog(QDialog):
         self.company_id = company_id # company_id of the company this personnel belongs to
         self.personnel_data = personnel_data
         self.personnel_id = None # For editing existing personnel
+        self.email_edit = QLineEdit()
+        self.phone_edit = QLineEdit()
 
         self.setWindowTitle(self.tr("Edit Personnel") if personnel_data else self.tr("Add Personnel"))
         self.setMinimumWidth(350)
@@ -226,6 +228,8 @@ class PersonnelDialog(QDialog):
 
         layout.addRow(self.tr("Name:"), self.name_edit)
         layout.addRow(self.tr("Role:"), self.role_combo)
+        layout.addRow(self.tr("Email:"), self.email_edit)
+        layout.addRow(self.tr("Phone:"), self.phone_edit)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self.accept) # Connected to self.accept
@@ -238,6 +242,8 @@ class PersonnelDialog(QDialog):
 
     def load_personnel_data(self):
         self.name_edit.setText(self.personnel_data.get('name', ''))
+        self.email_edit.setText(self.personnel_data.get('email', ''))
+        self.phone_edit.setText(self.personnel_data.get('phone', ''))
         role = self.personnel_data.get('role', '')
         if role in ["seller", "technical_manager", "other"]:
             self.role_combo.setCurrentText(role)
@@ -253,6 +259,8 @@ class PersonnelDialog(QDialog):
 
         name = self.name_edit.text().strip()
         role = self.role_combo.currentText().strip()
+        email = self.email_edit.text().strip()
+        phone = self.phone_edit.text().strip()
 
         if not name or not role:
             QMessageBox.warning(self, self.tr("Input Error"), self.tr("Name and role cannot be empty."))
@@ -261,7 +269,9 @@ class PersonnelDialog(QDialog):
         data = {
             "company_id": self.company_id,
             "name": name,
-            "role": role
+            "role": role,
+            "email": email,
+            "phone": phone
         }
 
         if self.personnel_id: # Editing

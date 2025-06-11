@@ -253,7 +253,8 @@ class SettingsDialog(QDialog):
         self.lang_display_to_code = {
             self.tr("Français (fr)"): "fr", self.tr("English (en)"): "en",
             self.tr("العربية (ar)"): "ar", self.tr("Türkçe (tr)"): "tr",
-            self.tr("Português (pt)"): "pt"
+            self.tr("Português (pt)"): "pt",
+            self.tr("Русский (ru)"): "ru"
         }
         self.interface_lang_combo.addItems(list(self.lang_display_to_code.keys()))
         current_lang_code = self.current_config_data.get("language", "fr")
@@ -615,9 +616,11 @@ class ContactDialog(QDialog):
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
         self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
+
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
+
     def setup_ui(self):
         main_layout=QVBoxLayout(self);main_layout.setSpacing(15)
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
@@ -695,6 +698,7 @@ class ContactDialog(QDialog):
         cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
         self.update_primary_contact_visuals(self.primary_check.checkState())
+
     def update_primary_contact_visuals(self,state):
         # Dynamic style based on state - kept inline
         # Padding will be inherited from global QLineEdit style
@@ -702,6 +706,7 @@ class ContactDialog(QDialog):
             self.name_input.setStyleSheet("background-color: #E8F5E9;") # Light Green from palette
         else:
             self.name_input.setStyleSheet("") # Reset to default QSS
+
     def get_data(self):
         data = {
             "name": self.name_input.text().strip(), # Fallback name or displayName
@@ -742,6 +747,65 @@ class ContactDialog(QDialog):
         # However, current logic is simpler: if unchecked, only main fields are saved.
         # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
         return data
+
+    def accept(self):
+        contact_details_to_save = self.get_data()
+        if not contact_details_to_save.get("name") and not contact_details_to_save.get("displayName"): # Either name or displayName must be present
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom complet ou le nom affiché du contact est requis."))
+            self.name_input.setFocus()
+            return
+
+        # If displayName is provided and name is empty, use displayName for name.
+        if contact_details_to_save.get("displayName") and not contact_details_to_save.get("name"):
+            contact_details_to_save["name"] = contact_details_to_save["displayName"]
+
+
+        if self.contact_data and self.contact_data.get('contact_id'): # Editing existing contact
+            success = db_manager.update_contact(self.contact_data['contact_id'], contact_details_to_save)
+            if success:
+                # If client_id is present, also update the link details (is_primary)
+                if self.client_id:
+                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, self.contact_data['contact_id'])
+                    if link_details:
+                        client_contact_id = link_details['client_contact_id']
+                        update_link_data = {'is_primary_for_client': contact_details_to_save.get("is_primary_for_client", False)}
+                        db_manager.update_client_contact_link(client_contact_id, update_link_data)
+                    # Else: If no link exists, should we create one? Current behavior is no.
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
+                return # Do not accept dialog if update failed
+        else: # Adding new contact
+            new_contact_id = db_manager.add_contact(contact_details_to_save)
+            if new_contact_id and self.client_id:
+                # Link the contact to the client
+                is_primary_from_form = contact_details_to_save.get("is_primary_for_client", False)
+                link_contact_to_client_result = db_manager.link_contact_to_client(
+                    self.client_id,
+                    new_contact_id, # The ID of the contact just added
+                    is_primary=is_primary_from_form,
+                    can_receive_documents=True # Default or from form
+                )
+
+                if link_contact_to_client_result:
+                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
+                    if contact_count == 1:
+                        # If it's the only contact, ensure it's primary, overriding form if it was false
+                        db_manager.update_client_contact_link(
+                            link_contact_to_client_result,
+                            {'is_primary_for_client': True}
+                        )
+                        print(f"Contact {new_contact_id} set as primary for client {self.client_id} as it's the only contact.")
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
+                else:
+                     QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
+            elif new_contact_id:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                return # Do not accept dialog if add failed
+        super().accept() # Proceed to close dialog
+
 
 class ProductDialog(QDialog):
     def __init__(self,client_id, app_root_dir, product_data=None,parent=None): # Added app_root_dir
@@ -3386,3 +3450,5 @@ class ClientProductDimensionDialog(QDialog):
             QMessageBox.critical(self, self.tr("Erreur Enregistrement"),
                                  self.tr("Une erreur est survenue: {0}").format(str(e)))
 # [end of dialogs.py]
+
+[end of dialogs.py]

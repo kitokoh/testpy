@@ -174,10 +174,22 @@ def main():
     # """) # The # color: white; part for QListWidget::item:selected was commented out in original.
 
     # 8. Setup Translations
-    language_code = CONFIG.get("language", QLocale.system().name().split('_')[0])
-    
+    # Try to get language from DB settings
+    language_code_from_db = db_manager.get_setting('user_selected_language')
+
+    if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
+        language_code = language_code_from_db.strip()
+        logging.info(f"Language '{language_code}' loaded from database setting.")
+    else:
+        default_lang = QLocale.system().name().split('_')[0]
+        language_code = CONFIG.get("language", default_lang)
+        if language_code_from_db is None:
+            logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
+        else: # Empty string or not a string
+            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
+
     translator = QTranslator()
-    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", f"app_{language_code}.qm")
+    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", "qm", f"app_{language_code}.qm")
     if translator.load(translation_path_app):
         app.installTranslator(translator)
         logging.info(f"Loaded custom translation for {language_code} from {translation_path_app}")

@@ -234,6 +234,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.notification_manager = NotificationManager(self) # Pass self (dashboard) as parent
         self.notification_manager.setup_timer()
 
+    def open_manage_global_products_dialog(self):
+        try:
+            # Use self.resource_path("") to get app_root_dir, as observed in other parts of the class
+            app_root_dir = self.resource_path("")
+            dialog = ManageProductMasterDialog(app_root_dir=app_root_dir, parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Global Product Management: {0}").format(str(e)))
+            print(f"Error opening ManageProductMasterDialog: {e}")
+
+    def open_product_equivalency_dialog(self):
+        try:
+            dialog = ProductEquivalencyDialog(parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Product Equivalency Management: {0}").format(str(e)))
+            print(f"Error opening ProductEquivalencyDialog: {e}")
+
     def module_closed(self, module_id):
         """Clean up after module closure"""
         self.parent.modules[module_id] = None
@@ -4077,22 +4095,3 @@ if __name__ == "__main__":
                                         self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
             else: # Fallback
                 QMessageBox.information(self, self.tr("Project Not Found"), self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
-
-    def open_manage_global_products_dialog(self):
-        try:
-            # Use self.resource_path("") to get app_root_dir, as observed in other parts of the class
-            app_root_dir = self.resource_path("")
-            dialog = ManageProductMasterDialog(app_root_dir=app_root_dir, parent=self)
-            dialog.exec_()
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Global Product Management: {0}").format(str(e)))
-            print(f"Error opening ManageProductMasterDialog: {e}")
-
-    def open_product_equivalency_dialog(self):
-        try:
-            dialog = ProductEquivalencyDialog(parent=self)
-            dialog.exec_()
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Product Equivalency Management: {0}").format(str(e)))
-            print(f"Error opening ProductEquivalencyDialog: {e}")
-                
