@@ -9,6 +9,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
+from kivy.uix.modalview import ModalView
 
 import tempfile
 import os # Useful for getting filename if needed, though tempfile handles it well
@@ -54,6 +55,7 @@ class DocumentGenerationScreen(Screen):
         self.last_pdf_outputs = None # To store the result from LiteDocumentHandler
         self.last_generated_pdf_paths = [] # For email attachments
         self.highlighted_product_button = None
+        self.app_temporary_files = [] # Global list for all temp files
 
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
@@ -161,6 +163,72 @@ class DocumentGenerationScreen(Screen):
 
         main_layout.add_widget(action_buttons_layout)
 
+        # Busy Indicator
+        self.busy_indicator = ModalView(
+            auto_dismiss=False, # Prevent dismissing by clicking outside
+            size_hint=(None, None),
+            size=('250dp', '120dp') # Adjusted size for better text fit
+        )
+        busy_label = Label(text='Processing, please wait...', halign='center', valign='middle')
+        self.busy_indicator.add_widget(busy_label)
+
+        # Clear Temporary Files Button
+        # from kivy.uix.widget import Widget # if not already imported (not needed for this simple add)
+        # main_layout.add_widget(Widget(size_hint_y=None, height='20dp')) # Example spacer
+
+        self.clear_temp_files_button = Button(
+            text="Clear Temporary Files",
+            size_hint_y=None,
+            height='48dp',
+            # background_color=get_color_from_hex('#FFA07A') # Light Salmon
+        )
+        # self.clear_temp_files_button.background_normal = ''
+        self.clear_temp_files_button.bind(on_press=self.on_clear_temp_files_button_pressed)
+        main_layout.add_widget(self.clear_temp_files_button)
+
+
+    def on_clear_temp_files_button_pressed(self, instance):
+        if not self.app_temporary_files:
+            self.show_info_popup("Clear Files", "No temporary files to clear.")
+            return
+
+        deleted_count = 0
+        error_count = 0
+        errors_details = []
+
+        # Iterate over a copy of the list if modifying it during iteration by removal
+        # However, it's safer to build a new list of files that remain.
+        files_to_keep = []
+
+        for file_path in self.app_temporary_files:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"Successfully deleted temporary file: {file_path}")
+                    deleted_count += 1
+                else:
+                    # File was already gone, effectively "deleted" from our tracking perspective for this session
+                    print(f"Temporary file not found (already deleted?): {file_path}")
+                    # We don't count this as an error, just that it's no longer tracked.
+            except (FileNotFoundError, OSError) as e: # Catch FileNotFoundError specifically if needed, OSError for others
+                print(f"Error deleting temporary file {file_path}: {e}")
+                errors_details.append(f"{os.path.basename(file_path)}: {e}")
+                error_count += 1
+                files_to_keep.append(file_path) # Keep it in the list if deletion failed
+
+        self.app_temporary_files = files_to_keep # Update the list with files that failed to delete
+
+        summary_message = f"Attempted to clear temporary files.\nSuccessfully deleted: {deleted_count}"
+        if error_count > 0:
+            summary_message += f"\nFailed to delete: {error_count}"
+            # For brevity, maybe only show first few error details or just a general error message.
+            # For example: summary_message += f"\nDetails for first error: {errors_details[0]}" if errors_details else ""
+
+        self.show_info_popup("Clear Files Result", summary_message)
+
+        if not self.app_temporary_files: # If all files (including those that failed) are now gone or were removed
+            print("All tracked temporary files have been processed or removed.")
+
     def on_email_pdf_button_pressed(self, instance):
         print("Send by Email button pressed. Generating PDFs...")
         pdf_outputs = self._trigger_pdf_generation() # Call the refactored helper
@@ -182,6 +250,7 @@ class DocumentGenerationScreen(Screen):
                     tmp_file_obj.write(pdf_bytes)
 
                 self.last_generated_pdf_paths.append(temp_path)
+                self.app_temporary_files.append(temp_path) # Add to global list as well
                 print(f"PDF '{doc_name}' saved for email to: {temp_path}")
 
             except Exception as e_save:
@@ -241,41 +310,47 @@ class DocumentGenerationScreen(Screen):
     def _trigger_pdf_generation(self) -> list | None:
             print("Failed to save one or more PDFs for email. Cleaning up successfully saved files for this attempt.")
             # Clean up any files already saved in this attempt if some failed later
-            for path in self.last_generated_pdf_paths:
+            for path in self.last_generated_pdf_paths: # these are files from the current attempt
                 try:
-                    if os.path.exists(path): os.remove(path)
-                except Exception as e_clean: print(f"Error cleaning up {path}: {e_clean}")
-            self.last_generated_pdf_paths = [] # Clear paths
+                    if os.path.exists(path):
+                        os.remove(path)
+                        print(f"Cleaned up {path} from current failed email attempt.")
+                        if path in self.app_temporary_files: # Also remove from global list
+                            self.app_temporary_files.remove(path)
+                except Exception as e_clean:
+                    print(f"Error cleaning up {path}: {e_clean}")
+            self.last_generated_pdf_paths = [] # Clear paths for current attempt
 
     def _trigger_pdf_generation(self) -> list | None:
-        print("Gathering selections for PDF generation...")
+        self.busy_indicator.open()
+        try:
+            # --- START of existing logic from _trigger_pdf_generation ---
+            print("Gathering selections for PDF generation...")
 
-        # 1. Get Language Code
-        selected_lang_name = self.language_spinner.text
-        lang_data = next((lang for lang in self.languages_data if lang['name'] == selected_lang_name), None)
-        if not lang_data:
-            print("Validation Error: Please select a language.")
-            self.show_error_popup("Validation Error", "Please select a language.")
-            return None
-        language_code = lang_data['code']
-        print(f"  Language Code: {language_code}")
+            # 1. Get Language Code (and validation)
+            selected_lang_name = self.language_spinner.text
+            lang_data = next((lang for lang in self.languages_data if lang['name'] == selected_lang_name), None)
+            if not lang_data:
+                print("Validation Error: Please select a language.")
+                # self.show_error_popup("Validation Error", "Please select a language.") # Popups are now handled by callers
+                return None # Return None on validation failure
+            language_code = lang_data['code']
+            print(f"  Language Code: {language_code}")
 
-        # 2. Get Country Data
-        selected_country_name = self.country_spinner.text
-        country_info = next((country for country in self.countries_data if country['country_name'] == selected_country_name), None)
-        if not country_info:
-            print("Validation Error: Please select a country.")
-            self.show_error_popup("Validation Error", "Please select a country.")
-            return None
-        print(f"  Country Data: {country_info}")
+            # 2. Get Country Data (and validation)
+            selected_country_name = self.country_spinner.text
+            country_info = next((country for country in self.countries_data if country['country_name'] == selected_country_name), None)
+            if not country_info:
+                print("Validation Error: Please select a country.")
+                return None
+            print(f"  Country Data: {country_info}")
 
-        # 3. Get Selected Products with Quantities
-        if not self.selected_products_for_document:
-            print("Validation Error: Please add at least one product.")
-            self.show_error_popup("Validation Error", "Please add at least one product.")
-            return None
+            # 3. Get Selected Products (and validation)
+            if not self.selected_products_for_document:
+                print("Validation Error: Please add at least one product.")
+                return None
 
-        products_for_handler = []
+            products_for_handler = []
         for item in self.selected_products_for_document:
             original_product_data = item.get('original_data', {})
             products_for_handler.append({
@@ -285,10 +360,9 @@ class DocumentGenerationScreen(Screen):
             })
         print(f"  Products for Handler: {products_for_handler}")
 
-        # 4. Get Selected Template
+        # 4. Get Selected Template (and validation)
         if not self.current_selected_template:
             print("Validation Error: Please select a document template.")
-            self.show_error_popup("Validation Error", "Please select a document template.")
             return None
         templates_data_for_handler = [self.current_selected_template]
         print(f"  Template Data: {templates_data_for_handler}")
@@ -302,6 +376,9 @@ class DocumentGenerationScreen(Screen):
         try:
             handler = LiteDocumentHandler()
 
+
+            # Actual PDF generation call (can also raise exceptions)
+            handler = LiteDocumentHandler()
             pdf_outputs = handler.generate_and_visualize_pdfs(
                 language_code=language_code,
                 country_data=country_info,
@@ -309,14 +386,25 @@ class DocumentGenerationScreen(Screen):
                 templates_data=templates_data_for_handler,
                 pdf_action=pdf_action
             )
-            return pdf_outputs # Return the generated outputs
 
-        except Exception as e:
-            print(f"An error occurred during PDF generation: {e}")
+            if pdf_outputs is None: # Handler explicitly returned None (e.g. context prep failed)
+                print("PDF generation failed as handler returned None.")
+                # Popups for this case will be handled by the calling methods (on_generate_pdf_button_pressed, on_email_pdf_button_pressed)
+                # based on the None return value.
+
+            return pdf_outputs # Return the outputs (or None if it failed before this)
+            # --- END of existing logic ---
+
+        except Exception as e: # Catch any unexpected errors during the process
+            print(f"An unexpected error occurred in _trigger_pdf_generation: {e}")
             import traceback
             traceback.print_exc()
-            self.show_error_popup("System Error", f"An unexpected error occurred: {e}")
-            return None # Return None on error
+            # Popups for this case will be handled by the calling methods based on the None return value
+            # or if this exception propagates (though returning None is cleaner here).
+            return None # Ensure None is returned on such errors
+
+        finally:
+            self.busy_indicator.dismiss()
 
 
     def on_generate_pdf_button_pressed(self, instance):
@@ -340,10 +428,7 @@ class DocumentGenerationScreen(Screen):
                     temp_pdf_file.close() # Close the file before trying to open it with another app
 
                     print(f"PDF '{doc_name}' saved temporarily to: {temp_pdf_path}")
-
-                    # Inform user via Popup
-                    popup_message = f"PDF '{doc_name}' generated and saved to:\n{temp_pdf_path}\n\n(Normally, the app would attempt to open this file.)"
-                    print(f"PDF '{doc_name}' saved temporarily to: {temp_pdf_path}")
+                    self.app_temporary_files.append(temp_pdf_path) # Add to global list
 
                     popup_message_main = f"PDF '{doc_name}' generated and saved to:\n{temp_pdf_path}"
                     popup_message_plyer = ""
