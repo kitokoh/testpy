@@ -56,6 +56,8 @@ class DocumentGenerationScreen(Screen):
         self.last_generated_pdf_paths = [] # For email attachments
         self.highlighted_product_button = None
         self.app_temporary_files = [] # Global list for all temp files
+        self.current_selected_language_code = None # Initialize selection state
+
 
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
@@ -604,6 +606,25 @@ class DocumentGenerationScreen(Screen):
 
     def populate_spinners(self):
         self.languages_data = mobile_data_api.get_languages_from_api()
+        if self.languages_data: # API returned data
+            language_names = [lang.get('name') for lang in self.languages_data if lang and lang.get('name')]
+            self.language_spinner.values = language_names
+            if language_names:
+                self.language_spinner.text = language_names[0]
+                # Set current_selected_language_code based on the first item
+                first_lang_data = next((lang for lang in self.languages_data if lang.get('name') == language_names[0]), None)
+                if first_lang_data:
+                    self.current_selected_language_code = first_lang_data.get('code')
+                else: # Should not happen if names are derived from data
+                    self.current_selected_language_code = None
+            else: # API returned data, but it was malformed (e.g., list of dicts without 'name')
+                self.language_spinner.text = 'No valid languages' # Or 'Error: Invalid language data'
+                self.language_spinner.values = []
+                self.current_selected_language_code = None
+        else: # API returned None or empty list
+            self.language_spinner.values = []
+            self.language_spinner.text = 'No languages available' # Or 'Error loading languages'
+            self.current_selected_language_code = None
         language_names = [lang['name'] for lang in self.languages_data if lang and 'name' in lang]
         self.language_spinner.values = language_names
         if language_names:
@@ -616,29 +637,29 @@ class DocumentGenerationScreen(Screen):
             self.country_spinner.text = country_names[0]
 
     def on_language_select(self, spinner, text):
-        selected_lang_data = next((lang for lang in self.languages_data if lang['name'] == text), None)
+        selected_lang_data = next((lang for lang in self.languages_data if lang.get('name') == text), None)
         if selected_lang_data:
-            print(f"Selected Language: {selected_lang_data['name']}, Code: {selected_lang_data['code']}")
+            self.current_selected_language_code = selected_lang_data.get('code')
+            print(f"Selected Language: {selected_lang_data.get('name')}, Code: {self.current_selected_language_code}")
         else:
-            print(f"Selected Language Text: {text} (No full data found)")
+            self.current_selected_language_code = None # Crucial for invalid/default texts
+            print(f"Selected Language Text: {text} (No valid data found or default/error message selected)")
         self.populate_product_list() # Refresh product list
 
     def populate_product_list(self):
-        self.product_list_layout.clear_widgets()
+        self.product_list_layout.clear_widgets() # Clear previous products first
 
-        selected_language_code = 'en' # Default
-        if hasattr(self, 'languages_data') and self.languages_data:
-            selected_lang_name = self.language_spinner.text
-            lang_data = next((lang for lang in self.languages_data if lang['name'] == selected_lang_name), None)
-            if lang_data:
-                selected_language_code = lang_data['code']
-            elif self.languages_data: # Fallback to first language if current spinner text is not found
-                # Check if default spinner text is "Select Language" or similar before using first in list
-                if self.language_spinner.text != 'Select Language' and self.languages_data[0] and 'code' in self.languages_data[0]:
-                     selected_language_code = self.languages_data[0]['code']
+        if not self.current_selected_language_code:
+            # This handles cases where "Select Language", "No languages found", or "Error loading languages" is effectively active.
+            self.product_list_layout.add_widget(
+                Label(text="Please select a valid language to view products.",
+                      size_hint_y=None, height='40dp')
+            )
+            self.products_data = [] # Ensure product data is also cleared
+            return # Stop further processing if no valid language is selected
 
+        self.products_data = mobile_data_api.get_all_products_for_selection_from_api(language_code=self.current_selected_language_code, name_pattern=None)
 
-        self.products_data = mobile_data_api.get_all_products_for_selection_from_api(language_code=selected_language_code, name_pattern=None)
 
         if self.products_data:
             for product in self.products_data:
@@ -682,3 +703,4 @@ class DocumentGenerationScreen(Screen):
 # have been overwritten by the Kivy-specific DocumentGenerationScreen.
 # Further refactoring would be needed to integrate them with a Kivy architecture if they were to be developed.
 # For this task, ui.py now primarily holds the DocumentGenerationScreen Kivy widget.
+
