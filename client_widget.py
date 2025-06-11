@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor # Added QFont and QColor
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added QPixmap
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
@@ -204,18 +204,11 @@ class ClientWidget(QWidget):
         self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
         doc_btn_layout.addWidget(self.refresh_docs_btn)
 
-        # self.open_doc_btn = QPushButton(self.tr("Ouvrir"))
-        # self.open_doc_btn.setIcon(QIcon.fromTheme("document-open"))
-        # self.open_doc_btn.clicked.connect(self.open_selected_doc)
-        # doc_btn_layout.addWidget(self.open_doc_btn)
-
-        self.add_template_btn = QPushButton(self.tr("Générer via Modèle")) # Renamed variable & new text
-        self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # Renamed variable
-        self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle")) # Renamed variable & new tooltip
-        # The original .connect(self.delete_selected_doc) is removed by replacing these lines.
-        # Now, connect to the new function.
-        self.add_template_btn.clicked.connect(self.open_create_docs_dialog) # Renamed variable
-        doc_btn_layout.addWidget(self.add_template_btn) # Renamed variable
+        self.add_template_btn = QPushButton(self.tr("Générer via Modèle"))
+        self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg")))
+        self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle"))
+        self.add_template_btn.clicked.connect(self.open_create_docs_dialog)
+        doc_btn_layout.addWidget(self.add_template_btn)
         docs_layout.addLayout(doc_btn_layout)
         self.tab_widget.addTab(docs_tab, self.tr("Documents"))
 
@@ -230,32 +223,26 @@ class ClientWidget(QWidget):
         self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.contacts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        # self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive) # Example for specific column
         self.contacts_table.setAlternatingRowColors(True)
         self.contacts_table.cellDoubleClicked.connect(self.edit_contact) # row, column are passed
 
-        # Create and add the empty state label for contacts
         self.contacts_empty_label = QLabel(self.tr("Aucun contact ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
         self.contacts_empty_label.setAlignment(Qt.AlignCenter)
         font = self.contacts_empty_label.font()
-        font.setPointSize(10) # Adjust size as needed
-        # Optional: Make it italic or a bit greyed out
-        # font.setItalic(True)
-        # self.contacts_empty_label.setStyleSheet("color: grey;")
+        font.setPointSize(10)
         self.contacts_empty_label.setFont(font)
-        contacts_layout.addWidget(self.contacts_empty_label) # Add before the table
+        contacts_layout.addWidget(self.contacts_empty_label)
 
         contacts_layout.addWidget(self.contacts_table)
 
-        # Pagination controls for Contacts
         contacts_pagination_layout = QHBoxLayout()
         self.prev_contact_button = QPushButton("<< Précédent")
-        self.prev_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.prev_contact_button.setObjectName("paginationButton")
         self.prev_contact_button.clicked.connect(self.prev_contact_page)
         self.contact_page_info_label = QLabel("Page 1 / 1")
-        self.contact_page_info_label.setObjectName("paginationLabel") # Use QSS for styling
+        self.contact_page_info_label.setObjectName("paginationLabel")
         self.next_contact_button = QPushButton("Suivant >>")
-        self.next_contact_button.setObjectName("paginationButton") # Use QSS for styling
+        self.next_contact_button.setObjectName("paginationButton")
         self.next_contact_button.clicked.connect(self.next_contact_page)
 
         contacts_pagination_layout.addStretch()
@@ -263,7 +250,7 @@ class ClientWidget(QWidget):
         contacts_pagination_layout.addWidget(self.contact_page_info_label)
         contacts_pagination_layout.addWidget(self.next_contact_button)
         contacts_pagination_layout.addStretch()
-        contacts_layout.addLayout(contacts_pagination_layout) # Add pagination to contacts tab
+        contacts_layout.addLayout(contacts_pagination_layout)
 
         contacts_btn_layout = QHBoxLayout()
         self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg")); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
@@ -275,12 +262,10 @@ class ClientWidget(QWidget):
         products_tab = QWidget()
         products_layout = QVBoxLayout(products_tab)
 
-        # Product Filters
         product_filters_layout = QHBoxLayout()
         product_filters_layout.addWidget(QLabel(self.tr("Filtrer par langue:")))
         self.product_lang_filter_combo = QComboBox()
         self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
-        # Language codes should match those in db and other parts of the app
         self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
         self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
         self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
@@ -291,31 +276,25 @@ class ClientWidget(QWidget):
         product_filters_layout.addStretch()
         products_layout.addLayout(product_filters_layout)
 
-        # Create and add the empty state label for products
         self.products_empty_label = QLabel(self.tr("Aucun produit ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
         self.products_empty_label.setAlignment(Qt.AlignCenter)
-        font_products_empty = self.products_empty_label.font() # Use a different variable name for font
-        font_products_empty.setPointSize(10) # Adjust size as needed
+        font_products_empty = self.products_empty_label.font()
+        font_products_empty.setPointSize(10)
         self.products_empty_label.setFont(font_products_empty)
-        products_layout.addWidget(self.products_empty_label) # Add before the table
+        products_layout.addWidget(self.products_empty_label)
 
         self.products_table = QTableWidget()
-        self.products_table.setColumnCount(8) # ID, Name, Desc, Weight, Dimensions, Qty, Unit Price, Total Price
+        self.products_table.setColumnCount(8)
         self.products_table.setHorizontalHeaderLabels([
             self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"),
-            self.tr("Poids"), self.tr("Dimensions"), # New Columns
+            self.tr("Poids"), self.tr("Dimensions"),
             self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")
         ])
         self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked)
         self.products_table.itemChanged.connect(self.handle_product_item_changed)
         self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.products_table.hideColumn(0) # Hide ID
-        # Example of interactive resizing for some columns:
-        # self.products_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
-        # self.products_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
-        # for i in range(3, 8): # Weight, Dimensions, Qty, Unit Price, Total Price
-        #     self.products_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        self.products_table.hideColumn(0)
         products_layout.addWidget(self.products_table)
 
         products_btn_layout = QHBoxLayout()
@@ -325,10 +304,8 @@ class ClientWidget(QWidget):
         products_layout.addLayout(products_btn_layout)
         self.tab_widget.addTab(products_tab, self.tr("Produits"))
 
-        # Create and add Notes Tab
         notes_content_tab = QWidget()
         notes_tab_layout = QVBoxLayout(notes_content_tab)
-        # self.notes_edit is already initialized above where the groupbox was removed
         notes_tab_layout.addWidget(self.notes_edit)
 
         produits_tab_index = -1
@@ -339,44 +316,39 @@ class ClientWidget(QWidget):
         if produits_tab_index != -1:
             self.tab_widget.insertTab(produits_tab_index + 1, notes_content_tab, self.tr("Notes"))
         else:
-            self.tab_widget.addTab(notes_content_tab, self.tr("Notes")) # Fallback if "Produits" tab not found
+            self.tab_widget.addTab(notes_content_tab, self.tr("Notes"))
 
         layout.addWidget(self.tab_widget)
 
-        # --- Document Notes Tab ---
         self.document_notes_tab = QWidget()
         doc_notes_layout = QVBoxLayout(self.document_notes_tab)
 
-        # Filters Section
         doc_notes_filters_layout = QHBoxLayout()
         doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
         self.doc_notes_type_filter_combo = QComboBox()
-        # Population will be handled in load_document_notes_filters
         doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
 
         doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
         self.doc_notes_lang_filter_combo = QComboBox()
-        # Population will be handled in load_document_notes_filters
         doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
         doc_notes_filters_layout.addStretch()
         doc_notes_layout.addLayout(doc_notes_filters_layout)
 
-        # Table Section
         self.document_notes_table = QTableWidget()
         self.document_notes_table.setColumnCount(5)
         self.document_notes_table.setHorizontalHeaderLabels([
             self.tr("Type Document"), self.tr("Langue"),
             self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
         ])
-        self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Aperçu Note stretch
+        self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         doc_notes_layout.addWidget(self.document_notes_table)
 
-        # Buttons Section
         doc_notes_buttons_layout = QHBoxLayout()
         self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
-        self.add_doc_note_button.setIcon(QIcon(":/icons/plus-circle.svg")) # Placeholder icon
+        self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new"))
+
         doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
 
         self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
@@ -388,43 +360,41 @@ class ClientWidget(QWidget):
         self.document_notes_tab.setLayout(doc_notes_layout)
         self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
 
-        # Connections for Document Notes Tab
         self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
         self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
         self.add_doc_note_button.clicked.connect(self.on_add_document_note)
         self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
 
-        # --- Product Dimensions Tab ---
         self.product_dimensions_tab = QWidget()
         prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
 
-        # Product Selector ComboBox
         self.dim_product_selector_combo = QComboBox()
         self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
-        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Connection will be done after this block
         prod_dims_layout.addWidget(self.dim_product_selector_combo)
 
-        # Add new "Edit Client Product Dimensions" button
         self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
         self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
-        self.edit_client_product_dimensions_button.setEnabled(False) # Initially disabled
-
+        self.edit_client_product_dimensions_button.setEnabled(False)
         prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
 
-        prod_dims_layout.addStretch() # Push elements to the top
+        prod_dims_layout.addStretch()
 
-        # Add Tab to Tab Widget
+
         produits_tab_index = -1
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == self.tr("Notes de Document"): # Insert after "Notes de Document"
+            if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
                 produits_tab_index = i
                 break
 
         if produits_tab_index != -1:
             self.tab_widget.insertTab(produits_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
-        else: # Fallback
+        else:
             self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
 
+        self.load_products_for_dimension_tab()
+
+        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
         self.load_products_for_dimension_tab() # Initial population of product selector
 
         # Connect signals for the Product Dimensions Tab
@@ -462,13 +432,11 @@ class ClientWidget(QWidget):
             return
 
         try:
-            # Fetch products linked to this client (not project-specific for this tab's purpose)
-            # get_products_for_client_or_project returns products with their global product_id in 'product_id'
             linked_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
 
             if linked_products:
-                unique_products = {prod.get('product_id'): prod for prod in linked_products}.values() # Ensure unique by global product_id
-                for prod_data in sorted(list(unique_products), key=lambda x: x.get('product_name', '')): # Sort by name
+                unique_products = {prod.get('product_id'): prod for prod in linked_products}.values()
+                for prod_data in sorted(list(unique_products), key=lambda x: x.get('product_name', '')):
                     product_name = prod_data.get('product_name', 'N/A')
                     global_product_id = prod_data.get('product_id')
                     lang_code = prod_data.get('language_code', '')
@@ -479,7 +447,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les produits pour l'onglet dimensions."))
 
         self.dim_product_selector_combo.blockSignals(False)
-        self.on_dim_product_selected() # Trigger loading for current selection (or placeholder)
+        self.on_dim_product_selected()
 
 
     def on_dim_product_selected(self, index=None):
@@ -490,7 +458,7 @@ class ClientWidget(QWidget):
             self.edit_client_product_dimensions_button.setEnabled(False)
         else:
             self.edit_client_product_dimensions_button.setEnabled(True)
-        # Old logic for loading dimensions into inline fields is removed.
+
 
     def on_edit_client_product_dimensions(self):
         selected_global_product_id = self.dim_product_selector_combo.currentData()
@@ -499,7 +467,7 @@ class ClientWidget(QWidget):
                                 self.tr("Veuillez sélectionner un produit dans la liste déroulante."))
             return
 
-        # Ensure client_id is available
+
         client_id = self.client_info.get('client_id')
         if not client_id:
             QMessageBox.critical(self, self.tr("Erreur Client"),
@@ -513,13 +481,10 @@ class ClientWidget(QWidget):
             parent=self
         )
         dialog.exec_()
-        # Optional: Refresh something if needed after dialog closes,
-        # e.g., if the main product display shows dimension summaries.
 
-    # Removed on_client_browse_tech_image method
-    # Removed on_save_client_product_dimensions method
-        self.load_document_notes_filters() # Initial call for new tab
-        self.load_document_notes_table()   # Initial call for new tab
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
 
 
     def load_document_notes_filters(self):
@@ -528,15 +493,13 @@ class ClientWidget(QWidget):
         self.doc_notes_lang_filter_combo.blockSignals(True)
 
         self.doc_notes_type_filter_combo.clear()
-        self.doc_notes_type_filter_combo.addItem(self.tr("Tous Types"), None) # UserData is None for "All"
-        # Common document types that might have notes
+        self.doc_notes_type_filter_combo.addItem(self.tr("Tous Types"), None)
         doc_types = ["Proforma", "Packing List", "Sales Conditions", "Certificate of Origin", "Bill of Lading", "Other"]
         for doc_type in doc_types:
-            self.doc_notes_type_filter_combo.addItem(doc_type, doc_type) # Store string value as data
+            self.doc_notes_type_filter_combo.addItem(doc_type, doc_type)
 
         self.doc_notes_lang_filter_combo.clear()
         self.doc_notes_lang_filter_combo.addItem(self.tr("Toutes Langues"), None)
-        # Common languages, could be dynamically populated from client's selected_languages or existing notes
         langs = ["fr", "en", "ar", "tr", "pt"]
         for lang in langs:
             self.doc_notes_lang_filter_combo.addItem(lang, lang)
@@ -544,27 +507,26 @@ class ClientWidget(QWidget):
         self.doc_notes_type_filter_combo.blockSignals(False)
         self.doc_notes_lang_filter_combo.blockSignals(False)
 
-        # Set default selection (e.g., "All")
         self.doc_notes_type_filter_combo.setCurrentIndex(0)
         self.doc_notes_lang_filter_combo.setCurrentIndex(0)
 
 
     def load_document_notes_table(self):
         """Fetches data from db_manager.get_client_document_notes() and populates table."""
-        self.document_notes_table.setRowCount(0) # Clear table
+        self.document_notes_table.setRowCount(0)
         client_id = self.client_info.get("client_id")
         if not client_id:
             return
 
-        doc_type_filter = self.doc_notes_type_filter_combo.currentData() # This is 'None' for "All"
-        lang_filter = self.doc_notes_lang_filter_combo.currentData()     # This is 'None' for "All"
+        doc_type_filter = self.doc_notes_type_filter_combo.currentData()
+        lang_filter = self.doc_notes_lang_filter_combo.currentData()
 
         try:
             notes = db_manager.get_client_document_notes(
                 client_id,
                 document_type=doc_type_filter,
                 language_code=lang_filter,
-                is_active=None # Fetch all (active and inactive)
+                is_active=None
             )
             notes = notes if notes else []
 
@@ -573,7 +535,7 @@ class ClientWidget(QWidget):
                 note_id = note.get("note_id")
 
                 type_item = QTableWidgetItem(note.get("document_type"))
-                type_item.setData(Qt.UserRole, note_id) # Store note_id in the first item
+                type_item.setData(Qt.UserRole, note_id)
                 self.document_notes_table.setItem(row_idx, 0, type_item)
 
                 self.document_notes_table.setItem(row_idx, 1, QTableWidgetItem(note.get("language_code")))
@@ -581,15 +543,15 @@ class ClientWidget(QWidget):
                 content_preview = note.get("note_content", "")
                 if len(content_preview) > 70: content_preview = content_preview[:67] + "..."
                 self.document_notes_table.setItem(row_idx, 2, QTableWidgetItem(content_preview))
-                # --- New HTML list for note content ---
+
                 note_content = note.get("note_content", "")
                 lines = [line.strip() for line in note_content.split('\n') if line.strip()]
 
                 html_content = ""
                 if lines:
-                    html_content = "<ol style='margin:0px; padding-left: 15px;'>" # Adjust padding as needed
+                    html_content = "<ol style='margin:0px; padding-left: 15px;'>"
                     for line in lines:
-                        # Basic HTML escaping for safety, can be more robust if needed
+
                         escaped_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                         html_content += f"<li>{escaped_line}</li>"
                     html_content += "</ol>"
@@ -599,16 +561,16 @@ class ClientWidget(QWidget):
                 note_label = QLabel()
                 note_label.setText(html_content)
                 note_label.setWordWrap(True)
-                # note_label.setStyleSheet("background-color: #f0f0f0;") # Optional: for debugging layout
+
                 self.document_notes_table.setCellWidget(row_idx, 2, note_label)
-                # --- End new HTML list ---
+
 
                 active_text = self.tr("Oui") if note.get("is_active") else self.tr("Non")
                 active_item = QTableWidgetItem(active_text)
                 active_item.setTextAlignment(Qt.AlignCenter)
                 self.document_notes_table.setItem(row_idx, 3, active_item)
 
-                # Actions column
+
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(5, 0, 5, 0)
@@ -628,12 +590,12 @@ class ClientWidget(QWidget):
                 actions_layout.addStretch()
                 self.document_notes_table.setCellWidget(row_idx, 4, actions_widget)
 
-            # Adjust column widths
-            self.document_notes_table.resizeColumnToContents(0) # Type
-            self.document_notes_table.resizeColumnToContents(1) # Language
-            # Column 2 (Preview) is stretched by setSectionResizeMode
-            self.document_notes_table.resizeColumnToContents(3) # Active
-            self.document_notes_table.resizeColumnToContents(4) # Actions
+
+            self.document_notes_table.resizeColumnToContents(0)
+            self.document_notes_table.resizeColumnToContents(1)
+
+            self.document_notes_table.resizeColumnToContents(3)
+            self.document_notes_table.resizeColumnToContents(4)
 
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Chargement Notes"), self.tr("Impossible de charger les notes de document:\n{0}").format(str(e)))
@@ -1869,3 +1831,5 @@ class ClientWidget(QWidget):
 # and utility functions like generate_pdf_for_document to a utils.py file.
 # The direct use of self.DATABASE_NAME in load_statuses and save_client_notes should be refactored
 # to use db_manager for all database interactions.
+
+[end of client_widget.py]
