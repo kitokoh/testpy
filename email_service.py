@@ -62,9 +62,12 @@ class EmailSenderService(QObject): # Inherit from QObject if it were to emit sig
         # It allows for spaces around the path.
         return re.sub(r"{{\s*([\w.]+)\s*}}", replacer, text)
 
-    def send_email(self, client_id: str, recipients: list[str], subject_template: str,
-                   body_html_template: str, attachments: list[str],
-                   template_language_code: str, project_id: str = None) -> tuple[bool, str]:
+    def send_email(self, recipient_email: str, # Changed from recipients list for SAV dialog simplicity, can be reverted if batching needed
+                   subject_template: str,
+                   body_html_content_or_filename: str, # Renamed and logic change needed
+                   context_data: dict, # Now expects pre-fetched context
+                   template_obj: dict = None, # Pass the whole template object
+                   attachments: list[str] = None) -> tuple[bool, str]:
 
         if not self.smtp_config:
             return False, "SMTP configuration not found or invalid."
@@ -72,31 +75,51 @@ class EmailSenderService(QObject): # Inherit from QObject if it were to emit sig
         if not self.smtp_config.get('smtp_server') or not self.smtp_config.get('sender_email_address'):
              return False, "SMTP configuration is incomplete (missing server or sender email)."
 
-        # 1. Fetch Personalization Context
-        default_company = db.get_default_company()
-        if not default_company:
-            return False, "Default company information not found. Cannot send email."
-        company_id = default_company['company_id']
+        if attachments is None:
+            attachments = []
 
-        try:
-            # Assuming get_document_context_data is robust enough
-            context_data = db.get_document_context_data(
-                client_id=client_id,
-                company_id=company_id,
-                target_language_code=template_language_code,
-                project_id=project_id,
-                # additional_context could be passed here if needed
-            )
-        except Exception as e:
-            print(f"Error fetching document context data: {e}")
-            return False, f"Failed to fetch personalization context: {e}"
+        # 1. Determine HTML body content
+        html_body_content = ""
+        if template_obj and template_obj.get('raw_template_file_data'):
+            raw_data = template_obj['raw_template_file_data']
+            if isinstance(raw_data, bytes):
+                html_body_content = raw_data.decode('utf-8')
+            else: # Should be string already if not bytes, but guard
+                html_body_content = str(raw_data)
+            # print(f"DEBUG: Using raw_template_file_data for email body. Length: {len(html_body_content)}")
+        elif body_html_content_or_filename and body_html_content_or_filename.lower().endswith('.html') and '<html' not in body_html_content_or_filename.lower():
+            # Fallback: body_html_content_or_filename is a filename
+            # Determine project root. APP_ROOT_DIR_CONTEXT is from db.py
+            db_dir_name = os.path.basename(db.APP_ROOT_DIR_CONTEXT)
+            if db_dir_name in ['core', 'db', 'database', 'src']:
+                project_root = os.path.dirname(db.APP_ROOT_DIR_CONTEXT)
+            else:
+                project_root = db.APP_ROOT_DIR_CONTEXT
+
+            file_path = os.path.join(project_root, "email_template_designs", body_html_content_or_filename)
+            if not os.path.exists(file_path):
+                 # Try alt path if APP_ROOT_DIR_CONTEXT was already project root
+                 file_path_alt = os.path.join(db.APP_ROOT_DIR_CONTEXT, "email_template_designs", body_html_content_or_filename)
+                 if os.path.exists(file_path_alt):
+                     file_path = file_path_alt
+                 else:
+                    return False, f"HTML template file '{body_html_content_or_filename}' not found at expected paths: {file_path} or {file_path_alt}."
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    html_body_content = f.read()
+            except Exception as e:
+                return False, f"Error reading HTML template file '{file_path}': {e}"
+        elif body_html_content_or_filename: # Assume it's direct HTML content
+            html_body_content = body_html_content_or_filename
+        else:
+            return False, "No email body content or filename provided."
 
         # 2. Personalize Subject and Body
         personalized_subject = self._replace_placeholders_in_text(subject_template, context_data)
-        personalized_body_html = self._replace_placeholders_in_text(body_html_template, context_data)
+        personalized_body_html = self._replace_placeholders_in_text(html_body_content, context_data)
 
         # 3. Create MIMEMultipart message
-        msg = MIMEMultipart('related') # 'related' for embedding images if any, 'alternative' if plain text version also sent
+        msg = MIMEMultipart('related')
 
         sender_display_name = self.smtp_config.get('sender_display_name', '')
         sender_email = self.smtp_config['sender_email_address']
