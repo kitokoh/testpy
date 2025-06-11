@@ -280,6 +280,11 @@ class SettingsDialog(QDialog):
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
 
+        # Google Maps Review URL
+        self.google_maps_url_input = QLineEdit(self.current_config_data.get("google_maps_review_url", "https://maps.google.com/?cid=YOUR_CID_HERE"))
+        self.google_maps_url_input.setPlaceholderText(self.tr("Entrez l'URL complète pour les avis Google Maps"))
+        general_form_layout.addRow(self.tr("Lien Avis Google Maps:"), self.google_maps_url_input)
+
         tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -314,7 +319,8 @@ class SettingsDialog(QDialog):
             "smtp_server": self.smtp_server_input_field.text(),
             "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(),
-            "smtp_password": self.smtp_pass_input_field.text()
+            "smtp_password": self.smtp_pass_input_field.text(),
+            "google_maps_review_url": self.google_maps_url_input.text().strip()
         }
         return config_data_to_return
 

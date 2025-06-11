@@ -419,6 +419,161 @@ class ClientWidget(QWidget):
         self.load_document_notes_filters()
         self.load_document_notes_table()
 
+        # SAV Tab
+        self.sav_tab = QWidget()
+        sav_layout = QVBoxLayout(self.sav_tab)
+
+        # Purchase History Section
+        sav_layout.addWidget(QLabel("<h3>Historique des Achats</h3>"))
+        self.purchase_history_table = QTableWidget()
+        self.purchase_history_table.setColumnCount(6) # ID, Produit, Qté, N/S, Date Achat, Actions (or 5 if N/S is directly editable)
+        self.purchase_history_table.setHorizontalHeaderLabels([
+            self.tr("ID CPP (Hidden)"), self.tr("Produit"), self.tr("Quantité"),
+            self.tr("Numéro de Série"), self.tr("Date d'Achat"), self.tr("Actions")
+        ])
+        self.purchase_history_table.setColumnHidden(0, True) # Hide ID CPP
+        self.purchase_history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.purchase_history_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        # self.purchase_history_table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Will make N/S editable
+        self.purchase_history_table.itemChanged.connect(self.handle_purchase_history_item_changed)
+        sav_layout.addWidget(self.purchase_history_table)
+
+        self.refresh_purchase_history_btn = QPushButton(self.tr("Rafraîchir l'historique"))
+        self.refresh_purchase_history_btn.setIcon(QIcon.fromTheme("view-refresh"))
+        self.refresh_purchase_history_btn.clicked.connect(self.load_purchase_history_table)
+        sav_layout.addWidget(self.refresh_purchase_history_btn)
+
+        # Placeholder for SAV Tickets section (to be added later)
+        sav_layout.addWidget(QLabel("<h3>Tickets SAV (Prochainement)</h3>"))
+        sav_layout.addStretch()
+
+
+        self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
+        self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+
+        # Call to load SAV tickets table initially if tab is visible
+        self.update_sav_tab_visibility() # This will also call load_sav_tickets_table if visible
+
+
+    def load_sav_tickets_table(self):
+        self.sav_tickets_table.setRowCount(0)
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            return
+
+        try:
+            tickets = db_manager.get_sav_tickets_for_client(client_id)
+            if tickets is None: tickets = []
+
+            self.sav_tickets_table.setRowCount(len(tickets))
+            for row_idx, ticket in enumerate(tickets):
+                ticket_id = ticket.get('ticket_id')
+
+                id_item = QTableWidgetItem(str(ticket_id))
+                id_item.setData(Qt.UserRole, ticket_id)
+                self.sav_tickets_table.setItem(row_idx, 0, id_item) # Hidden
+
+                # Product Name
+                cpp_id = ticket.get('client_project_product_id')
+                product_name_display = self.tr("N/A")
+                if cpp_id:
+                    # This could be optimized by batch fetching product names if performance is an issue
+                    linked_product_info = db_manager.get_client_project_product_by_id(cpp_id) # Custom function needed
+                    if linked_product_info:
+                        product_details = db_manager.get_product_by_id(linked_product_info.get('product_id'))
+                        if product_details:
+                            product_name_display = product_details.get('product_name', self.tr("Produit Inconnu"))
+                self.sav_tickets_table.setItem(row_idx, 1, QTableWidgetItem(product_name_display))
+
+                issue_desc = ticket.get('issue_description', '')
+                self.sav_tickets_table.setItem(row_idx, 2, QTableWidgetItem(issue_desc[:100] + '...' if len(issue_desc) > 100 else issue_desc))
+
+                status_name = self.tr("N/A")
+                if ticket.get('status_id'):
+                    status_info = db_manager.get_status_setting_by_id(ticket['status_id'])
+                    if status_info: status_name = status_info.get('status_name', self.tr("Statut Inconnu"))
+                self.sav_tickets_table.setItem(row_idx, 3, QTableWidgetItem(status_name))
+
+                opened_at_str = ticket.get('opened_at', '')
+                if opened_at_str:
+                    try:
+                        dt_obj = datetime.fromisoformat(opened_at_str.replace('Z', '+00:00'))
+                        opened_at_formatted = dt_obj.strftime('%Y-%m-%d %H:%M')
+                    except ValueError:
+                        opened_at_formatted = opened_at_str
+                else:
+                    opened_at_formatted = self.tr('N/A')
+                self.sav_tickets_table.setItem(row_idx, 4, QTableWidgetItem(opened_at_formatted))
+
+                tech_name = self.tr("Non assigné")
+                if ticket.get('assigned_technician_id'):
+                    tech_info = db_manager.get_team_member_by_id(ticket['assigned_technician_id'])
+                    if tech_info: tech_name = tech_info.get('full_name', self.tr("Technicien Inconnu"))
+                self.sav_tickets_table.setItem(row_idx, 5, QTableWidgetItem(tech_name))
+
+                # Actions button
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2,2,2,2); actions_layout.setSpacing(5)
+                view_edit_button = QPushButton(self.tr("Voir/Modifier"))
+                view_edit_button.clicked.connect(lambda checked, t_id=ticket_id: self.view_edit_sav_ticket_dialog(t_id))
+                actions_layout.addWidget(view_edit_button)
+                actions_layout.addStretch()
+                self.sav_tickets_table.setCellWidget(row_idx, 6, actions_widget)
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Tickets SAV"),
+                                 self.tr("Impossible de charger les tickets SAV:\n{0}").format(str(e)))
+
+    def open_new_sav_ticket_dialog(self):
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        try:
+            from sav.ticket_dialog import SAVTicketDialog # Import here to avoid circular if moved
+        except ImportError:
+            QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le dialogue de ticket SAV n'a pas pu être chargé."))
+            return
+
+        all_client_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+        purchased_items = [
+            {'name': p.get('product_name', 'N/A'), 'client_project_product_id': p.get('client_project_product_id')}
+            for p in all_client_products if p.get('purchase_confirmed_at') is not None
+        ]
+
+        dialog = SAVTicketDialog(client_id=client_id, purchased_products=purchased_items, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_sav_tickets_table()
+
+    def view_edit_sav_ticket_dialog(self, ticket_id):
+        client_id = self.client_info.get('client_id')
+        if not client_id: # Should not happen if ticket_id is valid for this client context
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        try:
+            from sav.ticket_dialog import SAVTicketDialog
+        except ImportError:
+            QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le dialogue de ticket SAV n'a pas pu être chargé."))
+            return
+
+        ticket_data = db_manager.get_sav_ticket_by_id(ticket_id)
+        if not ticket_data:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Ticket SAV non trouvé (ID: {0}).").format(ticket_id))
+            return
+
+        all_client_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+        purchased_items = [
+            {'name': p.get('product_name', 'N/A'), 'client_project_product_id': p.get('client_project_product_id')}
+            for p in all_client_products if p.get('purchase_confirmed_at') is not None
+        ]
+
+        dialog = SAVTicketDialog(client_id=client_id, purchased_products=purchased_items, ticket_data=ticket_data, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_sav_tickets_table()
+
 
     def load_products_for_dimension_tab(self):
         """Populates the product selector combo box in the Product Dimensions tab."""
@@ -902,6 +1057,11 @@ class ClientWidget(QWidget):
         self.category_value_label.setText(self.client_info.get("category", self.tr("N/A"))) # This is correctly updated by populate_details_layout if self.category_value_label is an instance member.
 
         self.notes_edit.setText(self.client_info.get("notes", ""))
+        self.update_sav_tab_visibility() # Refresh SAV tab visibility
+        # Also ensure SAV tickets table is loaded if tab is visible
+        if self.tab_widget.isTabEnabled(self.sav_tab_index):
+            self.load_sav_tickets_table()
+
 
     def load_statuses(self):
         try:
@@ -930,16 +1090,74 @@ class ClientWidget(QWidget):
                     QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour le statut."))
                     return
 
+                if status_text == 'Vendu':
+                    vendu_status_id = status_id_to_set # Already fetched
+
+                    products_to_confirm = db_manager.get_products_for_client_or_project(
+                        client_id_to_update,
+                        project_id=None # Assuming confirmation applies to all client's products not yet confirmed
+                    )
+                    # Filter for products where purchase_confirmed_at is NULL
+                    products_needing_confirmation = [
+                        p for p in products_to_confirm if p.get('purchase_confirmed_at') is None
+                    ]
+
+                    if not products_needing_confirmation:
+                        QMessageBox.information(self, self.tr("Confirmation Vente"), self.tr("Aucun produit à confirmer pour cette vente."))
+                    else:
+                        for product_data in products_needing_confirmation:
+                            client_project_product_id = product_data.get('client_project_product_id')
+                            # Fetch product name for dialog if not available directly or to ensure freshness
+                            # Assuming product_data from get_products_for_client_or_project includes 'product_name'
+                            product_name = product_data.get('product_name', self.tr('Produit Inconnu'))
+
+                            default_serial = f"SN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                            serial_number, ok = QInputDialog.getText(
+                                self,
+                                self.tr("Confirmation Achat Produit"),
+                                self.tr(f"Produit: {product_name}\nEntrez le numéro de série (ou laissez vide pour auto/pas de numéro):"),
+                                QLineEdit.Normal,
+                                default_serial
+                            )
+                            if ok:
+                                entered_serial = serial_number.strip() if serial_number.strip() else "N/A" # Or None
+                                current_timestamp_iso = datetime.utcnow().isoformat() + "Z"
+
+                                update_payload = {
+                                    'serial_number': entered_serial,
+                                    'purchase_confirmed_at': current_timestamp_iso
+                                }
+                                if db_manager.update_client_project_product(client_project_product_id, update_payload):
+                                    print(f"Product {client_project_product_id} ({product_name}) confirmed with SN: {entered_serial}")
+                                else:
+                                    QMessageBox.warning(self, self.tr("Erreur Mise à Jour Produit"), self.tr(f"Impossible de confirmer l'achat pour le produit {product_name}."))
+                            else:
+                                print(f"Confirmation annulée pour le produit {product_name}.")
+                                # Optionally, decide if the whole "Vendu" status update should be cancelled if any product is skipped.
+                                # For now, it proceeds.
+
+                # Proceed to update the client's status after product confirmations
+                # Proceed to update the client's status after product confirmations
                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
-                    self.client_info["status"] = status_text # Keep display name
-                    self.client_info["status_id"] = status_id_to_set # Update the id in the local map
+                    self.client_info["status"] = status_text
+                    self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                    # Consider emitting a signal here if the main list needs to refresh its delegate for color
-                    # self.parentWidget().parentWidget().filter_client_list_display() # Example of trying to reach main window, not ideal
+                    self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
                     QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
-            elif status_text: # Avoid warning if combo is cleared or empty initially
+            # This 'elif status_text:' should handle other statuses not 'Vendu'
+            elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
+                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                    self.client_info["status"] = status_text
+                    self.client_info["status_id"] = status_id_to_set
+                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
+                    self.update_sav_tab_visibility() # Update SAV tab based on new status
+                 else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client pour '{0}'.").format(status_text))
+
+            elif status_text: # Fallback for empty status_text or other unhandled cases
                 QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
+
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
 
@@ -1818,11 +2036,143 @@ class ClientWidget(QWidget):
             self.notes_edit.textChanged.connect(self.save_client_notes)
             self.status_combo.currentTextChanged.connect(self.update_client_status)
 
+            self.update_sav_tab_visibility() # Update SAV tab based on potentially changed status
+
             QMessageBox.information(self, self.tr("Succès"), self.tr("Informations client sauvegardées."))
             return True
         else:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des informations client."))
             return False
+
+    def load_purchase_history_table(self):
+        self.purchase_history_table.setRowCount(0)
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            return
+
+        try:
+            # Fetch all products for client, then filter locally
+            all_client_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+
+            confirmed_purchases = [
+                p for p in all_client_products
+                if p.get('purchase_confirmed_at') is not None
+            ]
+
+            self.purchase_history_table.setRowCount(len(confirmed_purchases))
+            for row_idx, purchase_data in enumerate(confirmed_purchases):
+                cpp_id = purchase_data.get('client_project_product_id')
+
+                id_item = QTableWidgetItem(str(cpp_id))
+                id_item.setData(Qt.UserRole, cpp_id)
+                self.purchase_history_table.setItem(row_idx, 0, id_item) # Hidden
+
+                product_name = purchase_data.get('product_name', self.tr('Produit Inconnu'))
+                self.purchase_history_table.setItem(row_idx, 1, QTableWidgetItem(product_name))
+
+                quantity = purchase_data.get('quantity', 0)
+                self.purchase_history_table.setItem(row_idx, 2, QTableWidgetItem(str(quantity)))
+
+                serial_number = purchase_data.get('serial_number', '')
+                sn_item = QTableWidgetItem(serial_number)
+                # Make this cell editable by default flags
+                self.purchase_history_table.setItem(row_idx, 3, sn_item)
+
+                purchase_date_str = purchase_data.get('purchase_confirmed_at', '')
+                if purchase_date_str:
+                    try:
+                        # Assuming ISO format with 'Z'
+                        dt_obj = datetime.fromisoformat(purchase_date_str.replace('Z', '+00:00'))
+                        purchase_date_formatted = dt_obj.strftime('%Y-%m-%d %H:%M')
+                    except ValueError:
+                        purchase_date_formatted = purchase_date_str # Fallback to raw string
+                else:
+                    purchase_date_formatted = self.tr('N/A')
+                date_item = QTableWidgetItem(purchase_date_formatted)
+                date_item.setFlags(date_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                self.purchase_history_table.setItem(row_idx, 4, date_item)
+
+                # Actions column - for "Create SAV Ticket" button (placeholder for now)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2,2,2,2); actions_layout.setSpacing(5)
+                # sav_button = QPushButton(self.tr("Créer Ticket SAV"))
+                # sav_button.clicked.connect(lambda ch, pid=cpp_id, sn=serial_number : self.create_sav_ticket_for_product(pid, sn))
+                # actions_layout.addWidget(sav_button)
+                actions_layout.addStretch()
+                self.purchase_history_table.setCellWidget(row_idx, 5, actions_widget)
+
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Chargement Historique"),
+                                 self.tr("Impossible de charger l'historique des achats:\n{0}").format(str(e)))
+
+    def handle_purchase_history_item_changed(self, item):
+        if not item or self.purchase_history_table.signalsBlocked():
+            return
+
+        col = item.column()
+        row = item.row()
+
+        if col == 3: # "Numéro de Série" column
+            cpp_id_item = self.purchase_history_table.item(row, 0) # Hidden ID CPP column
+            if not cpp_id_item:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID du produit d'historique non trouvé."))
+                return
+
+            client_project_product_id = cpp_id_item.data(Qt.UserRole)
+            new_serial_number = item.text().strip()
+
+            # Temporarily block signals to prevent recursion if db update itself triggers a table refresh
+            self.purchase_history_table.blockSignals(True)
+            try:
+                if db_manager.update_client_project_product(client_project_product_id, {'serial_number': new_serial_number}):
+                    print(f"Serial number for CPP ID {client_project_product_id} updated to '{new_serial_number}'.")
+                    # Optionally, refresh the specific cell or row if visual feedback is needed beyond text change
+                    # For now, direct edit is the feedback. A full table reload isn't necessary for this.
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du numéro de série."))
+                    # Revert cell text if DB update failed
+                    # This requires fetching old value or reloading row, for simplicity, we'll just log error
+                    # A full self.load_purchase_history_table() would also work but is heavier.
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la mise à jour du numéro de série:\n{str(e)}"))
+            finally:
+                self.purchase_history_table.blockSignals(False)
+
+
+    def update_sav_tab_visibility(self):
+        if not hasattr(self, 'sav_tab_index') or self.sav_tab_index < 0 : # Ensure tab exists
+            return
+
+        try:
+            client_status_id = self.client_info.get('status_id')
+            if client_status_id is None: # If client has no status_id, assume SAV not applicable
+                self.tab_widget.setTabEnabled(self.sav_tab_index, False)
+                return
+
+            vendu_status_info = db_manager.get_status_setting_by_name('Vendu', 'Client')
+            if not vendu_status_info:
+                self.tab_widget.setTabEnabled(self.sav_tab_index, False) # Vendu status not found
+                print("Warning: 'Vendu' status not found in database settings for SAV tab visibility.")
+                return
+
+            vendu_status_id = vendu_status_info.get('status_id')
+
+            if client_status_id == vendu_status_id:
+                self.tab_widget.setTabEnabled(self.sav_tab_index, True)
+                self.load_purchase_history_table() # Load data when tab becomes visible
+            else:
+                self.tab_widget.setTabEnabled(self.sav_tab_index, False)
+        except Exception as e:
+            print(f"Error updating SAV tab visibility: {e}")
+            if hasattr(self, 'sav_tab_index') and self.sav_tab_index >=0 :
+                 self.tab_widget.setTabEnabled(self.sav_tab_index, False) # Disable on error
+
+        # Ensure tickets table is loaded if tab is now enabled
+        if self.tab_widget.isTabEnabled(self.sav_tab_index):
+            self.load_sav_tickets_table()
+
 
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # are correctly available either as methods of ClientWidget or properly imported.

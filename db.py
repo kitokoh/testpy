@@ -147,7 +147,9 @@ def initialize_database():
         # Client Statuses
         {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True},
         {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True},
@@ -167,7 +169,14 @@ def initialize_database():
         {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True}
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
+
+        # SAVTicket Statuses
+        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False},
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True}
     ]
 
     for status in default_statuses:
@@ -381,6 +390,8 @@ def initialize_database():
         quantity INTEGER NOT NULL DEFAULT 1,
         unit_price_override REAL, 
         total_price_calculated REAL, 
+        serial_number TEXT,
+        purchase_confirmed_at TIMESTAMP,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
         FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
@@ -868,6 +879,47 @@ def initialize_database():
     # StatusSettings: UNIQUE(status_name, status_type) already indexed. Index on status_type alone might be useful.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_statussettings_type ON StatusSettings(status_type)")
 
+    # Create SAVTickets table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS SAVTickets (
+        ticket_id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        client_project_product_id INTEGER,
+        issue_description TEXT NOT NULL,
+        status_id INTEGER NOT NULL,
+        assigned_technician_id INTEGER,
+        resolution_details TEXT,
+        opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closed_at TIMESTAMP,
+        created_by_user_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (client_project_product_id) REFERENCES ClientProjectProducts (client_project_product_id) ON DELETE SET NULL,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (assigned_technician_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_client_id ON SAVTickets(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_status_id ON SAVTickets(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_assigned_technician_id ON SAVTickets(assigned_technician_id)")
+
+    # Create ImportantDates table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ImportantDates (
+        important_date_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_name TEXT NOT NULL,
+        date_value DATE NOT NULL,
+        is_recurring_annually BOOLEAN DEFAULT TRUE,
+        language_code TEXT,
+        email_template_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (date_name, date_value, language_code),
+        FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_importantdates_date_value ON ImportantDates(date_value)")
+
     # --- Seed Data ---
     try:
         # 1. Users
@@ -1023,9 +1075,73 @@ def initialize_database():
         # 12. ApplicationSettings
         set_setting('initial_data_seeded_version', '1') # Uses existing function
         set_setting('default_app_language', 'en')    # Uses existing function
+        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE') # New setting
         print("Seeded application settings.")
 
-        # 13. CoverPageTemplates (Call the existing population function)
+        # 13. Email Templates (New)
+        add_default_template_if_not_exists({
+            'template_name': 'SAV Ticket Ouvert (FR)',
+            'template_type': 'email_sav_ticket_opened',
+            'language_code': 'fr',
+            'base_file_name': 'sav_ticket_opened_fr.html', # Assumes it's in email_template_designs
+            'description': 'Email envoyé quand un ticket SAV est ouvert.',
+            'category_name': 'Modèles Email SAV', # This category will be auto-created if not exists
+            'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
+            'is_default_for_type_lang': True
+        })
+        add_default_template_if_not_exists({
+            'template_name': 'SAV Ticket Résolu (FR)',
+            'template_type': 'email_sav_ticket_resolved',
+            'language_code': 'fr',
+            'base_file_name': 'sav_ticket_resolved_fr.html',
+            'description': 'Email envoyé quand un ticket SAV est résolu.',
+            'category_name': 'Modèles Email SAV',
+            'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
+            'is_default_for_type_lang': True
+        })
+        add_default_template_if_not_exists({
+            'template_name': 'Suivi Prospect Proforma (FR)',
+            'template_type': 'email_follow_up_prospect',
+            'language_code': 'fr',
+            'base_file_name': 'follow_up_prospect_fr.html',
+            'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
+            'category_name': 'Modèles Email Marketing/Suivi',
+            'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
+            'is_default_for_type_lang': True
+        })
+        add_default_template_if_not_exists({
+            'template_name': 'Vœux Noël (FR)',
+            'template_type': 'email_greeting_christmas',
+            'language_code': 'fr',
+            'base_file_name': 'greeting_holiday_christmas_fr.html',
+            'description': 'Email de vœux pour Noël.',
+            'category_name': 'Modèles Email Vœux',
+            'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
+            'is_default_for_type_lang': True
+        })
+        add_default_template_if_not_exists({
+            'template_name': 'Vœux Nouvelle Année (FR)',
+            'template_type': 'email_greeting_newyear',
+            'language_code': 'fr',
+            'base_file_name': 'greeting_holiday_newyear_fr.html',
+            'description': 'Email de vœux pour la nouvelle année.',
+            'category_name': 'Modèles Email Vœux',
+            'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
+            'is_default_for_type_lang': True
+        })
+        add_default_template_if_not_exists({
+            'template_name': 'Message Générique (FR)',
+            'template_type': 'email_generic_message',
+            'language_code': 'fr',
+            'base_file_name': 'generic_message_fr.html',
+            'description': 'Modèle générique pour communication spontanée.',
+            'category_name': 'Modèles Email Généraux', # This category will also be auto-created
+            'email_subject_template': 'Un message de {{seller.company_name}}',
+            'is_default_for_type_lang': True
+        })
+        print("Seeded new email templates.")
+
+        # 14. CoverPageTemplates (Call the existing population function - renumbered)
         # Ensure this is called after CoverPageTemplates table is created and before final commit for initialize_database
         _populate_default_cover_page_templates() # This function handles its own prints and commits if any internally
         print("Called _populate_default_cover_page_templates for seeding.")
@@ -1046,6 +1162,277 @@ def initialize_database():
 
     conn.commit() # Final commit for initialize_database itself
     conn.close()
+
+# CRUD functions for SAVTickets
+def add_sav_ticket(ticket_data: dict) -> str | None:
+    """Adds a new SAV ticket. Returns ticket_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_ticket_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+
+        sql = """
+            INSERT INTO SAVTickets (
+                ticket_id, client_id, client_project_product_id, issue_description,
+                status_id, assigned_technician_id, resolution_details,
+                opened_at, closed_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_ticket_id,
+            ticket_data.get('client_id'),
+            ticket_data.get('client_project_product_id'),
+            ticket_data.get('issue_description'),
+            ticket_data.get('status_id'),
+            ticket_data.get('assigned_technician_id'),
+            ticket_data.get('resolution_details'),
+            ticket_data.get('opened_at', now), # Default to now if not provided
+            ticket_data.get('closed_at'),
+            ticket_data.get('created_by_user_id')
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_ticket_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_sav_ticket: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_sav_ticket_by_id(ticket_id: str) -> dict | None:
+    """Retrieves an SAV ticket by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM SAVTickets WHERE ticket_id = ?", (ticket_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_sav_ticket_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_sav_tickets_for_client(client_id: str, status_id: int = None) -> list[dict]:
+    """Retrieves SAV tickets for a client, optionally filtered by status_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM SAVTickets WHERE client_id = ?"
+        params = [client_id]
+        if status_id is not None:
+            sql += " AND status_id = ?"
+            params.append(status_id)
+        sql += " ORDER BY opened_at DESC"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_sav_tickets_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_sav_ticket(ticket_id: str, update_data: dict) -> bool:
+    """Updates an SAV ticket. Returns True on success."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Add closed_at timestamp automatically if status is changed to a completion/archival one
+        if 'status_id' in update_data:
+            status_info = get_status_setting_by_id(update_data['status_id'])
+            if status_info and (status_info['is_completion_status'] or status_info['is_archival_status']):
+                if 'closed_at' not in update_data: # Only set if not already being explicitly set
+                    update_data['closed_at'] = datetime.utcnow().isoformat() + "Z"
+            elif 'closed_at' not in update_data: # If moving to a non-closed status, ensure closed_at is NULL unless specified
+                 # This logic might need refinement: if explicitly setting closed_at to null, allow it.
+                 # If status moves to open and closed_at is not in update_data, set it to NULL.
+                 current_ticket = get_sav_ticket_by_id(ticket_id)
+                 if current_ticket and current_ticket.get('closed_at') is not None:
+                    update_data['closed_at'] = None
+
+
+        valid_columns = [
+            'client_project_product_id', 'issue_description', 'status_id',
+            'assigned_technician_id', 'resolution_details', 'opened_at', 'closed_at'
+            # client_id and created_by_user_id are generally not updated post-creation
+        ]
+        set_clauses = []
+        params_list = []
+        for key, value in update_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(value)
+
+        if not set_clauses: return False
+
+        params_list.append(ticket_id)
+        sql = f"UPDATE SAVTickets SET {', '.join(set_clauses)} WHERE ticket_id = ?"
+
+        cursor.execute(sql, tuple(params_list))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_sav_ticket: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_sav_ticket(ticket_id: str) -> bool:
+    """Deletes an SAV ticket. Consider if soft delete is more appropriate in a real app."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM SAVTickets WHERE ticket_id = ?", (ticket_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_sav_ticket: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# CRUD functions for ImportantDates
+def add_important_date(date_data: dict) -> int | None:
+    """Adds a new important date. Returns important_date_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO ImportantDates (
+                date_name, date_value, is_recurring_annually, language_code,
+                email_template_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            date_data.get('date_name'),
+            date_data.get('date_value'),
+            date_data.get('is_recurring_annually', True),
+            date_data.get('language_code'),
+            date_data.get('email_template_id'),
+            now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as ie: # Handles UNIQUE constraint
+        print(f"Database IntegrityError in add_important_date: {ie}")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in add_important_date: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_important_date_by_id(date_id: int) -> dict | None:
+    """Retrieves an important date by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ImportantDates WHERE important_date_id = ?", (date_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_important_date_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_important_dates(upcoming_only: bool = False) -> list[dict]:
+    """
+    Retrieves all important dates.
+    If upcoming_only is True, filters for dates from today onwards,
+    or recurring dates whose month/day is upcoming.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM ImportantDates"
+        params = []
+        if upcoming_only:
+            today_str = datetime.utcnow().strftime('%Y-%m-%d')
+            today_month_day = datetime.utcnow().strftime('%m-%d')
+            # Non-recurring dates: date_value >= today
+            # Recurring dates: month-day of date_value >= month-day of today
+            sql += """
+                WHERE (is_recurring_annually = FALSE AND date_value >= ?)
+                   OR (is_recurring_annually = TRUE AND SUBSTR(date_value, 6) >= ?)
+            """
+            params.extend([today_str, today_month_day])
+
+        sql += " ORDER BY date_value ASC" # Or by month/day for recurring
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_important_dates: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_important_date(date_id: int, update_data: dict) -> bool:
+    """Updates an important date. Returns True on success."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+
+        valid_columns = [
+            'date_name', 'date_value', 'is_recurring_annually',
+            'language_code', 'email_template_id', 'updated_at'
+        ]
+        set_clauses = []
+        params_list = []
+        for key, value in update_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(value)
+
+        if not set_clauses: return False
+
+        params_list.append(date_id)
+        sql = f"UPDATE ImportantDates SET {', '.join(set_clauses)} WHERE important_date_id = ?"
+
+        cursor.execute(sql, tuple(params_list))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError as ie:
+        print(f"Database IntegrityError in update_important_date: {ie}")
+        return False
+    except sqlite3.Error as e:
+        print(f"Database error in update_important_date: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_important_date(date_id: int) -> bool:
+    """Deletes an important date."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ImportantDates WHERE important_date_id = ?", (date_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_important_date: {e}")
+        return False
+    finally:
+        if conn: conn.close()
 
 def get_db_connection():
     """
@@ -2368,15 +2755,41 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
             print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
             return existing_template['template_id']
         else:
+            raw_template_content = None
+            # Determine project root.
+            db_dir_name = os.path.basename(APP_ROOT_DIR_CONTEXT)
+            if db_dir_name in ['core', 'db', 'database', 'src']: # Common subdirectory names for source/db logic
+                project_root = os.path.dirname(APP_ROOT_DIR_CONTEXT)
+            else: # Assume db.py is at the project root or email_template_designs is relative to it
+                project_root = APP_ROOT_DIR_CONTEXT
+
+            template_file_path = os.path.join(project_root, "email_template_designs", filename)
+
+            # Fallback if the above path construction was wrong (e.g. APP_ROOT_DIR_CONTEXT was already project root)
+            if not os.path.exists(template_file_path):
+                template_file_path_alt = os.path.join(APP_ROOT_DIR_CONTEXT, "email_template_designs", filename)
+                if os.path.exists(template_file_path_alt):
+                    template_file_path = template_file_path_alt
+                else:
+                    print(f"Warning: HTML template file {filename} not found at {template_file_path} or {template_file_path_alt}. raw_template_file_data will be NULL.")
+
+            if os.path.exists(template_file_path):
+                try:
+                    with open(template_file_path, 'r', encoding='utf-8') as f:
+                        raw_template_content = f.read()
+                    print(f"Successfully read content for {filename} from {template_file_path}")
+                except Exception as e_read:
+                    print(f"Error reading template file {filename} from {template_file_path}: {e_read}. raw_template_file_data will be NULL.")
+
             now = datetime.utcnow().isoformat() + "Z"
             sql = """
                 INSERT INTO Templates (
                     template_name, template_type, language_code, base_file_name,
                     description, category_id, is_default_for_type_lang,
-                    email_subject_template, -- Added email_subject_template
+                    email_subject_template, raw_template_file_data,
                     created_at, updated_at
                     -- created_by_user_id could be NULL or a system user ID
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) -- Added placeholder for email_subject_template
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             params = (
                 name,
@@ -2387,6 +2800,7 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
                 category_id, # Use the fetched/created category_id
                 template_data.get('is_default_for_type_lang', True),
                 template_data.get('email_subject_template'), # Get email_subject_template
+                raw_template_content.encode('utf-8') if raw_template_content else None, # Store as BLOB
                 now,
                 now
             )
@@ -2400,6 +2814,26 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
         print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
         if conn:
             conn.rollback() # Rollback on error
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_template_by_type_lang_default(template_type: str, language_code: str) -> dict | None:
+    """
+    Retrieves the default template for a given type and language.
+    Returns a dict or None if not found.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM Templates WHERE template_type = ? AND language_code = ? AND is_default_for_type_lang = TRUE LIMIT 1"
+        cursor.execute(sql, (template_type, language_code))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_by_type_lang_default: {e}")
         return None
     finally:
         if conn:
@@ -4114,8 +4548,9 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
 
         sql = """
             INSERT INTO ClientProjectProducts (
-                client_id, project_id, product_id, quantity, unit_price_override, total_price_calculated, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                client_id, project_id, product_id, quantity, unit_price_override,
+                total_price_calculated, serial_number, purchase_confirmed_at, added_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             link_data.get('client_id'),
@@ -4124,6 +4559,8 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
             quantity,
             link_data.get('unit_price_override'), # Store override, or NULL if base used
             total_price_calculated,
+            link_data.get('serial_number'), # New field
+            link_data.get('purchase_confirmed_at'), # New field
             datetime.utcnow().isoformat() + "Z"
         )
         cursor.execute(sql, params)
@@ -4157,7 +4594,8 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None) -
             SELECT cpp.*,
                    p.product_id as product_id_original_lang, p.product_name, p.description as product_description,
                    p.category as product_category, p.base_unit_price, p.unit_of_measure,
-                   p.weight, p.dimensions, p.language_code
+                   p.weight, p.dimensions, p.language_code,
+                   cpp.serial_number, cpp.purchase_confirmed_at
             FROM ClientProjectProducts cpp
             JOIN Products p ON cpp.product_id = p.product_id
             WHERE cpp.client_id = ?
@@ -4198,20 +4636,41 @@ def update_client_project_product(link_id: int, update_data: dict) -> bool:
         new_quantity = update_data.get('quantity', current_link_dict['quantity'])
         new_unit_price_override = update_data.get('unit_price_override', current_link_dict['unit_price_override'])
 
+        # Handle new optional fields for update
+        new_serial_number = update_data.get('serial_number', current_link_dict.get('serial_number'))
+        new_purchase_confirmed_at = update_data.get('purchase_confirmed_at', current_link_dict.get('purchase_confirmed_at'))
+
+
         final_unit_price = new_unit_price_override
         if final_unit_price is None: # If override is removed or was never there, use base price
             product_info = get_product_by_id(current_link_dict['product_id'])
             if not product_info: return False # Should not happen if data is consistent
             final_unit_price = product_info['base_unit_price']
         
-        update_data['total_price_calculated'] = new_quantity * final_unit_price
+        update_data['total_price_calculated'] = new_quantity * float(final_unit_price or 0) # Ensure float for calc
+
+        # Add new fields to update_data if they were provided in the call, so they get included in set_clauses
+        if 'serial_number' in update_data:
+            update_data['serial_number'] = new_serial_number
+        if 'purchase_confirmed_at' in update_data:
+            update_data['purchase_confirmed_at'] = new_purchase_confirmed_at
+
+        # Construct SET clauses only for fields present in update_data keys
+        set_clauses = []
+        params_list = []
+        valid_update_keys = ['quantity', 'unit_price_override', 'total_price_calculated', 'serial_number', 'purchase_confirmed_at']
+        for key in valid_update_keys:
+            if key in update_data:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(update_data[key])
         
-        set_clauses = [f"{key} = ?" for key in update_data.keys()]
-        params_list = list(update_data.values())
+        if not set_clauses: # No valid fields to update
+            return False
+
         params_list.append(link_id)
         
         sql = f"UPDATE ClientProjectProducts SET {', '.join(set_clauses)} WHERE client_project_product_id = ?"
-        cursor.execute(sql, params_list)
+        cursor.execute(sql, tuple(params_list)) # Use tuple for params
         conn.commit()
         return cursor.rowcount > 0
     except sqlite3.Error as e:
@@ -4233,6 +4692,29 @@ def remove_product_from_client_or_project(link_id: int) -> bool:
     except sqlite3.Error as e:
         print(f"Database error in remove_product_from_client_or_project: {e}")
         return False
+    finally:
+        if conn: conn.close()
+
+def get_client_project_product_by_id(link_id: int) -> dict | None:
+    """Retrieves a specific client-project-product link by its ID, joining with Products."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cpp.*, p.product_name, p.description as product_description,
+                   p.category as product_category, p.base_unit_price, p.unit_of_measure,
+                   p.weight, p.dimensions, p.language_code
+            FROM ClientProjectProducts cpp
+            JOIN Products p ON cpp.product_id = p.product_id
+            WHERE cpp.client_project_product_id = ?
+        """
+        cursor.execute(sql, (link_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_project_product_by_id: {e}")
+        return None
     finally:
         if conn: conn.close()
 
@@ -9016,6 +9498,75 @@ def get_active_projects_count() -> int:
     except sqlite3.Error as e:
         print(f"Database error in get_active_projects_count: {e}")
         return 0
+    finally:
+        if conn:
+            conn.close()
+
+def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True) -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
+        archival_status_rows = cursor.fetchall()
+        archival_status_ids = [row['status_id'] for row in archival_status_rows]
+
+        base_query = """
+            SELECT
+                c.client_id, c.client_name, c.company_name, c.primary_need_description,
+                c.project_identifier, c.default_base_folder_path, c.selected_languages,
+                c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
+                co.country_name AS country,
+                ci.city_name AS city,
+                s.status_name AS status,
+                s.color_hex AS status_color,
+                s.icon_name AS status_icon_name
+            FROM Clients c
+            LEFT JOIN Countries co ON c.country_id = co.country_id
+            LEFT JOIN Cities ci ON c.city_id = ci.city_id
+            LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+        """
+
+        params = []
+        where_conditions = []
+
+        if not archival_status_ids: # No statuses are defined as archival
+            if is_archived: # If we are looking for archived clients but no status is archival type
+                return []
+            else: # If we are looking for active clients and no status is archival type, all clients (with or without status) are considered active
+                  # This case will fall through to the 'else' for where_conditions, fetching all.
+                  pass # No specific condition needed here if all are considered active
+        else: # Archival statuses exist
+            placeholders = ','.join('?' for _ in archival_status_ids)
+            if is_archived:
+                where_conditions.append(f"c.status_id IN ({placeholders})")
+                params.extend(archival_status_ids)
+            else: # Active clients
+                not_in_condition = f"c.status_id NOT IN ({placeholders})"
+                if include_null_status_for_active:
+                    where_conditions.append(f"({not_in_condition} OR c.status_id IS NULL)")
+                else:
+                    where_conditions.append(not_in_condition)
+                params.extend(archival_status_ids) # These params are for the NOT IN part
+
+        if where_conditions:
+            sql = f"{base_query} WHERE {' AND '.join(where_conditions)} ORDER BY c.client_name;"
+        else:
+            # If is_archived=False and no archival_status_ids, this means all clients are non-archived.
+            # If include_null_status_for_active is True, it includes clients with NULL status.
+            # If include_null_status_for_active is False, it implies only clients with a non-archival status.
+            # This default (no WHERE clause) correctly handles the "all active when no archival statuses defined"
+            # and "show all" if no specific archival filtering is applied.
+            sql = f"{base_query} ORDER BY c.client_name;"
+
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_clients_by_archival_status: {e}")
+        return []
     finally:
         if conn:
             conn.close()
