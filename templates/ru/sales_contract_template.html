@@ -1,0 +1,121 @@
+<!-- RUSSIAN TEMPLATE -->
+<h1>RUSSIAN TEMPLATE</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Contract</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; margin: 40px; line-height: 1.6; color: #000; }
+        .container { width: 85%; margin: auto; }
+        .header { text-align: center; margin-bottom: 40px; }
+        .contract-title { font-size: 24px; font-weight: bold; }
+        .party-details { margin-bottom: 30px; overflow: auto; }
+        .seller-details, .buyer-details { width: 48%; float: left; padding: 10px; }
+        .buyer-details { float: right; }
+        .article { margin-bottom: 20px; }
+        .article h3 { font-size: 16px; margin-bottom: 5px; }
+        .signatures { margin-top: 50px; overflow: auto; }
+        .signature-block { width: 45%; float: left; margin-top:30px;}
+        .signature-block p { margin-bottom: 40px; }
+        .footer { text-align: center; margin-top: 50px; font-size: 0.8em; color: #555; }
+        .logo { max-width: 120px; max-height: 60px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <p class="contract-title">SALES CONTRACT</p>
+            <p>Contract No: {{CONTRACT_ID}}</p>
+            <p>Date: {{DATE}}</p>
+        </div>
+
+        <div class="party-details">
+            <div class="seller-details">
+                <h4>The Seller:</h4>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>Address: {{SELLER_FULL_ADDRESS}}</p>
+                <p>Represented by: {{SELLER_REPRESENTATIVE_NAME}}, {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="buyer-details">
+                <h4>The Buyer:</h4>
+                <p><strong>{{CLIENT_NAME}}</strong> ({{CLIENT_COMPANY_NAME}})</p>
+                <p>Address: {{CLIENT_FULL_ADDRESS}}</p>
+                <p>Represented by: {{PRIMARY_CONTACT_NAME}}, {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="article">
+            <h3>Article 1: Subject of the Contract</h3>
+            <p>The Seller agrees to sell and the Buyer agrees to buy the goods specified in Annex 1 ("The Goods") attached hereto and forming an integral part of this Contract.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 2: Price and Total Value</h3>
+            <p>The unit prices of the Goods are specified in {{CURRENCY_CODE}} as per Annex 1. The total value of this Contract is {{CURRENCY_CODE}} {{GRAND_TOTAL_AMOUNT}} ({{GRAND_TOTAL_AMOUNT_WORDS}}).</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 3: Terms of Payment</h3>
+            <p>{{PAYMENT_TERMS_DETAIL}} (e.g., 30% advance payment, 70% upon shipment via Letter of Credit, etc.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 4: Delivery Terms</h3>
+            <p>Delivery shall be made {{INCOTERMS}} {{NAMED_PLACE_OF_DELIVERY}} as per Incoterms 2020. Estimated date of shipment: {{ESTIMATED_SHIPMENT_DATE}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 5: Packing and Marking</h3>
+            <p>The Goods shall be packed in {{PACKING_TYPE_DESCRIPTION}}, suitable for international shipment and ensuring their safety during transit. Markings as per Buyer's instructions / Standard export markings.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 6: Warranty</h3>
+            <p>The Seller warrants that the Goods are new, unused, and conform to the specifications agreed upon for a period of {{WARRANTY_PERIOD_MONTHS}} months from the date of {{WARRANTY_START_CONDITION e.g., arrival at destination/installation}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 7: Inspection</h3>
+            <p>{{INSPECTION_CLAUSE_DETAIL}} (e.g., Inspection by Buyer's representative before shipment at Seller's premises / Inspection by {{INSPECTION_AGENCY_NAME}} at port of loading.)</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 8: Force Majeure</h3>
+            <p>Neither party shall be liable for any failure or delay in performing their obligations under this Contract if such failure or delay is due to Force Majeure events...</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 9: Applicable Law and Dispute Resolution</h3>
+            <p>This Contract shall be governed by and construed in accordance with the laws of {{JURISDICTION_COUNTRY_NAME}}. Any dispute arising out of or in connection with this Contract shall be settled by arbitration in {{ARBITRATION_LOCATION}} under the rules of {{ARBITRATION_RULES_BODY}}.</p>
+        </div>
+
+        <div class="article">
+            <h3>Article 10: Entire Agreement</h3>
+            <p>This Contract, including any Annexes, constitutes the entire agreement between the parties and supersedes all prior negotiations, understandings, and agreements, whether written or oral.</p>
+        </div>
+
+        <div class="signatures">
+            <div class="signature-block">
+                <p><strong>For the Seller:</strong></p>
+                <p>_________________________</p>
+                <p>{{SELLER_COMPANY_NAME}}</p>
+                <p>Name: {{SELLER_REPRESENTATIVE_NAME}}</p>
+                <p>Title: {{SELLER_REPRESENTATIVE_TITLE}}</p>
+            </div>
+            <div class="signature-block" style="float:right;">
+                <p><strong>For the Buyer:</strong></p>
+                <p>_________________________</p>
+                <p>{{CLIENT_COMPANY_NAME}}</p>
+                <p>Name: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Title: {{PRIMARY_CONTACT_POSITION}}</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Annex 1: Specification and Price of Goods (to be attached)</p>
+        </div>
+    </div>
+</body>
+</html>
