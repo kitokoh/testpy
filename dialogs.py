@@ -109,7 +109,8 @@ class AddNewClientDialog(QDialog):
             self.tr("Arabic only (ar)"): ["ar"],
             self.tr("Turkish only (tr)"): ["tr"],
             self.tr("Portuguese only (pt)"): ["pt"],
-            self.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
+            self.tr("Russian only (ru)"): ["ru"],
+            self.tr("All supported languages (en, fr, ar, tr, pt, ru)"): ["en", "fr", "ar", "tr", "pt", "ru"]
         }
         self.language_select_combo.addItems(list(self.language_options_map.keys()))
         self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
@@ -1513,7 +1514,15 @@ class EditClientDialog(QDialog):
                         self.city_select_combo.setCurrentIndex(index_name)
         layout.addRow(self.tr("Ville Client:"), self.city_select_combo)
         self.language_select_combo = QComboBox()
-        self.lang_display_to_codes_map = {self.tr("Français uniquement (fr)"): ["fr"], self.tr("Arabe uniquement (ar)"): ["ar"], self.tr("Turc uniquement (tr)"): ["tr"], self.tr("Toutes les langues (fr, ar, tr)"): ["fr", "ar", "tr"]}
+        self.lang_display_to_codes_map = {
+            self.tr("Français uniquement (fr)"): ["fr"],
+            self.tr("English only (en)"): ["en"], # Adding English for consistency with AddNewClientDialog
+            self.tr("Arabe uniquement (ar)"): ["ar"],
+            self.tr("Turc uniquement (tr)"): ["tr"],
+            self.tr("Portuguese only (pt)"): ["pt"], # Adding Portuguese
+            self.tr("Russian only (ru)"): ["ru"],
+            self.tr("Toutes les langues (fr, en, ar, tr, pt, ru)"): ["fr", "en", "ar", "tr", "pt", "ru"] # Updated "All"
+        }
         self.language_select_combo.addItems(list(self.lang_display_to_codes_map.keys()))
         current_lang_codes = self.client_info.get('selected_languages', ['fr'])
         if not isinstance(current_lang_codes, list): current_lang_codes = [code.strip() for code in str(current_lang_codes).split(',') if code.strip()]
