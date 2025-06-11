@@ -29,6 +29,15 @@ from document_manager_logic import (
     permanently_delete_client
 )
 from dialogs import (
+    SettingsDialog, TemplateDialog, AddNewClientDialog, # EditClientDialog is called from logic
+    ProductEquivalencyDialog, # Added for product equivalency
+    ManageProductMasterDialog # Added for global product management
+)
+from product_list_dialog import ProductListDialog # Import the new dialog
+
+# Dialogs directly instantiated by DocumentManager
+from client_widget import ClientWidget # For client tabs
+from projectManagement import MainDashboard as ProjectManagementDashboard # For PM tab
     SettingsDialog as OriginalSettingsDialog,
     TemplateDialog, AddNewClientDialog,
     ProductEquivalencyDialog,
@@ -439,6 +448,9 @@ class DocumentManager(QMainWindow):
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
 
+        self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product List"), self) # Using a generic book icon for now
+        self.product_list_action.triggered.connect(self.open_product_list_placeholder)
+
     def create_menus_main(self): 
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu(self.tr("Fichier"))
@@ -449,6 +461,7 @@ class DocumentManager(QMainWindow):
         modules_menu.addAction(self.documents_view_action)
         modules_menu.addAction(self.project_management_action)
         modules_menu.addAction(self.statistics_action)
+        modules_menu.addAction(self.product_list_action) # Add new action here
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -587,6 +600,12 @@ class DocumentManager(QMainWindow):
             
     def open_product_equivalency_dialog(self):
         dialog = ProductEquivalencyDialog(self)
+        dialog.exec_()
+
+    def open_product_list_placeholder(self):
+        # print("Product List button clicked - Placeholder function")
+        # QMessageBox.information(self, self.tr("Product List"), self.tr("This feature is not yet implemented."))
+        dialog = ProductListDialog(self)
         dialog.exec_()
 
     def closeEvent(self, event): 
