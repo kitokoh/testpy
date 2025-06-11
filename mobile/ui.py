@@ -10,8 +10,17 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 
+import tempfile
+import os # Useful for getting filename if needed, though tempfile handles it well
+from kivy.uix.popup import Popup
+# from kivy.uix.label import Label # Label is already imported
+from kivy.uix.button import Button as PopupButton # To avoid conflict if Button is already aliased
+from kivy.uix.boxlayout import BoxLayout as PopupBoxLayout # For popup layout
+
 # Data handler import
 from . import data_handler as mobile_data_api
+from mobile.document_handler import LiteDocumentHandler # Import for PDF generation
+
 
 class DocumentGenerationScreen(Screen):
     def __init__(self, **kwargs):
@@ -22,6 +31,10 @@ class DocumentGenerationScreen(Screen):
         self.products_data = []
         self.selected_products_for_document = []
         self.currently_selected_available_product = None
+        self.templates_data = []
+        self.current_selected_template = None
+        self.current_pdf_action = 'separate' # Default PDF action
+        self.last_pdf_outputs = None # To store the result from LiteDocumentHandler
 
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
@@ -40,6 +53,31 @@ class DocumentGenerationScreen(Screen):
         self.country_spinner.bind(text=self.on_country_select) # Callback for later
         country_layout.add_widget(self.country_spinner)
         main_layout.add_widget(country_layout)
+
+        # Template Selection
+        template_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height='48dp', spacing=10)
+        template_layout.add_widget(Label(text='Template:', size_hint_x=0.3))
+        self.template_spinner = Spinner(text='Select Template', values=(), size_hint_x=0.7)
+        self.template_spinner.bind(text=self.on_template_select)
+        template_layout.add_widget(self.template_spinner)
+        main_layout.add_widget(template_layout)
+
+        # PDF Output Action Selection
+        pdf_action_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height='48dp', spacing=10)
+        pdf_action_layout.add_widget(Label(text='PDF Output:', size_hint_x=0.3))
+
+        self.pdf_action_spinner_values = {
+            "Separate PDFs": "separate",
+            "Combine PDFs": "combine"
+        }
+        self.pdf_action_spinner = Spinner(
+            text="Separate PDFs", # Default display text
+            values=list(self.pdf_action_spinner_values.keys()),
+            size_hint_x=0.7
+        )
+        self.pdf_action_spinner.bind(text=self.on_pdf_action_select)
+        pdf_action_layout.add_widget(self.pdf_action_spinner)
+        main_layout.add_widget(pdf_action_layout)
 
         # Quantity Input and Add Button
         add_product_controls_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height='48dp', spacing=10)
@@ -81,8 +119,183 @@ class DocumentGenerationScreen(Screen):
 
         self.add_widget(main_layout)
         self.populate_spinners()
+        self.populate_template_spinner() # Call new method
         self.populate_product_list()
         self.refresh_selected_products_display() # Initial call
+
+        # Generate PDF Button
+        self.generate_pdf_button = Button(
+            text="Generate & Preview PDF",
+            size_hint_y=None,
+            height='48dp'
+            # Optional: Add some top margin if needed: padding or add a Spacer before it
+            # main_layout.add_widget(Widget(size_hint_y=None, height='10dp')) # Spacer example
+        )
+        self.generate_pdf_button.bind(on_press=self.on_generate_pdf_button_pressed)
+        main_layout.add_widget(self.generate_pdf_button) # Added to main_layout
+
+    def on_generate_pdf_button_pressed(self, instance):
+        print("Gathering selections for PDF generation...")
+
+        # 1. Get Language Code
+        selected_lang_name = self.language_spinner.text
+        lang_data = next((lang for lang in self.languages_data if lang['name'] == selected_lang_name), None)
+        if not lang_data:
+            print("Validation Error: Please select a language.")
+            # self.show_error_popup("Validation Error", "Please select a language.")
+            return
+        language_code = lang_data['code']
+        print(f"  Language Code: {language_code}")
+
+        # 2. Get Country Data
+        selected_country_name = self.country_spinner.text
+        country_info = next((country for country in self.countries_data if country['country_name'] == selected_country_name), None)
+        if not country_info:
+            print("Validation Error: Please select a country.")
+            # self.show_error_popup("Validation Error", "Please select a country.")
+            return
+        print(f"  Country Data: {country_info}")
+
+        # 3. Get Selected Products with Quantities
+        if not self.selected_products_for_document:
+            print("Validation Error: Please add at least one product.")
+            # self.show_error_popup("Validation Error", "Please add at least one product.")
+            return
+
+        products_for_handler = []
+        for item in self.selected_products_for_document:
+            original_product_data = item.get('original_data', {})
+            products_for_handler.append({
+                'product_id': original_product_data.get('product_id'),
+                'name': original_product_data.get('product_name'),
+                'quantity': item.get('quantity')
+            })
+        print(f"  Products for Handler: {products_for_handler}")
+
+        # 4. Get Selected Template
+        if not self.current_selected_template:
+            print("Validation Error: Please select a document template.")
+            # self.show_error_popup("Validation Error", "Please select a document template.")
+            return
+        templates_data_for_handler = [self.current_selected_template]
+        print(f"  Template Data: {templates_data_for_handler}")
+
+        # 5. Get PDF Action
+        pdf_action = self.current_pdf_action
+        print(f"  PDF Action: {pdf_action}")
+
+        print("All selections gathered. Proceeding to call LiteDocumentHandler...")
+
+        try:
+            handler = LiteDocumentHandler()
+
+            pdf_outputs = handler.generate_and_visualize_pdfs(
+                language_code=language_code,
+                country_data=country_info,
+                products_with_qty=products_for_handler,
+                templates_data=templates_data_for_handler,
+                pdf_action=pdf_action
+            )
+
+            self.last_pdf_outputs = pdf_outputs
+
+            # self.last_pdf_outputs = pdf_outputs # This line should already exist
+
+            if self.last_pdf_outputs:
+                print(f"PDF generation successful (mocked). Number of documents: {len(self.last_pdf_outputs)}")
+
+                # For simplicity, handle only the first PDF if multiple are generated by "combine" or "separate"
+                doc_name, pdf_bytes = self.last_pdf_outputs[0]
+
+                temp_pdf_file = None
+                try:
+                    # Create a temporary file to save the PDF
+                    temp_pdf_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+                    temp_pdf_file.write(pdf_bytes)
+                    temp_pdf_path = temp_pdf_file.name
+                    temp_pdf_file.close() # Close the file before trying to open it with another app
+
+                    print(f"PDF '{doc_name}' saved temporarily to: {temp_pdf_path}")
+
+                    # Inform user via Popup
+                    popup_message = f"PDF '{doc_name}' generated and saved to:\n{temp_pdf_path}\n\n(Normally, the app would attempt to open this file.)"
+                    # TODO: Use plyer.filechooser.open_file(temp_pdf_path) or plyer.sharing.share_file(temp_pdf_path) to open/share.
+                    self.show_info_popup("PDF Generated", popup_message)
+
+                except Exception as e_save:
+                    print(f"Error saving temporary PDF: {e_save}")
+                    self.show_error_popup("File Error", f"Could not save temporary PDF: {e_save}")
+                    if temp_pdf_file: # Ensure closed if opened
+                        try:
+                            temp_pdf_file.close()
+                        except: pass
+
+            elif self.last_pdf_outputs is not None and not self.last_pdf_outputs : # Handler returned empty list
+                print("PDF generation returned no output (mocked).")
+                self.show_error_popup("PDF Generation Error", "No PDF was generated by the handler.")
+            # If self.last_pdf_outputs is None, the try-except for handler call already printed an error.
+            # We could add an else here to show a generic error popup if self.last_pdf_outputs is None.
+            elif self.last_pdf_outputs is None: # Error during handler call
+                 self.show_error_popup("PDF Generation Error", "An error occurred during PDF processing. Check logs.")
+
+
+        except Exception as e:
+            print(f"An error occurred during PDF generation: {e}")
+            import traceback
+            traceback.print_exc()
+            self.show_error_popup("System Error", f"An unexpected error occurred: {e}") # Changed from commented out to active
+            self.last_pdf_outputs = None
+
+    def show_info_popup(self, title, message):
+        # Simple popup for information
+        popup_layout = PopupBoxLayout(orientation='vertical', padding=10, spacing=10)
+        # Allow message to be longer by using text_size for wrapping
+        msg_label = Label(text=message, text_size=(self.width * 0.7, None), size_hint_y=None)
+        msg_label.bind(texture_size=msg_label.setter('size')) # Adjust height for wrapped text
+        popup_layout.add_widget(msg_label)
+
+        close_button = PopupButton(text="OK", size_hint_y=None, height='48dp')
+        popup_layout.add_widget(close_button)
+
+        popup = Popup(title=title, content=popup_layout, size_hint=(0.8, None), auto_dismiss=False)
+        popup.bind(on_open=lambda instance: setattr(msg_label, 'width', instance.content.width - 20)) # Adjust label width on open
+        popup.height = msg_label.height + close_button.height + 70 # Adjust popup height dynamically
+        close_button.bind(on_press=popup.dismiss)
+        popup.open()
+
+    def show_error_popup(self, title, message):
+        # You can reuse show_info_popup or make it distinct if needed (e.g., different styling)
+        self.show_info_popup(title, message) # For now, they are the same
+
+    def populate_template_spinner(self):
+        self.templates_data = mobile_data_api.get_document_templates_from_api() # Assuming category=None fetches all relevant
+        if self.templates_data:
+            template_names = [tpl.get('template_name', 'Unnamed Template') for tpl in self.templates_data]
+            self.template_spinner.values = template_names
+            if template_names: # Set default text to first item if list is not empty
+                self.template_spinner.text = template_names[0]
+                # Also pre-select the first template's data
+                self.current_selected_template = self.templates_data[0]
+            else: # List is empty after fetching
+                self.template_spinner.text = 'No templates found'
+                self.current_selected_template = None
+        else: # API returned None or empty list initially
+            self.template_spinner.values = []
+            self.template_spinner.text = 'Error loading templates'
+            self.current_selected_template = None
+
+    def on_template_select(self, spinner, text):
+        selected_template_data = next((tpl for tpl in self.templates_data if tpl.get('template_name', 'Unnamed Template') == text), None)
+        if selected_template_data:
+            self.current_selected_template = selected_template_data
+            print(f"Selected Template: {selected_template_data.get('template_name')}, ID: {selected_template_data.get('template_id')}")
+        else:
+            self.current_selected_template = None
+            print(f"Selected Template Text: {text} (No full data found or 'No templates found')")
+
+    def on_pdf_action_select(self, spinner, text):
+        self.current_pdf_action = self.pdf_action_spinner_values.get(text, 'separate') # Get the mapped value
+        print(f"Selected PDF Action: {text} (maps to: {self.current_pdf_action})")
 
     def refresh_selected_products_display(self):
         self.selected_products_layout.clear_widgets() # Clear previous entries
