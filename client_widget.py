@@ -1832,4 +1832,4 @@ class ClientWidget(QWidget):
 # The direct use of self.DATABASE_NAME in load_statuses and save_client_notes should be refactored
 # to use db_manager for all database interactions.
 
-[end of client_widget.py]
+# [end of client_widget.py]

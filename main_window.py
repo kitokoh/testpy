@@ -142,11 +142,11 @@ class DocumentManager(QMainWindow):
         self.country_select_combo.setEditable(True); self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
         self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
         self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
-        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country) 
+        # self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country) 
         country_hbox_layout.addWidget(self.country_select_combo)
         self.add_country_button = QPushButton("+"); self.add_country_button.setFixedSize(30,30) 
         self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
-        self.add_country_button.clicked.connect(self.add_new_country_dialog) 
+        # self.add_country_button.clicked.connect(self.add_new_country_dialog) 
         country_hbox_layout.addWidget(self.add_country_button); creation_form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
         
         city_hbox_layout = QHBoxLayout(); self.city_select_combo = QComboBox() 
@@ -156,7 +156,7 @@ class DocumentManager(QMainWindow):
         city_hbox_layout.addWidget(self.city_select_combo)
         self.add_city_button = QPushButton("+"); self.add_city_button.setFixedSize(30,30) 
         self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
-        self.add_city_button.clicked.connect(self.add_new_city_dialog) 
+        # self.add_city_button.clicked.connect(self.add_new_city_dialog) 
         city_hbox_layout.addWidget(self.add_city_button); creation_form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
         
         self.project_id_input_field = QLineEdit(); self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))

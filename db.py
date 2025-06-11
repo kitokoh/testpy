@@ -7708,7 +7708,7 @@ if __name__ == '__main__':
             print(f"Error fetching or formatting client document notes: {e_notes}")
             context['doc']['client_specific_footer_notes'] = "" # Ensure it's empty on error
 
-    return context
+    # return context
 
 
 

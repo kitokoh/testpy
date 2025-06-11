@@ -3451,4 +3451,4 @@ class ClientProductDimensionDialog(QDialog):
                                  self.tr("Une erreur est survenue: {0}").format(str(e)))
 # [end of dialogs.py]
 
-[end of dialogs.py]
+# [end of dialogs.py]
