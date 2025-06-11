@@ -1418,19 +1418,19 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             # Ensure all necessary keys are present in user_data from db.py
             # For example, if 'phone' is needed: self.current_user['phone'] = user_data.get('phone')
 
-            # Update UI
-                self.user_name.setText(self.current_user['full_name'])
-                self.user_role.setText(self.current_user['role'].capitalize())
+        # Update UI
+            self.user_name.setText(self.current_user['full_name'])
+            self.user_role.setText(self.current_user['role'].capitalize())
 
-                # Log activity
-                self.log_activity(f"Login by {self.current_user['full_name']}")
+            # Log activity
+            self.log_activity(f"Login by {self.current_user['full_name']}")
 
-                # Load data
-                self.load_initial_data()
+            # Load data
+            self.load_initial_data()
 
-                dialog.accept()
-            else:
-                QMessageBox.warning(self, "Error", "Incorrect username or password")
+            dialog.accept()
+        else:
+            QMessageBox.warning(self, "Error", "Incorrect username or password")
 
     def logout(self):
         if self.current_user:
@@ -1840,79 +1840,79 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         pass # To be refactored in Step 6
 
     def load_activities(self):
-                frame.setStyleSheet("""
-                    QFrame {
-                        background-color: white;
-                        border-radius: 5px;
-                        padding: 15px;
-                        border: 1px solid #e0e0e0;
-                    }
-                    QLabel {
-                        font-size: 14px;
-                        color: #555555;
-                    }
-                    QLabel#kpi_title {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #2c3e50;
-                    }
-                    QLabel#kpi_value {
-                        font-size: 28px;
-                        font-weight: bold;
-                        color: #3498db;
-                    }
-                """)
-                frame.setFixedWidth(220)
+        frame.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 5px;
+                padding: 15px;
+                border: 1px solid #e0e0e0;
+            }
+            QLabel {
+                font-size: 14px;
+                color: #555555;
+            }
+            QLabel#kpi_title {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+            QLabel#kpi_value {
+                font-size: 28px;
+                font-weight: bold;
+                color: #3498db;
+            }
+        """)
+        frame.setFixedWidth(220)
 
-                frame_layout = QVBoxLayout(frame)
-                frame_layout.setSpacing(5)
+        frame_layout = QVBoxLayout(frame)
+        frame_layout.setSpacing(5)
 
-                title = QLabel(name.capitalize())
-                title.setObjectName("kpi_title")
+        title = QLabel(name.capitalize())
+        title.setObjectName("kpi_title")
 
-                value_label = QLabel(f"{value}{unit}")
-                value_label.setObjectName("kpi_value")
+        value_label = QLabel(f"{value}{unit}")
+        value_label.setObjectName("kpi_value")
 
-                target_label = QLabel(f"Target: {target}{unit}")
+        target_label = QLabel(f"Target: {target}{unit}")
 
-                trend_icon = QLabel()
-                if trend == "up":
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
-                elif trend == "down":
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
-                else:
-                    trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
+        trend_icon = QLabel()
+        if trend == "up":
+            trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_up.png')).pixmap(16, 16))
+        elif trend == "down":
+            trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_down.png')).pixmap(16, 16))
+        else:
+            trend_icon.setPixmap(QIcon(self.resource_path('icons/trend_flat.png')).pixmap(16, 16))
 
-                trend_layout = QHBoxLayout()
-                trend_layout.addWidget(QLabel("Trend:"))
-                trend_layout.addWidget(trend_icon)
-                trend_layout.addStretch()
+        trend_layout = QHBoxLayout()
+        trend_layout.addWidget(QLabel("Trend:"))
+        trend_layout.addWidget(trend_icon)
+        trend_layout.addStretch()
 
-                frame_layout.addWidget(title)
-                frame_layout.addWidget(value_label)
-                frame_layout.addWidget(target_label)
-                frame_layout.addLayout(trend_layout)
+        frame_layout.addWidget(title)
+        frame_layout.addWidget(value_label)
+        frame_layout.addWidget(target_label)
+        frame_layout.addLayout(trend_layout)
 
-                self.kpi_layout.addWidget(frame)
+        self.kpi_layout.addWidget(frame)
 
-            # If no KPIs, create examples
-            if not kpis:
-                example_kpis = [
-                    ("Productivity", 78, 85, "up", "%"),
-                    ("Quality", 92, 90, "stable", "%"),
-                    ("Efficiency", 81, 80, "up", "%"),
-                    ("Satisfaction", 88, 85, "down", "%")
-                ]
+    # If no KPIs, create examples
+    if not kpis:
+        example_kpis = [
+            ("Productivity", 78, 85, "up", "%"),
+            ("Quality", 92, 90, "stable", "%"),
+            ("Efficiency", 81, 80, "up", "%"),
+            ("Satisfaction", 88, 85, "down", "%")
+        ]
 
-                for name, value, target, trend, unit in example_kpis:
-                    cursor.execute('''
-                        INSERT INTO kpis (name, value, target, trend, unit)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (name, value, target, trend, unit))
+        for name, value, target, trend, unit in example_kpis:
+            cursor.execute('''
+                INSERT INTO kpis (name, value, target, trend, unit)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (name, value, target, trend, unit))
 
-                conn.commit()
-                # Reload KPIs
-                self.load_kpis()
+        conn.commit()
+        # Reload KPIs
+        self.load_kpis()
 
         # This is the corrected load_team_members from the previous step.
         # Uses main_db_manager.get_all_team_members()

@@ -853,8 +853,8 @@ class ExcelEditor(QDialog):
             self._create_empty_table()
             self.workbook = Workbook()
             self.active_sheet = self.workbook.active
-                self.sheet_combo.addItems([self.active_sheet.title]) # Sheet title is data-like
-                self._update_status(self.tr("Erreur - nouveau fichier créé"), "#e74c3c")
+            self.sheet_combo.addItems([self.active_sheet.title]) # Sheet title is data-like
+            self._update_status(self.tr("Erreur - nouveau fichier créé"), "#e74c3c")
             
         finally:
             self._show_progress(False)
