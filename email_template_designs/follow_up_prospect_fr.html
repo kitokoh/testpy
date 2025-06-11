@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+    <html>
+    <head><title>Suite à votre demande</title></head>
+    <body>
+        <p>Bonjour {{client.contact_person_name}},</p>
+        <p>Nous faisons suite à votre demande de proforma concernant le projet/produit '{{project.name | default: client.primary_need | default: "votre demande récente"}}'.</p>
+        <p>Avez-vous eu l'occasion d'examiner notre proposition ? N'hésitez pas si vous avez la moindre question ou si vous souhaitez discuter des prochaines étapes.</p>
+        <p>Cordialement,<br/>{{seller.personnel.sales_person_name | default: seller.company_name}}<br/>{{seller.company_name}}</p>
+    </body>
+    </html>

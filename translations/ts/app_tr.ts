@@ -1,1318 +1,1318 @@
-<!DOCTYPE TS>
+<?xml version='1.0' encoding='utf-8'?>
 <TS version="2.1" language="tr_TR">
 <context>
     <name>Application</name>
     <message>
         <source>1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.</source>
-        <translation>[TR] 1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.</translation>
+        <translation>[TR_BEST_EFFORT] 1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.</translation>
     </message>
     <message>
         <source>2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.</source>
-        <translation>[TR] 2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.</translation>
+        <translation>[TR_BEST_EFFORT] 2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.</translation>
     </message>
     <message>
         <source>3. Lieu de livraison du matériel : Hidroguç Konya Türkiye</source>
-        <translation>[TR] 3. Lieu de livraison du matériel : Hidroguç Konya Türkiye</translation>
+        <translation>[TR_BEST_EFFORT] 3. Lieu de livraison du matériel : Hidroguç Konya Türkiye</translation>
     </message>
     <message>
         <source>4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.</source>
-        <translation>[TR] 4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.</translation>
+        <translation>[TR_BEST_EFFORT] 4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.</translation>
     </message>
     <message>
         <source>5. L’offre est valable pendant 30 jours calendaires.</source>
-        <translation>[TR] 5. L’offre est valable pendant 30 jours calendaires.</translation>
+        <translation>[TR_BEST_EFFORT] 5. L’offre est valable pendant 30 jours calendaires.</translation>
     </message>
     <message>
         <source>6. Ce produit est exonéré de TVA.</source>
-        <translation>[TR] 6. Ce produit est exonéré de TVA.</translation>
+        <translation>[TR_BEST_EFFORT] 6. Ce produit est exonéré de TVA.</translation>
     </message>
     <message>
         <source>Actions</source>
-        <translation>[TR] Actions</translation>
+        <translation>Eylemler</translation>
     </message>
     <message>
         <source>Actualiser</source>
-        <translation>[TR] Actualiser</translation>
+        <translation>Yenile</translation>
     </message>
     <message>
         <source>Adresse email du destinataire:</source>
-        <translation>[TR] Adresse email du destinataire:</translation>
+        <translation>[TR_BEST_EFFORT] Adresse email du destinataire:</translation>
     </message>
     <message>
         <source>Afficher la ligne horizontale</source>
-        <translation>[TR] Afficher la ligne horizontale</translation>
+        <translation>[TR_BEST_EFFORT] Afficher la ligne horizontale</translation>
     </message>
     <message>
         <source>Ajouter Contact</source>
-        <translation>[TR] Ajouter Contact</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter Contact</translation>
     </message>
     <message>
         <source>Ajouter Modèle</source>
-        <translation>[TR] Ajouter Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter Modèle</translation>
     </message>
     <message>
         <source>Ajouter PDF</source>
-        <translation>[TR] Ajouter PDF</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter PDF</translation>
     </message>
     <message>
         <source>Ajouter Produit</source>
-        <translation>[TR] Ajouter Produit</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter Produit</translation>
     </message>
     <message>
         <source>Ajouter colonne</source>
-        <translation>[TR] Ajouter colonne</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter colonne</translation>
     </message>
     <message>
         <source>Ajouter des notes sur ce client...</source>
-        <translation>[TR] Ajouter des notes sur ce client...</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter des notes sur ce client...</translation>
     </message>
     <message>
         <source>Ajouter ligne</source>
-        <translation>[TR] Ajouter ligne</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter ligne</translation>
     </message>
     <message>
         <source>Ajouter un Nouveau Client</source>
-        <translation>[TR] Ajouter un Nouveau Client</translation>
+        <translation>Yeni Müşteri Ekle</translation>
     </message>
     <message>
         <source>Ajouter un nouveau pays</source>
-        <translation>[TR] Ajouter un nouveau pays</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter un nouveau pays</translation>
     </message>
     <message>
         <source>Ajouter une nouvelle ville</source>
-        <translation>[TR] Ajouter une nouvelle ville</translation>
+        <translation>[TR_BEST_EFFORT] Ajouter une nouvelle ville</translation>
     </message>
     <message>
         <source>Annuler</source>
-        <translation>[TR] Annuler</translation>
+        <translation>İptal</translation>
     </message>
     <message>
-        <source>Aucun document n&apos;a pu être créé.</source>
-        <translation>[TR] Aucun document n&apos;a pu être créé.</translation>
+        <source>Aucun document n'a pu être créé.</source>
+        <translation>[TR_BEST_EFFORT] Aucun document n'a pu être créé.</translation>
     </message>
     <message>
         <source>Aucun document sélectionné</source>
-        <translation>[TR] Aucun document sélectionné</translation>
+        <translation>[TR_BEST_EFFORT] Aucun document sélectionné</translation>
     </message>
     <message>
         <source>Aucun logo chargé.</source>
-        <translation>[TR] Aucun logo chargé.</translation>
+        <translation>[TR_BEST_EFFORT] Aucun logo chargé.</translation>
     </message>
     <message>
         <source>Auteur par défaut:</source>
-        <translation>[TR] Auteur par défaut:</translation>
+        <translation>[TR_BEST_EFFORT] Auteur par défaut:</translation>
     </message>
     <message>
         <source>Auteur:</source>
-        <translation>[TR] Auteur:</translation>
+        <translation>[TR_BEST_EFFORT] Auteur:</translation>
     </message>
     <message>
         <source>Besoin Client:</source>
-        <translation>[TR] Besoin Client:</translation>
+        <translation>[TR_BEST_EFFORT] Besoin Client:</translation>
     </message>
     <message>
         <source>Besoin Principal:</source>
-        <translation>[TR] Besoin Principal:</translation>
+        <translation>[TR_BEST_EFFORT] Besoin Principal:</translation>
     </message>
     <message>
         <source>Besoin:</source>
-        <translation>[TR] Besoin:</translation>
+        <translation>[TR_BEST_EFFORT] Besoin:</translation>
     </message>
     <message>
         <source>Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</source>
-        <translation>[TR] Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</translation>
+        <translation>[TR_BEST_EFFORT] Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</translation>
     </message>
     <message>
         <source>Ce pays existe déjà.</source>
-        <translation>[TR] Ce pays existe déjà.</translation>
+        <translation>[TR_BEST_EFFORT] Ce pays existe déjà.</translation>
     </message>
     <message>
         <source>Cette ville existe déjà pour ce pays.</source>
-        <translation>[TR] Cette ville existe déjà pour ce pays.</translation>
+        <translation>[TR_BEST_EFFORT] Cette ville existe déjà pour ce pays.</translation>
     </message>
     <message>
         <source>Champs Requis</source>
-        <translation>[TR] Champs Requis</translation>
+        <translation>[TR_BEST_EFFORT] Champs Requis</translation>
     </message>
     <message>
         <source>Charger Logo</source>
-        <translation>[TR] Charger Logo</translation>
+        <translation>Logo Yükle</translation>
     </message>
     <message>
         <source>Charger Modèle</source>
-        <translation>[TR] Charger Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Charger Modèle</translation>
     </message>
     <message>
         <source>Charger</source>
-        <translation>[TR] Charger</translation>
+        <translation>[TR_BEST_EFFORT] Charger</translation>
     </message>
     <message>
         <source>Chemin base de données:</source>
-        <translation>[TR] Chemin base de données:</translation>
+        <translation>[TR_BEST_EFFORT] Chemin base de données:</translation>
     </message>
     <message>
         <source>Chemin Dossier:</source>
-        <translation>[TR] Chemin Dossier:</translation>
+        <translation>[TR_BEST_EFFORT] Chemin Dossier:</translation>
     </message>
     <message>
-        <source>Chemin vers l&apos;image du logo</source>
-        <translation>[TR] Chemin vers l&apos;image du logo</translation>
+        <source>Chemin vers l'image du logo</source>
+        <translation>[TR_BEST_EFFORT] Chemin vers l'image du logo</translation>
     </message>
     <message>
         <source>Choisir Couleur</source>
-        <translation>[TR] Choisir Couleur</translation>
+        <translation>[TR_BEST_EFFORT] Choisir Couleur</translation>
     </message>
     <message>
         <source>Choisir un Logo</source>
-        <translation>[TR] Choisir un Logo</translation>
+        <translation>[TR_BEST_EFFORT] Choisir un Logo</translation>
     </message>
     <message>
         <source>Client Info Placeholder for: {0}</source>
-        <translation>[TR] Client Info Placeholder for: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Client Info Placeholder for: {0}</translation>
     </message>
     <message>
         <source>Client: {0}</source>
-        <translation>[TR] Client: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Client: {0}</translation>
     </message>
     <message>
         <source>Clients Totaux</source>
-        <translation>[TR] Clients Totaux</translation>
+        <translation>Toplam Müşteriler</translation>
     </message>
     <message>
         <source>Client Créé</source>
-        <translation>[TR] Client Créé</translation>
+        <translation>[TR_BEST_EFFORT] Client Créé</translation>
     </message>
     <message>
         <source>Client Supprimé</source>
-        <translation>[TR] Client Supprimé</translation>
+        <translation>[TR_BEST_EFFORT] Client Supprimé</translation>
     </message>
     <message>
         <source>Client {0} créé (ID: {1}).</source>
-        <translation>[TR] Client {0} créé (ID: {1}).</translation>
+        <translation>[TR_BEST_EFFORT] Client {0} créé (ID: {1}).</translation>
     </message>
     <message>
         <source>Close</source>
-        <translation>[TR] Close</translation>
+        <translation>[TR_BEST_EFFORT] Close</translation>
     </message>
     <message>
         <source>Colonne {0}</source>
-        <translation>[TR] Colonne {0}</translation>
+        <translation>[TR_BEST_EFFORT] Colonne {0}</translation>
     </message>
     <message>
         <source>Compilation de Documents - Projet: {0}</source>
-        <translation>[TR] Compilation de Documents - Projet: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Compilation de Documents - Projet: {0}</translation>
     </message>
     <message>
         <source>Compilation de Documents</source>
-        <translation>[TR] Compilation de Documents</translation>
+        <translation>[TR_BEST_EFFORT] Compilation de Documents</translation>
     </message>
     <message>
         <source>Compilation réussie</source>
-        <translation>[TR] Compilation réussie</translation>
+        <translation>[TR_BEST_EFFORT] Compilation réussie</translation>
     </message>
     <message>
         <source>Compiler PDF</source>
-        <translation>[TR] Compiler PDF</translation>
+        <translation>[TR_BEST_EFFORT] Compiler PDF</translation>
     </message>
     <message>
         <source>Compiler des PDF</source>
-        <translation>[TR] Compiler des PDF</translation>
+        <translation>[TR_BEST_EFFORT] Compiler des PDF</translation>
     </message>
     <message>
         <source>Confirmer Suppression</source>
-        <translation>[TR] Confirmer Suppression</translation>
+        <translation>[TR_BEST_EFFORT] Confirmer Suppression</translation>
     </message>
     <message>
         <source>Confirmer la suppression</source>
-        <translation>[TR] Confirmer la suppression</translation>
+        <translation>[TR_BEST_EFFORT] Confirmer la suppression</translation>
     </message>
     <message>
         <source>Configuration manquante</source>
-        <translation>[TR] Configuration manquante</translation>
+        <translation>[TR_BEST_EFFORT] Configuration manquante</translation>
     </message>
     <message>
         <source>Conflit de Données</source>
-        <translation>[TR] Conflit de Données</translation>
+        <translation>[TR_BEST_EFFORT] Conflit de Données</translation>
     </message>
     <message>
         <source>Contact principal</source>
-        <translation>[TR] Contact principal</translation>
+        <translation>[TR_BEST_EFFORT] Contact principal</translation>
     </message>
     <message>
         <source>Contacts</source>
-        <translation>[TR] Contacts</translation>
+        <translation>[TR_BEST_EFFORT] Contacts</translation>
     </message>
     <message>
         <source>Could not load HTML file: {0}\n{1}</source>
-        <translation>[TR] Could not load HTML file: {0}\n{1}</translation>
+        <translation>[TR_BEST_EFFORT] Could not load HTML file: {0}\n{1}</translation>
     </message>
     <message>
         <source>Could not save HTML file: {0}\n{1}</source>
-        <translation>[TR] Could not save HTML file: {0}\n{1}</translation>
+        <translation>[TR_BEST_EFFORT] Could not save HTML file: {0}\n{1}</translation>
     </message>
     <message>
         <source>Couleur du Texte Principal:</source>
-        <translation>[TR] Couleur du Texte Principal:</translation>
+        <translation>Ana Metin Rengi:</translation>
     </message>
     <message>
         <source>Créer Client</source>
-        <translation>[TR] Créer Client</translation>
+        <translation>[TR_BEST_EFFORT] Créer Client</translation>
     </message>
     <message>
         <source>Créer Documents</source>
-        <translation>[TR] Créer Documents</translation>
+        <translation>[TR_BEST_EFFORT] Créer Documents</translation>
     </message>
     <message>
         <source>Créer des Documents</source>
-        <translation>[TR] Créer des Documents</translation>
+        <translation>[TR_BEST_EFFORT] Créer des Documents</translation>
     </message>
     <message>
         <source>Date (YYYY-MM-DD):</source>
-        <translation>[TR] Date (YYYY-MM-DD):</translation>
+        <translation>[TR_BEST_EFFORT] Date (YYYY-MM-DD):</translation>
     </message>
     <message>
         <source>Date Création:</source>
-        <translation>[TR] Date Création:</translation>
+        <translation>[TR_BEST_EFFORT] Date Création:</translation>
     </message>
     <message>
-        <source>Date d&apos;émission:</source>
-        <translation>[TR] Date d&apos;émission:</translation>
+        <source>Date d'émission:</source>
+        <translation>[TR_BEST_EFFORT] Date d'émission:</translation>
     </message>
     <message>
         <source>Date</source>
-        <translation>[TR] Date</translation>
+        <translation>[TR_BEST_EFFORT] Date</translation>
     </message>
     <message>
         <source>Descendre</source>
-        <translation>[TR] Descendre</translation>
+        <translation>[TR_BEST_EFFORT] Descendre</translation>
     </message>
     <message>
         <source>Description du besoin</source>
-        <translation>[TR] Description du besoin</translation>
+        <translation>[TR_BEST_EFFORT] Description du besoin</translation>
     </message>
     <message>
         <source>Description:</source>
-        <translation>[TR] Description:</translation>
+        <translation>[TR_BEST_EFFORT] Description:</translation>
     </message>
     <message>
         <source>Document compilé le {0}</source>
-        <translation>[TR] Document compilé le {0}</translation>
+        <translation>[TR_BEST_EFFORT] Document compilé le {0}</translation>
     </message>
     <message>
         <source>Documents créés</source>
-        <translation>[TR] Documents créés</translation>
+        <translation>[TR_BEST_EFFORT] Documents créés</translation>
     </message>
     <message>
         <source>Documents</source>
-        <translation>[TR] Documents</translation>
+        <translation>[TR_BEST_EFFORT] Documents</translation>
     </message>
     <message>
         <source>Dossier Existant</source>
-        <translation>[TR] Dossier Existant</translation>
+        <translation>[TR_BEST_EFFORT] Dossier Existant</translation>
     </message>
     <message>
         <source>Dossier des Clients:</source>
-        <translation>[TR] Dossier des Clients:</translation>
+        <translation>[TR_BEST_EFFORT] Dossier des Clients:</translation>
     </message>
     <message>
         <source>Dossier des Modèles:</source>
-        <translation>[TR] Dossier des Modèles:</translation>
+        <translation>[TR_BEST_EFFORT] Dossier des Modèles:</translation>
     </message>
     <message>
         <source>Définir par Défaut</source>
-        <translation>[TR] Définir par Défaut</translation>
+        <translation>[TR_BEST_EFFORT] Définir par Défaut</translation>
     </message>
     <message>
         <source>Département ou faculté (optionnel)</source>
-        <translation>[TR] Département ou faculté (optionnel)</translation>
+        <translation>[TR_BEST_EFFORT] Département ou faculté (optionnel)</translation>
     </message>
     <message>
         <source>Département/Faculté:</source>
-        <translation>[TR] Département/Faculté:</translation>
+        <translation>[TR_BEST_EFFORT] Département/Faculté:</translation>
     </message>
     <message>
         <source>Défaut</source>
-        <translation>[TR] Défaut</translation>
+        <translation>[TR_BEST_EFFORT] Défaut</translation>
     </message>
     <message>
         <source>Email envoyé</source>
-        <translation>[TR] Email envoyé</translation>
+        <translation>[TR_BEST_EFFORT] Email envoyé</translation>
     </message>
     <message>
         <source>Email:</source>
-        <translation>[TR] Email:</translation>
+        <translation>[TR_BEST_EFFORT] Email:</translation>
     </message>
     <message>
         <source>Email</source>
-        <translation>[TR] Email</translation>
+        <translation>[TR_BEST_EFFORT] Email</translation>
     </message>
     <message>
         <source>Enter HTML content here...</source>
-        <translation>[TR] Enter HTML content here...</translation>
+        <translation>[TR_BEST_EFFORT] Enter HTML content here...</translation>
     </message>
     <message>
         <source>Entrez le nom de la nouvelle ville pour {0}:</source>
-        <translation>[TR] Entrez le nom de la nouvelle ville pour {0}:</translation>
+        <translation>[TR_BEST_EFFORT] Entrez le nom de la nouvelle ville pour {0}:</translation>
     </message>
     <message>
         <source>Entrez le nom du nouveau pays:</source>
-        <translation>[TR] Entrez le nom du nouveau pays:</translation>
+        <translation>[TR_BEST_EFFORT] Entrez le nom du nouveau pays:</translation>
     </message>
     <message>
         <source>Entrez un nom pour ce modèle:</source>
-        <translation>[TR] Entrez un nom pour ce modèle:</translation>
+        <translation>[TR_BEST_EFFORT] Entrez un nom pour ce modèle:</translation>
     </message>
     <message>
         <source>Envoyer par email</source>
-        <translation>[TR] Envoyer par email</translation>
+        <translation>[TR_BEST_EFFORT] Envoyer par email</translation>
     </message>
     <message>
         <source>Erreur DB Gestion de Projet</source>
-        <translation>[TR] Erreur DB Gestion de Projet</translation>
+        <translation>[TR_BEST_EFFORT] Erreur DB Gestion de Projet</translation>
     </message>
     <message>
         <source>Erreur DB</source>
-        <translation>[TR] Erreur DB</translation>
+        <translation>[TR_BEST_EFFORT] Erreur DB</translation>
     </message>
     <message>
         <source>Erreur DB recherche email: {0}</source>
-        <translation>[TR] Erreur DB recherche email: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur DB recherche email: {0}</translation>
     </message>
     <message>
         <source>Erreur DOCX</source>
-        <translation>[TR] Erreur DOCX</translation>
+        <translation>[TR_BEST_EFFORT] Erreur DOCX</translation>
     </message>
     <message>
         <source>Erreur HTML</source>
-        <translation>[TR] Erreur HTML</translation>
+        <translation>[TR_BEST_EFFORT] Erreur HTML</translation>
     </message>
     <message>
         <source>Erreur Modèle</source>
-        <translation>[TR] Erreur Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Erreur Modèle</translation>
     </message>
     <message>
         <source>Erreur Page de Garde</source>
-        <translation>[TR] Erreur Page de Garde</translation>
+        <translation>[TR_BEST_EFFORT] Erreur Page de Garde</translation>
     </message>
     <message>
         <source>Erreur PDF</source>
-        <translation>[TR] Erreur PDF</translation>
+        <translation>[TR_BEST_EFFORT] Erreur PDF</translation>
     </message>
     <message>
         <source>Erreur lors de la compilation du PDF:\n{0}</source>
-        <translation>[TR] Erreur lors de la compilation du PDF:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur lors de la compilation du PDF:\n{0}</translation>
     </message>
     <message>
         <source>Erreur lors de la génération de la page de garde via pagedegrde: {0}</source>
-        <translation>[TR] Erreur lors de la génération de la page de garde via pagedegrde: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur lors de la génération de la page de garde via pagedegrde: {0}</translation>
     </message>
     <message>
-        <source>Erreur lors de l&apos;ajout de {0}:\n{1}</source>
-        <translation>[TR] Erreur lors de l&apos;ajout de {0}:\n{1}</translation>
+        <source>Erreur lors de l'ajout de {0}:\n{1}</source>
+        <translation>[TR_BEST_EFFORT] Erreur lors de l'ajout de {0}:\n{1}</translation>
     </message>
     <message>
-        <source>Erreur lors de l&apos;envoi de l&apos;email:\n{0}</source>
-        <translation>[TR] Erreur lors de l&apos;envoi de l&apos;email:\n{0}</translation>
+        <source>Erreur lors de l'envoi de l'email:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur lors de l'envoi de l'email:\n{0}</translation>
     </message>
     <message>
         <source>Erreur</source>
-        <translation>[TR] Erreur</translation>
+        <translation>[TR_BEST_EFFORT] Erreur</translation>
     </message>
     <message>
         <source>Erreur Base de Données</source>
-        <translation>[TR] Erreur Base de Données</translation>
+        <translation>[TR_BEST_EFFORT] Erreur Base de Données</translation>
     </message>
     <message>
         <source>Erreur de Configuration</source>
-        <translation>[TR] Erreur de Configuration</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de Configuration</translation>
     </message>
     <message>
         <source>Erreur de Chargement</source>
-        <translation>[TR] Erreur de Chargement</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de Chargement</translation>
     </message>
     <message>
         <source>Erreur de Sauvegarde</source>
-        <translation>[TR] Erreur de Sauvegarde</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de Sauvegarde</translation>
     </message>
     <message>
         <source>Erreur de chargement des contacts:\n{0}</source>
-        <translation>[TR] Erreur de chargement des contacts:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des contacts:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des modèles:\n{str(e)}</source>
-        <translation>[TR] Erreur de chargement des modèles:\n{str(e)}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des modèles:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de chargement des modèles:\n{0}</source>
-        <translation>[TR] Erreur de chargement des modèles:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des modèles:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des pays:\n{0}</source>
-        <translation>[TR] Erreur de chargement des pays:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des pays:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des produits:\n{0}</source>
-        <translation>[TR] Erreur de chargement des produits:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des produits:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des statuts:\n{0}</source>
-        <translation>[TR] Erreur de chargement des statuts:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement des statuts:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement de la feuille</source>
-        <translation>[TR] Erreur de chargement de la feuille</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement de la feuille</translation>
     </message>
     <message>
         <source>Erreur de chargement statuts pour filtre: {0}</source>
-        <translation>[TR] Erreur de chargement statuts pour filtre: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de chargement statuts pour filtre: {0}</translation>
     </message>
     <message>
         <source>Erreur de mise à jour du modèle:\n{str(e)}</source>
-        <translation>[TR] Erreur de mise à jour du modèle:\n{str(e)}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de mise à jour du modèle:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de mise à jour du statut:\n{0}</source>
-        <translation>[TR] Erreur de mise à jour du statut:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de mise à jour du statut:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de sauvegarde des notes:\n{0}</source>
-        <translation>[TR] Erreur de sauvegarde des notes:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de sauvegarde des notes:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de suppression du contact:\n{0}</source>
-        <translation>[TR] Erreur de suppression du contact:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de suppression du contact:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de suppression du modèle:\n{str(e)}</source>
-        <translation>[TR] Erreur de suppression du modèle:\n{str(e)}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de suppression du modèle:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de suppression du produit:\n{0}</source>
-        <translation>[TR] Erreur de suppression du produit:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Erreur de suppression du produit:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;Ouverture Fichier</source>
-        <translation>[TR] Erreur d&apos;Ouverture Fichier</translation>
+        <source>Erreur d'Ouverture Fichier</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'Ouverture Fichier</translation>
     </message>
     <message>
-        <source>Erreur d&apos;accès au modèle:\n{str(e)}</source>
-        <translation>[TR] Erreur d&apos;accès au modèle:\n{str(e)}</translation>
+        <source>Erreur d'accès au modèle:\n{str(e)}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'accès au modèle:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ajout de la ville:\n{0}</source>
-        <translation>[TR] Erreur d&apos;ajout de la ville:\n{0}</translation>
+        <source>Erreur d'ajout de la ville:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ajout de la ville:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ajout du contact:\n{0}</source>
-        <translation>[TR] Erreur d&apos;ajout du contact:\n{0}</translation>
+        <source>Erreur d'ajout du contact:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ajout du contact:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ajout du modèle:\n{str(e)}</source>
-        <translation>[TR] Erreur d&apos;ajout du modèle:\n{str(e)}</translation>
+        <source>Erreur d'ajout du modèle:\n{str(e)}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ajout du modèle:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ajout du pays:\n{0}</source>
-        <translation>[TR] Erreur d&apos;ajout du pays:\n{0}</translation>
+        <source>Erreur d'ajout du pays:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ajout du pays:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ajout du produit:\n{0}</source>
-        <translation>[TR] Erreur d&apos;ajout du produit:\n{0}</translation>
+        <source>Erreur d'ajout du produit:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ajout du produit:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;export PDF</source>
-        <translation>[TR] Erreur d&apos;export PDF</translation>
+        <source>Erreur d'export PDF</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'export PDF</translation>
     </message>
     <message>
-        <source>Erreur d&apos;export PDF: {0}</source>
-        <translation>[TR] Erreur d&apos;export PDF: {0}</translation>
+        <source>Erreur d'export PDF: {0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'export PDF: {0}</translation>
     </message>
     <message>
-        <source>Erreur d&apos;envoi</source>
-        <translation>[TR] Erreur d&apos;envoi</translation>
+        <source>Erreur d'envoi</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'envoi</translation>
     </message>
     <message>
-        <source>Erreur d&apos;ouverture du PDF: {0}</source>
-        <translation>[TR] Erreur d&apos;ouverture du PDF: {0}</translation>
+        <source>Erreur d'ouverture du PDF: {0}</source>
+        <translation>[TR_BEST_EFFORT] Erreur d'ouverture du PDF: {0}</translation>
     </message>
     <message>
         <source>Excel</source>
-        <translation>[TR] Excel</translation>
+        <translation>[TR_BEST_EFFORT] Excel</translation>
     </message>
     <message>
         <source>Exporter PDF</source>
-        <translation>[TR] Exporter PDF</translation>
+        <translation>[TR_BEST_EFFORT] Exporter PDF</translation>
     </message>
     <message>
         <source>Exporter en PDF</source>
-        <translation>[TR] Exporter en PDF</translation>
+        <translation>[TR_BEST_EFFORT] Exporter en PDF</translation>
     </message>
     <message>
         <source>Fermer</source>
-        <translation>[TR] Fermer</translation>
+        <translation>Kapat</translation>
     </message>
     <message>
         <source>Fichier Inexistant</source>
-        <translation>[TR] Fichier Inexistant</translation>
+        <translation>[TR_BEST_EFFORT] Fichier Inexistant</translation>
     </message>
     <message>
         <source>Fichier Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)</source>
-        <translation>[TR] Fichier Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)</translation>
+        <translation>[TR_BEST_EFFORT] Fichier Modèles (*.xlsx *.docx *.html);;Fichiers Excel (*.xlsx);;Documents Word (*.docx);;Documents HTML (*.html);;Tous les fichiers (*)</translation>
     </message>
     <message>
         <source>Fichier PDF (*.pdf);;Tous les fichiers (*)</source>
-        <translation>[TR] Fichiers PDF (*.pdf);;Tous les fichiers (*)</translation>
+        <translation>[TR_BEST_EFFORT] Fichier PDF (*.pdf);;Tous les fichiers (*)</translation>
     </message>
     <message>
         <source>Fichier PDF compilé</source>
-        <translation>[TR] Fichier PDF compilé</translation>
+        <translation>[TR_BEST_EFFORT] Fichier PDF compilé</translation>
     </message>
     <message>
         <source>Fichier introuvable.</source>
-        <translation>[TR] Fichier introuvable.</translation>
+        <translation>[TR_BEST_EFFORT] Fichier introuvable.</translation>
     </message>
     <message>
-        <source>Fichier modèle &apos;{0}&apos; introuvable pour &apos;{1}&apos;.</source>
-        <translation>[TR] Fichier modèle &apos;{0}&apos; introuvable pour &apos;{1}&apos;.</translation>
+        <source>Fichier modèle '{0}' introuvable pour '{1}'.</source>
+        <translation>[TR_BEST_EFFORT] Fichier modèle '{0}' introuvable pour '{1}'.</translation>
     </message>
     <message>
         <source>Fichier non trouvé</source>
-        <translation>[TR] Fichier non trouvé</translation>
+        <translation>[TR_BEST_EFFORT] Fichier non trouvé</translation>
     </message>
     <message>
         <source>Fichier supprimé</source>
-        <translation>[TR] Fichier supprimé</translation>
+        <translation>[TR_BEST_EFFORT] Fichier supprimé</translation>
     </message>
     <message>
         <source>Fichier</source>
-        <translation>[TR] Fichier</translation>
+        <translation>[TR_BEST_EFFORT] Fichier</translation>
     </message>
     <message>
         <source>Filtrer par statut:</source>
-        <translation>[TR] Filtrer par statut:</translation>
+        <translation>[TR_BEST_EFFORT] Filtrer par statut:</translation>
     </message>
     <message>
-        <source>Formulaire d&apos;Offre</source>
-        <translation>[TR] Formulaire d&apos;Offre</translation>
+        <source>Formulaire d'Offre</source>
+        <translation>[TR_BEST_EFFORT] Formulaire d'Offre</translation>
     </message>
     <message>
         <source>Français (fr)</source>
-        <translation>[TR] Français (fr)</translation>
+        <translation>[TR_BEST_EFFORT] Français (fr)</translation>
     </message>
     <message>
         <source>Français uniquement (fr)</source>
-        <translation>[TR] Français uniquement (fr)</translation>
+        <translation>[TR_BEST_EFFORT] Français uniquement (fr)</translation>
     </message>
     <message>
         <source>Gestion des Contacts</source>
-        <translation>[TR] Gestion des Contacts</translation>
+        <translation>[TR_BEST_EFFORT] Gestion des Contacts</translation>
     </message>
     <message>
         <source>Gestion des Modèles</source>
-        <translation>[TR] Gestion des Modèles</translation>
+        <translation>[TR_BEST_EFFORT] Gestion des Modèles</translation>
     </message>
     <message>
         <source>Gestion des Statuts</source>
-        <translation>[TR] Gestion des Statuts</translation>
+        <translation>[TR_BEST_EFFORT] Gestion des Statuts</translation>
     </message>
     <message>
         <source>Gestionnaire de Documents Client</source>
-        <translation>[TR] Gestionnaire de Documents Client</translation>
+        <translation>[TR_BEST_EFFORT] Gestionnaire de Documents Client</translation>
     </message>
     <message>
         <source>Général</source>
-        <translation>[TR] Général</translation>
+        <translation>[TR_BEST_EFFORT] Général</translation>
     </message>
     <message>
         <source>HTML Editor - {0}</source>
-        <translation>[TR] HTML Editor - {0}</translation>
+        <translation>[TR_BEST_EFFORT] HTML Editor - {0}</translation>
     </message>
     <message>
         <source>HTML</source>
-        <translation>[TR] HTML</translation>
+        <translation>[TR_BEST_EFFORT] HTML</translation>
     </message>
     <message>
         <source>ID Projet Existant</source>
-        <translation>[TR] ID Projet Existant</translation>
+        <translation>[TR_BEST_EFFORT] ID Projet Existant</translation>
     </message>
     <message>
         <source>ID Projet:</source>
-        <translation>[TR] ID Projet:</translation>
+        <translation>[TR_BEST_EFFORT] ID Projet:</translation>
     </message>
     <message>
         <source>ID</source>
-        <translation>[TR] ID</translation>
+        <translation>[TR_BEST_EFFORT] ID</translation>
     </message>
     <message>
         <source>Identifiant du projet</source>
-        <translation>[TR] Identifiant du projet</translation>
+        <translation>[TR_BEST_EFFORT] Identifiant du projet</translation>
     </message>
     <message>
         <source>Identifiant unique du projet</source>
-        <translation>[TR] Identifiant unique du projet</translation>
+        <translation>[TR_BEST_EFFORT] Identifiant unique du projet</translation>
     </message>
     <message>
-        <source>Impossible d&apos;initialiser la base de données: {0}\nL&apos;application pourrait ne pas fonctionner correctement.</source>
-        <translation>[TR] Impossible d&apos;initialiser la base de données: {0}\nL&apos;application pourrait ne pas fonctionner correctement.</translation>
+        <source>Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</source>
+        <translation>[TR_BEST_EFFORT] Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</translation>
     </message>
     <message>
-        <source>Impossible d&apos;enregistrer la configuration: {0}</source>
-        <translation>[TR] Impossible d&apos;enregistrer la configuration: {0}</translation>
+        <source>Impossible d'enregistrer la configuration: {0}</source>
+        <translation>[TR_BEST_EFFORT] Impossible d'enregistrer la configuration: {0}</translation>
     </message>
     <message>
-        <source>Impossible d&apos;ouvrir le fichier:\n{0}</source>
-        <translation>[TR] Impossible d&apos;ouvrir le fichier:\n{0}</translation>
+        <source>Impossible d'ouvrir le fichier:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Impossible d'ouvrir le fichier:\n{0}</translation>
     </message>
     <message>
-        <source>Impossible de charger la feuille &apos;{0}&apos;:\n{1}</source>
-        <translation>[TR] Impossible de charger la feuille &apos;{0}&apos;:\n{1}</translation>
+        <source>Impossible de charger la feuille '{0}':\n{1}</source>
+        <translation>[TR_BEST_EFFORT] Impossible de charger la feuille '{0}':\n{1}</translation>
     </message>
     <message>
         <source>Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</source>
-        <translation>[TR] Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</translation>
+        <translation>[TR_BEST_EFFORT] Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</translation>
     </message>
     <message>
         <source>Impossible de générer la page de garde personnalisée: {0}</source>
-        <translation>[TR] Impossible de générer la page de garde personnalisée: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Impossible de générer la page de garde personnalisée: {0}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle HTML &apos;{0}&apos;:\n{1}</source>
-        <translation>[TR] Impossible de populer le modèle HTML &apos;{0}&apos;:\n{1}</translation>
+        <source>Impossible de populer le modèle HTML '{0}':\n{1}</source>
+        <translation>[TR_BEST_EFFORT] Impossible de populer le modèle HTML '{0}':\n{1}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle Word &apos;{0}&apos;:\n{1}</source>
-        <translation>[TR] Impossible de populer le modèle Word &apos;{0}&apos;:\n{1}</translation>
+        <source>Impossible de populer le modèle Word '{0}':\n{1}</source>
+        <translation>[TR_BEST_EFFORT] Impossible de populer le modèle Word '{0}':\n{1}</translation>
     </message>
     <message>
         <source>Impossible de supprimer le fichier:\n{0}</source>
-        <translation>[TR] Impossible de supprimer le fichier:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Impossible de supprimer le fichier:\n{0}</translation>
     </message>
     <message>
         <source>Informations Client</source>
-        <translation>[TR] Informations Client</translation>
+        <translation>[TR_BEST_EFFORT] Informations Client</translation>
     </message>
     <message>
         <source>Institution par défaut:</source>
-        <translation>[TR] Institution par défaut:</translation>
+        <translation>[TR_BEST_EFFORT] Institution par défaut:</translation>
     </message>
     <message>
         <source>Inconnu</source>
-        <translation>[TR] Inconnu</translation>
+        <translation>[TR_BEST_EFFORT] Inconnu</translation>
     </message>
     <message>
         <source>Jours avant rappel client ancien:</source>
-        <translation>[TR] Jours avant rappel client ancien:</translation>
+        <translation>[TR_BEST_EFFORT] Jours avant rappel client ancien:</translation>
     </message>
     <message>
-        <source>L&apos;ID Projet &apos;{0}&apos; est déjà utilisé.</source>
-        <translation>[TR] L&apos;ID Projet &apos;{0}&apos; est déjà utilisé.</translation>
+        <source>L'ID Projet '{0}' est déjà utilisé.</source>
+        <translation>[TR_BEST_EFFORT] L'ID Projet '{0}' est déjà utilisé.</translation>
     </message>
     <message>
         <source>Langue Interface (redémarrage requis):</source>
-        <translation>[TR] Langue Interface (redémarrage requis):</translation>
+        <translation>[TR_BEST_EFFORT] Langue Interface (redémarrage requis):</translation>
     </message>
     <message>
         <source>Langue du Modèle</source>
-        <translation>[TR] Langue du Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Langue du Modèle</translation>
     </message>
     <message>
         <source>Langue:</source>
-        <translation>[TR] Langue:</translation>
+        <translation>[TR_BEST_EFFORT] Langue:</translation>
     </message>
     <message>
         <source>Langues:</source>
-        <translation>[TR] Langues:</translation>
+        <translation>[TR_BEST_EFFORT] Langues:</translation>
     </message>
     <message>
         <source>Le PDF compilé a été sauvegardé dans:\n{0}</source>
-        <translation>[TR] Le PDF compilé a été sauvegardé dans:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Le PDF compilé a été sauvegardé dans:\n{0}</translation>
     </message>
     <message>
         <source>Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</source>
-        <translation>[TR] Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</translation>
+        <translation>[TR_BEST_EFFORT] Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</translation>
     </message>
     <message>
         <source>Le document a été envoyé avec succès.</source>
-        <translation>[TR] Le document a été envoyé avec succès.</translation>
+        <translation>[TR_BEST_EFFORT] Le document a été envoyé avec succès.</translation>
     </message>
     <message>
-        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l&apos;ouvrir ?</source>
-        <translation>[TR] Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l&apos;ouvrir ?</translation>
+        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</source>
+        <translation>[TR_BEST_EFFORT] Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</translation>
     </message>
     <message>
-        <source>Le fichier {0} n&apos;existe pas.\nUn nouveau fichier sera créé.</source>
-        <translation>[TR] Le fichier {0} n&apos;existe pas.\nUn nouveau fichier sera créé.</translation>
+        <source>Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</source>
+        <translation>[TR_BEST_EFFORT] Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</translation>
     </message>
     <message>
         <source>Le fichier a été sauvegardé avec succès:\n{0}</source>
-        <translation>[TR] Le fichier a été sauvegardé avec succès:\n{0}</translation>
+        <translation>[TR_BEST_EFFORT] Le fichier a été sauvegardé avec succès:\n{0}</translation>
     </message>
     <message>
-        <source>Le fichier n&apos;existe plus.</source>
-        <translation>[TR] Le fichier n&apos;existe plus.</translation>
+        <source>Le fichier n'existe plus.</source>
+        <translation>[TR_BEST_EFFORT] Le fichier n'existe plus.</translation>
     </message>
     <message>
-        <source>Le tableau est vide. Impossible d&apos;exporter en PDF.</source>
-        <translation>[TR] Le tableau est vide. Impossible d&apos;exporter en PDF.</translation>
+        <source>Le tableau est vide. Impossible d'exporter en PDF.</source>
+        <translation>[TR_BEST_EFFORT] Le tableau est vide. Impossible d'exporter en PDF.</translation>
     </message>
     <message>
         <source>Les préférences ont été appliquées.</source>
-        <translation>[TR] Les préférences ont été appliquées.</translation>
+        <translation>[TR_BEST_EFFORT] Les préférences ont été appliquées.</translation>
     </message>
     <message>
         <source>Load Error</source>
-        <translation>[TR] Load Error</translation>
+        <translation>[TR_BEST_EFFORT] Load Error</translation>
     </message>
     <message>
         <source>Modifications Non Sauvegardées</source>
-        <translation>[TR] Modifications Non Sauvegardées</translation>
+        <translation>[TR_BEST_EFFORT] Modifications Non Sauvegardées</translation>
     </message>
     <message>
         <source>Modèle Copié</source>
-        <translation>[TR] Modèle Copié</translation>
+        <translation>[TR_BEST_EFFORT] Modèle Copié</translation>
     </message>
     <message>
         <source>Modèle Existant</source>
-        <translation>[TR] Modèle Existant</translation>
+        <translation>[TR_BEST_EFFORT] Modèle Existant</translation>
     </message>
     <message>
         <source>Modèle Supprimé</source>
-        <translation>[TR] Modèle Supprimé</translation>
+        <translation>[TR_BEST_EFFORT] Modèle Supprimé</translation>
     </message>
     <message>
         <source>Modèle défini comme modèle par défaut pour sa catégorie et langue.</source>
-        <translation>[TR] Modèle défini comme modèle par défaut pour sa catégorie et langue.</translation>
+        <translation>[TR_BEST_EFFORT] Modèle défini comme modèle par défaut pour sa catégorie et langue.</translation>
     </message>
     <message>
         <source>Modèle ajouté avec succès.</source>
-        <translation>[TR] Modèle ajouté avec succès.</translation>
+        <translation>[TR_BEST_EFFORT] Modèle ajouté avec succès.</translation>
     </message>
     <message>
         <source>Modèle supprimé avec succès.</source>
-        <translation>[TR] Modèle supprimé avec succès.</translation>
+        <translation>[TR_BEST_EFFORT] Modèle supprimé avec succès.</translation>
     </message>
     <message>
         <source>Modèle {0} chargé</source>
-        <translation>[TR] Modèle {0} chargé</translation>
+        <translation>[TR_BEST_EFFORT] Modèle {0} chargé</translation>
     </message>
     <message>
         <source>Modèle enregistre.</source>
-        <translation>[TR] Modèle enregistre.</translation>
+        <translation>[TR_BEST_EFFORT] Modèle enregistre.</translation>
     </message>
     <message>
         <source>Modèles</source>
-        <translation>[TR] Modèles</translation>
+        <translation>[TR_BEST_EFFORT] Modèles</translation>
     </message>
     <message>
         <source>Moderne</source>
-        <translation>[TR] Moderne</translation>
+        <translation>[TR_BEST_EFFORT] Moderne</translation>
     </message>
     <message>
         <source>Modifier Contact</source>
-        <translation>[TR] Modifier Contact</translation>
+        <translation>[TR_BEST_EFFORT] Modifier Contact</translation>
     </message>
     <message>
         <source>Modifier Produit</source>
-        <translation>[TR] Modifier Produit</translation>
+        <translation>[TR_BEST_EFFORT] Modifier Produit</translation>
     </message>
     <message>
         <source>Modifier</source>
-        <translation>[TR] Modifier</translation>
+        <translation>[TR_BEST_EFFORT] Modifier</translation>
     </message>
     <message>
         <source>Monter</source>
-        <translation>[TR] Monter</translation>
+        <translation>[TR_BEST_EFFORT] Monter</translation>
     </message>
     <message>
         <source>Mot de passe SMTP:</source>
-        <translation>[TR] Mot de passe SMTP:</translation>
+        <translation>[TR_BEST_EFFORT] Mot de passe SMTP:</translation>
     </message>
     <message>
         <source>N/A</source>
-        <translation>[TR] N/A</translation>
+        <translation>[TR_BEST_EFFORT] N/A</translation>
     </message>
     <message>
         <source>Nouveau Modèle</source>
-        <translation>[TR] Nouveau Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Nouveau Modèle</translation>
     </message>
     <message>
         <source>Nouveau Pays</source>
-        <translation>[TR] Nouveau Pays</translation>
+        <translation>[TR_BEST_EFFORT] Nouveau Pays</translation>
     </message>
     <message>
         <source>Nouvelle Ville</source>
-        <translation>[TR] Nouvelle Ville</translation>
+        <translation>[TR_BEST_EFFORT] Nouvelle Ville</translation>
     </message>
     <message>
         <source>Nom Client:</source>
-        <translation>[TR] Nom Client:</translation>
+        <translation>[TR_BEST_EFFORT] Nom Client:</translation>
     </message>
     <message>
         <source>Nom Entreprise:</source>
-        <translation>[TR] Nom Entreprise:</translation>
+        <translation>[TR_BEST_EFFORT] Nom Entreprise:</translation>
     </message>
     <message>
         <source>Nom Produit</source>
-        <translation>[TR] Nom Produit</translation>
+        <translation>[TR_BEST_EFFORT] Nom Produit</translation>
     </message>
     <message>
-        <source>Nom de fichier manquant pour le modèle &apos;{0}&apos;. Impossible de créer.</source>
-        <translation>[TR] Nom de fichier manquant pour le modèle &apos;{0}&apos;. Impossible de créer.</translation>
+        <source>Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.</source>
+        <translation>[TR_BEST_EFFORT] Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.</translation>
     </message>
     <message>
         <source>Nom du Modèle</source>
-        <translation>[TR] Nom du Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Nom du Modèle</translation>
     </message>
     <message>
         <source>Nom du Produit:</source>
-        <translation>[TR] Nom du Produit:</translation>
+        <translation>[TR_BEST_EFFORT] Nom du Produit:</translation>
     </message>
     <message>
         <source>Nom du client</source>
-        <translation>[TR] Nom du client</translation>
+        <translation>[TR_BEST_EFFORT] Nom du client</translation>
     </message>
     <message>
         <source>Nom du client:</source>
-        <translation>[TR] Nom du client:</translation>
+        <translation>[TR_BEST_EFFORT] Nom du client:</translation>
     </message>
     <message>
         <source>Nom du fichier compilé:</source>
-        <translation>[TR] Nom du fichier compilé:</translation>
+        <translation>[TR_BEST_EFFORT] Nom du fichier compilé:</translation>
     </message>
     <message>
         <source>Nom du fichier</source>
-        <translation>[TR] Nom du fichier</translation>
+        <translation>[TR_BEST_EFFORT] Nom du fichier</translation>
     </message>
     <message>
         <source>Nom entreprise (optionnel)</source>
-        <translation>[TR] Nom entreprise (optionnel)</translation>
+        <translation>[TR_BEST_EFFORT] Nom entreprise (optionnel)</translation>
     </message>
     <message>
         <source>Nom complet:</source>
-        <translation>[TR] Nom complet:</translation>
+        <translation>[TR_BEST_EFFORT] Nom complet:</translation>
     </message>
     <message>
         <source>Nom manquant</source>
-        <translation>[TR] Nom manquant</translation>
+        <translation>[TR_BEST_EFFORT] Nom manquant</translation>
     </message>
     <message>
         <source>Nom:</source>
-        <translation>[TR] Nom:</translation>
+        <translation>[TR_BEST_EFFORT] Nom:</translation>
     </message>
     <message>
         <source>Nom</source>
-        <translation>[TR] Nom</translation>
+        <translation>[TR_BEST_EFFORT] Nom</translation>
     </message>
     <message>
         <source>Notes</source>
-        <translation>[TR] Notes</translation>
+        <translation>[TR_BEST_EFFORT] Notes</translation>
     </message>
     <message>
         <source>Nous contacter</source>
-        <translation>[TR] Nous contacter</translation>
+        <translation>[TR_BEST_EFFORT] Nous contacter</translation>
     </message>
     <message>
         <source>OK</source>
-        <translation>[TR] OK</translation>
+        <translation>[TR_BEST_EFFORT] OK</translation>
     </message>
     <message>
         <source>Ouvrir Dossier Client</source>
-        <translation>[TR] Ouvrir Dossier Client</translation>
+        <translation>[TR_BEST_EFFORT] Ouvrir Dossier Client</translation>
     </message>
     <message>
         <source>Ouvrir Fiche Client</source>
-        <translation>[TR] Ouvrir Fiche Client</translation>
+        <translation>[TR_BEST_EFFORT] Ouvrir Fiche Client</translation>
     </message>
     <message>
         <source>Ouvrir</source>
-        <translation>[TR] Ouvrir</translation>
+        <translation>[TR_BEST_EFFORT] Ouvrir</translation>
     </message>
     <message>
         <source>PDF</source>
-        <translation>[TR] PDF</translation>
+        <translation>[TR_BEST_EFFORT] PDF</translation>
     </message>
     <message>
-        <source>Paramètres de l&apos;Application</source>
-        <translation>[TR] Paramètres de l&apos;Application</translation>
+        <source>Paramètres de l'Application</source>
+        <translation>[TR_BEST_EFFORT] Paramètres de l'Application</translation>
     </message>
     <message>
         <source>Paramètres Sauvegardés</source>
-        <translation>[TR] Paramètres Sauvegardés</translation>
+        <translation>[TR_BEST_EFFORT] Paramètres Sauvegardés</translation>
     </message>
     <message>
         <source>Paramètres</source>
-        <translation>[TR] Paramètres</translation>
+        <translation>[TR_BEST_EFFORT] Paramètres</translation>
     </message>
     <message>
         <source>Parcourir...</source>
-        <translation>[TR] Parcourir...</translation>
+        <translation>[TR_BEST_EFFORT] Parcourir...</translation>
     </message>
     <message>
         <source>Pays Client:</source>
-        <translation>[TR] Pays Client:</translation>
+        <translation>[TR_BEST_EFFORT] Pays Client:</translation>
     </message>
     <message>
         <source>Pays Existant</source>
-        <translation>[TR] Pays Existant</translation>
+        <translation>[TR_BEST_EFFORT] Pays Existant</translation>
     </message>
     <message>
         <source>Pays Inconnu</source>
-        <translation>[TR] Pays Inconnu</translation>
+        <translation>[TR_BEST_EFFORT] Pays Inconnu</translation>
     </message>
     <message>
         <source>Pays Requis</source>
-        <translation>[TR] Pays Requis</translation>
+        <translation>[TR_BEST_EFFORT] Pays Requis</translation>
     </message>
     <message>
         <source>Pays:</source>
-        <translation>[TR] Pays:</translation>
+        <translation>[TR_BEST_EFFORT] Pays:</translation>
     </message>
     <message>
         <source>Police par défaut:</source>
-        <translation>[TR] Police par défaut:</translation>
+        <translation>[TR_BEST_EFFORT] Police par défaut:</translation>
     </message>
     <message>
         <source>Port SMTP:</source>
-        <translation>[TR] Port SMTP:</translation>
+        <translation>[TR_BEST_EFFORT] Port SMTP:</translation>
     </message>
     <message>
         <source>Poste:</source>
-        <translation>[TR] Poste:</translation>
+        <translation>[TR_BEST_EFFORT] Poste:</translation>
     </message>
     <message>
         <source>Pour toute question: contact@example.com</source>
-        <translation>[TR] Pour toute question: contact@example.com</translation>
+        <translation>[TR_BEST_EFFORT] Pour toute question: contact@example.com</translation>
     </message>
     <message>
         <source>Préférences</source>
-        <translation>[TR] Préférences</translation>
+        <translation>[TR_BEST_EFFORT] Préférences</translation>
     </message>
     <message>
         <source>Principal</source>
-        <translation>[TR] Principal</translation>
+        <translation>[TR_BEST_EFFORT] Principal</translation>
     </message>
     <message>
         <source>Prix Final:</source>
-        <translation>[TR] Prix Final:</translation>
+        <translation>[TR_BEST_EFFORT] Prix Final:</translation>
     </message>
     <message>
         <source>Prix Total:</source>
-        <translation>[TR] Prix Total:</translation>
+        <translation>[TR_BEST_EFFORT] Prix Total:</translation>
     </message>
     <message>
         <source>Prix Unitaire:</source>
-        <translation>[TR] Prix Unitaire:</translation>
+        <translation>[TR_BEST_EFFORT] Prix Unitaire:</translation>
     </message>
     <message>
         <source>Prix:</source>
-        <translation>[TR] Prix:</translation>
+        <translation>[TR_BEST_EFFORT] Prix:</translation>
     </message>
     <message>
         <source>Produits</source>
-        <translation>[TR] Produits</translation>
+        <translation>[TR_BEST_EFFORT] Produits</translation>
     </message>
     <message>
         <source>Projet Créé</source>
-        <translation>[TR] Projet Créé</translation>
+        <translation>[TR_BEST_EFFORT] Projet Créé</translation>
     </message>
     <message>
         <source>Projet: {0}</source>
-        <translation>[TR] Projet: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Projet: {0}</translation>
     </message>
     <message>
         <source>Projets Urgents</source>
-        <translation>[TR] Projets Urgents</translation>
+        <translation>Acil Projeler</translation>
     </message>
     <message>
         <source>Projets en Cours</source>
-        <translation>[TR] Projets en Cours</translation>
+        <translation>Devam Eden Projeler</translation>
     </message>
     <message>
         <source>Prêt</source>
-        <translation>[TR] Prêt</translation>
+        <translation>[TR_BEST_EFFORT] Prêt</translation>
     </message>
     <message>
         <source>Qté</source>
-        <translation>[TR] Qté</translation>
+        <translation>[TR_BEST_EFFORT] Qté</translation>
     </message>
     <message>
         <source>Quantité:</source>
-        <translation>[TR] Quantité:</translation>
+        <translation>[TR_BEST_EFFORT] Quantité:</translation>
     </message>
     <message>
         <source>Quitter</source>
-        <translation>[TR] Quitter</translation>
+        <translation>[TR_BEST_EFFORT] Quitter</translation>
     </message>
     <message>
         <source>Rechercher client...</source>
-        <translation>[TR] Rechercher client...</translation>
+        <translation>[TR_BEST_EFFORT] Rechercher client...</translation>
     </message>
     <message>
         <source>Refresh Preview</source>
-        <translation>[TR] Refresh Preview</translation>
+        <translation>[TR_BEST_EFFORT] Refresh Preview</translation>
     </message>
     <message>
         <source>Retirer Logo</source>
-        <translation>[TR] Retirer Logo</translation>
+        <translation>[TR_BEST_EFFORT] Retirer Logo</translation>
     </message>
     <message>
         <source>Réessayer</source>
-        <translation>[TR] Réessayer</translation>
+        <translation>[TR_BEST_EFFORT] Réessayer</translation>
     </message>
     <message>
         <source>Réussi</source>
-        <translation>[TR] Réussi</translation>
+        <translation>[TR_BEST_EFFORT] Réussi</translation>
     </message>
     <message>
         <source>Save Error</source>
-        <translation>[TR] Save Error</translation>
+        <translation>[TR_BEST_EFFORT] Save Error</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>[TR] Save</translation>
+        <translation>[TR_BEST_EFFORT] Save</translation>
     </message>
     <message>
         <source>Sauvegarde Réussie</source>
-        <translation>[TR] Sauvegarde Réussie</translation>
+        <translation>[TR_BEST_EFFORT] Sauvegarde Réussie</translation>
     </message>
     <message>
         <source>Sauvegarde en cours...</source>
-        <translation>[TR] Sauvegarde en cours...</translation>
+        <translation>[TR_BEST_EFFORT] Sauvegarde en cours...</translation>
     </message>
     <message>
         <source>Sauvegarder</source>
-        <translation>[TR] Sauvegarder</translation>
+        <translation>Kaydet</translation>
     </message>
     <message>
         <source>Serveur SMTP:</source>
-        <translation>[TR] Serveur SMTP:</translation>
+        <translation>[TR_BEST_EFFORT] Serveur SMTP:</translation>
     </message>
     <message>
         <source>Statut:</source>
-        <translation>[TR] Statut:</translation>
+        <translation>[TR_BEST_EFFORT] Statut:</translation>
     </message>
     <message>
         <source>Succès</source>
-        <translation>[TR] Succès</translation>
+        <translation>[TR_BEST_EFFORT] Succès</translation>
     </message>
     <message>
         <source>Supprimer Client</source>
-        <translation>[TR] Supprimer Client</translation>
+        <translation>[TR_BEST_EFFORT] Supprimer Client</translation>
     </message>
     <message>
         <source>Supprimer Contact</source>
-        <translation>[TR] Supprimer Contact</translation>
+        <translation>[TR_BEST_EFFORT] Supprimer Contact</translation>
     </message>
     <message>
         <source>Supprimer Modèle</source>
-        <translation>[TR] Supprimer Modèle</translation>
+        <translation>[TR_BEST_EFFORT] Supprimer Modèle</translation>
     </message>
     <message>
         <source>Supprimer Produit</source>
-        <translation>[TR] Supprimer Produit</translation>
+        <translation>[TR_BEST_EFFORT] Supprimer Produit</translation>
     </message>
     <message>
         <source>Supprimer</source>
-        <translation>[TR] Supprimer</translation>
+        <translation>[TR_BEST_EFFORT] Supprimer</translation>
     </message>
     <message>
         <source>Sélection</source>
-        <translation>[TR] Sélection</translation>
+        <translation>[TR_BEST_EFFORT] Sélection</translation>
     </message>
     <message>
         <source>Sélectionner dossier clients</source>
-        <translation>[TR] Sélectionner dossier clients</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner dossier clients</translation>
     </message>
     <message>
         <source>Sélectionner dossier modèles</source>
-        <translation>[TR] Sélectionner dossier modèles</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner dossier modèles</translation>
     </message>
     <message>
         <source>Sélectionner la langue:</source>
-        <translation>[TR] Sélectionner la langue:</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner la langue:</translation>
     </message>
     <message>
         <source>Sélectionner les PDF à compiler:</source>
-        <translation>[TR] Sélectionner les PDF à compiler:</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner les PDF à compiler:</translation>
     </message>
     <message>
         <source>Sélectionner les documents à créer:</source>
-        <translation>[TR] Sélectionner les documents à créer:</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner les documents à créer:</translation>
     </message>
     <message>
         <source>Sélectionner un modèle</source>
-        <translation>[TR] Sélectionner un modèle</translation>
+        <translation>[TR_BEST_EFFORT] Sélectionner un modèle</translation>
     </message>
     <message>
         <source>Taille de police par défaut:</source>
-        <translation>[TR] Taille de police par défaut:</translation>
+        <translation>[TR_BEST_EFFORT] Taille de police par défaut:</translation>
     </message>
     <message>
         <source>Tous les statuts</source>
-        <translation>[TR] Tous les statuts</translation>
+        <translation>[TR_BEST_EFFORT] Tous les statuts</translation>
     </message>
     <message>
         <source>Toutes les langues (fr, ar, tr)</source>
-        <translation>[TR] Toutes les langues (fr, ar, tr)</translation>
+        <translation>[TR_BEST_EFFORT] Toutes les langues (fr, ar, tr)</translation>
     </message>
     <message>
         <source>Turc (tr)</source>
-        <translation>[TR] Turc (tr)</translation>
+        <translation>[TR_BEST_EFFORT] Turc (tr)</translation>
     </message>
     <message>
         <source>Turc uniquement (tr)</source>
-        <translation>[TR] Turc uniquement (tr)</translation>
+        <translation>[TR_BEST_EFFORT] Turc uniquement (tr)</translation>
     </message>
     <message>
         <source>Type de document:</source>
-        <translation>[TR] Type de document:</translation>
+        <translation>[TR_BEST_EFFORT] Type de document:</translation>
     </message>
     <message>
         <source>Type</source>
-        <translation>[TR] Type</translation>
+        <translation>[TR_BEST_EFFORT] Type</translation>
     </message>
     <message>
         <source>Télécharger</source>
-        <translation>[TR] Télécharger</translation>
+        <translation>[TR_BEST_EFFORT] Télécharger</translation>
     </message>
     <message>
         <source>Téléphone:</source>
-        <translation>[TR] Téléphone:</translation>
+        <translation>[TR_BEST_EFFORT] Téléphone:</translation>
     </message>
     <message>
         <source>Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}</source>
-        <translation>[TR] Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}</translation>
+        <translation>[TR_BEST_EFFORT] Un client avec un chemin de dossier similaire existe déjà ou autre contrainte DB violée: {0}</translation>
     </message>
     <message>
         <source>Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.</source>
-        <translation>[TR] Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.</translation>
+        <translation>[TR_BEST_EFFORT] Un dossier client avec ces identifiants (nom, pays, projet) existe déjà.</translation>
     </message>
     <message>
         <source>Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.</source>
-        <translation>[TR] Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.</translation>
+        <translation>[TR_BEST_EFFORT] Un projet correspondant pour {0} a été automatiquement créé dans le système de gestion de projet.</translation>
     </message>
     <message>
-        <source>Une erreur inattendue s&apos;est produite:\n{0}</source>
-        <translation>[TR] Une erreur inattendue s&apos;est produite:\n{0}</translation>
+        <source>Une erreur inattendue s'est produite:\n{0}</source>
+        <translation>[TR_BEST_EFFORT] Une erreur inattendue s'est produite:\n{0}</translation>
     </message>
     <message>
         <source>Urgent</source>
-        <translation>[TR] Urgent</translation>
+        <translation>[TR_BEST_EFFORT] Urgent</translation>
     </message>
     <message>
         <source>Utilisateur SMTP:</source>
-        <translation>[TR] Utilisateur SMTP:</translation>
+        <translation>[TR_BEST_EFFORT] Utilisateur SMTP:</translation>
     </message>
     <message>
         <source>Valeur Totale</source>
-        <translation>[TR] Valeur Totale</translation>
+        <translation>Toplam Değer</translation>
     </message>
     <message>
         <source>Version:</source>
-        <translation>[TR] Version:</translation>
+        <translation>[TR_BEST_EFFORT] Version:</translation>
     </message>
     <message>
-        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l&apos;application.</source>
-        <translation>[TR] Veuillez configurer les paramètres SMTP dans les paramètres de l&apos;application.</translation>
+        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l'application.</source>
+        <translation>[TR_BEST_EFFORT] Veuillez configurer les paramètres SMTP dans les paramètres de l'application.</translation>
     </message>
     <message>
-        <source>Veuillez d&apos;abord sélectionner un pays.</source>
-        <translation>[TR] Veuillez d&apos;abord sélectionner un pays.</translation>
+        <source>Veuillez d'abord sélectionner un pays.</source>
+        <translation>[TR_BEST_EFFORT] Veuillez d'abord sélectionner un pays.</translation>
     </message>
     <message>
         <source>Veuillez sélectionner au moins un document à créer.</source>
-        <translation>[TR] Veuillez sélectionner au moins un document à créer.</translation>
+        <translation>[TR_BEST_EFFORT] Veuillez sélectionner au moins un document à créer.</translation>
     </message>
     <message>
         <source>Veuillez spécifier un nom de fichier pour la compilation.</source>
-        <translation>[TR] Veuillez spécifier un nom de fichier pour la compilation.</translation>
+        <translation>[TR_BEST_EFFORT] Veuillez spécifier un nom de fichier pour la compilation.</translation>
     </message>
     <message>
         <source>Ville Client:</source>
-        <translation>[TR] Ville Client:</translation>
+        <translation>[TR_BEST_EFFORT] Ville Client:</translation>
     </message>
     <message>
         <source>Ville Existante</source>
-        <translation>[TR] Ville Existante</translation>
+        <translation>[TR_BEST_EFFORT] Ville Existante</translation>
     </message>
     <message>
         <source>Ville:</source>
-        <translation>[TR] Ville:</translation>
+        <translation>[TR_BEST_EFFORT] Ville:</translation>
     </message>
     <message>
         <source>Votre Entreprise</source>
-        <translation>[TR] Votre Entreprise</translation>
+        <translation>[TR_BEST_EFFORT] Votre Entreprise</translation>
     </message>
     <message>
         <source>Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</source>
-        <translation>[TR] Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</translation>
+        <translation>[TR_BEST_EFFORT] Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</translation>
     </message>
     <message>
         <source>Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</source>
-        <translation>[TR] Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</translation>
+        <translation>[TR_BEST_EFFORT] Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</translation>
     </message>
     <message>
-        <source>Vous avez des modifications non sauvegardées dans &apos;{0}&apos;.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
-        <translation>[TR] Vous avez des modifications non sauvegardées dans &apos;{0}&apos;.\nVoulez-vous sauvegarder avant de changer de feuille ?</translation>
+        <source>Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
+        <translation>[TR_BEST_EFFORT] Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</translation>
     </message>
     <message>
         <source>Word</source>
-        <translation>[TR] Word</translation>
+        <translation>[TR_BEST_EFFORT] Word</translation>
     </message>
     <message>
         <source>all ou 1-3,5</source>
-        <translation>[TR] all ou 1-3,5</translation>
+        <translation>[TR_BEST_EFFORT] all ou 1-3,5</translation>
     </message>
     <message>
         <source>compilation</source>
-        <translation>[TR] compilation</translation>
+        <translation>[TR_BEST_EFFORT] compilation</translation>
     </message>
     <message>
         <source>&lt;b&gt;Gestionnaire de Documents Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Application de gestion de documents clients avec templates Excel.&lt;br&gt;&lt;br&gt;Développé par Saadiya Management (Concept)</source>
-        <translation>[TR] &lt;b&gt;Gestionnaire de Documents Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Application de gestion de documents clients avec templates Excel.&lt;br&gt;&lt;br&gt;Développé par Saadiya Management (Concept)</translation>
+        <translation>[TR_BEST_EFFORT] &lt;b&gt;Gestionnaire de Documents Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;Version 4.0&lt;br&gt;Application de gestion de documents clients avec templates Excel.&lt;br&gt;&lt;br&gt;Développé par Saadiya Management (Concept)</translation>
     </message>
     <message>
         <source>&lt;b&gt;Personnel responsable:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tél:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</source>
-        <translation>[TR] &lt;b&gt;Personnel responsable:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tél:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</translation>
+        <translation>[TR_BEST_EFFORT] &lt;b&gt;Personnel responsable:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tél:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Conditions d&apos;achat:&lt;/b&gt;</source>
-        <translation>[TR] &lt;b&gt;Conditions d&apos;achat:&lt;/b&gt;</translation>
+        <source>&lt;b&gt;Conditions d'achat:&lt;/b&gt;</source>
+        <translation>[TR_BEST_EFFORT] &lt;b&gt;Conditions d'achat:&lt;/b&gt;</translation>
     </message>
     <message>
         <source>À propos</source>
-        <translation>[TR] À propos</translation>
+        <translation>Hakkında</translation>
     </message>
     <message>
         <source>Éditer</source>
-        <translation>[TR] Éditer</translation>
+        <translation>Düzenle</translation>
     </message>
     <message>
         <source>Éditeur Excel - {0}</source>
-        <translation>[TR] Éditeur Excel - {0}</translation>
+        <translation>[TR_BEST_EFFORT] Éditeur Excel - {0}</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer ce contact?</source>
-        <translation>[TR] Êtes-vous sûr de vouloir supprimer ce contact?</translation>
+        <translation>[TR_BEST_EFFORT] Êtes-vous sûr de vouloir supprimer ce contact?</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer ce modèle ?</source>
-        <translation>[TR] Êtes-vous sûr de vouloir supprimer ce modèle ?</translation>
+        <translation>[TR_BEST_EFFORT] Êtes-vous sûr de vouloir supprimer ce modèle ?</translation>
     </message>
     <message>
         <source>Êtes-vous sûr de vouloir supprimer le fichier {0} ?</source>
-        <translation>[TR] Êtes-vous sûr de vouloir supprimer le fichier {0} ?</translation>
+        <translation>[TR_BEST_EFFORT] Êtes-vous sûr de vouloir supprimer le fichier {0} ?</translation>
     </message>
     <message>
-        <source>Êtes-vous sûr de vouloir supprimer le produit &apos;{0}&apos;?</source>
-        <translation>[TR] Êtes-vous sûr de vouloir supprimer le produit &apos;{0}&apos;?</translation>
+        <source>Êtes-vous sûr de vouloir supprimer le produit '{0}'?</source>
+        <translation>[TR_BEST_EFFORT] Êtes-vous sûr de vouloir supprimer le produit '{0}'?</translation>
     </message>
     <message>
         <source>&amp;Fichier</source>
-        <translation>[TR] &amp;Fichier</translation>
+        <translation>[TR_BEST_EFFORT] &amp;Fichier</translation>
     </message>
     <message>
         <source>&amp;Nouveau</source>
-        <translation>[TR] &amp;Nouveau</translation>
+        <translation>[TR_BEST_EFFORT] &amp;Nouveau</translation>
     </message>
 </context>
 </TS>

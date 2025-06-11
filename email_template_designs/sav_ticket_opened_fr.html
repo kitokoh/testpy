@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+    <html>
+    <head><title>Ticket Ouvert</title></head>
+    <body>
+        <p>Bonjour {{client.contact_person_name}},</p>
+        <p>Votre ticket de support SAV #{{ticket.id}} concernant le produit '{{product.name | default: "N/A"}}' (Projet: {{project.name | default: "N/A"}}) a bien été ouvert.</p>
+        <p><strong>Description du problème :</strong></p>
+        <p>{{ticket.issue_summary}}</p>
+        <p>Notre équipe va examiner votre demande prochainement.</p>
+        <p>Cordialement,<br/>L'équipe {{seller.company_name}}</p>
+    </body>
+    </html>
