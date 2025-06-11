@@ -22,6 +22,7 @@ import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 from dialogs import ClientProductDimensionDialog # Added import
+from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
@@ -36,18 +37,20 @@ MAIN_MODULE_CONFIG = None
 MAIN_MODULE_DATABASE_NAME = None
 MAIN_MODULE_SEND_EMAIL_DIALOG = None
 MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = None # Added for ClientDocumentNoteDialog
+MAIN_MODULE_SEND_WHATSAPP_DIALOG = None
 
 def _import_main_elements():
     global MAIN_MODULE_CONTACT_DIALOG, MAIN_MODULE_PRODUCT_DIALOG, \
            MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG, MAIN_MODULE_CREATE_DOCUMENT_DIALOG, \
            MAIN_MODULE_COMPILE_PDF_DIALOG, MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT, \
            MAIN_MODULE_CONFIG, MAIN_MODULE_DATABASE_NAME, MAIN_MODULE_SEND_EMAIL_DIALOG, \
-           MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG
+           MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG, MAIN_MODULE_SEND_WHATSAPP_DIALOG
 
     if MAIN_MODULE_CONFIG is None: # Check one, load all if not loaded
         # import main as main_module # No longer needed
         from dialogs import (SendEmailDialog, ContactDialog, ProductDialog, EditProductLineDialog,
                              CreateDocumentDialog, CompilePdfDialog, ClientDocumentNoteDialog)
+        from whatsapp.whatsapp_dialog import SendWhatsAppDialog as WhatsAppDialogModule
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
         from db import DATABASE_NAME as DB_NAME
@@ -61,6 +64,7 @@ def _import_main_elements():
         MAIN_MODULE_DATABASE_NAME = DB_NAME
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
         MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
+        MAIN_MODULE_SEND_WHATSAPP_DIALOG = WhatsAppDialogModule
 
 
 class ClientWidget(QWidget):
@@ -85,6 +89,7 @@ class ClientWidget(QWidget):
         self.generate_pdf_for_document = MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT
         self.SendEmailDialog = MAIN_MODULE_SEND_EMAIL_DIALOG
         self.ClientDocumentNoteDialog = MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG # Added
+        self.SendWhatsAppDialog = MAIN_MODULE_SEND_WHATSAPP_DIALOG
 
         self.is_editing_client = False
         self.edit_widgets = {}
@@ -147,6 +152,12 @@ class ClientWidget(QWidget):
         self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
         self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
         action_layout.addWidget(self.edit_save_client_btn)
+
+        self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
+        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/message-circle.svg"))) # Placeholder icon
+        self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
+        self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
+        action_layout.addWidget(self.send_whatsapp_btn)
         info_container_layout.addLayout(action_layout)
 
         # Status combo (part of details, but initialized here due to load_statuses)
@@ -563,6 +574,47 @@ class ClientWidget(QWidget):
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
+    def open_send_whatsapp_dialog(self):
+       client_uuid = self.client_info.get("client_id")
+       client_name = self.client_info.get("client_name", "")
+       primary_phone = ""
+       fallback_phone = ""
+
+       if not client_uuid:
+           QMessageBox.warning(self, self.tr("Client Error"), self.tr("Client ID not available."))
+           return
+
+       try:
+           contacts = db_manager.get_contacts_for_client(client_uuid, limit=10, offset=0) # Fetch a few contacts
+           if contacts:
+               for contact in contacts:
+                   if contact.get('phone'):
+                       if not fallback_phone: # Store first available phone number
+                           fallback_phone = contact['phone']
+                       if contact.get('is_primary_for_client'):
+                           primary_phone = contact['phone']
+                           break # Found primary, use this
+
+               selected_phone = primary_phone if primary_phone else fallback_phone
+
+               if selected_phone:
+                   # Ensure SendWhatsAppDialog is available
+                   if not hasattr(self, 'SendWhatsAppDialog') or self.SendWhatsAppDialog is None:
+                       try:
+                           from whatsapp.whatsapp_dialog import SendWhatsAppDialog
+                           self.SendWhatsAppDialog = SendWhatsAppDialog
+                       except ImportError:
+                           QMessageBox.critical(self, self.tr("Import Error"), self.tr("Could not load the SendWhatsAppDialog component."))
+                           return
+
+                   dialog = self.SendWhatsAppDialog(phone_number=selected_phone, client_name=client_name, parent=self)
+                   dialog.exec_()
+               else:
+                   QMessageBox.information(self, self.tr("No Phone Number"), self.tr("No phone number found for this client's contacts."))
+           else:
+               QMessageBox.information(self, self.tr("No Contacts"), self.tr("No contacts found for this client."))
+       except Exception as e:
+           QMessageBox.critical(self, self.tr("Error Fetching Contacts"), self.tr("Could not retrieve contact information: {0}").format(str(e)))
 
     def load_sav_tickets_table(self):
         self.sav_tickets_table.setRowCount(0)

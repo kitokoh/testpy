@@ -32,6 +32,7 @@ from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG
 from utils import populate_docx_template, load_config as utils_load_config, save_config as utils_save_config
+from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
