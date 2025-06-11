@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys # Used by __init__ indirectly via app_root_dir logic if it were here, but app_root_dir is imported
 import os # Used by open_settings_dialog for makedirs
+import logging # Added for logging
 
 # PyQt5 imports used directly by DocumentManager UI and methods
 from PyQt5.QtWidgets import (
@@ -373,6 +374,17 @@ class DocumentManager(QMainWindow):
             new_conf = dialog.get_config() 
             self.config.update(new_conf) # self.config should be CONFIG from app_setup
             save_config(self.config) # save_config from utils
+
+            # Save language setting to database
+            new_language_code = self.config.get('language')
+            if new_language_code:
+                try:
+                    db_manager.set_setting('user_selected_language', new_language_code)
+                    logging.info(f"User language preference '{new_language_code}' saved to database.")
+                except Exception as e:
+                    logging.error(f"Error saving language preference to database: {e}", exc_info=True)
+                    QMessageBox.warning(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'enregistrer la préférence linguistique dans la base de données : {0}").format(str(e)))
+
             os.makedirs(self.config["templates_dir"], exist_ok=True) 
             os.makedirs(self.config["clients_dir"], exist_ok=True)
             QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés.")) # self for parent

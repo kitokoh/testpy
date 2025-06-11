@@ -253,7 +253,8 @@ class SettingsDialog(QDialog):
         self.lang_display_to_code = {
             self.tr("Français (fr)"): "fr", self.tr("English (en)"): "en",
             self.tr("العربية (ar)"): "ar", self.tr("Türkçe (tr)"): "tr",
-            self.tr("Português (pt)"): "pt"
+            self.tr("Português (pt)"): "pt",
+            self.tr("Русский (ru)"): "ru"
         }
         self.interface_lang_combo.addItems(list(self.lang_display_to_code.keys()))
         current_lang_code = self.current_config_data.get("language", "fr")
