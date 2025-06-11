@@ -71,17 +71,7 @@ Client Document Manager is a desktop application designed to streamline the mana
         ```
 
 4.  **Install Dependencies:**
-    Create a `requirements.txt` file with the following content:
-    ```txt
-    PyQt5>=5.15
-    openpyxl>=3.0
-    python-docx>=0.8
-    reportlab>=3.6
-    pandas>=1.0
-    PyPDF2>=3.0 # For PDF merging
-    # Add any other specific versions if necessary
-    ```
-    Then, install the dependencies:
+    Install the dependencies using the provided `requirements.txt` file:
     ```bash
     pip install -r requirements.txt
     ```

@@ -45,6 +45,7 @@ from reportlab.graphics.shapes import Line, Drawing
 from reportlab.graphics.barcode import code128, qr
 from reportlab.graphics import renderPDF
 import io # Added for io.BytesIO
+from html_to_pdf_util import render_html_template, convert_html_to_pdf, WeasyPrintError # Added
 
 # Define APP_ROOT_DIR for font path resolution
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
@@ -191,8 +192,18 @@ class Translator:
              "Impossible de trouver les données du modèle sélectionné.": "Impossible de trouver les données du modèle sélectionné.",
              "Supprimer Modèle": "Supprimer Modèle", # Dialog title
              "Veuillez sélectionner un modèle à supprimer.": "Veuillez sélectionner un modèle à supprimer.",
-             "Moderne": "Moderne", "Classique": "Classique", "Minimaliste": "Minimaliste", "Personnalisé": "Personnalisé", # ComboBox items
+             "Moderne": "Moderne", "Classique": "Classique", "Minimaliste": "Minimaliste", "Personnalisé": "Personnalisé", # ComboBox items for ReportLab
+             "Moderne (HTML)": "Moderne (HTML)", # New HTML template style
+             "Traditionnel (HTML)": "Traditionnel (HTML)", # New HTML template style
              "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n",
+             "Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None).": "Could not generate PDF from HTML template (conversion returned None).",
+             "Le fichier modèle HTML est introuvable:": "HTML template file not found:",
+             "Une erreur est survenue lors de la génération du PDF HTML:": "An error occurred during HTML PDF generation:",
+             "Impossible de générer le PDF en mémoire (ReportLab): {}": "Could not generate in-memory PDF (ReportLab): {}",
+             "Aucune donnée PDF à enregistrer. La génération a échoué.": "No PDF data to save. Generation failed.",
+             "Pour les modèles HTML, le logo doit être un chemin de fichier accessible (absolu ou relatif au dossier des modèles) dans le champ 'Chemin du logo'. Le logo en mémoire n'est pas utilisé directement.": "For HTML templates, the logo must be an accessible file path (absolute or relative to the templates folder) in the 'Logo Path' field. The in-memory logo is not used directly.",
+             "Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.": "The logo path '{}' is not a valid absolute path, URL, or relative to the HTML templates folder.",
+             "Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}": "Cannot use in-memory logo for HTML template. Error: {}",
         }
         # Initialize for English
         self.translations["English"] = {
@@ -303,8 +314,18 @@ class Translator:
             "Impossible de trouver les données du modèle sélectionné.": "Could not find data for selected template.",
             "Supprimer Modèle": "Delete Template",
             "Veuillez sélectionner un modèle à supprimer.": "Please select a template to delete.",
-            "Moderne": "Modern", "Classique": "Classic", "Minimaliste": "Minimalist", "Personnalisé": "Custom", # ComboBox items
+            "Moderne": "Modern", "Classique": "Classic", "Minimaliste": "Minimalist", "Personnalisé": "Custom",
+            "Moderne (HTML)": "Modern (HTML)",
+            "Traditionnel (HTML)": "Traditional (HTML)",
             "<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n<p>Une application pour créer facilement des pages de garde personnalisées.\n<p>Développé avec PyQt5 et ReportLab.\n<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n<p><a href='https://example.com'>Visitez notre site web</a>\n": "<b>Modern Cover Page Generator</b> v0.1 Alpha\n<p>An application to easily create custom cover pages.\n<p>Developed with PyQt5 and ReportLab.\n<p>© 2023 Your Name/Organization. All rights reserved.\n<p><a href='https://example.com'>Visit our website</a>\n",
+            "Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None).": "Could not generate PDF from HTML template (conversion returned None).",
+            "Le fichier modèle HTML est introuvable:": "HTML template file not found:",
+            "Une erreur est survenue lors de la génération du PDF HTML:": "An error occurred during HTML PDF generation:",
+            "Impossible de générer le PDF en mémoire (ReportLab): {}": "Could not generate in-memory PDF (ReportLab): {}",
+            "Aucune donnée PDF à enregistrer. La génération a échoué.": "No PDF data to save. Generation failed.",
+            "Pour les modèles HTML, le logo doit être un chemin de fichier accessible (absolu ou relatif au dossier des modèles) dans le champ 'Chemin du logo'. Le logo en mémoire n'est pas utilisé directement.": "For HTML templates, the logo must be an accessible file path (absolute or relative to the templates folder) in the 'Logo Path' field. The in-memory logo is not used directly.",
+            "Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.": "The logo path '{}' is not a valid absolute path, URL, or relative to the HTML templates folder.",
+            "Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}": "Cannot use in-memory logo for HTML template. Error: {}",
         }
         # Initialize for Spanish
         self.translations["Español"] = {
@@ -508,7 +529,7 @@ class ModernLineEdit(QLineEdit):
             QLineEdit:focus {
                 border-color: #80bdff;
                 outline: 0;
-                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); /* Not directly supported, use QGraphicsDropShadowEffect if exact match needed */
+                /* box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); */ /* Removed as it's not directly supported and QGraphicsDropShadowEffect is used */
             }
             QLineEdit:disabled {
                 background-color: #e9ecef;
@@ -625,7 +646,10 @@ class PreviewWidget(QGraphicsView):
                 self.display_error_message("Impossible de charger l'aperçu du PDF.")
                 return
 
-            pixmap = QPixmap.fromImage(image)
+            # Create a copy of the image before converting to QPixmap
+            # to potentially help with QPaintDevice lifecycle issues.
+            copied_image = image.copy()
+            pixmap = QPixmap.fromImage(copied_image)
             if self.page_item:
                 self.scene.removeItem(self.page_item)
             
@@ -671,10 +695,10 @@ class PreviewWidget(QGraphicsView):
 
         fm = QFontMetrics(painter.font())
         text_rect = fm.boundingRect(text_to_draw)
-        painter.drawText((image_width_px - text_rect.width()) / 2, (image_height_px / 2) - text_rect.height(), text_to_draw)
+        painter.drawText(int((image_width_px - text_rect.width()) / 2), int((image_height_px / 2) - text_rect.height()), text_to_draw)
         
         painter.setFont(QFont("Arial", 10))
-        painter.drawText(10, image_height_px - 10, "Note: Ceci est un aperçu simplifié.")
+        painter.drawText(10, int(image_height_px - 10), "Note: Ceci est un aperçu simplifié.")
         painter.end()
         return image
 
@@ -1318,7 +1342,14 @@ class CoverPageGenerator(QMainWindow):
         self.ui_labels["Style de modèle:"] = QLabel(self.translator.tr("Style de modèle:"))
         grid.addWidget(self.ui_labels["Style de modèle:"], 0, 0)
         self.template_style_combo = ModernComboBox()
-        self.template_style_combo.addItems([self.translator.tr("Moderne"), self.translator.tr("Classique"), self.translator.tr("Minimaliste"), self.translator.tr("Personnalisé")])
+        self.template_style_combo.addItems([
+            self.translator.tr("Moderne"),
+            self.translator.tr("Classique"),
+            self.translator.tr("Minimaliste"),
+            self.translator.tr("Moderne (HTML)"), # New
+            self.translator.tr("Traditionnel (HTML)"), # New
+            self.translator.tr("Personnalisé")
+        ])
         self.template_style_combo.currentTextChanged.connect(self.on_form_field_changed)
         grid.addWidget(self.template_style_combo, 0, 1)
 
@@ -1513,10 +1544,14 @@ class CoverPageGenerator(QMainWindow):
 
         # Layout Style Panel Labels & Controls
         # self.ui_labels["Style de modèle:"].setText(self.translator.tr("Style de modèle:"))
+        # Update existing items by index for retranslation
         self.template_style_combo.setItemText(0, self.translator.tr("Moderne"))
         self.template_style_combo.setItemText(1, self.translator.tr("Classique"))
         self.template_style_combo.setItemText(2, self.translator.tr("Minimaliste"))
-        self.template_style_combo.setItemText(3, self.translator.tr("Personnalisé"))
+        self.template_style_combo.setItemText(3, self.translator.tr("Moderne (HTML)"))
+        self.template_style_combo.setItemText(4, self.translator.tr("Traditionnel (HTML)"))
+        self.template_style_combo.setItemText(5, self.translator.tr("Personnalisé"))
+
 
         self.text_color_button.setText(self.translator.tr("Choisir Couleur"))
         self.show_horizontal_line_checkbox.setText(self.translator.tr("Afficher la ligne horizontale"))
@@ -1816,6 +1851,7 @@ class CoverPageGenerator(QMainWindow):
             "logo_width": 50, "logo_height": 50, # mm, make configurable
             "logo_x_position": "center", # make configurable
             "logo_y_position": "top",    # make configurable
+            "LOGO_PATH": self.logo_path_edit.text() if self.logo_path_edit.text() else None, # Added
 
             "horizontal_line": form_data.get("show_horizontal_line", True),
             "line_color": (0,0,0),
@@ -1826,49 +1862,118 @@ class CoverPageGenerator(QMainWindow):
             "font_size_footer": 8,
             # ... add all other relevant fields from form_data and APP_CONFIG ...
         }
+        # Ensure all placeholders for HTML templates are present
+        pdf_config['TITLE'] = pdf_config.get('title', '')
+        pdf_config['SUBTITLE'] = pdf_config.get('subtitle', '')
+        pdf_config['AUTHOR'] = pdf_config.get('author', '')
+        pdf_config['INSTITUTION'] = pdf_config.get('institution', '')
+        pdf_config['DEPARTMENT'] = pdf_config.get('department', '')
+        pdf_config['DOC_TYPE'] = pdf_config.get('doc_type', '')
+        pdf_config['DATE'] = pdf_config.get('date', '')
+        pdf_config['VERSION'] = pdf_config.get('version', '')
+        # LOGO_PATH is already added above.
+        # DATE_YEAR for footer if needed by HTML template
+        try:
+            pdf_config['DATE_YEAR'] = datetime.datetime.strptime(pdf_config.get('date', ''), "%Y-%m-%d").year if pdf_config.get('date') else datetime.date.today().year
+        except ValueError: # Handle cases where date might not be in YYYY-MM-DD
+            pdf_config['DATE_YEAR'] = datetime.date.today().year
+
         return pdf_config
 
     def generate_pdf_to_buffer(self) -> Optional[bytes]:
         pdf_config = self._collect_config_for_pdf()
-        buffer = QBuffer() # Use QBuffer for easier integration with QByteArray
-        buffer.open(QIODevice.ReadWrite)
 
-        # --- Register Fonts ---
-        # Arial
-        try:
-            arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-            if os.path.exists(arial_path):
-                pdfmetrics.registerFont(TTFont('Arial', arial_path))
-            else:
-                print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
-        except Exception as e:
-            print(f"Error registering Arial font: {e}")
+        # --- HTML Template Processing ---
+        selected_style = self.template_style_combo.currentText()
+        html_template_name = None
 
-        # Arial Bold
-        try:
-            arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-            if os.path.exists(arial_bold_path):
-                pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-            else:
-                print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
-        except Exception as e:
-            print(f"Error registering Arial Bold font: {e}")
+        # Check against both translated and raw string in case translations aren't loaded for some reason
+        if selected_style == self.translator.tr("Moderne (HTML)") or selected_style == "Moderne (HTML)":
+            html_template_name = "modern_template.html"
+        elif selected_style == self.translator.tr("Traditionnel (HTML)") or selected_style == "Traditionnel (HTML)":
+            html_template_name = "traditional_template.html"
 
-        # Showcard Gothic
-        try:
-            showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
-            if not os.path.exists(showcard_path): # Try alternate name
-                showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-                if os.path.exists(showcard_path_alt):
-                    showcard_path = showcard_path_alt
+        if html_template_name:
+            # This block handles HTML template based PDF generation
+            try:
+                html_template_path = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html', html_template_name)
 
-            if os.path.exists(showcard_path):
-                pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
-                print(f"Successfully registered Showcard Gothic from {showcard_path}")
-            else:
-                print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
-        except Exception as e:
-            print(f"Error registering Showcard Gothic font: {e}")
+                template_dir = os.path.join(APP_ROOT_DIR, 'templates', 'cover_pages', 'html')
+                base_url = QUrl.fromLocalFile(template_dir).toString()
+                if not base_url.endswith('/'):
+                    base_url += '/'
+
+                with open(html_template_path, 'r', encoding='utf-8') as f:
+                    template_content = f.read()
+
+                current_logo_path_text = pdf_config.get('LOGO_PATH', '')
+
+                if current_logo_path_text:
+                    if not os.path.isabs(current_logo_path_text) and not current_logo_path_text.startswith(('http://', 'https://', 'file://')):
+                        resolved_logo_path = os.path.join(template_dir, current_logo_path_text)
+                        if os.path.exists(resolved_logo_path):
+                            pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(resolved_logo_path).toString()
+                        elif not os.path.exists(current_logo_path_text) and not current_logo_path_text.startswith(('http', 'file:')):
+                            QMessageBox.warning(self, self.translator.tr("Erreur Logo"),
+                                                self.translator.tr("Le chemin du logo '{}' n'est pas un chemin absolu valide, une URL, ou relatif au dossier des modèles HTML.", current_logo_path_text))
+                            pdf_config['LOGO_PATH'] = ""
+                    elif os.path.isabs(current_logo_path_text):
+                        pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(current_logo_path_text).toString()
+
+                elif not current_logo_path_text and self.current_logo_data:
+                    temp_logo_dir = os.path.join(APP_ROOT_DIR, "temp_assets")
+                    os.makedirs(temp_logo_dir, exist_ok=True)
+                    temp_logo_filename = "temp_logo_for_html.png"
+                    temp_logo_path = os.path.join(temp_logo_dir, temp_logo_filename)
+                    try:
+                        with open(temp_logo_path, "wb") as tmp_logo_file:
+                            tmp_logo_file.write(self.current_logo_data)
+                        pdf_config['LOGO_PATH'] = QUrl.fromLocalFile(temp_logo_path).toString()
+                    except Exception as e_save_logo:
+                        print(f"Error saving temporary logo: {e_save_logo}")
+                        QMessageBox.warning(self, self.translator.tr("Erreur Logo"), self.translator.tr("Impossible d'utiliser le logo en mémoire pour le modèle HTML. Erreur: {}", str(e_save_logo)))
+                        pdf_config['LOGO_PATH'] = ""
+                else:
+                    pdf_config['LOGO_PATH'] = ""
+
+                populated_html = render_html_template(template_content, pdf_config)
+                pdf_bytes = convert_html_to_pdf(populated_html, base_url=base_url)
+
+                if pdf_config.get('LOGO_PATH', '').startswith('file://') and "temp_logo_for_html" in pdf_config['LOGO_PATH']:
+                    temp_logo_to_clean = QUrl(pdf_config['LOGO_PATH']).toLocalFile()
+                    if os.path.exists(temp_logo_to_clean):
+                        try:
+                            os.remove(temp_logo_to_clean)
+                        except Exception as e_clean:
+                            print(f"Error cleaning temporary logo file {temp_logo_to_clean}: {e_clean}")
+
+                if pdf_bytes:
+                    return pdf_bytes
+                else:
+                    QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Impossible de générer le PDF à partir du modèle HTML (conversion a renvoyé None)."))
+                    return None
+            except WeasyPrintError as e:
+                QMessageBox.critical(self, self.translator.tr("Erreur WeasyPrint"), str(e))
+                return None
+            except FileNotFoundError:
+                QMessageBox.critical(self, self.translator.tr("Erreur Fichier Modèle"), f"{self.translator.tr('Le fichier modèle HTML est introuvable:')} {html_template_path}")
+                return None
+            except Exception as e:
+                QMessageBox.critical(self, self.translator.tr("Erreur Inconnue"), f"{self.translator.tr('Une erreur est survenue lors de la génération du PDF HTML:')} {e}")
+                return None
+        else:
+            # --- Fallback to ReportLab Logic (Original Path) ---
+            buffer = io.BytesIO() # Use io.BytesIO for ReportLab path
+
+            # --- Register Fonts ---
+        registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
+        if font_warnings:
+            for warning_message in font_warnings:
+                QMessageBox.warning(self, "Font Loading Warning", warning_message)
+
+        effective_arial_font = registered_fonts_map.get('Arial', 'Helvetica')
+        effective_arial_bold_font = registered_fonts_map.get('Arial-Bold', 'Helvetica-Bold')
+        effective_showcard_font = registered_fonts_map.get('Showcard Gothic', 'Helvetica')
         # --- End Font Registration ---
         
         # Use the CLI PDF generator class, but instantiated, not as a class method
@@ -1882,53 +1987,76 @@ class CoverPageGenerator(QMainWindow):
         # If `PDFCoverPageGenerator` is the CLI script, it needs to be callable as an instance.
         
         # Simplified call to a hypothetical PDF generation logic class:
+        # Wrap the core PDF generation in a try-except block
         try:
-            # pdf_logic = PDFGenerator_Logic( # Instantiate the logic class
-            #     title=pdf_config.get("title"),
-            #     subtitle=pdf_config.get("subtitle"),
-            #     # ... pass all other relevant items from pdf_config ...
-            #     custom_config=pdf_config # Pass the whole dict
-            # )
-            # # The logic class's generate method should accept a file-like object
-            # pdf_logic.generate(output_filename_or_buffer=buffer) # This needs adjustment in CLI class
-            
             # Direct ReportLab usage for simplicity here, mirroring the CLI class's logic
-            # This part should be identical to the PDF generation logic from the CLI script
-            # For demonstration, a very simplified version:
             c = reportlab_canvas.Canvas(buffer, pagesize=A4)
-            c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_title", 24))
+
+            requested_font_name = pdf_config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+            font_to_use = None
+            standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+                "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+                "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+                "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+                "Symbol", "ZapfDingbats"
+            ]
+
+            if requested_font_name in registered_fonts_map:
+                # It's one of the fonts we handle (Arial, Arial-Bold, Showcard Gothic)
+                font_to_use = registered_fonts_map[requested_font_name]
+                # If it fell back to Helvetica, and the original request was not Helvetica,
+                # it means our custom font wasn't found. Warning already issued by _register_fonts.
+            elif requested_font_name in standard_pdf_fonts:
+                # It's a standard PDF font ReportLab should know
+                font_to_use = requested_font_name
+            else:
+                # Font is not a registered custom font and not a known standard PDF font.
+                # This is where '8514oem' would be caught.
+                warning_message = f"Font '{requested_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+                QMessageBox.warning(self, "Font Substitution Warning", self.translator.tr(warning_message)) # Assuming translator can handle this or it's fine in English
+                font_to_use = effective_arial_font # Fallback to effective Arial
+
+            if not font_to_use: # Should not happen with the logic above, but as a safeguard
+                font_to_use = effective_arial_font
+            c.setFont(font_to_use, pdf_config.get("font_size_title", 24))
             
             title_y = A4[1] - pdf_config.get("margin_top",25)*mm - 30*mm
             if pdf_config.get("title"):
                  c.drawCentredString(A4[0]/2, title_y, pdf_config.get("title"))
             
+            # For subtitle, typically use the same font or a variation
+            # Assuming subtitle uses the same base font as title for this example
+            c.setFont(font_to_use, pdf_config.get("font_size_subtitle", 18))
             if pdf_config.get("subtitle"):
-                c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_subtitle", 18))
+                # c.setFont(font_to_use, pdf_config.get("font_size_subtitle", 18)) # setFont was here, moved up
                 title_y -= 15*mm
                 c.drawCentredString(A4[0]/2, title_y, pdf_config.get("subtitle"))
 
+            # For author, typically use the same font or a variation
+            # Assuming author uses the same base font as title for this example
+            c.setFont(font_to_use, pdf_config.get("font_size_author", 12))
             if pdf_config.get("author"):
-                c.setFont(pdf_config.get("font_name", "Helvetica"), pdf_config.get("font_size_author", 12))
+                # c.setFont(font_to_use, pdf_config.get("font_size_author", 12)) # setFont was here, moved up
                 author_y = A4[1]/2 # Example position
                 c.drawCentredString(A4[0]/2, author_y, pdf_config.get("author"))
 
             if pdf_config.get("logo_data"):
                 try:
-                    logo_image = ImageReader(QBuffer(QByteArray(pdf_config.get("logo_data")))) # Wrap bytes in QBuffer for ImageReader
+                    logo_image = ImageReader(io.BytesIO(pdf_config.get("logo_data"))) # Use io.BytesIO for ImageReader
                     # Example positioning, make this configurable
                     c.drawImage(logo_image, A4[0]/2 - 25*mm, A4[1] - 60*mm, width=50*mm, height=50*mm, preserveAspectRatio=True)
                 except Exception as logo_e:
                     print(f"Error drawing logo in PDF: {logo_e}", file=sys.stderr)
 
             c.save()
-            buffer.seek(0)
-            pdf_bytes = buffer.data().data() # Get bytes from QByteArray
+            pdf_bytes = buffer.getvalue() # Get bytes from io.BytesIO for ReportLab path
             buffer.close()
             return pdf_bytes
-
-        except Exception as e:
-            print(f"Error generating PDF to buffer: {e}", file=sys.stderr)
-            QMessageBox.critical(self, "Erreur PDF", f"Impossible de générer le PDF en mémoire: {e}")
+        except Exception as e: # More specific error handling for PDF generation part
+            error_msg = self.translator.tr("Impossible de générer le PDF en mémoire (ReportLab): {}", str(e))
+            print(f"ReportLab PDF generation error: {str(e)}", file=sys.stderr) # Keep console log for debugging
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), error_msg)
+            if not buffer.closed: buffer.close() # Ensure buffer is closed on error
             return None
 
 
@@ -1961,19 +2089,25 @@ class CoverPageGenerator(QMainWindow):
                 if os.path.exists(temp_pdf_path):
                     try:
                         os.remove(temp_pdf_path)
-                    except Exception as e:
+                    except Exception as e: # pylint: disable=broad-except
                         print(f"Could not remove temp preview file: {e}", file=sys.stderr)
         else:
-            self.preview_widget.display_error_message(self.translator.tr("Impossible de générer l'aperçu."))
+            # Error message already shown by generate_pdf_to_buffer if it returned None
+            # self.preview_widget.display_error_message(self.translator.tr("Impossible de générer l'aperçu."))
+            pass
 
 
     def generate_pdf_final(self):
-        pdf_bytes = self.current_pdf_data 
-        if not pdf_bytes:
-            pdf_bytes = self.generate_pdf_to_buffer()
+        # It's generally better to regenerate for the final output to ensure freshness,
+        # unless self.current_pdf_data is explicitly managed to be always the latest.
+        pdf_bytes = self.generate_pdf_to_buffer()
+        # If you want to use cached data:
+        # pdf_bytes = self.current_pdf_data
+        # if not pdf_bytes: # Fallback if cache is empty
+        #     pdf_bytes = self.generate_pdf_to_buffer()
 
         if not pdf_bytes:
-            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Aucune donnée PDF à enregistrer."))
+            QMessageBox.critical(self, self.translator.tr("Erreur PDF"), self.translator.tr("Aucune donnée PDF à enregistrer. La génération a échoué."))
             return
 
         default_filename = (self.title_edit.text() or self.translator.tr("PageDeGarde", "Default PDF Name Context")) + ".pdf"
@@ -2042,16 +2176,114 @@ class CoverPageGenerator(QMainWindow):
             event.ignore()
             
     def show_about_dialog(self):
+        about_text_key = ("<b>Générateur de Page de Garde Moderne</b> v0.1 Alpha\n"
+                          "<p>Une application pour créer facilement des pages de garde personnalisées.\n"
+                          "<p>Développé avec PyQt5 et ReportLab.\n"
+                          "<p>© 2023 Votre Nom/Organisation. Tous droits réservés.\n"
+                          "<p><a href='https://example.com'>Visitez notre site web</a>\n")
+        about_text = self.translator.tr(about_text_key)
+
+        font_title_key = "about_font_info_title"
+        arial_info_key = "about_font_arial_info"
+        showcard_info_key = "about_font_showcard_info"
+        standard_info_key = "about_font_standard_pdf_info"
+
+        font_title = self.translator.tr(font_title_key)
+        arial_info = self.translator.tr(arial_info_key)
+        showcard_info = self.translator.tr(showcard_info_key)
+        standard_info = self.translator.tr(standard_info_key)
+
+        full_about_text = (f"{about_text}<br><br>"
+                           f"<h3>{font_title}</h3>"
+                           f"<p>{arial_info}</p>"
+                           f"<p>{showcard_info}</p>"
+                           f"<p>{standard_info}</p>")
+
         QMessageBox.about(self, self.translator.tr("À propos de Générateur de Page de Garde"),
-                          self.translator.tr(
-                          """
-                          <b>Générateur de Page de Garde Moderne</b> v0.1 Alpha
-                          <p>Une application pour créer facilement des pages de garde personnalisées.
-                          <p>Développé avec PyQt5 et ReportLab.
-                          <p>© 2023 Votre Nom/Organisation. Tous droits réservés.
-                          <p><a href='https://example.com'>Visitez notre site web</a>
-                          """)
+                          full_about_text
                           )
+
+# --- Font Registration Logic ---
+def _register_fonts(app_root_dir: str) -> Tuple[Dict[str, str], List[str]]:
+    """
+    Registers custom fonts and returns a mapping of requested to effective font names
+    and a list of warning messages for fonts that failed to load.
+    Tries to load Arial, Arial-Bold, and Showcard Gothic (or showg).
+    Falls back to Helvetica/Helvetica-Bold if custom fonts are not found.
+    """
+    font_mapping = {
+        'Arial': 'Helvetica',
+        'Arial-Bold': 'Helvetica-Bold',
+        'Showcard Gothic': 'Helvetica' # Default fallback for Showcard Gothic
+    }
+    warnings = []
+
+    # Arial
+    arial_font_name = 'Arial'
+    arial_path = os.path.join(app_root_dir, 'fonts', 'arial.ttf')
+    try:
+        if os.path.exists(arial_path):
+            pdfmetrics.registerFont(TTFont(arial_font_name, arial_path))
+            font_mapping[arial_font_name] = arial_font_name
+            # print(f"Successfully registered {arial_font_name} from {arial_path}") # Optional: keep for debugging
+        else:
+            msg = f"Custom Arial font not found at {arial_path}. Using fallback '{font_mapping[arial_font_name]}'."
+            warnings.append(msg)
+            print(msg, file=sys.stderr)
+    except Exception as e:
+        msg = f"Error registering custom Arial font from {arial_path}: {e}. Using fallback '{font_mapping[arial_font_name]}'."
+        warnings.append(msg)
+        print(msg, file=sys.stderr)
+
+    # Arial Bold
+    arial_bold_font_name = 'Arial-Bold'
+    arial_bold_path = os.path.join(app_root_dir, 'fonts', 'arialbd.ttf')
+    try:
+        if os.path.exists(arial_bold_path):
+            pdfmetrics.registerFont(TTFont(arial_bold_font_name, arial_bold_path))
+            font_mapping[arial_bold_font_name] = arial_bold_font_name
+            # print(f"Successfully registered {arial_bold_font_name} from {arial_bold_path}")
+        else:
+            msg = f"Custom Arial Bold font 'arialbd.ttf' not found in 'fonts/'. Using fallback '{font_mapping[arial_bold_font_name]}'."
+            warnings.append(msg)
+            print(msg, file=sys.stderr)
+    except Exception as e:
+        msg = f"Error registering custom Arial Bold font from {arial_bold_path}: {e}. Using fallback '{font_mapping[arial_bold_font_name]}'."
+        warnings.append(msg)
+        print(msg, file=sys.stderr)
+
+    # Showcard Gothic
+    showcard_font_name = 'Showcard Gothic'
+    showcard_paths_to_try = [
+        os.path.join(app_root_dir, 'fonts', 'ShowcardGothic.ttf'),
+        os.path.join(app_root_dir, 'fonts', 'showg.ttf') # Alternative name
+    ]
+    showcard_registered_successfully = False
+    for showcard_path in showcard_paths_to_try:
+        if os.path.exists(showcard_path):
+            try:
+                pdfmetrics.registerFont(TTFont(showcard_font_name, showcard_path))
+                font_mapping[showcard_font_name] = showcard_font_name
+                # print(f"Successfully registered {showcard_font_name} from {showcard_path}")
+                showcard_registered_successfully = True
+                break # Found and registered
+            except Exception as e:
+                # Log error for this specific path but continue trying other paths
+                msg = f"Error registering '{showcard_font_name}' font from {showcard_path}: {e}."
+                warnings.append(msg) # Add to warnings, but don't necessarily use fallback yet
+                print(msg, file=sys.stderr)
+
+    if not showcard_registered_successfully:
+        # This means all attempts failed or no path existed
+        final_fallback_msg = (f"Failed to load custom '{showcard_font_name}' font from all expected paths. "
+                              f"Using fallback '{font_mapping[showcard_font_name]}'. Appearance will differ.")
+        # Add this specific message if it's not already captured (e.g. if paths didn't exist)
+        # To avoid duplicate generic messages if specific path errors were already added.
+        if not any(showcard_font_name in w for w in warnings if showcard_path in w): # check if a path specific error for showcard was added
+            warnings.append(final_fallback_msg)
+        print(final_fallback_msg, file=sys.stderr)
+
+    return font_mapping, warnings
 
 # --- Standalone PDF Generation Logic ---
 def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
@@ -2100,98 +2332,81 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
     """
     buffer = io.BytesIO()
 
-    # --- Register Fonts (copied from original generate_pdf_to_buffer) ---
-    # This section should ideally be managed globally or passed if fonts are pre-registered.
-    # For now, keeping it here to ensure the logic is self-contained.
-    # Arial
-    try:
-        arial_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arial.ttf')
-        if os.path.exists(arial_path):
-            pdfmetrics.registerFont(TTFont('Arial', arial_path))
-        else:
-            print(f"Warning: Arial font not found at {arial_path}. Using ReportLab default.")
-    except Exception as e:
-        print(f"Error registering Arial font: {e}")
+    # --- Register Fonts ---
+    registered_fonts_map, font_warnings = _register_fonts(APP_ROOT_DIR)
+    if font_warnings:
+        for warning_message in font_warnings:
+            print(f"Font Warning (generate_cover_page_logic): {warning_message}", file=sys.stderr)
 
-    # Arial Bold
-    try:
-        arial_bold_path = os.path.join(APP_ROOT_DIR, 'fonts', 'arialbd.ttf')
-        if os.path.exists(arial_bold_path):
-            pdfmetrics.registerFont(TTFont('Arial-Bold', arial_bold_path))
-        else:
-            print(f"Warning: Arial Bold font not found at {arial_bold_path}. Using ReportLab default.")
-    except Exception as e:
-        print(f"Error registering Arial Bold font: {e}")
-
-    # Showcard Gothic
-    try:
-        showcard_path = os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')
-        if not os.path.exists(showcard_path): # Try alternate name
-            showcard_path_alt = os.path.join(APP_ROOT_DIR, 'fonts', 'showg.ttf')
-            if os.path.exists(showcard_path_alt):
-                showcard_path = showcard_path_alt
-
-        if os.path.exists(showcard_path):
-            pdfmetrics.registerFont(TTFont('Showcard Gothic', showcard_path))
-            print(f"Successfully registered Showcard Gothic from {showcard_path}")
-        else:
-            print(f"Warning: Showcard Gothic font not found at {os.path.join(APP_ROOT_DIR, 'fonts', 'ShowcardGothic.ttf')} or showg.ttf. PDF output may differ.")
-    except Exception as e:
-        print(f"Error registering Showcard Gothic font: {e}")
+    effective_arial_font = registered_fonts_map.get('Arial', 'Helvetica')
+    effective_arial_bold_font = registered_fonts_map.get('Arial-Bold', 'Helvetica-Bold')
+    effective_showcard_font = registered_fonts_map.get('Showcard Gothic', 'Helvetica')
     # --- End Font Registration ---
 
     c = reportlab_canvas.Canvas(buffer, pagesize=A4)
 
-    # Use values from the config dictionary
-    # Example: Using config.get('key', default_value) pattern
+    # Determine base font to use based on pdf_config and registration success
+    requested_base_font_name = config.get("font_name", APP_CONFIG.get("default_font", "Arial"))
+    base_font_to_use = None
+    standard_pdf_fonts = [ # Common standard fonts ReportLab knows
+        "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+        "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
+        "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+        "Symbol", "ZapfDingbats"
+    ]
 
+    if requested_base_font_name in registered_fonts_map:
+        base_font_to_use = registered_fonts_map[requested_base_font_name]
+        # Warnings for custom fonts already handled by printing messages from _register_fonts's return
+    elif requested_base_font_name in standard_pdf_fonts:
+        base_font_to_use = requested_base_font_name
+    else:
+        warning_message = f"Font '{requested_base_font_name}' is not a registered custom font or a standard PDF font. Falling back to default font '{effective_arial_font}'."
+        print(f"Warning (generate_cover_page_logic): {warning_message}", file=sys.stderr)
+        base_font_to_use = effective_arial_font # Fallback
+
+    if not base_font_to_use: # Safeguard
+        base_font_to_use = effective_arial_font
     # Title
-    title_font_name = config.get("font_name", "Helvetica") # Default to Helvetica if not specified
-    title_font_size = config.get("font_size_title", 24)
-    c.setFont(title_font_name, title_font_size)
-
+    c.setFont(base_font_to_use, config.get("font_size_title", 24))
     title_y = A4[1] - config.get("margin_top", 25) * mm - 30 * mm # Example y position
     if config.get("title"):
         c.drawCentredString(A4[0] / 2, title_y, config.get("title"))
 
     # Subtitle
-    subtitle_font_name = config.get("font_name", "Helvetica") # Could be different, e.g., config.get("font_name_subtitle")
-    subtitle_font_size = config.get("font_size_subtitle", 18)
+    # Assuming subtitle uses the same base font as title
+    c.setFont(base_font_to_use, config.get("font_size_subtitle", 18))
     if config.get("subtitle"):
-        c.setFont(subtitle_font_name, subtitle_font_size)
         title_y -= 15 * mm # Adjust Y position
         c.drawCentredString(A4[0] / 2, title_y, config.get("subtitle"))
 
     # Author
-    author_font_name = config.get("font_name", "Helvetica") # config.get("font_name_author")
-    author_font_size = config.get("font_size_author", 12)
+    # Assuming author uses the same base font
+    c.setFont(base_font_to_use, config.get("font_size_author", 12))
     if config.get("author"):
-        c.setFont(author_font_name, author_font_size)
         author_y = A4[1] / 2  # Example position, make configurable via config
         c.drawCentredString(A4[0] / 2, author_y, config.get("author"))
 
     # Institution (similar to author)
     if config.get("institution"):
-        c.setFont(author_font_name, author_font_size) # Assuming same font as author for now
+        # Assuming same font as author for now
         institution_y = author_y - 10 * mm # Adjust as needed
         c.drawCentredString(A4[0] / 2, institution_y, config.get("institution"))
 
     # Department (similar to institution)
     if config.get("department"):
-        c.setFont(author_font_name, author_font_size)
         department_y = institution_y - 7*mm
         c.drawCentredString(A4[0]/2, department_y, config.get("department"))
 
     # Document Type
     if config.get("doc_type"):
-        c.setFont(author_font_name, author_font_size) # Assuming same font
+        # Assuming same font
         doc_type_y = department_y - 15*mm # Adjust
         c.drawCentredString(A4[0]/2, doc_type_y, config.get("doc_type"))
 
     # Date & Version (typically at bottom or specific locations)
-    date_version_font_name = config.get("font_name", "Helvetica")
-    date_version_font_size = config.get("font_size_footer", 10) # Example, use a specific size
-    c.setFont(date_version_font_name, date_version_font_size)
+    # Assuming these also use the base_font_to_use or a generic one like effective_arial_font
+    c.setFont(base_font_to_use, config.get("font_size_footer", 10)) # Example, use a specific size
 
     date_text = config.get("date", "")
     version_text = config.get("version", "")
@@ -2251,6 +2466,13 @@ def generate_cover_page_logic(config: Dict[str, Any]) -> bytes:
 def main():
     # Ensure resource file is imported if you use qrc paths (e.g. :/icons/)
     # import resources_rc # Assuming your .qrc is compiled to resources_rc.py
+
+    # For high DPI scaling (optional but recommended)
+    # These should be set BEFORE the QApplication is instantiated.
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     
     app = QApplication(sys.argv)
     app.setApplicationName("CoverPageGenerator")
@@ -2278,12 +2500,6 @@ def main():
     # QLocale.setDefault(QLocale(preferred_lang_code)) # This would need lang code e.g. 'en_US'
 
     del temp_db # Clean up temporary DB manager
-
-    # For high DPI scaling (optional but recommended)
-    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
-        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
-        QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
     main_window = CoverPageGenerator()
     main_window.show()

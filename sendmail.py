@@ -34,7 +34,17 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDateTime, QTimer, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QPalette, QColor, QIcon, QPixmap
 from PyQt5.QtWidgets import QAction
-from imports import DB_PATH_mail
+
+# Import functions from db.py
+from db import (
+    add_smtp_config, get_all_smtp_configs, delete_smtp_config,
+    update_smtp_config, set_default_smtp_config, get_smtp_config_by_id,
+    get_default_smtp_config
+)
+
+# Define DB_PATH_mail directly as the database is in the root
+DB_PATH_mail = "mail_db.sqlite"
+
 class DatabaseManager:
     """Gestionnaire de base de données SQLite"""
     
@@ -49,20 +59,6 @@ class DatabaseManager:
         """Initialise la base de données avec toutes les tables nécessaires"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        
-        # Table configuration SMTP
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS smtp_config (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                smtp_server TEXT NOT NULL,
-                smtp_port INTEGER NOT NULL,
-                email TEXT NOT NULL,
-                password TEXT NOT NULL,
-                use_tls BOOLEAN DEFAULT 1,
-                is_default BOOLEAN DEFAULT 0
-            )
-        ''')
         
         # Table templates d'emails
         cursor.execute('''
@@ -288,9 +284,9 @@ class ModernWidget(QWidget):
 class SMTPConfigWidget(ModernWidget):
     """Widget de configuration SMTP"""
     
-    def __init__(self, db_manager):
+    def __init__(self): # Removed db_manager
         super().__init__()
-        self.db_manager = db_manager
+        # self.db_manager = db_manager # Removed
         self.init_ui()
         self.load_configurations()
     
@@ -366,29 +362,30 @@ class SMTPConfigWidget(ModernWidget):
         if not all([name, server, email, password]):
             QMessageBox.warning(self, "Erreur", "Tous les champs sont requis!")
             return
-        
-        conn = self.db_manager.get_connection()
-        cursor = conn.cursor()
+
+        config_data = {
+            "config_name": name,
+            "smtp_server": server,
+            "smtp_port": port,
+            "username": email, # Maps to username in db
+            "password_encrypted": password, # Storing plaintext temporarily
+            "use_tls": use_tls,
+            "is_default": is_default,
+            "sender_email_address": email, # Also use email for sender_email_address
+            "sender_display_name": name # Use config name as sender display name
+        }
         
         try:
-            # Si c'est la configuration par défaut, désactiver les autres
-            if is_default:
-                cursor.execute("UPDATE smtp_config SET is_default = 0")
-            
-            cursor.execute('''
-                INSERT INTO smtp_config (name, smtp_server, smtp_port, email, password, use_tls, is_default)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (name, server, port, email, password, use_tls, is_default))
-            
-            conn.commit()
-            QMessageBox.information(self, "Succès", "Configuration sauvegardée!")
-            self.clear_form()
-            self.load_configurations()
-            
-        except sqlite3.IntegrityError:
-            QMessageBox.warning(self, "Erreur", "Cette configuration existe déjà!")
-        finally:
-            conn.close()
+            new_config_id = add_smtp_config(config_data)
+            if new_config_id is not None:
+                QMessageBox.information(self, "Succès", "Configuration sauvegardée!")
+                self.clear_form()
+                self.load_configurations()
+            else:
+                # This might be due to UNIQUE constraint on config_name or other db error
+                QMessageBox.warning(self, "Erreur", "Impossible de sauvegarder la configuration. Le nom existe peut-être déjà ou une autre erreur s'est produite.")
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Erreur lors de la sauvegarde de la configuration SMTP:\n{str(e)}")
     
     def test_configuration(self):
         """Test la configuration SMTP"""
@@ -415,37 +412,43 @@ class SMTPConfigWidget(ModernWidget):
             QMessageBox.critical(self, "Erreur", f"Échec du test SMTP:\n{str(e)}")
     
     def load_configurations(self):
-        """Charge les configurations existantes"""
-        conn = self.db_manager.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, name, smtp_server, email, is_default FROM smtp_config")
-        configs = cursor.fetchall()
-        
+        """Charge les configurations existantes depuis app_data.db"""
+        try:
+            configs = get_all_smtp_configs() # From db.py
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de chargement", f"Impossible de charger les configurations SMTP depuis app_data.db:\n{str(e)}")
+            self.config_table.setRowCount(0)
+            return
+
         self.config_table.setRowCount(len(configs))
         
-        for row, config in enumerate(configs):
-            self.config_table.setItem(row, 0, QTableWidgetItem(config[1]))
-            self.config_table.setItem(row, 1, QTableWidgetItem(config[2]))
-            self.config_table.setItem(row, 2, QTableWidgetItem(config[3]))
+        for row, config_dict in enumerate(configs):
+            # config_dict is a dictionary from db.py
+            self.config_table.setItem(row, 0, QTableWidgetItem(config_dict.get("config_name", "")))
+            self.config_table.setItem(row, 1, QTableWidgetItem(config_dict.get("smtp_server", "")))
+            self.config_table.setItem(row, 2, QTableWidgetItem(config_dict.get("username", ""))) # username is the login email
             
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(5, 5, 5, 5)
             
-            if config[4]:  # is_default
+            if config_dict.get("is_default"):
                 default_label = QLabel("Par défaut")
                 default_label.setStyleSheet("color: #0d7377; font-weight: bold;")
                 actions_layout.addWidget(default_label)
             
+            # TODO: Add Edit Button here that would call an edit_configuration method
+            # edit_btn = QPushButton("Modifier")
+            # edit_btn.clicked.connect(lambda checked, cfg_id=config_dict.get("smtp_config_id"): self.edit_configuration(cfg_id))
+            # actions_layout.addWidget(edit_btn)
+
             delete_btn = QPushButton("Supprimer")
             delete_btn.setStyleSheet("background-color: #d32f2f;")
-            delete_btn.clicked.connect(lambda checked, config_id=config[0]: self.delete_configuration(config_id))
+            # Ensure smtp_config_id is correctly passed
+            delete_btn.clicked.connect(lambda checked, config_id=config_dict.get("smtp_config_id"): self.delete_configuration(config_id))
             actions_layout.addWidget(delete_btn)
             
             self.config_table.setCellWidget(row, 3, actions_widget)
-        
-        conn.close()
     
     def delete_configuration(self, config_id):
         """Supprime une configuration"""
@@ -453,14 +456,15 @@ class SMTPConfigWidget(ModernWidget):
                                    "Êtes-vous sûr de vouloir supprimer cette configuration?")
         
         if reply == QMessageBox.Yes:
-            conn = self.db_manager.get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM smtp_config WHERE id = ?", (config_id,))
-            conn.commit()
-            conn.close()
-            
-            self.load_configurations()
-            QMessageBox.information(self, "Succès", "Configuration supprimée!")
+            try:
+                success = delete_smtp_config(config_id) # From db.py
+                if success:
+                    self.load_configurations()
+                    QMessageBox.information(self, "Succès", "Configuration supprimée!")
+                else:
+                    QMessageBox.warning(self, "Erreur", "Impossible de supprimer la configuration. Elle n'existe peut-être pas.")
+            except Exception as e:
+                QMessageBox.critical(self, "Erreur", f"Erreur lors de la suppression de la configuration SMTP:\n{str(e)}")
     
     def clear_form(self):
         """Vide le formulaire"""
@@ -1153,18 +1157,28 @@ class EmailScheduler(ModernWidget):
     
     def load_data(self):
         """Charge les données nécessaires (SMTP, templates, contacts, listes)"""
-        conn = self.db_manager.get_connection()
-        cursor = conn.cursor()
+        # conn = self.db_manager.get_connection() # No longer needed for SMTP
+        # cursor = conn.cursor() # No longer needed for SMTP
         
-        # Configurations SMTP
-        cursor.execute("SELECT id, name FROM smtp_config ORDER BY is_default DESC, name")
-        smtp_configs = cursor.fetchall()
-        
+        # Configurations SMTP from app_data.db
+        try:
+            smtp_configs_dicts = get_all_smtp_configs() # From db.py
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur de chargement SMTP", f"Impossible de charger les configurations SMTP:\n{str(e)}")
+            smtp_configs_dicts = []
+
         self.smtp_combo.clear()
-        for config_id, name in smtp_configs:
-            self.smtp_combo.addItem(name, config_id)
-        
-        # Templates
+        for config_dict in smtp_configs_dicts:
+            # Ensure default comes first if any, then by name
+            # Sorting can be complex here if not handled by get_all_smtp_configs directly
+            # For now, adding as is. db.py's get_all_smtp_configs sorts by name.
+            # To sort by is_default then name, we might need to sort smtp_configs_dicts here.
+            # Example: sorted_configs = sorted(smtp_configs_dicts, key=lambda x: (not x.get('is_default', False), x.get('config_name')))
+            self.smtp_combo.addItem(config_dict.get("config_name"), config_dict.get("smtp_config_id"))
+
+        # Templates (still from mail_db.sqlite via db_manager)
+        conn = self.db_manager.get_connection() # Connection for templates
+        cursor = conn.cursor() # Cursor for templates
         cursor.execute("SELECT id, name FROM email_templates ORDER BY name")
         templates = cursor.fetchall()
         
@@ -1343,25 +1357,30 @@ class EmailScheduler(ModernWidget):
         
         try:
             # Récupérer les données nécessaires
-            conn = self.db_manager.get_connection()
-            cursor = conn.cursor()
+            # Configuration SMTP from app_data.db
+            smtp_config_from_db = get_smtp_config_by_id(smtp_id) # from db.py
             
-            # Configuration SMTP
-            cursor.execute("SELECT * FROM smtp_config WHERE id = ?", (smtp_id,))
-            smtp_config = cursor.fetchone()
+            if not smtp_config_from_db:
+                raise Exception(f"Configuration SMTP introuvable pour ID: {smtp_id}")
             
-            if not smtp_config:
-                raise Exception("Configuration SMTP introuvable")
-            
+            # Map fields from SmtpConfigs (app_data.db) to what EmailSender expects
             smtp_dict = {
-                'smtp_server': smtp_config[2],
-                'smtp_port': smtp_config[3],
-                'email': smtp_config[4],
-                'password': smtp_config[5],
-                'use_tls': smtp_config[6]
+                'smtp_server': smtp_config_from_db.get('smtp_server'),
+                'smtp_port': smtp_config_from_db.get('smtp_port'),
+                'email': smtp_config_from_db.get('username'), # username in db is the login email
+                'password': smtp_config_from_db.get('password_encrypted'), # Treat as plaintext for now
+                'use_tls': smtp_config_from_db.get('use_tls')
             }
-            
-            # Template
+
+            # Validate required SMTP fields
+            if not all([smtp_dict['smtp_server'], smtp_dict['smtp_port'], smtp_dict['email'], smtp_dict['password'] is not None]): # Password can be empty string
+                missing_fields = [k for k, v in smtp_dict.items() if v is None and k != 'password'] # password can be empty but not None for this check
+                if smtp_dict['password'] is None: missing_fields.append('password')
+                raise Exception(f"Configuration SMTP incomplète. Champs manquants: {', '.join(missing_fields)}")
+
+            # Template (still from mail_db.sqlite via db_manager)
+            conn = self.db_manager.get_connection() # Connection for templates
+            cursor = conn.cursor() # Cursor for templates
             cursor.execute("SELECT * FROM email_templates WHERE id = ?", (template_id,))
             template = cursor.fetchone()
             
