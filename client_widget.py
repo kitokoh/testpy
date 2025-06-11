@@ -164,6 +164,12 @@ class ClientWidget(QWidget):
         self.category_label = QLabel(self.tr("Catégorie:"))
         self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
 
+        # Initialize distributor specific info labels (used in populate_details_layout)
+        self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
+        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        self.distributor_info_value_label.setWordWrap(True)
+
+
         self.populate_details_layout() # Builds the details_layout
         info_container_layout.addLayout(self.details_layout)
 
@@ -185,6 +191,18 @@ class ClientWidget(QWidget):
         self.tab_widget = QTabWidget()
         docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
 
+        # Filter layout for documents tab
+        self.doc_filter_layout_widget = QWidget() # Container for the filter layout
+        doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
+        doc_filter_layout.setContentsMargins(0,0,0,0)
+        doc_filter_layout.addWidget(QLabel(self.tr("Filtrer par Commande:")))
+        self.doc_order_filter_combo = QComboBox()
+        self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+        doc_filter_layout.addWidget(self.doc_order_filter_combo)
+        doc_filter_layout.addStretch()
+        docs_layout.addWidget(self.doc_filter_layout_widget)
+        self.doc_filter_layout_widget.setVisible(False) # Initially hidden
+
         # Create and add the empty state label for documents
         self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
         self.documents_empty_label.setAlignment(Qt.AlignCenter)
@@ -194,7 +212,7 @@ class ClientWidget(QWidget):
         docs_layout.addWidget(self.documents_empty_label) # Add before the table
 
         self.doc_table = QTableWidget()
-        self.doc_table.setColumnCount(5)
+        self.doc_table.setColumnCount(5) # Name, Type, Language, Date, Actions
         self.doc_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Type"), self.tr("Langue"), self.tr("Date"), self.tr("Actions")])
         self.doc_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.doc_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -1202,12 +1220,28 @@ class ClientWidget(QWidget):
         if selected_file_path:
             try:
                 # Determine the target directory using the selected language
-                target_dir = os.path.join(self.client_info["base_folder_path"], selected_doc_language)
+                # AND POTENTIAL order_identifier (conceptual for now, as add_document doesn't create DB entry)
+                client_base_path = self.client_info["base_folder_path"]
+
+                # --- Conceptual: How order_identifier would be handled if add_document created DB entries ---
+                # For now, this part is more about the file system structure if an order_id were available.
+                # The actual capture of order_identifier for imported docs is deferred.
+                # Let's assume `selected_order_identifier_for_import` is obtained similar to CreateDocumentDialog
+                selected_order_identifier_for_import = None # Placeholder for this example
+                # if self.client_info.get('category') == 'Distributeur' or db_manager.get_distinct_purchase_confirmed_at_for_client(self.client_info['client_id']):
+                #     # ... QInputDialog logic to get order_identifier ...
+                #     pass
+
+                target_dir = os.path.join(client_base_path, selected_doc_language) # Default for general docs
+                if selected_order_identifier_for_import:
+                    safe_order_subfolder = selected_order_identifier_for_import.replace(':', '_').replace(' ', '_')
+                    target_dir = os.path.join(client_base_path, safe_order_subfolder, selected_doc_language)
+                # --- End conceptual part ---
 
                 os.makedirs(target_dir, exist_ok=True)
 
                 file_name = os.path.basename(selected_file_path)
-                target_file_path = os.path.join(target_dir, file_name)
+                target_file_path = os.path.join(target_dir, file_name) # This is the actual save path
 
                 if os.path.exists(target_file_path):
                     reply = QMessageBox.question(
@@ -1368,13 +1402,17 @@ class ClientWidget(QWidget):
         status_category_h_layout = QHBoxLayout(status_category_widget)
         status_category_h_layout.setContentsMargins(0,0,0,0)
         status_category_h_layout.addWidget(QLabel(self.tr("Statut:")))
-        status_category_h_layout.addWidget(self.status_combo) # self.status_combo is an instance member
+        status_category_h_layout.addWidget(self.status_combo)
         status_category_h_layout.addSpacing(20)
-        status_category_h_layout.addWidget(self.category_label) # self.category_label is an instance member
-        status_category_h_layout.addWidget(self.category_value_label) # self.category_value_label is an instance member
+        status_category_h_layout.addWidget(self.category_label)
+        status_category_h_layout.addWidget(self.category_value_label)
         status_category_h_layout.addStretch()
         self.details_layout.addRow(self.tr("Classification:"), status_category_widget)
-        # self.detail_value_labels["category"] is already managed as an instance member from setup_ui
+        self.detail_value_labels["category_value"] = self.category_value_label # Store for edit mode
+
+        # Distributor Specific Info (conditionally visible)
+        self.details_layout.addRow(self.distributor_info_label, self.distributor_info_value_label)
+        self.toggle_distributor_info_visibility() # Call to set initial visibility
 
         # Need (Besoin Principal)
         need_label = QLabel(self.tr("Besoin Principal:"))
@@ -1402,10 +1440,11 @@ class ClientWidget(QWidget):
         # Repopulate the details section with the new client_info
         self.populate_details_layout()
 
-        # status_combo and category_value_label are part of populate_details_layout now.
-        # We need to ensure their values are correctly set after populate_details_layout.
-        self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours"))) # This might be redundant if populate_details_layout also sets it based on ID.
-        self.category_value_label.setText(self.client_info.get("category", self.tr("N/A"))) # This is correctly updated by populate_details_layout if self.category_value_label is an instance member.
+        # Ensure status_combo and category_value_label (and distributor info) are updated
+        # These are handled by populate_details_layout and its call to toggle_distributor_info_visibility
+        self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
+        self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
+        # distributor_info_value_label is updated within populate_details_layout
 
         self.notes_edit.setText(self.client_info.get("notes", ""))
         self.update_sav_tab_visibility() # Refresh SAV tab visibility
@@ -1529,49 +1568,126 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
 
     def populate_doc_table(self):
-        self.doc_table.setRowCount(0)
-        if hasattr(self, 'documents_empty_label'):
-            self.documents_empty_label.setVisible(True)
+        self.doc_table.setRowCount(0) # Clear table first
+        if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
         self.doc_table.setVisible(False)
 
-        client_path = self.client_info["base_folder_path"]
-        if not os.path.exists(client_path):
-            # Ensure correct state if path doesn't exist (label visible, table hidden)
-            if hasattr(self, 'documents_empty_label'):
-                self.documents_empty_label.setVisible(True)
+        client_id = self.client_info.get("client_id")
+        if not client_id: return
+
+        order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
+        is_distributor_type = self.client_info.get('category') == 'Distributeur'
+        has_multiple_orders = order_events and len(order_events) > 1
+        show_order_filter = is_distributor_type or has_multiple_orders
+
+        self.doc_filter_layout_widget.setVisible(show_order_filter)
+
+        current_order_filter_selection = None
+        if show_order_filter:
+            current_order_filter_selection = self.doc_order_filter_combo.currentData()
+            self.doc_order_filter_combo.blockSignals(True)
+            self.doc_order_filter_combo.clear()
+            self.doc_order_filter_combo.addItem(self.tr("Toutes les Commandes"), "ALL")
+            self.doc_order_filter_combo.addItem(self.tr("Documents Généraux (sans commande)"), "NONE")
+
+            # Fetch distinct order_identifiers from ClientDocuments for this client
+            # This requires a new DB function: get_distinct_order_identifiers_for_client(client_id)
+            # For now, we'll use purchase_confirmed_at from ClientProjectProducts as a proxy,
+            # assuming documents might be linked to these "order events".
+            # A more robust solution would be to get distinct order_identifier values directly from ClientDocuments.
+
+            # Using order_events (distinct purchase_confirmed_at) for the filter
+            if order_events:
+                for event_ts in order_events:
+                    if event_ts:
+                        try:
+                            dt_obj = datetime.fromisoformat(event_ts.replace('Z', '+00:00'))
+                            display_text = self.tr("Commande du {0}").format(dt_obj.strftime('%Y-%m-%d %H:%M'))
+                            self.doc_order_filter_combo.addItem(display_text, event_ts)
+                        except ValueError:
+                            self.doc_order_filter_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
+
+            if current_order_filter_selection:
+                index = self.doc_order_filter_combo.findData(current_order_filter_selection)
+                if index >= 0: self.doc_order_filter_combo.setCurrentIndex(index)
+                else: self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+            else:
+                 self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+            self.doc_order_filter_combo.blockSignals(False)
+
+        filters = {}
+        if show_order_filter:
+            selected_order_filter_data = self.doc_order_filter_combo.currentData()
+            if selected_order_filter_data == "NONE":
+                filters['order_identifier'] = None
+            elif selected_order_filter_data != "ALL":
+                filters['order_identifier'] = selected_order_filter_data
+
+        client_documents = db_manager.get_documents_for_client(client_id, filters=filters)
+        client_documents = client_documents if client_documents else []
+
+        if not client_documents:
+            if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
             return
 
-        row = 0
-        for lang in self.client_info.get("selected_languages", ["fr"]):
-            lang_dir = os.path.join(client_path, lang)
-            if not os.path.exists(lang_dir): continue
-            for file_name in os.listdir(lang_dir):
-                if file_name.endswith(('.xlsx', '.pdf', '.docx', '.html')):
-                    file_path = os.path.join(lang_dir, file_name); name_item = QTableWidgetItem(file_name); name_item.setData(Qt.UserRole, file_path)
-                    file_type_str = "";
-                    if file_name.lower().endswith('.xlsx'): file_type_str = self.tr("Excel")
-                    elif file_name.lower().endswith('.docx'): file_type_str = self.tr("Word")
-                    elif file_name.lower().endswith('.html'): file_type_str = self.tr("HTML")
-                    else: file_type_str = self.tr("PDF")
-                    mod_time = datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%Y-%m-%d %H:%M')
-                    self.doc_table.insertRow(row); self.doc_table.setItem(row, 0, name_item); self.doc_table.setItem(row, 1, QTableWidgetItem(file_type_str)); self.doc_table.setItem(row, 2, QTableWidgetItem(lang)); self.doc_table.setItem(row, 3, QTableWidgetItem(mod_time))
-                    action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
-                    pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
-                    source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
-                    if file_name.lower().endswith(('.xlsx', '.html')):
-                        edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-                    else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
-                    delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, p=file_path: self.delete_document(p)); action_layout.addWidget(delete_btn)
-                    action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row, 4, action_widget); row +=1
+        if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
+        self.doc_table.setVisible(True)
+        self.doc_table.setRowCount(len(client_documents))
 
-        if hasattr(self, 'documents_empty_label'):
-            if self.doc_table.rowCount() > 0:
-                self.documents_empty_label.setVisible(False)
-                self.doc_table.setVisible(True)
+        base_client_path = self.client_info["base_folder_path"]
+
+        for row_idx, doc_data in enumerate(client_documents):
+            document_id = doc_data.get('document_id')
+            doc_name = doc_data.get('document_name', 'N/A')
+            file_path_relative_from_db = doc_data.get('file_path_relative', '') # e.g., "fr/doc.pdf" or "order_xyz/fr/doc.pdf"
+            order_identifier_for_doc = doc_data.get('order_identifier') # This is the raw timestamp or ID
+
+            # Determine language code from relative path structure
+            # This assumes path_relative is like "lang_code/filename.ext" OR part of a deeper structure if order_identifier is used
+            # For now, let's simplify and assume file_path_relative from DB is just "lang/filename.ext"
+            # The full path construction will handle the order subfolder.
+            language_code = "N/A"
+            path_parts = file_path_relative_from_db.split(os.sep)
+            if len(path_parts) > 1: # Expecting at least lang/file.ext
+                language_code = path_parts[0] # First part is language
+
+            # Construct full_file_path
+            full_file_path = ""
+            if order_identifier_for_doc:
+                safe_order_subfolder = order_identifier_for_doc.replace(':', '_').replace(' ', '_')
+                # file_path_relative_from_db here should be like "lang/doc.pdf"
+                full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
             else:
-                self.documents_empty_label.setVisible(True)
-                self.doc_table.setVisible(False)
+                # file_path_relative_from_db here is like "lang/doc.pdf"
+                full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+
+            name_item = QTableWidgetItem(doc_name)
+            name_item.setData(Qt.UserRole, full_file_path) # Store full path for actions
+
+            file_type_str = doc_data.get('document_type_generated', 'N/A') # Or derive from extension
+            created_at_str = doc_data.get('created_at', '')
+            mod_time_formatted = ""
+            if created_at_str:
+                try:
+                    dt_obj = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                    mod_time_formatted = dt_obj.strftime('%Y-%m-%d %H:%M')
+                except ValueError:
+                    mod_time_formatted = created_at_str # Fallback
+
+            self.doc_table.setItem(row_idx, 0, name_item)
+            self.doc_table.setItem(row_idx, 1, QTableWidgetItem(file_type_str))
+            self.doc_table.setItem(row_idx, 2, QTableWidgetItem(language_code))
+            self.doc_table.setItem(row_idx, 3, QTableWidgetItem(mod_time_formatted))
+
+            action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
+            pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+            source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
+            if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
+                edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
+            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
+            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
+            action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -2240,6 +2356,15 @@ class ClientWidget(QWidget):
         status_category_h_layout.addWidget(QLabel(self.tr("Catégorie:")))
         status_category_h_layout.addWidget(self.edit_widgets['category'])
         self.details_layout.addRow(self.tr("Classification:"), status_category_edit_widget)
+        self.edit_widgets['category'].textChanged.connect(self.toggle_edit_distributor_info_visibility)
+
+
+        # Distributor Specific Info (Editable) - Placed after Category for logical flow
+        self.edit_widgets['distributor_specific_info_label'] = QLabel(self.tr("Info Distributeur:"))
+        self.edit_widgets['distributor_specific_info'] = QTextEdit(self.client_info.get("distributor_specific_info", ""))
+        self.edit_widgets['distributor_specific_info'].setFixedHeight(80)
+        self.details_layout.addRow(self.edit_widgets['distributor_specific_info_label'], self.edit_widgets['distributor_specific_info'])
+        self.toggle_edit_distributor_info_visibility(self.edit_widgets['category'].text()) # Initial visibility check
 
         self.edit_widgets['need'] = QTextEdit(self.client_info.get("need", self.client_info.get("primary_need_description", "")))
         self.edit_widgets['need'].setFixedHeight(60)
@@ -2347,6 +2472,8 @@ class ClientWidget(QWidget):
         data_to_save['category'] = self.edit_widgets['category'].text().strip()
         data_to_save['primary_need_description'] = self.edit_widgets['need'].toPlainText().strip()
         data_to_save['notes'] = self.notes_edit.toPlainText().strip() # Notes are from the main notes_edit
+        data_to_save['distributor_specific_info'] = self.edit_widgets['distributor_specific_info'].toPlainText().strip() if self.edit_widgets['distributor_specific_info'].isVisible() else None
+
 
         # Retrieve selected languages from the QListWidget
         selected_langs_to_save = []
@@ -2378,14 +2505,17 @@ class ClientWidget(QWidget):
                 self.client_info['country'] = country_obj['country_name'] if country_obj else self.tr("N/A")
                 self.client_info['city'] = city_obj['city_name'] if city_obj else self.tr("N/A")
                 self.client_info['status'] = status_obj['status_name'] if status_obj else self.tr("N/A")
+                # distributor_specific_info is also part of updated_client_full_info now
                 # Other fields like client_name, company_name, notes etc. are directly from updated_client_full_info
 
-            self.populate_details_layout() # Rebuild display view
+            self.populate_details_layout() # Rebuild display view, which calls toggle_distributor_info_visibility
             self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>") # Update header
 
             # Reconnect signals that were disconnected for edit mode
             self.notes_edit.textChanged.connect(self.save_client_notes)
             self.status_combo.currentTextChanged.connect(self.update_client_status)
+            # No need to reconnect category textChanged for distributor info visibility in display mode,
+            # as populate_details_layout handles it.
 
             self.update_sav_tab_visibility() # Update SAV tab based on potentially changed status
 
@@ -2394,6 +2524,27 @@ class ClientWidget(QWidget):
         else:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des informations client."))
             return False
+
+    def toggle_distributor_info_visibility(self):
+        """Controls visibility of distributor info in display mode based on category."""
+        is_distributor = self.client_info.get('category') == 'Distributeur'
+        if hasattr(self, 'distributor_info_label') and self.distributor_info_label: # Check if attribute exists
+            self.distributor_info_label.setVisible(is_distributor)
+        if hasattr(self, 'distributor_info_value_label') and self.distributor_info_value_label: # Check if attribute exists
+            self.distributor_info_value_label.setVisible(is_distributor)
+            if is_distributor:
+                 self.distributor_info_value_label.setText(self.client_info.get('distributor_specific_info', ''))
+
+
+    def toggle_edit_distributor_info_visibility(self, category_text):
+        """Controls visibility of distributor info in edit mode based on category QLineEdit."""
+        is_distributor = category_text == 'Distributeur'
+        # Ensure widgets exist before trying to set visibility
+        if hasattr(self, 'edit_widgets') and 'distributor_specific_info_label' in self.edit_widgets:
+            self.edit_widgets['distributor_specific_info_label'].setVisible(is_distributor)
+        if hasattr(self, 'edit_widgets') and 'distributor_specific_info' in self.edit_widgets:
+            self.edit_widgets['distributor_specific_info'].setVisible(is_distributor)
+
 
     def load_purchase_history_table(self):
         self.purchase_history_table.setRowCount(0)

@@ -216,6 +216,7 @@ def initialize_database():
         price REAL DEFAULT 0, -- Added from main.py
         notes TEXT,
         category TEXT,
+        distributor_specific_info TEXT, -- Added for distributor specific information
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to creation_date from main.py
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to last_modified from main.py
         created_by_user_id TEXT,
@@ -225,6 +226,25 @@ def initialize_database():
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
     )
     """)
+
+    # Check if distributor_specific_info column exists and add it if not.
+    # This check is robust for multiple runs.
+    cursor.execute("PRAGMA table_info(Clients)")
+    columns_info = cursor.fetchall()
+    column_names = [info['name'] for info in columns_info] # Use dict access due to row_factory
+    if 'distributor_specific_info' not in column_names:
+        try:
+            # Ensure this ALTER TABLE is executed outside of any potential transaction
+            # on the cursor if it was part of a larger one before this point.
+            # However, standard practice is to commit DDL changes immediately.
+            conn.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
+            conn.commit() # Commit ALTER TABLE immediately
+            print("Added 'distributor_specific_info' column to Clients table.")
+        except sqlite3.Error as e:
+            print(f"Error adding 'distributor_specific_info' column to Clients table: {e}")
+            # Depending on the error (e.g., "duplicate column name"), might not need to rollback.
+            # If other critical error, rollback might be considered if part of a larger uncommitted transaction.
+            # For standalone ALTER, commit/rollback is managed per statement or by connection settings.
 
     # Create ClientNotes table
     cursor.execute("""
@@ -686,6 +706,7 @@ def initialize_database():
         document_id TEXT PRIMARY KEY,
         client_id TEXT NOT NULL,
         project_id TEXT,
+        order_identifier TEXT, -- New column
         document_name TEXT NOT NULL,
         file_name_on_disk TEXT NOT NULL, -- Actual name on the file system
         file_path_relative TEXT NOT NULL, -- Relative to a base documents folder
@@ -702,6 +723,17 @@ def initialize_database():
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
     )
     """)
+
+    # Check if order_identifier column exists in ClientDocuments and add it if not
+    cursor.execute("PRAGMA table_info(ClientDocuments)")
+    columns_cd = [column[1] for column in cursor.fetchall()]
+    if 'order_identifier' not in columns_cd:
+        try:
+            cursor.execute("ALTER TABLE ClientDocuments ADD COLUMN order_identifier TEXT")
+            conn.commit()
+            print("Added 'order_identifier' column to ClientDocuments table.")
+        except sqlite3.Error as e:
+            print(f"Error adding 'order_identifier' column to ClientDocuments: {e}")
 
     # Create ClientDocumentNotes table
     cursor.execute("""
@@ -842,6 +874,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_document_type_generated ON ClientDocuments(document_type_generated)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_source_template_id ON ClientDocuments(source_template_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_order_identifier ON ClientDocuments(order_identifier)")
 
     # Indexes for TeamMembers table
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_user_id ON TeamMembers(user_id)")
@@ -1550,15 +1583,16 @@ def add_client(client_data: dict) -> str | None:
             INSERT INTO Clients (
                 client_id, client_name, company_name, primary_need_description, project_identifier,
                 country_id, city_id, default_base_folder_path, status_id,
-                selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                selected_languages, notes, category, distributor_specific_info,
+                created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_client_id,
             client_data.get('client_name'),
             client_data.get('company_name'),
             client_data.get('primary_need_description'),
-            client_data.get('project_identifier'), # Added
+            client_data.get('project_identifier'),
             client_data.get('country_id'),
             client_data.get('city_id'),
             client_data.get('default_base_folder_path'),
@@ -1566,6 +1600,7 @@ def add_client(client_data: dict) -> str | None:
             client_data.get('selected_languages'),
             client_data.get('notes'),
             client_data.get('category'),
+            client_data.get('distributor_specific_info'), # Handled by .get if missing, defaults to None
             now,  # created_at
             now,  # updated_at
             client_data.get('created_by_user_id')
@@ -1812,8 +1847,10 @@ def update_client(client_id: str, client_data: dict) -> bool:
         
         for key, value in client_data.items():
             # Validate keys against actual column names to prevent SQL injection if keys are from unsafe source
-            # For now, assuming keys are controlled or map to valid columns
-            if key != 'client_id': # client_id should not be updated here
+            if key in ['client_name', 'company_name', 'primary_need_description', 'project_identifier',
+                       'country_id', 'city_id', 'default_base_folder_path', 'status_id',
+                       'selected_languages', 'price', 'notes', 'category', 'distributor_specific_info',
+                       'updated_at', 'created_by_user_id']: # client_id should not be updated here
                  set_clauses.append(f"{key} = ?")
                  params.append(value)
         
@@ -1858,10 +1895,11 @@ def get_all_clients_with_details():
     SELECT
         c.client_id, c.client_name, c.company_name, c.primary_need_description,
         c.project_identifier, c.default_base_folder_path, c.selected_languages,
-        c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-        co.country_name AS country,  -- Alias to match existing expected key 'country'
-        ci.city_name AS city,        -- Alias to match existing expected key 'city'
-        s.status_name AS status      -- Alias to match existing expected key 'status'
+        c.price, c.notes, c.created_at, c.category, c.distributor_specific_info, -- Ensure new column is selected
+        c.status_id, c.country_id, c.city_id,
+        co.country_name AS country,
+        ci.city_name AS city,
+        s.status_name AS status
     FROM clients c
     LEFT JOIN countries co ON c.country_id = co.country_id
     LEFT JOIN cities ci ON c.city_id = ci.city_id
@@ -4816,17 +4854,19 @@ def add_client_document(doc_data: dict) -> str | None:
 
         sql = """
             INSERT INTO ClientDocuments (
-                document_id, client_id, project_id, document_name, file_name_on_disk,
-                file_path_relative, document_type_generated, source_template_id,
-                version_tag, notes, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                document_id, client_id, project_id, order_identifier, document_name,
+                file_name_on_disk, file_path_relative, document_type_generated,
+                source_template_id, version_tag, notes, created_at,
+                updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             doc_id, doc_data.get('client_id'), doc_data.get('project_id'),
-            doc_data.get('document_name'), doc_data.get('file_name_on_disk'),
-            doc_data.get('file_path_relative'), doc_data.get('document_type_generated'),
-            doc_data.get('source_template_id'), doc_data.get('version_tag'),
-            doc_data.get('notes'), now, now, doc_data.get('created_by_user_id')
+            doc_data.get('order_identifier'), doc_data.get('document_name'),
+            doc_data.get('file_name_on_disk'), doc_data.get('file_path_relative'),
+            doc_data.get('document_type_generated'), doc_data.get('source_template_id'),
+            doc_data.get('version_tag'), doc_data.get('notes'),
+            now, now, doc_data.get('created_by_user_id')
         )
         cursor.execute(sql, params)
         conn.commit()
@@ -4855,7 +4895,7 @@ def get_document_by_id(document_id: str) -> dict | None:
 def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]:
     """
     Retrieves documents for a client. 
-    Filters by 'document_type_generated' (exact) or 'project_id' (exact).
+    Filters by 'document_type_generated' (exact) or 'project_id' (exact) or 'order_identifier'.
     """
     conn = None
     try:
@@ -4874,6 +4914,12 @@ def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]
                 else:
                     sql += " AND project_id = ?"
                     params.append(filters['project_id'])
+            if 'order_identifier' in filters:
+                if filters['order_identifier'] is None:
+                    sql += " AND order_identifier IS NULL"
+                else:
+                    sql += " AND order_identifier = ?"
+                    params.append(filters['order_identifier'])
             
         cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
@@ -4921,7 +4967,7 @@ def update_client_document(document_id: str, doc_data: dict) -> bool:
         
         # Exclude primary key from update set
         valid_columns = [
-            'client_id', 'project_id', 'document_name', 'file_name_on_disk', 
+            'client_id', 'project_id', 'order_identifier', 'document_name', 'file_name_on_disk',
             'file_path_relative', 'document_type_generated', 'source_template_id', 
             'version_tag', 'notes', 'updated_at', 'created_by_user_id'
         ]
@@ -4930,10 +4976,11 @@ def update_client_document(document_id: str, doc_data: dict) -> bool:
         if not current_doc_data: return False
 
         set_clauses = [f"{key} = ?" for key in current_doc_data.keys()]
-        params = list(current_doc_data.values())
-        params.append(document_id)
+        params_list = list(current_doc_data.values()) # Renamed to avoid conflict
+        params_list.append(document_id)
         
         sql = f"UPDATE ClientDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
+        cursor.execute(sql, params_list) # Use new params_list
         cursor.execute(sql, params)
         conn.commit()
         return cursor.rowcount > 0
@@ -9870,6 +9917,37 @@ def delete_freight_forwarder(forwarder_id: str) -> bool:
         return False
     finally:
         if conn: conn.close()
+
+def get_distinct_purchase_confirmed_at_for_client(client_id: str) -> list[str] | None:
+    """
+    Retrieves a list of distinct, non-null purchase_confirmed_at timestamps
+    for a given client_id from the ClientProjectProducts table.
+    Returns a list of ISO formatted timestamp strings, or None on error.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT DISTINCT purchase_confirmed_at
+            FROM ClientProjectProducts
+            WHERE client_id = ? AND purchase_confirmed_at IS NOT NULL
+            ORDER BY purchase_confirmed_at DESC;
+        """
+        # Using DESC order so more recent orders appear first in UI if not re-sorted there
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        # sqlite3.Row objects behave like tuples for indexing
+        return [row[0] for row in rows if row[0] is not None]
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_purchase_confirmed_at_for_client for client {client_id}: {e}")
+        return None # Return None to indicate an error condition
+    except Exception as ex: # Catch any other unexpected errors
+        print(f"Unexpected error in get_distinct_purchase_confirmed_at_for_client for client {client_id}: {ex}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 
 # --- CRUD functions for Client_AssignedPersonnel ---
 def assign_personnel_to_client(client_id: str, personnel_id: int, role_in_project: str) -> int | None:

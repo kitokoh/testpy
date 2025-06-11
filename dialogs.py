@@ -1116,6 +1116,39 @@ class CreateDocumentDialog(QDialog):
         self.search_bar_label = QLabel(self.tr("Rechercher:")); self.search_bar = QLineEdit(); self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
         filters_layout.addWidget(self.search_bar_label, 1, 0); filters_layout.addWidget(self.search_bar, 1, 1, 1, 3)
         main_layout.addLayout(filters_layout)
+
+        # Order Identifier ComboBox
+        self.order_select_combo = None
+        client_category = self.client_info.get('category', '')
+        client_id_for_events = self.client_info.get('client_id')
+
+        # Ensure client_id_for_events is not None before calling DB function
+        has_multiple_events = False
+        if client_id_for_events:
+            has_multiple_events = self.has_multiple_purchase_events()
+
+        if client_category == 'Distributeur' or has_multiple_events:
+            self.order_select_combo = QComboBox()
+            self.order_select_combo.addItem(self.tr("Document Général (pas de commande spécifique)"), "NONE") # Use "NONE" as userData for no order
+            if client_id_for_events: # Check again, as it might be None if client_info was incomplete
+                purchase_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id_for_events)
+                if purchase_events:
+                    for event_ts in purchase_events:
+                        if event_ts:
+                            try:
+                                dt_obj = datetime.fromisoformat(event_ts.replace('Z', '+00:00'))
+                                display_text = self.tr("Commande du {0}").format(dt_obj.strftime('%Y-%m-%d %H:%M'))
+                                self.order_select_combo.addItem(display_text, event_ts)
+                            except ValueError:
+                                print(f"Warning: Could not parse purchase event timestamp: {event_ts}")
+                                self.order_select_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
+
+            order_select_layout = QHBoxLayout()
+            order_select_layout.addWidget(QLabel(self.tr("Associer à la Commande:")))
+            order_select_layout.addWidget(self.order_select_combo)
+            main_layout.addLayout(order_select_layout)
+
+
         templates_list_label = self._create_icon_label_widget("document-multiple", self.tr("Modèles disponibles:")); main_layout.addWidget(templates_list_label)
         self.templates_list = QListWidget(); self.templates_list.setSelectionMode(QListWidget.MultiSelection); main_layout.addWidget(self.templates_list)
         self.language_filter_combo.currentTextChanged.connect(self.load_templates)
@@ -1129,6 +1162,17 @@ class CreateDocumentDialog(QDialog):
         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         cancel_btn.clicked.connect(self.reject); button_frame_layout.addWidget(cancel_btn)
         main_layout.addWidget(button_frame)
+
+    def has_multiple_purchase_events(self):
+        """Checks if the client has more than one distinct purchase_confirmed_at event."""
+        if not self.client_info or not self.client_info.get('client_id'):
+            return False
+        try:
+            events = db_manager.get_distinct_purchase_confirmed_at_for_client(self.client_info['client_id'])
+            return len(events) > 1 if events else False
+        except Exception as e:
+            print(f"Error checking for multiple purchase events: {e}")
+            return False
 
     def load_templates(self):
         self.templates_list.clear()
@@ -1184,30 +1228,44 @@ class CreateDocumentDialog(QDialog):
                 continue
 
             db_template_name = template_data.get('template_name', 'N/A')
-            db_template_lang = template_data.get('language_code', 'N/A')
-            actual_template_filename = template_data.get('base_file_name', None)
+            db_template_lang = template_data.get('language_code', 'N/A') # This is the language_code_for_path
+            actual_template_filename = template_data.get('base_file_name', None) # This is base_name
             template_type = template_data.get('template_type', 'UNKNOWN')
-            # template_id = template_data.get('template_id') # Available if needed
-
-            target_dir_for_document = os.path.join(self.client_info["base_folder_path"], db_template_lang)
-            os.makedirs(target_dir_for_document, exist_ok=True)
+            template_id_for_db = template_data.get('template_id')
 
             if not actual_template_filename:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.").format(db_template_name)); continue
 
-            template_file_found_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
 
-            if os.path.exists(template_file_found_abs):
-                target_path = os.path.join(target_dir_for_document, actual_template_filename)
+            if os.path.exists(template_file_on_disk_abs):
+                # Determine selected order_identifier
+                selected_order_identifier = None
+                if self.order_select_combo and self.order_select_combo.isVisible():
+                    selected_order_identifier_data = self.order_select_combo.currentData()
+                    if selected_order_identifier_data != "NONE": # "NONE" means general document
+                        selected_order_identifier = selected_order_identifier_data
+
+                # Construct target_path_for_file and file_path_relative_for_db
+                client_base_folder = self.client_info.get("base_folder_path")
+                file_path_relative_for_db = os.path.join(db_template_lang, actual_template_filename) # Base relative path
+
+                if selected_order_identifier:
+                    safe_order_subfolder = selected_order_identifier.replace(':', '_').replace(' ', '_')
+                    target_path_for_file = os.path.join(client_base_folder, safe_order_subfolder, db_template_lang, actual_template_filename)
+                    # file_path_relative_for_db remains lang/filename as order_identifier implies the parent folder in DB context
+                else:
+                    target_path_for_file = os.path.join(client_base_folder, db_template_lang, actual_template_filename)
+
+                os.makedirs(os.path.dirname(target_path_for_file), exist_ok=True)
+
                 try:
-                    shutil.copy(template_file_found_abs, target_path)
+                    shutil.copy(template_file_on_disk_abs, target_path_for_file)
 
-                    additional_context = {} # Initialize for each document
-                    # Copy general client info that might be used as fallbacks by get_document_context_data
-                    # or for non-packing list documents.
-                    # For instance, project_id, invoice_id if they are top-level in self.client_info
+                    additional_context = {}
                     if 'project_id' in self.client_info: additional_context['project_id'] = self.client_info['project_id']
-                    if 'invoice_id' in self.client_info: additional_context['invoice_id'] = self.client_info['invoice_id'] # Example
+                    if 'invoice_id' in self.client_info: additional_context['invoice_id'] = self.client_info['invoice_id']
+                    additional_context['order_identifier'] = selected_order_identifier
 
                     if template_type == 'HTML_PACKING_LIST':
                         additional_context['document_type'] = 'packing_list'
@@ -1272,31 +1330,48 @@ class CreateDocumentDialog(QDialog):
                     else:
                         # For non-packing lists, pass relevant parts of client_info
                         # or a more generic context.
-                        # Making a copy to avoid modifying self.client_info if it's a shared object.
-                        additional_context.update(self.client_info.copy())
+                    additional_context.update(self.client_info.copy()) # This might overwrite order_identifier if client_info has it
                         additional_context['document_type'] = template_type
+                    additional_context['order_identifier'] = selected_order_identifier # Re-assert after copy
+
                         # Ensure current_document_type_for_notes is set if notes are used for other HTML docs
                         if template_type.startswith("HTML_"):
                              additional_context['current_document_type_for_notes'] = template_type
 
+                    # Add document to DB *before* populating, so we can include its ID if needed
+                    doc_db_data = {
+                        'client_id': client_id_for_context,
+                        'project_id': project_id_for_context_arg,
+                        'order_identifier': selected_order_identifier,
+                        'document_name': actual_template_filename, # Use base name for document_name
+                        'file_name_on_disk': actual_template_filename,
+                        'file_path_relative': file_path_relative_for_db, # Store relative path correctly
+                        'document_type_generated': template_type,
+                        'source_template_id': template_id_for_db,
+                        'created_by_user_id': None # TODO: Get current user ID
+                    }
+                    new_document_id_from_db = db_manager.add_client_document(doc_db_data)
+                    if new_document_id_from_db:
+                        print(f"Document record added to DB with ID: {new_document_id_from_db}")
+                        additional_context['document_id'] = new_document_id_from_db
+                    else:
+                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible d'enregistrer l'entrée du document dans la base de données pour {0}.").format(actual_template_filename))
+                        # Continue to next item in loop if DB add fails
+                        continue
 
-                    if target_path.lower().endswith(".docx"):
-                        # For docx, additional_context might need to be self.client_info directly
-                        # or a transformation of it, depending on populate_docx_template needs.
-                        # For now, assuming populate_docx_template uses self.client_info format.
-                        populate_docx_template(target_path, self.client_info)
-                    elif target_path.lower().endswith(".html"):
-                        with open(target_path, 'r', encoding='utf-8') as f: template_content = f.read()
-
+                    if target_path_for_file.lower().endswith(".docx"):
+                        populate_docx_template(target_path_for_file, self.client_info)
+                    elif target_path_for_file.lower().endswith(".html"):
+                        with open(target_path_for_file, 'r', encoding='utf-8') as f: template_content = f.read()
                         document_context = db_manager.get_document_context_data(
                             client_id=client_id_for_context,
                             company_id=default_company_id,
                             target_language_code=db_template_lang,
-                            project_id=project_id_for_context_arg, # Main project context
-                            additional_context=additional_context # Contains overrides and specific data like packing_details
+                            project_id=project_id_for_context_arg,
+                            additional_context=additional_context
                         )
                         populated_content = HtmlEditor.populate_html_content(template_content, document_context)
-                        with open(target_path, 'w', encoding='utf-8') as f: f.write(populated_content)
+                        with open(target_path_for_file, 'w', encoding='utf-8') as f: f.write(populated_content)
 
                     created_files_count += 1
                 except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
