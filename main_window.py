@@ -50,6 +50,13 @@ class DocumentManager(QMainWindow):
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
         self.config = CONFIG 
+        # Load Google Maps URL from DB and update self.config
+        db_google_maps_url = db_manager.get_setting('google_maps_review_url')
+        if db_google_maps_url is not None:
+            self.config['google_maps_review_url'] = db_google_maps_url
+        elif 'google_maps_review_url' not in self.config: # If not in DB and not in file config
+            self.config['google_maps_review_url'] = 'https://maps.google.com/?cid=YOUR_CID_HERE' # Default
+
         self.clients_data_map = {} 
         
         self.setup_ui_main() 
@@ -104,6 +111,17 @@ class DocumentManager(QMainWindow):
         self.status_filter_combo.currentIndexChanged.connect(self.filter_client_list_display_slot) 
         filter_search_layout.addWidget(QLabel(self.tr("Filtrer par statut:")))
         filter_search_layout.addWidget(self.status_filter_combo)
+
+        self.client_archive_filter_combo = QComboBox()
+        self.client_archive_filter_combo.addItem(self.tr("Afficher Actifs (et sans statut)"), "active_including_null")
+        self.client_archive_filter_combo.addItem(self.tr("Afficher Actifs (avec statut assigné)"), "active_only_with_status")
+        self.client_archive_filter_combo.addItem(self.tr("Afficher Archivés Uniquement"), "archived_only")
+        self.client_archive_filter_combo.addItem(self.tr("Afficher Tout"), "all")
+        self.client_archive_filter_combo.setCurrentIndex(0)
+        self.client_archive_filter_combo.currentIndexChanged.connect(self.filter_client_list_display_slot)
+        filter_search_layout.addWidget(QLabel(self.tr("Filtre Archive:"))) # Add label for clarity
+        filter_search_layout.addWidget(self.client_archive_filter_combo)
+
         self.search_input_field = QLineEdit(); self.search_input_field.setPlaceholderText(self.tr("Rechercher client..."))
         self.search_input_field.textChanged.connect(self.filter_client_list_display_slot) 
         filter_search_layout.addWidget(self.search_input_field); left_layout.addLayout(filter_search_layout)
@@ -270,7 +288,48 @@ class DocumentManager(QMainWindow):
     # It's often cleaner to connect signals directly to the _slot methods if they are purely for that.
     def execute_create_client(self, client_data_dict=None): self.execute_create_client_slot(client_data_dict=client_data_dict) # Ensure it can take arg
     def load_clients_from_db(self): self.load_clients_from_db_slot()
-    def filter_client_list_display(self): self.filter_client_list_display_slot()
+
+    # This is the main slot for client list filtering
+    def filter_client_list_display_slot(self):
+        search_term = self.search_input_field.text().lower()
+        selected_status_id = self.status_filter_combo.currentData()
+        archive_filter_mode = self.client_archive_filter_combo.currentData()
+
+        self.client_list_widget.clear()
+        self.clients_data_map.clear() # Clear map before repopulating
+
+        clients_to_display = []
+        if archive_filter_mode == "active_including_null":
+            clients_to_display = db_manager.get_clients_by_archival_status(is_archived=False, include_null_status_for_active=True)
+        elif archive_filter_mode == "active_only_with_status":
+            clients_to_display = db_manager.get_clients_by_archival_status(is_archived=False, include_null_status_for_active=False)
+        elif archive_filter_mode == "archived_only":
+            clients_to_display = db_manager.get_clients_by_archival_status(is_archived=True)
+        elif archive_filter_mode == "all":
+            clients_to_display = db_manager.get_all_clients_with_details()
+
+        if clients_to_display is None: clients_to_display = []
+
+        # Further filter by search term and status_id
+        final_filtered_clients = []
+        for client_dict in clients_to_display:
+            matches_search = (search_term in client_dict.get('client_name', '').lower() or
+                              search_term in client_dict.get('company_name', '').lower() if client_dict.get('company_name') else False or
+                              search_term in client_dict.get('project_identifier', '').lower() if client_dict.get('project_identifier') else False)
+
+            matches_status = (selected_status_id is None or client_dict.get('status_id') == selected_status_id)
+
+            if matches_search and matches_status:
+                final_filtered_clients.append(client_dict)
+
+        for client_dict in final_filtered_clients:
+            self.clients_data_map[client_dict["client_id"]] = client_dict
+            self.add_client_to_list_widget(client_dict) # Pass the whole dict
+
+        if self.stats_widget: self.stats_widget.update_stats() # Update stats after filtering
+
+    def filter_client_list_display(self): self.filter_client_list_display_slot() # Keep existing public method if called elsewhere
+
     def check_old_clients_routine(self): self.check_old_clients_routine_slot()
     def open_edit_client_dialog(self, client_id): self.open_edit_client_dialog_slot(client_id)
     def set_client_status_archived(self, client_id): self.set_client_status_archived_slot(client_id)
@@ -278,9 +337,10 @@ class DocumentManager(QMainWindow):
 
     def add_client_to_list_widget(self, client_dict_data): 
         item = QListWidgetItem(client_dict_data["client_name"])
-        item.setIcon(QIcon(":/icons/user.svg"))
-        item.setData(Qt.UserRole, client_dict_data.get("status", "N/A"))
-        item.setData(Qt.UserRole + 1, client_dict_data["client_id"]) 
+        # StatusDelegate will use status_color and status_icon_name from UserRole data
+        item.setData(Qt.UserRole, client_dict_data) # Store the whole dict
+        # No need to set icon here, delegate handles it if status_icon_name is present
+        # item.setIcon(QIcon(":/icons/user.svg")) # Fallback or default icon can be set by delegate
         self.client_list_widget.addItem(item)
             
     def load_statuses_into_filter_combo(self): 
@@ -298,16 +358,33 @@ class DocumentManager(QMainWindow):
             print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e))) # Should use logging
             
     def handle_client_list_click(self, item): 
-        client_id_val = item.data(Qt.UserRole + 1) 
-        if client_id_val: self.open_client_tab_by_id(client_id_val)
+        client_data = item.data(Qt.UserRole)
+        if client_data and client_data.get("client_id"):
+            self.open_client_tab_by_id(client_data["client_id"])
         
     def open_client_tab_by_id(self, client_id_to_open): 
-        client_data_to_show = self.clients_data_map.get(client_id_to_open) 
-        if not client_data_to_show: return
+        client_data_to_show = self.clients_data_map.get(client_id_to_open) # Ensure map is populated correctly
+        if not client_data_to_show:
+            # Fallback: if not in map, try to fetch directly (e.g. if map wasn't populated for some reason)
+            client_data_to_show = db_manager.get_client_by_id(client_id_to_open) # This returns basic info
+            if not client_data_to_show:
+                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Données client non trouvées pour ID: {0}").format(client_id_to_open))
+                return
+            # If fetched directly, ensure it's in the map for consistency if other parts rely on it
+            self.clients_data_map[client_id_to_open] = client_data_to_show
+            # Note: This direct fetch might lack 'country', 'city', 'status' names if get_client_by_id is basic.
+            # get_all_clients_with_details or get_clients_by_archival_status should be preferred sources.
+
         for i in range(self.client_tabs_widget.count()):
             tab_widget_ref = self.client_tabs_widget.widget(i) 
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
-                self.client_tabs_widget.setCurrentIndex(i); return
+                self.client_tabs_widget.setCurrentIndex(i)
+                # Refresh the existing tab's content if needed
+                # tab_widget_ref.refresh_display(client_data_to_show) # Assuming ClientWidget has refresh_display
+                return
+
+        # Ensure the client_data_to_show has all necessary fields for ClientWidget, especially if fetched by basic get_client_by_id
+        # It's better if clients_data_map always holds the rich dict from get_all_clients_with_details or get_clients_by_archival_status
         client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
@@ -320,10 +397,12 @@ class DocumentManager(QMainWindow):
     def show_client_context_menu(self, pos):
         list_item = self.client_list_widget.itemAt(pos) 
         if not list_item: return
-        client_id_val = list_item.data(Qt.UserRole + 1) 
+        client_data = list_item.data(Qt.UserRole)
+        client_id_val = client_data.get("client_id") if client_data else None
+        if not client_id_val: return
+
         menu = QMenu()
         open_action = menu.addAction(QIcon(":/icons/eye.svg"), self.tr("Ouvrir Fiche Client")); open_action.triggered.connect(lambda: self.open_client_tab_by_id(client_id_val))
-        # Connect context menu actions to SLOTS or directly to logic handlers if appropriate
         edit_action = menu.addAction(QIcon(":/icons/pencil.svg"), self.tr("Modifier Client")); edit_action.triggered.connect(lambda: self.open_edit_client_dialog_slot(client_id_val))
         open_folder_action = menu.addAction(QIcon(":/icons/folder.svg"), self.tr("Ouvrir Dossier Client")); open_folder_action.triggered.connect(lambda: self.open_client_folder_fs(client_id_val))
         menu.addSeparator()
@@ -332,14 +411,28 @@ class DocumentManager(QMainWindow):
         menu.exec_(self.client_list_widget.mapToGlobal(pos))
         
     def open_client_folder_fs(self, client_id_val): 
-        if client_id_val in self.clients_data_map:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(self.clients_data_map[client_id_val]["base_folder_path"]))
+        client_info = self.clients_data_map.get(client_id_val) # Use the map
+        if client_info and client_info.get("base_folder_path"):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(client_info["base_folder_path"]))
+        else:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Chemin du dossier non trouvé pour ce client."))
             
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self) # Pass self as parent
         if dialog.exec_() == QDialog.Accepted:
             new_conf = dialog.get_config() 
-            self.config.update(new_conf) # self.config should be CONFIG from app_setup
+
+            # Save Google Maps URL to DB
+            google_maps_url_from_dialog = new_conf.get("google_maps_review_url")
+            if google_maps_url_from_dialog is not None:
+                db_manager.set_setting('google_maps_review_url', google_maps_url_from_dialog)
+                self.config['google_maps_review_url'] = google_maps_url_from_dialog # Update current runtime config
+
+            # Update the rest of the config and save to file
+            # Remove the google_maps_review_url before updating self.config from new_conf if it's managed separately
+            # or ensure new_conf doesn't overwrite it if DB is the sole source of truth for this value after initial load.
+            # For this setup, we update self.config with it, and save_config will write it to the JSON file too.
+            self.config.update(new_conf)
             save_config(self.config) # save_config from utils
 
             # Save language setting to database
@@ -356,7 +449,7 @@ class DocumentManager(QMainWindow):
             os.makedirs(self.config["clients_dir"], exist_ok=True)
             QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés.")) # self for parent
             
-    def open_template_manager_dialog(self): TemplateDialog(self).exec_() # Pass self as parent
+    def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_() # Pass self.config
         
     def open_status_manager_dialog(self): 
         QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité de gestion des statuts personnalisés à implémenter."))
