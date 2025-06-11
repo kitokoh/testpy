@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, QSettings
 import db # Import the db.py from the root directory
-from .registration_window import RegistrationWindow
 import uuid
 import logging # Added for logging
 import random # Added for promotional text

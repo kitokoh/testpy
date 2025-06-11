@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
-                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
+                             QGridLayout, QGroupBox, QProgressBar,
                              QGridLayout, QGroupBox, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
                              QTableWidgetItem, QHeaderView, QPushButton)

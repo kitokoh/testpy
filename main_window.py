@@ -460,7 +460,7 @@ class DocumentManager(QMainWindow):
                     print(f"An exception occurred while trying to add/select country '{country_name_str}': {e}")
                     # QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur inattendue est survenue lors de la gestion du pays."))
                     found_country = True
-                    break
+                    # break
             if not found_country:
                 print(f"Warning: Country '{country_name_str}' not found in the country combobox. User may need to add it.")
                 # If editable, we could set the text directly:
