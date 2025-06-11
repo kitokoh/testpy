@@ -58,6 +58,7 @@ class DocumentGenerationScreen(Screen):
         self.app_temporary_files = [] # Global list for all temp files
         self.current_selected_language_code = None # Initialize selection state
 
+
         main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
         # Language Selection
@@ -624,6 +625,10 @@ class DocumentGenerationScreen(Screen):
             self.language_spinner.values = []
             self.language_spinner.text = 'No languages available' # Or 'Error loading languages'
             self.current_selected_language_code = None
+        language_names = [lang['name'] for lang in self.languages_data if lang and 'name' in lang]
+        self.language_spinner.values = language_names
+        if language_names:
+            self.language_spinner.text = language_names[0]
 
         self.countries_data = mobile_data_api.get_all_countries_from_api()
         country_names = [country['country_name'] for country in self.countries_data if country and 'country_name' in country]
@@ -654,6 +659,7 @@ class DocumentGenerationScreen(Screen):
             return # Stop further processing if no valid language is selected
 
         self.products_data = mobile_data_api.get_all_products_for_selection_from_api(language_code=self.current_selected_language_code, name_pattern=None)
+
 
         if self.products_data:
             for product in self.products_data:
@@ -697,3 +703,4 @@ class DocumentGenerationScreen(Screen):
 # have been overwritten by the Kivy-specific DocumentGenerationScreen.
 # Further refactoring would be needed to integrate them with a Kivy architecture if they were to be developed.
 # For this task, ui.py now primarily holds the DocumentGenerationScreen Kivy widget.
+
