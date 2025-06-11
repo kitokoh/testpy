@@ -1,37 +1,63 @@
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QMessageBox, QSpacerItem, QSizePolicy, QFrame, QWidget
+    QMessageBox, QSpacerItem, QSizePolicy, QFrame, QWidget, QCheckBox
 )
 from PyQt5.QtGui import QPixmap, QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSettings
 import db # Import the db.py from the root directory
 from .registration_window import RegistrationWindow
 import uuid
+import logging # Added for logging
+import random # Added for promotional text
 
 class LoginWindow(QDialog):
+    PROMOTIONAL_TEXTS = [
+        "Streamline your client documentation and project management effortlessly.",
+        "Secure, efficient, and professional document handling.",
+        "Welcome! Let's get your documents organized.",
+        "Unlock productivity with ClientDocManager.",
+        "Your success, documented.",
+        "Focus on your clients, we'll handle the paperwork."
+    ]
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("User Login")
-        self.setMinimumWidth(760) # Increased width for two columns
+        self.setObjectName("LoginWindow") # Set object name for the dialog
+
+        self.setWindowTitle(self.tr("User Login"))
+        self.setMinimumWidth(760)
         self.session_token = None
         self.current_user = None
         self.init_ui()
 
+        # Load Remember Me state
+        settings = QSettings()
+        remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+        self.remember_me_checkbox.setChecked(remember_me_active)
+        # If active, could potentially auto-fill username, but token logic is for auto-login later
+        if remember_me_active:
+            saved_username = settings.value("auth/username", "")
+            if saved_username:
+                self.username_input.setText(saved_username)
+
+
     def init_ui(self):
         # Main horizontal layout
-        main_h_layout = QHBoxLayout(self) # Set this as the dialog's layout
-        main_h_layout.setContentsMargins(0, 0, 0, 0) # No margins for the main layout, handled by frames
+        main_h_layout = QHBoxLayout(self)
+        main_h_layout.setContentsMargins(0, 0, 0, 0)
         main_h_layout.setSpacing(0)
 
         # --- Left Side (Form Area) ---
-        left_widget = QWidget() # Use QWidget as container
-        left_widget.setObjectName("loginFormArea") # For potential specific styling
-        # left_widget.setStyleSheet("background-color: #f8f9fa;") # Light gray for form area, or keep transparent
+        left_widget = QWidget()
+        left_widget.setObjectName("loginFormArea")
+        left_widget.setFixedWidth(360) # Set fixed width for the form area
 
-        form_layout = QVBoxLayout(left_widget)
-        form_layout.setContentsMargins(30, 40, 30, 40) # Generous margins
-        form_layout.setSpacing(20)
+        self.form_layout = QVBoxLayout(left_widget)
+        self.form_layout.setContentsMargins(30, 40, 30, 40)
+        self.form_layout.setSpacing(15)
+
+
 
         # Logo
         logo_label = QLabel()
@@ -43,59 +69,57 @@ class LoginWindow(QDialog):
         else:
             logo_label.setPixmap(pixmap.scaledToWidth(120, Qt.SmoothTransformation))
             logo_label.setAlignment(Qt.AlignCenter)
-        form_layout.addWidget(logo_label)
+        self.form_layout.addWidget(logo_label)
 
         # Title Label
-        title_label = QLabel("Welcome Back!")
+        title_label = QLabel(self.tr("Welcome Back!"))
         title_label.setObjectName("dialogHeaderLabel")
         title_label.setAlignment(Qt.AlignCenter)
-        # Consider increasing font size directly if QSS isn't overriding enough
-        # title_font = QFont()
-        # title_font.setPointSize(18) # Example size
-        # title_font.setBold(True)
-        # title_label.setFont(title_font)
-        form_layout.addWidget(title_label)
+        self.form_layout.addWidget(title_label)
 
         # Subtitle or instruction
-        instruction_label = QLabel("Please enter your credentials to log in.")
+        instruction_label = QLabel(self.tr("Please enter your credentials to log in."))
         instruction_label.setAlignment(Qt.AlignCenter)
-        instruction_label.setStyleSheet("font-size: 10pt; color: #6c757d;") # Softer color
-        form_layout.addWidget(instruction_label)
+        instruction_label.setStyleSheet("font-size: 10pt; color: #6c757d;")
+        self.form_layout.addWidget(instruction_label)
 
-        form_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Fixed))
-
+        self.form_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Username
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Username")
+        self.username_input.setPlaceholderText(self.tr("Username"))
 
         # Password
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Password")
+        self.password_input.setPlaceholderText(self.tr("Password"))
         self.password_input.setEchoMode(QLineEdit.Password)
 
-        form_layout.addWidget(QLabel("Username:")) # Adding labels for fields
-        form_layout.addWidget(self.username_input)
-        form_layout.addWidget(QLabel("Password:"))
-        form_layout.addWidget(self.password_input)
+        self.form_layout.addWidget(QLabel(self.tr("Username:")))
+        self.form_layout.addWidget(self.username_input)
+        self.form_layout.addWidget(QLabel(self.tr("Password:")))
+        self.form_layout.addWidget(self.password_input)
+
+        # Remember Me Checkbox
+        self.remember_me_checkbox = QCheckBox(self.tr("Remember Me"))
+        self.form_layout.addWidget(self.remember_me_checkbox) # Added here
 
         # Login Button
-        login_button = QPushButton("Login")
+        login_button = QPushButton(self.tr("Login"))
         login_button.setObjectName("primaryButton")
-        login_button.setMinimumHeight(35) # Make button a bit taller
+        login_button.setMinimumHeight(35)
         login_button.clicked.connect(self.handle_login)
-        form_layout.addWidget(login_button)
+        self.form_layout.addWidget(login_button)
 
-        form_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        self.form_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Register Button (as a link)
-        register_button = QPushButton("Don't have an account? Create one")
+        register_button = QPushButton(self.tr("Don't have an account? Create one"))
         register_button.setObjectName("linkButton")
         register_button.setCursor(Qt.PointingHandCursor)
         register_button.clicked.connect(self.open_registration_window)
-        form_layout.addWidget(register_button, 0, Qt.AlignCenter)
+        self.form_layout.addWidget(register_button, 0, Qt.AlignCenter)
 
-        form_layout.addStretch(1) # Add stretch at the bottom of the form
+        self.form_layout.addStretch(1)
 
         # --- Right Side (Promo Area) ---
         promo_frame = QFrame()
@@ -108,23 +132,28 @@ class LoginWindow(QDialog):
         promo_layout.setSpacing(20)
         promo_layout.setAlignment(Qt.AlignCenter)
 
-        promo_header = QLabel("ClientDocManager")
-        promo_header.setObjectName("promoHeaderLabel")
-        promo_header.setAlignment(Qt.AlignCenter)
-        promo_header.setWordWrap(True) # Ensure header wraps if needed
-        promo_layout.addWidget(promo_header)
+        self.promoHeaderLabel = QLabel("ClientDocManager")
+        self.promoHeaderLabel.setObjectName("promoHeaderLabel")
+        self.promoHeaderLabel.setAlignment(Qt.AlignCenter) # Set alignment in Python
+        self.promoHeaderLabel.setWordWrap(True)
 
-        promo_text_content = "Streamline your client documentation and project management effortlessly. Secure, efficient, and professional."
-        promo_text = QLabel(promo_text_content)
-        promo_text.setObjectName("promoTextLabel")
-        promo_text.setAlignment(Qt.AlignCenter) # Center align text
-        promo_text.setWordWrap(True)
-        promo_layout.addWidget(promo_text)
+        self.promoTextLabel = QLabel()
+        self.promoTextLabel.setObjectName("promoTextLabel")
+        self.promoTextLabel.setAlignment(Qt.AlignCenter) # Set alignment in Python
+        self.promoTextLabel.setWordWrap(True)
 
+        # New Order: Stretch, Header, Spacing, Text, Stretch
+        promo_layout.addStretch(1)
+        promo_layout.addWidget(self.promoHeaderLabel)
+        promo_layout.addSpacing(10)
+        promo_layout.addWidget(self.promoTextLabel)
         promo_layout.addStretch(1)
 
+        self.update_promo_text() # Set initial random text
+
         # Add left and right widgets to main horizontal layout
-        main_h_layout.addWidget(left_widget, 1) # Give form area a stretch factor of 1
+        main_h_layout.addWidget(left_widget, 1)
+
         main_h_layout.addWidget(promo_frame, 1) # Give promo area a stretch factor of 1
 
         # No need to call self.setLayout() as main_h_layout was passed `self`
@@ -138,12 +167,29 @@ class LoginWindow(QDialog):
         if user:
             self.current_user = user
             self.session_token = uuid.uuid4().hex
-            print(f"Login successful for user: {username}, Token: {self.session_token}")
-            self.accept()  # Close the dialog on successful login
+            logging.info(f"Login successful for user: {username}, Token: {self.session_token}") # Use logging
+
+            settings = QSettings()
+            if self.remember_me_checkbox.isChecked():
+                settings.setValue("auth/remember_me_active", True)
+                settings.setValue("auth/session_token", self.session_token)
+                settings.setValue("auth/user_id", self.current_user.get('user_id'))
+                settings.setValue("auth/username", self.current_user.get('username'))
+                settings.setValue("auth/user_role", self.current_user.get('role'))
+                logging.info("Remember Me enabled. Token and user info stored.")
+            else:
+                settings.setValue("auth/remember_me_active", False)
+                settings.remove("auth/session_token")
+                settings.remove("auth/user_id")
+                settings.remove("auth/username")
+                settings.remove("auth/user_role")
+                logging.info("Remember Me disabled. Stored token and user info cleared.")
+
+            self.accept()
         else:
-            self.current_user = None # Ensure current_user is None on failed login
+            self.current_user = None
             self.session_token = None
-            QMessageBox.warning(self, "Login Failed", "Invalid username or password.")
+            QMessageBox.warning(self, self.tr("Login Failed"), self.tr("Invalid username or password."))
 
     def get_session_token(self) -> str | None:
         return self.session_token
@@ -159,9 +205,18 @@ class LoginWindow(QDialog):
         # For simplicity, creating RegistrationWindow potentially without a direct Qt parent from here,
         # or with self if it makes sense in the application structure.
         # Let's assume self (LoginWindow instance) can be a logical parent.
-        reg_window = RegistrationWindow(parent=self) # Or self.parent() if that's more appropriate
-        reg_window.exec_()  # Show as a modal dialog
-        self.show() # Re-show login window when registration window is closed
+        reg_window = RegistrationWindow(parent=self)
+        reg_window.exec_()
+        self.show()
+
+    def update_promo_text(self):
+        selected_promo_text = random.choice(LoginWindow.PROMOTIONAL_TEXTS)
+        if hasattr(self, 'promoTextLabel'): # Ensure label exists
+            self.promoTextLabel.setText(self.tr(selected_promo_text))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_promo_text() # Update promo text when dialog is shown
 
     # The __main__ block might have issues running directly from here
     # if db.py relies on other parts of the application being initialized,
@@ -193,3 +248,4 @@ if __name__ == '__main__':
     login_window = LoginWindow()
     login_window.show()
     sys.exit(app.exec_())
+

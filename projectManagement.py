@@ -28,8 +28,9 @@ from db import get_status_setting_by_id, get_all_status_settings # For Notificat
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
 import json # For CoverPageEditorDialog style_config_json
-import os # For CoverPageEditorDialog logo_name
+import os # For CoverPageEditorDialog logo_name, and for app_root_dir if self.resource_path("") is not used.
 from dashboard_extensions import ProjectTemplateManager # Added for Project Templates
+from dialogs import ManageProductMasterDialog, ProductEquivalencyDialog # For Product Management
 
 
 class CustomNotificationBanner(QFrame):
@@ -233,6 +234,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.notification_manager = NotificationManager(self) # Pass self (dashboard) as parent
         self.notification_manager.setup_timer()
 
+    def open_manage_global_products_dialog(self):
+        try:
+            # Use self.resource_path("") to get app_root_dir, as observed in other parts of the class
+            app_root_dir = self.resource_path("")
+            dialog = ManageProductMasterDialog(app_root_dir=app_root_dir, parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Global Product Management: {0}").format(str(e)))
+            print(f"Error opening ManageProductMasterDialog: {e}")
+
+    def open_product_equivalency_dialog(self):
+        try:
+            dialog = ProductEquivalencyDialog(parent=self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not open Product Equivalency Management: {0}").format(str(e)))
+            print(f"Error opening ProductEquivalencyDialog: {e}")
+
     def module_closed(self, module_id):
         """Clean up after module closure"""
         self.parent.modules[module_id] = None
@@ -368,6 +387,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         management_btn.setObjectName("menu_button")
         self.nav_buttons.append(management_btn)
         topbar_layout.addWidget(management_btn)
+
+        # Product Management Menu
+        product_management_btn = QPushButton("Gestion Produits")
+        product_management_btn.setIcon(QIcon(":/icons/package.svg")) # Suggestion: package.svg or similar
+        product_management_btn.setObjectName("menu_button")
+
+        product_menu = QMenu(product_management_btn)
+        manage_global_products_action = product_menu.addAction(QIcon(":/icons/box.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
+        manage_global_products_action.triggered.connect(self.open_manage_global_products_dialog)
+
+        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/shuffle.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
+        manage_equivalencies_action.triggered.connect(self.open_product_equivalency_dialog)
+
+        product_management_btn.setMenu(product_menu)
+        self.nav_buttons.append(product_management_btn) # Add to nav_buttons if it should have similar styling behavior
+        topbar_layout.addWidget(product_management_btn)
 
         # Projects Menu (Projects + Tasks + Reports)
         projects_menu = QMenu()
@@ -1224,10 +1259,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             is_active_val = member.get('is_active', False) # In db.py, is_active is BOOLEAN (0 or 1)
             active_item = QTableWidgetItem()
             if bool(is_active_val): # Ensure it's treated as boolean
-                active_item.setIcon(QIcon(self.resource_path('icons/active.png')))
+                active_item.setIcon(QIcon(":/icons/active.svg"))
                 active_item.setText("Active")
             else:
-                active_item.setIcon(QIcon(self.resource_path('icons/inactive.png')))
+                active_item.setIcon(QIcon(":/icons/inactive.svg"))
                 active_item.setText("Inactive")
             self.team_table.setItem(row_idx, 7, active_item)
 
@@ -1247,13 +1282,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             current_member_id = member['team_member_id']
 
-            edit_btn = QPushButton("✏️")
+            edit_btn = QPushButton("")
+            edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
             edit_btn.setToolTip("Edit")
             edit_btn.setFixedSize(30,30)
             edit_btn.setStyleSheet(self.get_table_action_button_style())
             edit_btn.clicked.connect(lambda _, m_id=current_member_id: self.edit_member(m_id))
 
-            delete_btn = QPushButton("🗑️")
+            delete_btn = QPushButton("")
+            delete_btn.setIcon(QIcon(":/icons/trash.svg"))
             delete_btn.setToolTip("Delete")
             delete_btn.setFixedSize(30,30)
             delete_btn.setStyleSheet(self.get_table_action_button_style())
@@ -1321,13 +1358,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             priority_val = project_dict.get('priority', 0)
             priority_item = QTableWidgetItem()
             if priority_val == 2: # High
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_high.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-high.svg"))
                 priority_item.setText("High")
             elif priority_val == 1: # Medium
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_medium.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-medium.svg"))
                 priority_item.setText("Medium")
             else: # 0 or other = Low
-                priority_item.setIcon(QIcon(self.resource_path('icons/priority_low.png')))
+                priority_item.setIcon(QIcon(":/icons/priority-low.svg"))
                 priority_item.setText("Low")
             self.projects_table.setItem(row_idx, 3, priority_item)
 
@@ -4058,7 +4095,3 @@ if __name__ == "__main__":
                                         self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
             else: # Fallback
                 QMessageBox.information(self, self.tr("Project Not Found"), self.tr("Could not find project {0} in the list.").format(project_id_to_focus))
-
-
-
-                

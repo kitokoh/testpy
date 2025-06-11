@@ -3,15 +3,20 @@ from PyQt5.QtWidgets import (
     QApplication, QDialog, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QMessageBox, QSpacerItem, QSizePolicy, QFrame, QWidget
 )
-from PyQt5.QtGui import QFont # QPixmap can be added if a different logo/image is desired here
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 import db # For database operations
+import random # For promo text, though might share LoginWindow's list
+from .login_window import LoginWindow # To access PROMOTIONAL_TEXTS
+
 
 class RegistrationWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Create New Account")
-        self.setMinimumWidth(800) # Increased width for two columns, slightly more for more fields
+        self.setObjectName("RegistrationWindow") # Set object name for the dialog
+        self.setWindowTitle(self.tr("Create New Account"))
+        self.setMinimumWidth(800) # Keep overall dialog width for two columns
+
         self.init_ui()
 
     def init_ui(self):
@@ -23,10 +28,12 @@ class RegistrationWindow(QDialog):
         # --- Left Side (Form Area) ---
         left_widget = QWidget()
         left_widget.setObjectName("registrationFormArea")
+        left_widget.setFixedWidth(380) # Set fixed width for the form area
 
         form_layout = QVBoxLayout(left_widget)
         form_layout.setContentsMargins(30, 40, 30, 40)
-        form_layout.setSpacing(15) # Slightly less spacing than login due to more fields
+        form_layout.setSpacing(15)
+
 
         # Title Label
         title_label = QLabel("Create Your Account")
@@ -100,25 +107,41 @@ class RegistrationWindow(QDialog):
         promo_layout.setSpacing(20)
         promo_layout.setAlignment(Qt.AlignCenter)
 
-        promo_header = QLabel("Create Your Account") # Text updated as per instruction
-        promo_header.setObjectName("promoHeaderLabel")
-        promo_header.setAlignment(Qt.AlignCenter)
-        promo_header.setWordWrap(True)
-        promo_layout.addWidget(promo_header)
+        self.promoHeaderLabel = QLabel(self.tr("Create Your Account"))
+        self.promoHeaderLabel.setObjectName("promoHeaderLabel")
+        self.promoHeaderLabel.setAlignment(Qt.AlignCenter) # Ensure alignment
+        self.promoHeaderLabel.setWordWrap(True)
 
-        promo_text_content = "Join us to manage your documents and projects with ease. Sign up in seconds!" # Text updated
-        promo_text = QLabel(promo_text_content)
-        promo_text.setObjectName("promoTextLabel")
-        promo_text.setAlignment(Qt.AlignCenter)
-        promo_text.setWordWrap(True)
-        promo_layout.addWidget(promo_text)
+        # Promotional Text Label
+        self.promoTextLabel = QLabel()
+        self.promoTextLabel.setObjectName("promoTextLabel")
+        self.promoTextLabel.setAlignment(Qt.AlignCenter) # Ensure alignment
+        self.promoTextLabel.setWordWrap(True)
 
+        # New Order: Stretch, Header, Spacing, Text, Stretch
         promo_layout.addStretch(1)
+        promo_layout.addWidget(self.promoHeaderLabel)
+        promo_layout.addSpacing(10)
+        promo_layout.addWidget(self.promoTextLabel)
+        promo_layout.addStretch(1)
+
+        self.update_promo_text()
+
 
         # Add left and right widgets to main horizontal layout
         main_h_layout.addWidget(left_widget, 1)
-        main_h_layout.addWidget(promo_frame, 1) # Use the updated promo_frame
+        main_h_layout.addWidget(promo_frame, 1)
 
+    def update_promo_text(self):
+        # Using a specific text for registration page, or could randomize from a specific list
+        registration_promo_text = "Join us to manage your documents and projects with ease. Sign up in seconds!"
+        if hasattr(self, 'promoTextLabel'):
+             self.promoTextLabel.setText(self.tr(registration_promo_text))
+
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_promo_text()
 
     def handle_registration(self):
         username = self.username_input.text().strip()
@@ -195,3 +218,4 @@ if __name__ == '__main__':
     registration_window = RegistrationWindow()
     registration_window.show()
     sys.exit(app.exec_())
+

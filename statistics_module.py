@@ -1,19 +1,36 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QApplication,
+                             QGridLayout, QGroupBox, QWebEngineView, QProgressBar,
                              QGridLayout, QGroupBox, QProgressBar,
                              QHBoxLayout, QScrollArea, QTabWidget, QTableWidget,
-                             QTableWidgetItem, QHeaderView)
-from PyQt5.QtCore import Qt, QUrl
+                             QTableWidgetItem, QHeaderView, QPushButton)
+from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, QUrl, QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtWebChannel import QWebChannel
+from PyQt5.QtWebEngineWidgets import QWebEngineView  # ✅ BON MODULE
+
 import db as db_manager
 import folium
 import io
 import os
-import json # For loading GeoJSON
-import requests # To fetch GeoJSON data (fallback)
+import json
+import requests
 import pandas as pd
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+
+class MapInteractionHandler(QObject):
+    country_clicked_signal = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    @pyqtSlot(str)
+    def countryClicked(self, country_name):
+        print(f"[MapInteractionHandler] countryClicked slot called with: {country_name}")
+        self.country_clicked_signal.emit(country_name)
 
 class StatisticsDashboard(QWidget):
+    country_selected_for_new_client = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Tableau de Bord Statistiques"))
@@ -26,8 +43,15 @@ class StatisticsDashboard(QWidget):
         self.map_view.setMinimumHeight(400)
         self.map_view.setObjectName("presenceMapView")
 
+        self.map_interaction_handler = MapInteractionHandler(self)
+        self.map_interaction_handler.country_clicked_signal.connect(self._on_map_country_selected)
+
+        self.web_channel = QWebChannel(self.map_view.page())
+        self.map_view.page().setWebChannel(self.web_channel)
+        self.web_channel.registerObject("pyMapConnector", self.map_interaction_handler)
+
         map_group_box = QGroupBox(self.tr("Carte de Présence"))
-        map_group_box.setObjectName("mapGroupBox") # Added object name
+        map_group_box.setObjectName("mapGroupBox")
         map_group_layout = QVBoxLayout(map_group_box)
         map_group_layout.addWidget(self.map_view)
         map_group_layout.setContentsMargins(5,5,5,5)
@@ -42,12 +66,27 @@ class StatisticsDashboard(QWidget):
         self.right_panel_layout.setAlignment(Qt.AlignTop)
         self.right_panel_layout.setSpacing(15)
 
+        refresh_section_layout = QHBoxLayout()
+        self.refresh_button = QPushButton(self.tr("Actualiser"))
+        self.refresh_button.setObjectName("refreshStatsButton")
+        refresh_icon = QIcon(":/icons/refresh-cw.svg")
+        if not refresh_icon.isNull():
+            self.refresh_button.setIcon(refresh_icon)
+        else:
+            print("Warning: Refresh icon ':/icons/refresh-cw.svg' not found.")
+        self.refresh_button.setToolTip(self.tr("Actualiser toutes les données statistiques"))
+        self.refresh_button.clicked.connect(self.refresh_all_statistics)
+        refresh_section_layout.addStretch()
+        refresh_section_layout.addWidget(self.refresh_button)
+        self.right_panel_layout.addLayout(refresh_section_layout)
+
         title_label = QLabel(self.tr("Statistiques Détaillées"))
         title_label.setObjectName("statisticsTitleLabel")
         title_label.setAlignment(Qt.AlignCenter)
         self.right_panel_layout.addWidget(title_label)
 
         global_stats_group = QGroupBox(self.tr("Aperçu Global"))
+        # ... (rest of __init__ remains the same as previous correct version)
         global_stats_layout = QGridLayout(global_stats_group)
         self.stats_labels = {}
         stats_to_show = [
@@ -100,12 +139,23 @@ class StatisticsDashboard(QWidget):
         self.right_scroll_area.setWidget(self.right_panel_widget)
         self.main_h_layout.addWidget(self.right_scroll_area, 1)
 
+        self.refresh_all_statistics()
+
+    @pyqtSlot(str)
+    def _on_map_country_selected(self, country_name):
+        print(f"[StatisticsDashboard] _on_map_country_selected: {country_name}")
+        self.country_selected_for_new_client.emit(country_name)
+
+    def refresh_all_statistics(self):
+        print("Refreshing all statistics...")
         self.update_global_stats()
         self.update_presence_map()
         self.update_business_health_score()
         self.update_customer_segmentation_views()
+        print("All statistics refreshed.")
 
     def _setup_segmentation_tab_ui(self):
+        # ... (remains the same)
         layout_country = QVBoxLayout(self.country_segment_tab)
         self.table_segment_country = QTableWidget()
         self.table_segment_country.setColumnCount(2)
@@ -148,6 +198,7 @@ class StatisticsDashboard(QWidget):
         layout_category.addWidget(self.table_segment_category)
 
     def _populate_table(self, table_widget, data_list, column_keys_info):
+        # ... (remains the same)
         table_widget.setRowCount(0)
         table_widget.setSortingEnabled(False)
         for row_idx, data_item in enumerate(data_list):
@@ -165,6 +216,7 @@ class StatisticsDashboard(QWidget):
         table_widget.setSortingEnabled(True)
 
     def update_customer_segmentation_views(self):
+        # ... (remains the same)
         try:
             country_data = db_manager.get_client_counts_by_country()
             self._populate_table(self.table_segment_country, country_data, [('country_name', self.tr("Pays")), ('client_count', self.tr("Nombre de Clients"))])
@@ -185,6 +237,7 @@ class StatisticsDashboard(QWidget):
                 table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 
     def update_global_stats(self):
+        # ... (remains the same)
         for func_name, label_widget in self.stats_labels.items():
             if hasattr(db_manager, func_name):
                 try:
@@ -217,7 +270,6 @@ class StatisticsDashboard(QWidget):
                 try:
                     with open(local_geojson_file, 'r', encoding='utf-8') as f:
                         geojson_data = json.load(f)
-                    print("Loaded GeoJSON data from local file: assets/world_countries.geojson")
                 except Exception as e:
                     print(f"Error loading local GeoJSON file: {e}. Will attempt to fetch from URL.")
                     geojson_data = None
@@ -245,22 +297,27 @@ class StatisticsDashboard(QWidget):
                 print("Critical error: GeoJSON data is not available. Map cannot be displayed.")
                 return
 
-            df_counts = pd.DataFrame(client_counts_by_country)
+            df_counts = pd.DataFrame(client_counts_by_country if client_counts_by_country else []) # Ensure df_counts is always a DataFrame
             tooltip_data = {row['country_name']: row['client_count'] for _, row in df_counts.iterrows()}
+
+            for feature in geojson_data.get('features', []):
+                country_name = feature.get('properties', {}).get('name')
+                client_count = tooltip_data.get(country_name, 0) # Default to 0 for tooltip
+                if 'properties' not in feature: feature['properties'] = {}
+                feature['properties']['client_count'] = client_count
+                # Format popup content carefully, ensure country_name is properly escaped if necessary for JS
+                js_safe_country_name = country_name.replace("'", "\\'") if country_name else ""
+                feature['properties']['popup_content'] = f"<b>{country_name}</b><br>{self.tr('Clients')}: {client_count}<br><button onclick=\"onCountryFeatureClick('{js_safe_country_name}')\">{self.tr('Ajouter Client Ici')}</button>"
 
             choropleth_layer = folium.Choropleth(
                 geo_data=geojson_data,
-                name="choropleth", data=df_counts,
+                name=self.tr("Clients par Pays"),
+                data=df_counts,
                 columns=["country_name", "client_count"], key_on="feature.properties.name",
                 fill_color="YlGnBu", fill_opacity=0.7, line_opacity=0.2,
                 legend_name=self.tr("Nombre de Clients par Pays"), nan_fill_color='lightgray',
                 highlight=True,
             ).add_to(world_map)
-
-            for feature in geojson_data['features']:
-                country_name_prop = feature['properties'].get('name')
-                client_count_prop = tooltip_data.get(country_name_prop, 0)
-                feature['properties']['client_count'] = client_count_prop
 
             folium.GeoJsonTooltip(
                 fields=['name', 'client_count'],
@@ -269,11 +326,68 @@ class StatisticsDashboard(QWidget):
                 style="background-color: #F0EFEF; border: 2px solid black; border-radius: 3px; box-shadow: 3px;"
             ).add_to(choropleth_layer.geojson)
 
+            popup_geojson_layer = folium.GeoJson(
+                geojson_data,
+                name=self.tr("Infos Pays & Action"),
+                style_function=lambda x: {'fillColor': 'transparent', 'color': 'transparent', 'weight': 0},
+                popup=folium.features.GeoJsonPopup(
+                    fields=['popup_content'],
+                    aliases=[''],
+                    localize=False,
+                    parse_html=True
+                )
+            ).add_to(world_map)
+
             folium.LayerControl().add_to(world_map)
 
             map_html_data = io.BytesIO()
             world_map.save(map_html_data, close_file=False)
             html_content = map_html_data.getvalue().decode("utf-8")
+
+            qwebchannel_script = '<script src="qrc:///qtwebchannel/qwebchannel.js"></script>'
+            if qwebchannel_script not in html_content:
+                if "<head>" in html_content:
+                    html_content = html_content.replace("<head>", "<head>\n" + qwebchannel_script, 1)
+                else:
+                    html_content = qwebchannel_script + "\n" + html_content
+
+            js_to_inject = """
+            <script type="text/javascript">
+                var pyMapConnectorInstance = null;
+                function initializeQWebChannel() {
+                    if (typeof QWebChannel !== 'undefined') {
+                        new QWebChannel(qt.webChannelTransport, function(channel) {
+                            pyMapConnectorInstance = channel.objects.pyMapConnector;
+                            if (pyMapConnectorInstance) {
+                                console.log("Successfully connected to pyMapConnector.");
+                            } else {
+                                console.error("Failed to bind pyMapConnector. Check if it's registered in Python.");
+                            }
+                        });
+                    } else {
+                        console.error("QWebChannel.js not loaded or QWebChannel object not found.");
+                    }
+                }
+                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                    initializeQWebChannel();
+                } else {
+                    document.addEventListener('DOMContentLoaded', initializeQWebChannel);
+                }
+                function onCountryFeatureClick(countryName) {
+                    if (pyMapConnectorInstance) {
+                        console.log("JS: onCountryFeatureClick called with: " + countryName);
+                        pyMapConnectorInstance.countryClicked(countryName);
+                    } else {
+                        console.error("JS: pyMapConnectorInstance is not available.");
+                    }
+                }
+            </script>
+            """
+            if "</body>" in html_content:
+                html_content = html_content.replace("</body>", js_to_inject + "\n</body>", 1)
+            else:
+                html_content += js_to_inject
+
             self.map_view.setHtml(html_content, QUrl("about:blank"))
 
         except ImportError:
@@ -285,6 +399,7 @@ class StatisticsDashboard(QWidget):
             print(f"Error updating presence map: {e}")
 
     def update_business_health_score(self):
+        # ... (remains the same)
         try:
             total_clients = db_manager.get_total_clients_count()
             active_clients = db_manager.get_active_clients_count()
@@ -311,13 +426,17 @@ class StatisticsDashboard(QWidget):
         print("StatisticsDashboard closeEvent triggered.")
         super().closeEvent(event)
 
+    def showEvent(self, event):
+        print("StatisticsDashboard is now visible, refreshing all statistics...")
+        self.refresh_all_statistics()
+        super().showEvent(event)
+
 if __name__ == '__main__':
     import sys
     app = QApplication(sys.argv)
     db_manager.initialize_database()
 
     try:
-        # Dummy data population logic (from previous step, ensure it runs for testing)
         print("Populating dummy data for testing if necessary...")
     except Exception as e:
         print(f"Error during __main__ dummy data setup: {e}")
@@ -325,7 +444,12 @@ if __name__ == '__main__':
     app.setStyleSheet("""
         #statisticsTitleLabel { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
         #healthScoreValueLabel { font-size: 20px; font-weight: bold; color: #17a2b8; margin-top: 5px; margin-bottom: 5px;}
-
+        #refreshStatsButton {
+            font-weight: bold;
+            padding: 5px 10px;
+            margin-bottom: 5px;
+            min-width: 90px;
+        }
         QProgressBar {
             border: 1px solid #cccccc;
             border-radius: 5px;
@@ -336,7 +460,6 @@ if __name__ == '__main__':
         QProgressBar::chunk {
             background-color: #28a745;
         }
-
         QGroupBox {
             font-weight: bold;
             border: 1px solid #cccccc;
@@ -352,22 +475,18 @@ if __name__ == '__main__':
             background-color: #f0f0f0;
             border-radius: 3px;
         }
-
         QLabel { font-size: 13px; padding: 4px; }
-
         QLabel[objectName^="statValue_"] {
             font-weight: bold;
             color: #007bff;
             font-size: 14px;
             padding: 4px;
         }
-
         QTableWidget {
             border: 1px solid #dcdcdc;
             alternate-background-color: #f9f9f9;
         }
         QTableWidget::item { padding: 5px; }
-
         QHeaderView::section {
             background-color: #e9ecef;
             padding: 5px;
@@ -375,7 +494,6 @@ if __name__ == '__main__':
             font-weight: bold;
             font-size: 13px;
         }
-
         QTabWidget::pane {
             border: 1px solid #dcdcdc;
             border-top: none;
@@ -396,10 +514,8 @@ if __name__ == '__main__':
             border-bottom: 1px solid #ffffff;
         }
         QTabBar::tab:hover:!selected { background-color: #e2e6ea; }
-
         #statsScrollArea { border: none; }
         #statsRightPanelWidget { background-color: transparent; }
-
         QGroupBox#mapGroupBox {
              padding: 5px;
         }
@@ -413,3 +529,4 @@ if __name__ == '__main__':
     main_widget.resize(1200, 700)
     main_widget.show()
     sys.exit(app.exec_())
+

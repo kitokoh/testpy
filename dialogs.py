@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import logging
 import shutil
 from datetime import datetime
 import smtplib
@@ -252,7 +253,8 @@ class SettingsDialog(QDialog):
         self.lang_display_to_code = {
             self.tr("Français (fr)"): "fr", self.tr("English (en)"): "en",
             self.tr("العربية (ar)"): "ar", self.tr("Türkçe (tr)"): "tr",
-            self.tr("Português (pt)"): "pt"
+            self.tr("Português (pt)"): "pt",
+            self.tr("Русский (ru)"): "ru"
         }
         self.interface_lang_combo.addItems(list(self.lang_display_to_code.keys()))
         current_lang_code = self.current_config_data.get("language", "fr")
@@ -268,9 +270,13 @@ class SettingsDialog(QDialog):
         # Session Timeout
         self.session_timeout_label = QLabel(self.tr("Session Timeout (minutes):"))
         self.session_timeout_spinbox = QSpinBox()
-        self.session_timeout_spinbox.setRange(5, 240) # 5 minutes to 4 hours
+        self.session_timeout_spinbox.setRange(5, 525600) # New range: Min 5 mins, Max ~1 year
         self.session_timeout_spinbox.setSuffix(self.tr(" minutes"))
-        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 30)
+        self.session_timeout_spinbox.setToolTip(
+            self.tr("Set session duration in minutes. Examples: 1440 (1 day), 10080 (1 week), 43200 (30 days), 259200 (6 months).")
+        )
+        default_timeout_minutes = self.current_config_data.get("session_timeout_minutes", 259200) # New default
+
         self.session_timeout_spinbox.setValue(default_timeout_minutes)
         general_form_layout.addRow(self.session_timeout_label, self.session_timeout_spinbox)
 
@@ -353,9 +359,9 @@ class TemplateDialog(QDialog):
         self.template_list.setAlternatingRowColors(True); font = self.template_list.font(); font.setPointSize(font.pointSize() + 1); self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         btn_layout = QHBoxLayout(); btn_layout.setSpacing(8)
-        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon(":/icons/add.svg")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
-        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon(":/icons/edit.svg")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
-        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon(":/icons/delete.svg")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
+        self.add_btn = QPushButton(self.tr("Ajouter")); self.add_btn.setIcon(QIcon(":/icons/plus.svg")); self.add_btn.setToolTip(self.tr("Ajouter un nouveau modèle")); self.add_btn.setObjectName("primaryButton"); self.add_btn.clicked.connect(self.add_template); btn_layout.addWidget(self.add_btn)
+        self.edit_btn = QPushButton(self.tr("Modifier")); self.edit_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_btn.setToolTip(self.tr("Modifier le modèle sélectionné (ouvre le fichier externe)")); self.edit_btn.clicked.connect(self.edit_template); self.edit_btn.setEnabled(False); btn_layout.addWidget(self.edit_btn)
+        self.delete_btn = QPushButton(self.tr("Supprimer")); self.delete_btn.setIcon(QIcon(":/icons/trash.svg")); self.delete_btn.setToolTip(self.tr("Supprimer le modèle sélectionné")); self.delete_btn.setObjectName("dangerButton"); self.delete_btn.clicked.connect(self.delete_template); self.delete_btn.setEnabled(False); btn_layout.addWidget(self.delete_btn)
         self.default_btn = QPushButton(self.tr("Par Défaut")); self.default_btn.setIcon(QIcon.fromTheme("emblem-default")); self.default_btn.setToolTip(self.tr("Définir le modèle sélectionné comme modèle par défaut pour sa catégorie et langue")); self.default_btn.clicked.connect(self.set_default_template); self.default_btn.setEnabled(False); btn_layout.addWidget(self.default_btn) # emblem-default not in list yet
         left_vbox_layout.addLayout(btn_layout); main_hbox_layout.addLayout(left_vbox_layout, 1)
         self.preview_area = QTextEdit(); self.preview_area.setReadOnly(True); self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
@@ -610,9 +616,11 @@ class ContactDialog(QDialog):
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
         self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
+
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
+
     def setup_ui(self):
         main_layout=QVBoxLayout(self);main_layout.setSpacing(15)
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
@@ -690,6 +698,7 @@ class ContactDialog(QDialog):
         cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
         self.update_primary_contact_visuals(self.primary_check.checkState())
+
     def update_primary_contact_visuals(self,state):
         # Dynamic style based on state - kept inline
         # Padding will be inherited from global QLineEdit style
@@ -697,6 +706,7 @@ class ContactDialog(QDialog):
             self.name_input.setStyleSheet("background-color: #E8F5E9;") # Light Green from palette
         else:
             self.name_input.setStyleSheet("") # Reset to default QSS
+
     def get_data(self):
         data = {
             "name": self.name_input.text().strip(), # Fallback name or displayName
@@ -738,11 +748,72 @@ class ContactDialog(QDialog):
         # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
         return data
 
+    def accept(self):
+        contact_details_to_save = self.get_data()
+        if not contact_details_to_save.get("name") and not contact_details_to_save.get("displayName"): # Either name or displayName must be present
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom complet ou le nom affiché du contact est requis."))
+            self.name_input.setFocus()
+            return
+
+        # If displayName is provided and name is empty, use displayName for name.
+        if contact_details_to_save.get("displayName") and not contact_details_to_save.get("name"):
+            contact_details_to_save["name"] = contact_details_to_save["displayName"]
+
+
+        if self.contact_data and self.contact_data.get('contact_id'): # Editing existing contact
+            success = db_manager.update_contact(self.contact_data['contact_id'], contact_details_to_save)
+            if success:
+                # If client_id is present, also update the link details (is_primary)
+                if self.client_id:
+                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, self.contact_data['contact_id'])
+                    if link_details:
+                        client_contact_id = link_details['client_contact_id']
+                        update_link_data = {'is_primary_for_client': contact_details_to_save.get("is_primary_for_client", False)}
+                        db_manager.update_client_contact_link(client_contact_id, update_link_data)
+                    # Else: If no link exists, should we create one? Current behavior is no.
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
+                return # Do not accept dialog if update failed
+        else: # Adding new contact
+            new_contact_id = db_manager.add_contact(contact_details_to_save)
+            if new_contact_id and self.client_id:
+                # Link the contact to the client
+                is_primary_from_form = contact_details_to_save.get("is_primary_for_client", False)
+                link_contact_to_client_result = db_manager.link_contact_to_client(
+                    self.client_id,
+                    new_contact_id, # The ID of the contact just added
+                    is_primary=is_primary_from_form,
+                    can_receive_documents=True # Default or from form
+                )
+
+                if link_contact_to_client_result:
+                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
+                    if contact_count == 1:
+                        # If it's the only contact, ensure it's primary, overriding form if it was false
+                        db_manager.update_client_contact_link(
+                            link_contact_to_client_result,
+                            {'is_primary_for_client': True}
+                        )
+                        print(f"Contact {new_contact_id} set as primary for client {self.client_id} as it's the only contact.")
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
+                else:
+                     QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
+            elif new_contact_id:
+                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
+            else:
+                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                return # Do not accept dialog if add failed
+        super().accept() # Proceed to close dialog
+
+
 class ProductDialog(QDialog):
     def __init__(self,client_id, app_root_dir, product_data=None,parent=None): # Added app_root_dir
         super().__init__(parent)
         self.client_id=client_id
         self.app_root_dir = app_root_dir # Store app_root_dir
+        if not self.app_root_dir or not isinstance(self.app_root_dir, str) or not self.app_root_dir.strip():
+            logging.warning("ProductDialog initialized with invalid or empty app_root_dir: %s", self.app_root_dir)
         self.current_selected_global_product_id = None
         self.setWindowTitle(self.tr("Ajouter Produits au Client"))
         self.setMinimumSize(900,800)
@@ -752,6 +823,7 @@ class ProductDialog(QDialog):
         self._filter_products_by_language_and_search()
 
     def _set_initial_language_filter(self):
+        client_langs = None
         primary_language=None
         if self.client_info:client_langs=self.client_info.get('selected_languages');
         if client_langs:primary_language=client_langs.split(',')[0].strip()
@@ -777,13 +849,30 @@ class ProductDialog(QDialog):
             except(ValueError,TypeError):self.unit_price_input.setValue(0.0)
             self.quantity_input.setValue(1.0)
             self.quantity_input.setFocus()
+
+            # Populate new weight and dimensions input fields
+            product_weight = product_data.get('weight', 0.0) # Default to 0.0 if not present
+            self.weight_input.setValue(float(product_weight) if product_weight is not None else 0.0)
+
+            product_dimensions = product_data.get('dimensions', '') # Default to empty string
+            self.dimensions_input.setText(product_dimensions if product_dimensions is not None else "")
+
+            # Update global display labels (renamed ones)
+            self.global_weight_display_label.setText(f"{product_weight} kg" if product_weight is not None else self.tr("N/A"))
+            self.global_dimensions_display_label.setText(product_dimensions if product_dimensions else self.tr("N/A"))
+
             self._update_current_line_total_preview()
             # Store product_id and enable detailed dimensions button
             self.current_selected_global_product_id = product_data.get('product_id')
             self.view_detailed_dimensions_button.setEnabled(bool(self.current_selected_global_product_id))
-        else:
+        else: # This else block handles when the selection is cleared or no product data
             self.current_selected_global_product_id = None
             self.view_detailed_dimensions_button.setEnabled(False)
+            # Clear new input fields and global display labels if no product is selected
+            self.weight_input.setValue(0.0)
+            self.dimensions_input.clear()
+            self.global_weight_display_label.setText(self.tr("N/A"))
+            self.global_dimensions_display_label.setText(self.tr("N/A"))
 
     def _create_icon_label_widget(self,icon_name,label_text):widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5);icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
     def setup_ui(self):
@@ -797,40 +886,72 @@ class ProductDialog(QDialog):
         self.quantity_input=QDoubleSpinBox();self.quantity_input.setRange(0,1000000);self.quantity_input.setValue(0.0);self.quantity_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("format-list-numbered",self.tr("Quantité:")),self.quantity_input)
         self.unit_price_input=QDoubleSpinBox();self.unit_price_input.setRange(0,10000000);self.unit_price_input.setPrefix("€ ");self.unit_price_input.setValue(0.0);self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("cash",self.tr("Prix Unitaire:")),self.unit_price_input)
 
+        # Input for Weight (overridable)
+        self.weight_input = QDoubleSpinBox()
+        self.weight_input.setRange(0.0, 10000.0) # Example range, adjust as needed
+        self.weight_input.setSuffix(" kg")
+        self.weight_input.setDecimals(2) # Example decimals
+        self.weight_input.setValue(0.0)
+        # self.weight_input.valueChanged.connect(self._update_current_line_total_preview) # If weight affects total
+        form_layout.addRow(self.tr("Poids (Ligne):"), self.weight_input)
+
+        # Input for Dimensions (overridable)
+        self.dimensions_input = QLineEdit()
+        self.dimensions_input.setPlaceholderText(self.tr("LxlxH cm")) # Example placeholder
+        form_layout.addRow(self.tr("Dimensions (Ligne):"), self.dimensions_input)
+
         # Display for Weight and Dimensions (read-only from selected global product)
-        self.weight_display_label = QLabel(self.tr("N/A"))
-        form_layout.addRow(self.tr("Poids (Global):"), self.weight_display_label)
-        self.dimensions_display_label = QLabel(self.tr("N/A"))
-        form_layout.addRow(self.tr("Dimensions (Global):"), self.dimensions_display_label)
+        self.global_weight_display_label = QLabel(self.tr("N/A")) # Renamed for clarity
+        form_layout.addRow(self.tr("Poids (Global Produit):"), self.global_weight_display_label) # Updated label text
+        self.global_dimensions_display_label = QLabel(self.tr("N/A")) # Renamed for clarity
+        form_layout.addRow(self.tr("Dimensions (Global Produit):"), self.global_dimensions_display_label) # Updated label text
 
         # Button for detailed dimensions
-        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées"))
+        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées (Global Produit)")) # Updated button text
         self.view_detailed_dimensions_button.setIcon(QIcon.fromTheme("view-fullscreen")) # Example icon
         self.view_detailed_dimensions_button.setEnabled(False) # Disabled initially
         self.view_detailed_dimensions_button.clicked.connect(self.on_view_detailed_dimensions)
         form_layout.addRow(self.view_detailed_dimensions_button)
 
         current_line_total_title_label=QLabel(self.tr("Total Ligne Actuelle:"));self.current_line_total_label=QLabel("€ 0.00");font=self.current_line_total_label.font();font.setBold(True);self.current_line_total_label.setFont(font);form_layout.addRow(current_line_total_title_label,self.current_line_total_label);two_columns_layout.addWidget(input_group_box,2);main_layout.addLayout(two_columns_layout)
-        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/list-add.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
+        self.add_line_btn=QPushButton(self.tr("Ajouter Produit à la Liste"));self.add_line_btn.setIcon(QIcon(":/icons/plus-circle.svg"));self.add_line_btn.setObjectName("primaryButton");self.add_line_btn.clicked.connect(self._add_current_line_to_table);main_layout.addWidget(self.add_line_btn)
         self.products_table=QTableWidget();self.products_table.setColumnCount(5);self.products_table.setHorizontalHeaderLabels([self.tr("Nom Produit"),self.tr("Description"),self.tr("Qté"),self.tr("Prix Unitaire"),self.tr("Total Ligne")]);self.products_table.setEditTriggers(QAbstractItemView.NoEditTriggers);self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows);self.products_table.horizontalHeader().setSectionResizeMode(0,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(1,QHeaderView.Stretch);self.products_table.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(3,QHeaderView.ResizeToContents);self.products_table.horizontalHeader().setSectionResizeMode(4,QHeaderView.ResizeToContents);main_layout.addWidget(self.products_table)
-        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon(":/icons/list-remove.svg")); self.remove_line_btn.setObjectName("removeProductLineButton"); self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn) # Added objectName
+        self.remove_line_btn=QPushButton(self.tr("Supprimer Produit Sélectionné"));self.remove_line_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_line_btn.setObjectName("removeProductLineButton"); self.remove_line_btn.clicked.connect(self._remove_selected_line_from_table);main_layout.addWidget(self.remove_line_btn) # Added objectName
         self.overall_total_label=QLabel(self.tr("Total Général: € 0.00")); font=self.overall_total_label.font();font.setPointSize(font.pointSize()+3);font.setBold(True);self.overall_total_label.setFont(font); self.overall_total_label.setObjectName("overallTotalLabel"); self.overall_total_label.setAlignment(Qt.AlignRight);main_layout.addWidget(self.overall_total_label);main_layout.addStretch()
         button_frame=QFrame(self);button_frame.setObjectName("buttonFrame"); button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0) # Style in QSS
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel);ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton");cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"));button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
     def _update_current_line_total_preview(self):quantity=self.quantity_input.value();unit_price=self.unit_price_input.value();current_quantity=quantity if isinstance(quantity,(int,float)) else 0.0;current_unit_price=unit_price if isinstance(unit_price,(int,float)) else 0.0;line_total=current_quantity*current_unit_price;self.current_line_total_label.setText(f"€ {line_total:.2f}")
     def _add_current_line_to_table(self):
         name=self.name_input.text().strip();description=self.description_input.toPlainText().strip();quantity=self.quantity_input.value();unit_price=self.unit_price_input.value()
+        current_weight = self.weight_input.value()
+        current_dimensions = self.dimensions_input.text().strip()
+
         if not name:QMessageBox.warning(self,self.tr("Champ Requis"),self.tr("Le nom du produit est requis."));self.name_input.setFocus();return
         if quantity<=0:QMessageBox.warning(self,self.tr("Quantité Invalide"),self.tr("La quantité doit être supérieure à zéro."));self.quantity_input.setFocus();return
         line_total=quantity*unit_price;row_position=self.products_table.rowCount();self.products_table.insertRow(row_position);name_item=QTableWidgetItem(name);current_lang_code=self.product_language_filter_combo.currentText()
         if current_lang_code==self.tr("All"):current_lang_code="fr"
-        name_item.setData(Qt.UserRole+1,current_lang_code);self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
+        name_item.setData(Qt.UserRole+1,current_lang_code)
+        name_item.setData(Qt.UserRole+2, current_weight) # Store weight
+        name_item.setData(Qt.UserRole+3, current_dimensions) # Store dimensions
+        # Store the global product ID if one was selected, for later use in EditProductLineDialog or other features
+        if self.current_selected_global_product_id is not None: # This ID comes from _populate_form_from_selected_product
+            name_item.setData(Qt.UserRole + 4, self.current_selected_global_product_id)
+        else: # Ensure UserRole+4 is explicitly None if no global product was selected for this line item
+            name_item.setData(Qt.UserRole + 4, None)
+
+
+        self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
+
         # Clear form and disable detailed dimensions button after adding line
         self.name_input.clear();self.description_input.clear();self.quantity_input.setValue(0.0);self.unit_price_input.setValue(0.0)
-        self.current_selected_global_product_id = None
+        self.weight_input.setValue(0.0) # Clear new weight input
+        self.dimensions_input.clear() # Clear new dimensions input
+
+        self.current_selected_global_product_id = None # Reset the stored global product ID for the form
         self.view_detailed_dimensions_button.setEnabled(False)
-        self.weight_display_label.setText(self.tr("N/A")) # Reset display labels
-        self.dimensions_display_label.setText(self.tr("N/A"))
+        self.global_weight_display_label.setText(self.tr("N/A")) # Reset global display labels (renamed ones)
+        self.global_dimensions_display_label.setText(self.tr("N/A")) # Reset global display labels (renamed ones)
+
         self._update_current_line_total_preview();self._update_overall_total();self.name_input.setFocus()
 
     def on_view_detailed_dimensions(self):
@@ -859,8 +980,30 @@ class ProductDialog(QDialog):
     def get_data(self):
         products_list=[]
         for row in range(self.products_table.rowCount()):
-            name=self.products_table.item(row,0).text();description=self.products_table.item(row,1).text();qty_str=self.products_table.item(row,2).text().replace(",",".");quantity=float(qty_str) if qty_str else 0.0;unit_price_str=self.products_table.item(row,3).text().replace("€","").replace(",",".").strip();unit_price=float(unit_price_str) if unit_price_str else 0.0;line_total_str=self.products_table.item(row,4).text().replace("€","").replace(",",".").strip();line_total=float(line_total_str) if line_total_str else 0.0;name_item=self.products_table.item(row,0);language_code=name_item.data(Qt.UserRole+1) if name_item else "fr"
-            products_list.append({"client_id":self.client_id,"name":name,"description":description,"quantity":quantity,"unit_price":unit_price,"total_price":line_total,"language_code":language_code})
+            name_item=self.products_table.item(row,0) # This is the QTableWidgetItem for the name column
+            name=name_item.text()
+            description=self.products_table.item(row,1).text()
+            qty_str=self.products_table.item(row,2).text().replace(",",".");quantity=float(qty_str) if qty_str else 0.0
+            unit_price_str=self.products_table.item(row,3).text().replace("€","").replace(",",".").strip();unit_price=float(unit_price_str) if unit_price_str else 0.0
+            line_total_str=self.products_table.item(row,4).text().replace("€","").replace(",",".").strip();line_total=float(line_total_str) if line_total_str else 0.0
+
+            language_code=name_item.data(Qt.UserRole+1) if name_item else "fr" # Default to 'fr' if no data
+            retrieved_weight = name_item.data(Qt.UserRole+2) # Retrieve weight
+            retrieved_dimensions = name_item.data(Qt.UserRole+3) # Retrieve dimensions
+            retrieved_global_product_id = name_item.data(Qt.UserRole+4) # Retrieve global product ID for this line
+
+            products_list.append({
+                "client_id":self.client_id,
+                "name":name,
+                "description":description,
+                "quantity":quantity,
+                "unit_price":unit_price,
+                "total_price":line_total,
+                "language_code":language_code,
+                "weight": float(retrieved_weight) if retrieved_weight is not None else 0.0, # Add weight to dict
+                "dimensions": str(retrieved_dimensions) if retrieved_dimensions is not None else "", # Add dimensions to dict
+                "product_id": retrieved_global_product_id # Add global product_id (can be None)
+            })
         return products_list
 
 class EditProductLineDialog(QDialog):
@@ -881,19 +1024,21 @@ class EditProductLineDialog(QDialog):
         self.description_input.setFixedHeight(80)
         form_layout.addRow(self.tr("Description:"), self.description_input)
 
-        # Display Weight and Dimensions (read-only) in EditProductLineDialog
-        # These values should be part of the product_data passed from ClientWidget.load_products
-        weight_val = self.product_data.get('weight')
-        weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
-        self.weight_display = QLabel(weight_str)
-        form_layout.addRow(self.tr("Poids:"), self.weight_display)
+        # Editable Weight and Dimensions for the specific client product line
+        self.weight_input_edit = QDoubleSpinBox()
+        self.weight_input_edit.setSuffix(" kg")
+        self.weight_input_edit.setRange(0.0, 10000.0) # Adjust range as needed
+        self.weight_input_edit.setDecimals(2) # Adjust decimals as needed
+        retrieved_weight = self.product_data.get('weight', 0.0)
+        self.weight_input_edit.setValue(float(retrieved_weight) if retrieved_weight is not None else 0.0)
+        form_layout.addRow(self.tr("Poids (Ligne):"), self.weight_input_edit)
 
-        dimensions_val = self.product_data.get('dimensions', self.tr("N/A"))
-        self.dimensions_display = QLabel(dimensions_val)
-        form_layout.addRow(self.tr("Dimensions (Globales):"), self.dimensions_display)
+        self.dimensions_input_edit = QLineEdit(self.product_data.get('dimensions', ''))
+        self.dimensions_input_edit.setPlaceholderText(self.tr("LxlxH cm"))
+        form_layout.addRow(self.tr("Dimensions (Ligne):"), self.dimensions_input_edit)
 
-        # Add View Detailed Dimensions Button
-        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées"))
+        # Add View Detailed Dimensions Button (references global product)
+        self.view_detailed_dimensions_button = QPushButton(self.tr("Voir Dimensions Détaillées (Global Produit)"))
         self.view_detailed_dimensions_button.setIcon(QIcon.fromTheme("view-fullscreen")) # Example icon
         self.view_detailed_dimensions_button.clicked.connect(self.on_view_detailed_dimensions)
         if not self.product_data.get('product_id'): # Disable if no product_id
@@ -923,9 +1068,16 @@ class EditProductLineDialog(QDialog):
             QMessageBox.information(self, self.tr("ID Produit Manquant"), self.tr("Aucun ID de produit global associé à cette ligne."))
 
     def get_data(self) -> dict:
-        return {"name": self.name_input.text().strip(), "description": self.description_input.toPlainText().strip(),
-                "quantity": self.quantity_input.value(), "unit_price": self.unit_price_input.value(),
-                "product_id": self.product_data.get('product_id'), "client_project_product_id": self.product_data.get('client_project_product_id')}
+        return {
+            "name": self.name_input.text().strip(),
+            "description": self.description_input.toPlainText().strip(),
+            "quantity": self.quantity_input.value(),
+            "unit_price": self.unit_price_input.value(),
+            "weight": self.weight_input_edit.value(), # Get value from new QDoubleSpinBox
+            "dimensions": self.dimensions_input_edit.text().strip(), # Get text from new QLineEdit
+            "product_id": self.product_data.get('product_id'), # This is the global product ID
+            "client_project_product_id": self.product_data.get('client_project_product_id') # ID of this specific client product line
+        }
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
@@ -965,7 +1117,7 @@ class CreateDocumentDialog(QDialog):
         self.load_templates(); main_layout.addStretch()
         button_frame = QFrame(self); button_frame.setObjectName("buttonFrame") # Style in QSS
         button_frame_layout = QHBoxLayout(button_frame); button_frame_layout.setContentsMargins(0,0,0,0)
-        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/document-new.svg")); create_btn.setObjectName("primaryButton")
+        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/file-plus.svg")); create_btn.setObjectName("primaryButton")
         create_btn.clicked.connect(self.create_documents); button_frame_layout.addWidget(create_btn)
         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         cancel_btn.clicked.connect(self.reject); button_frame_layout.addWidget(cancel_btn)
@@ -1164,15 +1316,15 @@ class CompilePdfDialog(QDialog):
         self.pdf_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.pdf_list.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.pdf_list)
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/list-add.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
-        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/delete.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
+        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/plus.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
+        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/trash.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
         move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn) # go-up not in list
         move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn) # go-down not in list
         layout.addLayout(btn_layout)
         options_layout = QHBoxLayout(); options_layout.addWidget(QLabel(self.tr("Nom du fichier compilé:")))
         self.output_name = QLineEdit(f"{self.tr('compilation')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"); options_layout.addWidget(self.output_name); layout.addLayout(options_layout)
         action_layout = QHBoxLayout()
-        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/document-export.svg")); compile_btn.setObjectName("primaryButton")
+        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/download.svg")); compile_btn.setObjectName("primaryButton")
         compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
         layout.addLayout(action_layout)
@@ -2542,8 +2694,11 @@ class ManageProductMasterDialog(QDialog):
                 lang_idx = self.language_code_combo.findText(product_data.get('language_code', 'fr'))
                 self.language_code_combo.setCurrentIndex(lang_idx if lang_idx != -1 else 0)
 
-                self.base_unit_price_input.setValue(product_data.get('base_unit_price', 0.0))
-                self.weight_input.setValue(product_data.get('weight', 0.0))
+                base_price_from_db = product_data.get('base_unit_price')
+                self.base_unit_price_input.setValue(float(base_price_from_db) if base_price_from_db is not None else 0.0)
+
+                weight_from_db = product_data.get('weight')
+                self.weight_input.setValue(float(weight_from_db) if weight_from_db is not None else 0.0)
                 self.general_dimensions_input.setText(product_data.get('dimensions', ''))
 
                 self.save_product_button.setText(self.tr("Enregistrer Modifications"))
@@ -3295,3 +3450,5 @@ class ClientProductDimensionDialog(QDialog):
             QMessageBox.critical(self, self.tr("Erreur Enregistrement"),
                                  self.tr("Une erreur est survenue: {0}").format(str(e)))
 # [end of dialogs.py]
+
+[end of dialogs.py]

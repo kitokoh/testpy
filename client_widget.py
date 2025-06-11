@@ -16,6 +16,7 @@ from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap # Added 
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication
 from PyQt5.QtWidgets import QFormLayout
 from PyQt5.QtWidgets import QListWidgetItem
+from PyQt5.QtGui import QPixmap
 
 import db as db_manager
 from excel_editor import ExcelEditor
@@ -193,7 +194,7 @@ class ClientWidget(QWidget):
         docs_layout.addWidget(self.doc_table)
         doc_btn_layout = QHBoxLayout()
         self.add_doc_btn = QPushButton(self.tr("Importer Document"))
-        self.add_doc_btn.setIcon(QIcon.fromTheme("list-add"))
+        self.add_doc_btn.setIcon(QIcon(":/icons/file-plus.svg"))
         self.add_doc_btn.setToolTip(self.tr("Importer un fichier document existant pour ce client"))
         self.add_doc_btn.clicked.connect(self.add_document) # Connect the signal
         doc_btn_layout.addWidget(self.add_doc_btn)
@@ -252,9 +253,9 @@ class ClientWidget(QWidget):
         contacts_layout.addLayout(contacts_pagination_layout)
 
         contacts_btn_layout = QHBoxLayout()
-        self.add_contact_btn = QPushButton(self.tr("➕ Ajouter")); self.add_contact_btn.setIcon(QIcon.fromTheme("contact-new", QIcon.fromTheme("list-add"))); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
-        self.edit_contact_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_contact_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
-        self.remove_contact_btn = QPushButton(self.tr("🗑️ Supprimer")); self.remove_contact_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client")); self.remove_contact_btn.setObjectName("dangerButton"); self.remove_contact_btn.clicked.connect(self.remove_contact); contacts_btn_layout.addWidget(self.remove_contact_btn)
+        self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg")); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
+        self.edit_contact_btn = QPushButton(self.tr("Modifier")); self.edit_contact_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
+        self.remove_contact_btn = QPushButton(self.tr("Supprimer")); self.remove_contact_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client")); self.remove_contact_btn.setObjectName("dangerButton"); self.remove_contact_btn.clicked.connect(self.remove_contact); contacts_btn_layout.addWidget(self.remove_contact_btn)
         contacts_layout.addLayout(contacts_btn_layout)
         self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
 
@@ -297,9 +298,9 @@ class ClientWidget(QWidget):
         products_layout.addWidget(self.products_table)
 
         products_btn_layout = QHBoxLayout()
-        self.add_product_btn = QPushButton(self.tr("➕ Ajouter")); self.add_product_btn.setIcon(QIcon.fromTheme("list-add")); self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
-        self.edit_product_btn = QPushButton(self.tr("✏️ Modifier")); self.edit_product_btn.setIcon(QIcon.fromTheme("document-edit")); self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
-        self.remove_product_btn = QPushButton(self.tr("🗑️ Supprimer")); self.remove_product_btn.setIcon(QIcon.fromTheme("edit-delete")); self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
+        self.add_product_btn = QPushButton(self.tr("Ajouter")); self.add_product_btn.setIcon(QIcon(":/icons/plus-circle.svg")); self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
+        self.edit_product_btn = QPushButton(self.tr("Modifier")); self.edit_product_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
+        self.remove_product_btn = QPushButton(self.tr("Supprimer")); self.remove_product_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
         products_layout.addLayout(products_btn_layout)
         self.tab_widget.addTab(products_tab, self.tr("Produits"))
 
@@ -347,6 +348,7 @@ class ClientWidget(QWidget):
         doc_notes_buttons_layout = QHBoxLayout()
         self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
         self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new"))
+
         doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
 
         self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
@@ -377,6 +379,7 @@ class ClientWidget(QWidget):
 
         prod_dims_layout.addStretch()
 
+
         produits_tab_index = -1
         for i in range(self.tab_widget.count()):
             if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
@@ -392,6 +395,25 @@ class ClientWidget(QWidget):
 
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        self.load_products_for_dimension_tab() # Initial population of product selector
+
+        # Connect signals for the Product Dimensions Tab
+        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+
+        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
+
+        self.populate_doc_table(); self.load_contacts(); self.load_products()
+        self.load_document_notes_filters()
+        self.load_document_notes_table()
 
         self.populate_doc_table(); self.load_contacts(); self.load_products()
         self.load_document_notes_filters()
@@ -437,12 +459,14 @@ class ClientWidget(QWidget):
         else:
             self.edit_client_product_dimensions_button.setEnabled(True)
 
+
     def on_edit_client_product_dimensions(self):
         selected_global_product_id = self.dim_product_selector_combo.currentData()
         if selected_global_product_id is None:
             QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"),
                                 self.tr("Veuillez sélectionner un produit dans la liste déroulante."))
             return
+
 
         client_id = self.client_info.get('client_id')
         if not client_id:
@@ -460,6 +484,7 @@ class ClientWidget(QWidget):
 
         self.load_document_notes_filters()
         self.load_document_notes_table()
+
 
 
     def load_document_notes_filters(self):

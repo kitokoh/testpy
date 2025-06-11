@@ -22,13 +22,12 @@ import db as db_manager
 from db import get_all_companies, add_company # Specific imports for company check
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
-
-
-from initial_setup_dialog import InitialSetupDialog # Import the new dialog
+# from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
 # import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
 
 import datetime # Added for session timeout
+from PyQt5.QtCore import QSettings # Added for Remember Me
 
 # Global variables for session information
 CURRENT_SESSION_TOKEN = None
@@ -73,6 +72,7 @@ def check_session_timeout() -> bool:
     return False # Session is still valid
 
 def main():
+    global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
@@ -94,6 +94,7 @@ def main():
 
     # 5. Set Application Name and Style
     app.setApplicationName("ClientDocManager")
+    app.setOrganizationName("SaadiyaManagement") # Added for QSettings consistency
     app.setStyle("Fusion") # Or any other style like "Windows", "GTK+"
 
     # 6. Set Default Font
@@ -173,10 +174,22 @@ def main():
     # """) # The # color: white; part for QListWidget::item:selected was commented out in original.
 
     # 8. Setup Translations
-    language_code = CONFIG.get("language", QLocale.system().name().split('_')[0])
-    
+    # Try to get language from DB settings
+    language_code_from_db = db_manager.get_setting('user_selected_language')
+
+    if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
+        language_code = language_code_from_db.strip()
+        logging.info(f"Language '{language_code}' loaded from database setting.")
+    else:
+        default_lang = QLocale.system().name().split('_')[0]
+        language_code = CONFIG.get("language", default_lang)
+        if language_code_from_db is None:
+            logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
+        else: # Empty string or not a string
+            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
+
     translator = QTranslator()
-    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", f"app_{language_code}.qm")
+    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", "qm", f"app_{language_code}.qm")
     if translator.load(translation_path_app):
         app.installTranslator(translator)
         logging.info(f"Loaded custom translation for {language_code} from {translation_path_app}")
@@ -196,94 +209,194 @@ def main():
     # initialize_default_templates is imported from app_setup
     initialize_default_templates(CONFIG, APP_ROOT_DIR)
 
-    # --- Company Existence Check ---
-    # This check runs before the "first_launch" specific dialog for sellers/techs.
-    # It ensures there's at least one company (ours) in the DB.
-    try:
-        companies = get_all_companies()
-        if not companies:
-            logging.info("No companies found in the database. Prompting for initial company setup.")
-            prompt_dialog = PromptCompanyInfoDialog()
-            dialog_result = prompt_dialog.exec_()
-
-            if dialog_result == QDialog.Accepted:
-                if prompt_dialog.use_default_company:
-                    logging.info("User opted to use a default company.")
-                    default_company_data = {
-                        "company_name": "My Business", # Translatable string could be used here
-                        "address": "Not specified",
-                        "is_default": True,
-                        "logo_path": None, # No logo for this quick setup
-                        "payment_info": "",
-                        "other_info": "Default company created on initial setup."
-                    }
-                    new_company_id = add_company(default_company_data)
-                    if new_company_id:
-                        logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
-                        # Mark initial setup as complete here if this is the ONLY setup step needed
-                        # when starting from a completely empty state.
-                        # However, the full InitialSetupDialog might still be relevant for other settings.
-                        # For now, this just ensures a company exists.
-                    else:
-                        logging.error("Failed to add default company.")
-                        # Critical error, perhaps exit? For now, log and continue.
-                else: # User entered data
-                    user_company_data = prompt_dialog.get_company_data()
-                    if user_company_data and user_company_data['company_name']:
-                        company_to_add = {
-                            "company_name": user_company_data['company_name'],
-                            "address": user_company_data.get('address', ''),
-                            "is_default": True,
-                            "logo_path": None, # No logo in this simplified dialog
-                            "payment_info": "", # Not collected in this dialog
-                            "other_info": "Company created via initial prompt."
-                        }
-                        new_company_id = add_company(company_to_add)
-                        if new_company_id:
-                            logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
-                        else:
-                            logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
-                            # Critical error, perhaps exit?
-                    else:
-                        # This case should ideally be prevented by dialog validation, but as a fallback:
-                        logging.warning("Save and Continue was chosen, but company name was empty. No company added.")
-            else: # Dialog was cancelled
-                logging.warning("User cancelled initial company prompt. Application might not function as expected without a company.")
-                # Optionally, sys.exit(app.exec_()) or app.quit() if company is critical
-    except Exception as e:
-        logging.critical(f"Error during initial company check: {e}. Application may not function correctly.", exc_info=True)
-        # Depending on severity, could show a QMessageBox to the user and exit.
-
-
-    # Check for first launch (for other setup like users, etc.)
-    # Check for first launch
-    # Ensure CONFIG is loaded and paths are available before calling this
-    # Default paths for templates and clients can be obtained from CONFIG or app_setup constants
-    # For consistency, let's use what load_config in utils would expect if creating a new config
-    # However, at this stage, CONFIG should already be loaded by app_setup.
-    default_templates_dir = os.path.join(APP_ROOT_DIR, "templates") # A sensible default
-    default_clients_dir = os.path.join(APP_ROOT_DIR, "clients") # A sensible default
-    if 'templates_dir' in CONFIG: # Prefer path from loaded config if available
+    # --- Startup Dialog Logic ---
+    # Default paths for templates and clients, used by is_first_launch and mark_initial_setup_complete
+    default_templates_dir = os.path.join(APP_ROOT_DIR, "templates")
+    default_clients_dir = os.path.join(APP_ROOT_DIR, "clients")
+    if 'templates_dir' in CONFIG:
         default_templates_dir = CONFIG['templates_dir']
-    if 'clients_dir' in CONFIG: # Prefer path from loaded config if available
+    if 'clients_dir' in CONFIG:
         default_clients_dir = CONFIG['clients_dir']
 
     if is_first_launch(APP_ROOT_DIR, default_templates_dir, default_clients_dir):
-        logging.info("This is the first launch. Running initial setup dialog.")
+        logging.info("Application detected first launch. Executing InitialSetupDialog.")
         initial_setup_dialog = InitialSetupDialog()
         result = initial_setup_dialog.exec_()
 
         if result == QDialog.Accepted:
-            logging.info("Initial setup dialog completed and accepted.")
+            logging.info("InitialSetupDialog accepted by user.")
             mark_initial_setup_complete(APP_ROOT_DIR, default_templates_dir, default_clients_dir)
-            logging.info("Initial setup marked as complete in config.")
+            logging.info("Initial setup marked as complete.")
+            # After initial setup, also prompt for company info if none exists,
+            # as InitialSetupDialog doesn't handle company creation.
+            try:
+                companies = get_all_companies()
+                if not companies:
+                    logging.info("No companies found after initial setup. Prompting for company information.")
+                    prompt_dialog = PromptCompanyInfoDialog() # Consider if this dialog needs a parent
+                    dialog_result_company = prompt_dialog.exec_()
+                    if dialog_result_company == QDialog.Accepted:
+                        if prompt_dialog.use_default_company:
+                            logging.info("User opted to use a default company after initial setup.")
+                            default_company_data = {
+                                "company_name": "My Business",
+                                "address": "Not specified",
+                                "is_default": True,
+                                "logo_path": None,
+                                "payment_info": "",
+                                "other_info": "Default company created post initial setup."
+                            }
+                            new_company_id = add_company(default_company_data)
+                            if new_company_id:
+                                logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+                            else:
+                                logging.error("Failed to add default company post initial setup.")
+                        else: # User entered data
+                            user_company_data = prompt_dialog.get_company_data()
+                            if user_company_data and user_company_data['company_name']:
+                                company_to_add = {
+                                    "company_name": user_company_data['company_name'],
+                                    "address": user_company_data.get('address', ''),
+                                    "is_default": True,
+                                    "logo_path": None,
+                                    "payment_info": "",
+                                    "other_info": "Company created via prompt post initial setup."
+                                }
+                                new_company_id = add_company(company_to_add)
+                                if new_company_id:
+                                    logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
+                                else:
+                                    logging.error(f"Failed to add user-defined company '{company_to_add['company_name']}' post initial setup.")
+                            else:
+                                logging.warning("Company prompt accepted, but no company name provided. No company added.")
+                    else: # Dialog was cancelled
+                        logging.warning("User cancelled company prompt after initial setup. Application may function without a company, or this might be handled later.")
+                else: # Companies exist after initial setup (perhaps created by a previous partial setup)
+                    logging.info("Companies found in the database after initial setup. No need to prompt for company info now.")
+            except Exception as e:
+                logging.critical(f"Error during company check/setup after InitialSetupDialog: {e}", exc_info=True)
         else:
-            logging.warning("Initial setup dialog was cancelled or closed. Application may not have all necessary configurations.")
-            # Decide on behavior: exit, or proceed with limited functionality.
-            # For now, we'll log and let it proceed.
-            # QApplication.quit() # Or sys.exit(1) if cancellation is critical
+            logging.warning("InitialSetupDialog cancelled or closed by user. Application may lack necessary configurations.")
+            # Depending on policy, could exit here: QApplication.quit() or sys.exit(1)
+    else: # Not the first launch
+        logging.info("Application not on first launch. Checking for company existence.")
+        try:
+            companies = get_all_companies()
+            if not companies:
+                logging.info("No companies found in the database on a subsequent launch. Executing PromptCompanyInfoDialog.")
+                prompt_dialog = PromptCompanyInfoDialog()
+                dialog_result = prompt_dialog.exec_()
+
+                if dialog_result == QDialog.Accepted:
+                    if prompt_dialog.use_default_company:
+                        logging.info("User opted to use a default company.")
+                        default_company_data = {
+                            "company_name": "My Business",
+                            "address": "Not specified",
+                            "is_default": True,
+                            "logo_path": None,
+                            "payment_info": "",
+                            "other_info": "Default company created on subsequent launch."
+                        }
+                        new_company_id = add_company(default_company_data)
+                        if new_company_id:
+                            logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+                        else:
+                            logging.error("Failed to add default company.")
+                    else: # User entered data
+                        user_company_data = prompt_dialog.get_company_data()
+                        if user_company_data and user_company_data['company_name']:
+                            company_to_add = {
+                                "company_name": user_company_data['company_name'],
+                                "address": user_company_data.get('address', ''),
+                                "is_default": True,
+                                "logo_path": None,
+                                "payment_info": "",
+                                "other_info": "Company created via prompt on subsequent launch."
+                            }
+                            new_company_id = add_company(company_to_add)
+                            if new_company_id:
+                                logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
+                            else:
+                                logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
+                        else:
+                            logging.warning("Save and Continue chosen, but company name was empty. No company added.")
+                else: # Dialog was cancelled
+                    logging.warning("User cancelled company prompt. Application might not function as expected without a company.")
+            else:
+                logging.info("Companies found in the database. No need to prompt for company info.")
+        except Exception as e:
+            logging.critical(f"Error during company check on a subsequent launch: {e}. Application may not function correctly.", exc_info=True)
 
     # 10. Authentication Flow
+    settings = QSettings()
+    remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+    proceed_to_main_app = False
+
+    if remember_me_active:
+        logging.info("Found active 'Remember Me' flag.")
+        stored_token = settings.value("auth/session_token", None)
+        stored_user_id = settings.value("auth/user_id", None)
+        stored_username = settings.value("auth/username", "Unknown") # Default for logging
+        stored_user_role = settings.value("auth/user_role", None)
+
+        if stored_token and stored_user_id and stored_user_role:
+            logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
+
+            global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME
+            CURRENT_SESSION_TOKEN = stored_token
+            CURRENT_USER_ID = stored_user_id
+            CURRENT_USER_ROLE = stored_user_role
+            SESSION_START_TIME = datetime.datetime.now() # Reset session timer
+
+            logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
+            logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
+            proceed_to_main_app = True
+        else:
+            logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
+            settings.setValue("auth/remember_me_active", False)
+            settings.remove("auth/session_token")
+            settings.remove("auth/user_id")
+            settings.remove("auth/username")
+            settings.remove("auth/user_role")
+    else:
+        logging.info("'Remember Me' is not active.")
+
+    if not proceed_to_main_app:
+        logging.info("Proceeding to show LoginWindow.")
+        login_dialog = LoginWindow()
+        login_result = login_dialog.exec_()
+
+        if login_result == QDialog.Accepted:
+            session_token = login_dialog.get_session_token()
+            logged_in_user = login_dialog.get_current_user()
+
+            # global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME # Already global
+            CURRENT_SESSION_TOKEN = session_token # These are assigned again here for clarity
+            if logged_in_user:
+                CURRENT_USER_ROLE = logged_in_user.get('role')
+                CURRENT_USER_ID = logged_in_user.get('user_id')
+                SESSION_START_TIME = datetime.datetime.now()
+                logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+            else: # Should not happen if dialog.accept() is called correctly
+                logging.error("Login reported successful by dialog, but no user data retrieved. Exiting.")
+                sys.exit(1)
+            proceed_to_main_app = True # Mark to proceed
+        else:
+            logging.info("Login failed or cancelled by user. Exiting application.")
+            sys.exit()
+
+    if proceed_to_main_app:
+        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window.show()
+        logging.info("Main window shown. Application is running.")
+        sys.exit(app.exec_())
+    else:
+        # This path should ideally not be reached if logic is correct,
+        # as either proceed_to_main_app is true or sys.exit() was called.
+        logging.error("Fatal error in authentication flow. Application cannot start.")
+        sys.exit(1)
+
     login_dialog = LoginWindow() # Create LoginWindow instance
     login_result = login_dialog.exec_() # Show login dialog modally
 
@@ -291,13 +404,11 @@ def main():
         session_token = login_dialog.get_session_token()
         logged_in_user = login_dialog.get_current_user()
 
-        global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID
         CURRENT_SESSION_TOKEN = session_token
         if logged_in_user:
             CURRENT_USER_ROLE = logged_in_user.get('role')
             CURRENT_USER_ID = logged_in_user.get('user_id')
             # Set session start time
-            global SESSION_START_TIME
             SESSION_START_TIME = datetime.datetime.now()
             logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
         else:

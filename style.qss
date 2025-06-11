@@ -355,17 +355,23 @@ QHeaderView::section:horizontal:last {
 
 QTableWidget::item, QListWidget::item, QTreeView::item {
     padding: 6px 8px;
-    border-bottom: 1px solid #F5F7FA;
+    border-bottom: 1px solid #F5F7FA; /* Existing bottom border for separation */
+    border-left: 1px solid transparent; /* New for selection highlight */
+    border-right: 1px solid transparent; /* New for selection highlight */
+    border-top: 1px solid transparent; /* New for selection highlight, if not covered by header */
     background-color: transparent;
 }
 
 QTableWidget::item:selected, QListWidget::item:selected, QTreeView::item:selected {
-    background-color: #007BFF;
-    color: #FFFFFF;
+    background-color: #007BFF; /* Accent blue for background */
+    color: #FFFFFF; /* White text */
+    border: 1px solid #0056B3; /* Darker blue border for selected item */
+    /* Ensure padding is maintained or adjusted if border makes it too tight */
+    /* padding: 5px 7px; */ /* Example: slightly reduce padding if border takes up space */
 }
 
 QTableWidget::item:hover:!selected, QListWidget::item:hover:!selected, QTreeView::item:hover:!selected {
-    background-color: #E3F2FD;
+    background-color: #E3F2FD; /* Light blue hover */
     color: #263238;
 }
 
@@ -895,24 +901,44 @@ QLabel#pageTitleLabel {
 
 /* Auth Page Specific Styles */
 QFrame#promoAreaFrame {
-    background-color: #E3F2FD; /* Light blue, derived from Accent Blue */
-    /* border-radius: 6px; */ /* Dialog itself has no border now, so frame doesn't need it */
+    background-color: #263238; /* Dark Slate Grey - professional and modern */
+    border-radius: 8px;
+    padding: 25px; /* Increased padding */
+
+}
+
+QFrame#imagePlaceholderFrame {
+    background-color: #CFD8DC; /* Neutral placeholder color */
+    border: 1px dashed #78909C;
+    border-radius: 6px;
+    min-height: 150px; /* Or a fixed height */
+}
+
+QLabel#imagePlaceholderLabel { /* If using a QLabel for text inside placeholder */
+    color: #546E7A;
+    font-size: 10pt;
+    font-style: italic;
+    background-color: transparent;
 }
 
 QFrame#promoAreaFrame QLabel#promoHeaderLabel {
-    font-size: 16pt;
+    font-size: 20pt; /* Larger for more impact */
     font-weight: bold;
-    color: #005ea5; /* Primary Accent Color */
+    color: #FFFFFF; /* White text for contrast */
     margin-bottom: 15px;
     background-color: transparent;
+    text-align: center; /* Ensure QSS controls this if possible */
 }
 
 QFrame#promoAreaFrame QLabel#promoTextLabel {
-    font-size: 11pt;
-    color: #263238; /* Primary Text Color */
-    /* line-height: 1.5; */ /* line-height is not a standard QSS property */
+    font-size: 12pt; /* Slightly larger */
+    color: #E0E0E0; /* Light grey text for contrast */
+    /* line-height: 1.6; */ /* Handled by wordWrap and layout spacing */
     background-color: transparent;
     padding: 10px;
+    text-align: center; /* Ensure QSS controls this */
+    font-style: italic; /* Add a bit of flair */
+
 }
 
 /* Placeholder for icons needed by this QSS:
