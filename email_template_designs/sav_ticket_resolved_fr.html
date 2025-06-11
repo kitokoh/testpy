@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+    <html>
+    <head><title>Ticket Résolu</title></head>
+    <body>
+        <p>Bonjour {{client.contact_person_name}},</p>
+        <p>Bonne nouvelle ! Votre ticket SAV #{{ticket.id}} ({{ticket.issue_summary}}) a été résolu.</p>
+        <p><strong>Détails de la résolution :</strong></p>
+        <p>{{ticket.resolution_details}}</p>
+        <p>Nous espérons que cette solution vous convient. Si vous avez d'autres questions, n'hésitez pas à nous recontacter.</p>
+        <p>Pour nous aider à nous améliorer, veuillez prendre un moment pour nous laisser un avis : <a href="{{app.google_maps_review_url}}">Laissez un avis ici</a>.</p>
+        <p>Cordialement,<br/>L'équipe {{seller.company_name}}</p>
+    </body>
+    </html>
