@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 import db as db_manager
 from db import db_seed
 from db import get_all_companies, add_company # Specific imports for company check
+from db.ca import initialize_database # <<<< Initialize function moved to db/ca.py
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
@@ -38,16 +39,7 @@ SESSION_START_TIME = None
 # Initialize from CONFIG, providing a default if key is missing
 SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
-# Initialize the central database using db_manager.
-# This should be called once, early in the application startup,
-# before any operations that might require the database.
-# Placing it under `if __name__ == "__main__":` ensures it runs when script is executed directly.
-# And before the main function that might use it.
-if __name__ == "__main__" or not hasattr(db_manager, '_initialized_main_app_main_py'):
-    # Using a unique attribute to avoid conflict if db_manager is imported and checked elsewhere
-    db_manager.initialize_database()
-    if __name__ != "__main__": # For import scenarios (e.g. testing)
-        db_manager._initialized_main_app_main_py = True
+# Old database initialization block removed as it's now called directly in main()
 
 def expire_session():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
@@ -74,6 +66,9 @@ def check_session_timeout() -> bool:
 
 def main():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
+
+    initialize_database() # Initialize database before any other operations
+
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
