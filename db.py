@@ -1267,15 +1267,15 @@ if __name__ == '__main__':
     else:
         test_client_id_for_docs = existing_doc_clients[0]['client_id']
         print(f"Using existing 'Doc Test Client' (ID: {test_client_id_for_docs})")
-    
+
     test_project_id_for_docs = None
     if test_client_id_for_docs and test_user_id:
         client_projects_for_docs = get_projects_by_client_id(test_client_id_for_docs)
         if not client_projects_for_docs:
             test_project_id_for_docs = add_project({
-                'client_id': test_client_id_for_docs, 
-                'project_name': 'Doc Test Project', 
-                'manager_team_member_id': test_user_id, 
+                'client_id': test_client_id_for_docs,
+                'project_name': 'Doc Test Project',
+                'manager_team_member_id': test_user_id,
                 'status_id': 10
             })
             if test_project_id_for_docs: print(f"Added 'Doc Test Project' (ID: {test_project_id_for_docs})")
@@ -1288,8 +1288,8 @@ if __name__ == '__main__':
     templates = get_templates_by_type('general_document') # or some relevant type
     if not templates:
         test_template_id = add_template({
-            'template_name': 'General Document Template for Docs', 
-            'template_type': 'general_document', 
+            'template_name': 'General Document Template for Docs',
+            'template_type': 'general_document',
             'language_code': 'en_US',
             'created_by_user_id': test_user_id
         })
@@ -1325,7 +1325,7 @@ if __name__ == '__main__':
     if test_client_id_for_docs:
         client_docs = get_documents_for_client(test_client_id_for_docs, filters={'document_type_generated': 'Proposal'})
         print(f"Proposal documents for client {test_client_id_for_docs}: {len(client_docs)}")
-        
+
         # Test fetching client-general documents (project_id IS NULL)
         client_general_doc_id = add_client_document({
             'client_id': test_client_id_for_docs,
@@ -1336,7 +1336,7 @@ if __name__ == '__main__':
             'created_by_user_id': test_user_id
         })
         if client_general_doc_id: print(f"Added client-general document ID: {client_general_doc_id}")
-        
+
         client_general_docs = get_documents_for_client(test_client_id_for_docs, filters={'project_id': None})
         print(f"Client-general documents for client {test_client_id_for_docs}: {len(client_general_docs)}")
 
@@ -1348,12 +1348,12 @@ if __name__ == '__main__':
 
     print("\n--- SmtpConfigs CRUD Examples ---")
     # Assuming password is encrypted elsewhere before calling add/update
-    encrypted_pass = "dummy_encrypted_password_string" 
-    
+    encrypted_pass = "dummy_encrypted_password_string"
+
     smtp1_id = add_smtp_config({
         'config_name': 'Primary Gmail', 'smtp_server': 'smtp.gmail.com', 'smtp_port': 587,
-        'username': 'user@gmail.com', 'password_encrypted': encrypted_pass, 
-        'use_tls': True, 'is_default': True, 
+        'username': 'user@gmail.com', 'password_encrypted': encrypted_pass,
+        'use_tls': True, 'is_default': True,
         'sender_email_address': 'user@gmail.com', 'sender_display_name': 'My Gmail Account'
     })
     if smtp1_id:
@@ -1365,7 +1365,7 @@ if __name__ == '__main__':
 
     smtp2_id = add_smtp_config({
         'config_name': 'Secondary Outlook', 'smtp_server': 'smtp.office365.com', 'smtp_port': 587,
-        'username': 'user@outlook.com', 'password_encrypted': encrypted_pass, 
+        'username': 'user@outlook.com', 'password_encrypted': encrypted_pass,
         'is_default': False, # Explicitly false
         'sender_email_address': 'user@outlook.com', 'sender_display_name': 'My Outlook Account'
     })
@@ -1396,7 +1396,7 @@ if __name__ == '__main__':
         print(f"SMTP config update for Gmail (set default again) successful: {update_smtp_success}")
         updated_smtp1 = get_smtp_config_by_id(smtp1_id)
         print(f"Updated Gmail display name: {updated_smtp1['sender_display_name'] if updated_smtp1 else ''}, Default: {updated_smtp1.get('is_default') if updated_smtp1 else ''}")
-        
+
         # Verify Outlook is no longer default
         outlook_conf_after_gmail_default = get_smtp_config_by_id(smtp2_id)
         if outlook_conf_after_gmail_default:
@@ -2088,8 +2088,8 @@ if __name__ == '__main__':
 
 #         sql = """
 #             INSERT INTO Projects (
-#                 project_id, client_id, project_name, description, start_date, 
-#                 deadline_date, budget, status_id, progress_percentage, 
+#                 project_id, client_id, project_name, description, start_date,
+#                 deadline_date, budget, status_id, progress_percentage,
 #                 manager_team_member_id, priority, created_at, updated_at
 #             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 #         """
@@ -2173,7 +2173,7 @@ if __name__ == '__main__':
 #                     params.append(value)
 #             if where_clauses:
 #                 sql += " WHERE " + " AND ".join(where_clauses)
-                
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -2205,17 +2205,17 @@ if __name__ == '__main__':
         
 #         # Ensure only valid columns are updated
 #         valid_columns = [
-#             'client_id', 'project_name', 'description', 'start_date', 'deadline_date', 
-#             'budget', 'status_id', 'progress_percentage', 'manager_team_member_id', 
+#             'client_id', 'project_name', 'description', 'start_date', 'deadline_date',
+#             'budget', 'status_id', 'progress_percentage', 'manager_team_member_id',
 #             'priority', 'updated_at'
 #         ]
 #         for key, value in project_data.items():
 #             if key in valid_columns:
 #                  set_clauses.append(f"{key} = ?")
 #                  params.append(value)
-        
+
 #         if not set_clauses:
-#             return False 
+#             return False
             
 #         sql = f"UPDATE Projects SET {', '.join(set_clauses)} WHERE project_id = ?"
 #         params.append(project_id)
@@ -2317,10 +2317,10 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         sql = "SELECT * FROM Tasks WHERE project_id = ?"
 #         params = [project_id]
-        
+
 #         if filters:
 #             where_clauses = []
 #             allowed_filters = ['assignee_team_member_id', 'status_id', 'priority']
@@ -2330,7 +2330,7 @@ if __name__ == '__main__':
 #                     params.append(value)
 #             if where_clauses:
 #                 sql += " AND " + " AND ".join(where_clauses)
-                
+
 #         cursor.execute(sql, tuple(params))
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -2357,10 +2357,10 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
 #         task_data['updated_at'] = now
-        
+
 #         set_clauses = []
 #         params = []
-        
+
 #         valid_columns = [
 #             'project_id', 'task_name', 'description', 'status_id', 'assignee_team_member_id',
 #             'reporter_team_member_id', 'due_date', 'priority', 'estimated_hours',
@@ -2370,7 +2370,7 @@ if __name__ == '__main__':
 #             if key in valid_columns: # Ensure key is a valid column
 #                 set_clauses.append(f"{key} = ?")
 #                 params.append(value)
-        
+
 #         if not set_clauses:
 #             return False
             
@@ -2435,7 +2435,7 @@ if __name__ == '__main__':
 
 #         sql = """
 #             INSERT INTO Users (
-#                 user_id, username, password_hash, full_name, email, role, 
+#                 user_id, username, password_hash, full_name, email, role,
 #                 is_active, created_at, updated_at, last_login_at
 #             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 #         """
@@ -2449,7 +2449,7 @@ if __name__ == '__main__':
 #             user_data.get('is_active', True),
 #             now,  # created_at
 #             now,  # updated_at
-#             user_data.get('last_login_at') 
+#             user_data.get('last_login_at')
 #         )
         
 #         cursor.execute(sql, params)
@@ -2532,22 +2532,22 @@ if __name__ == '__main__':
 #                 user_data['password_hash'] = hashlib.sha256(user_data.pop('password').encode('utf-8')).hexdigest()
 #             else:
 #                 user_data.pop('password') # Remove empty password from update data
-        
+
 #         set_clauses = []
 #         params = []
-        
+
 #         valid_columns = ['username', 'password_hash', 'full_name', 'email', 'role', 'is_active', 'updated_at', 'last_login_at']
 #         for key, value in user_data.items():
 #             if key in valid_columns:
 #                  set_clauses.append(f"{key} = ?")
 #                  params.append(value)
-        
+
 #         if not set_clauses: # No valid fields to update (e.g. only empty password was provided)
-#             return False 
-            
+#             return False
+
 #         sql = f"UPDATE Users SET {', '.join(set_clauses)} WHERE user_id = ?"
 #         params.append(user_id)
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return cursor.rowcount > 0
@@ -2783,9 +2783,9 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-#         sql = """SELECT c.*, clm.added_at 
-#                  FROM Contacts c 
-#                  JOIN ContactListMembers clm ON c.contact_id = clm.contact_id 
+#         sql = """SELECT c.*, clm.added_at
+#                  FROM Contacts c
+#                  JOIN ContactListMembers clm ON c.contact_id = clm.contact_id
 #                  WHERE clm.list_id = ?"""
 #         cursor.execute(sql, (list_id,))
 #         rows = cursor.fetchall()
@@ -2934,7 +2934,7 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-#         sql = """INSERT INTO ActivityLog (user_id, action_type, details, related_entity_type, 
+#         sql = """INSERT INTO ActivityLog (user_id, action_type, details, related_entity_type,
 #                                         related_entity_id, related_client_id, ip_address, user_agent)
 #                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
 #         params = (
@@ -2965,13 +2965,13 @@ if __name__ == '__main__':
 #                 if key in allowed and value is not None:
 #                     where_clauses.append(f"{key} = ?")
 #                     params.append(value)
-        
+
 #         if where_clauses:
 #             sql += " WHERE " + " AND ".join(where_clauses)
-        
+
 #         sql += " ORDER BY created_at DESC LIMIT ?"
 #         params.append(limit)
-        
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -4094,7 +4094,7 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         new_client_id = uuid.uuid4().hex
 #         now = datetime.utcnow().isoformat() + "Z"
 
@@ -4125,7 +4125,7 @@ if __name__ == '__main__':
 #             now,  # updated_at
 #             client_data.get('created_by_user_id')
 #         )
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return new_client_id
@@ -4321,10 +4321,10 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         sql = "SELECT * FROM Clients"
 #         params = []
-        
+
 #         if filters:
 #             where_clauses = []
 #             for key, value in filters.items():
@@ -4334,7 +4334,7 @@ if __name__ == '__main__':
 #                     params.append(value)
 #             if where_clauses:
 #                 sql += " WHERE " + " AND ".join(where_clauses)
-                
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -4358,13 +4358,13 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         now = datetime.utcnow().isoformat() + "Z"
 #         client_data['updated_at'] = now
-        
+
 #         set_clauses = []
 #         params = []
-        
+
 #         for key, value in client_data.items():
 #             # Validate keys against actual column names to prevent SQL injection if keys are from unsafe source
 #             if key in ['client_name', 'company_name', 'primary_need_description', 'project_identifier',
@@ -4373,13 +4373,13 @@ if __name__ == '__main__':
 #                        'updated_at', 'created_by_user_id']: # client_id should not be updated here
 #                  set_clauses.append(f"{key} = ?")
 #                  params.append(value)
-        
+
 #         if not set_clauses:
 #             return False # No valid fields to update
-            
+
 #         sql = f"UPDATE Clients SET {', '.join(set_clauses)} WHERE client_id = ?"
 #         params.append(client_id)
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return cursor.rowcount > 0
@@ -5033,14 +5033,14 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         sql = "SELECT * FROM Templates WHERE template_type = ?"
 #         params = [template_type]
-        
+
 #         if language_code:
 #             sql += " AND language_code = ?"
 #             params.append(language_code)
-            
+
 #         cursor.execute(sql, tuple(params))
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -5066,21 +5066,21 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
 #         template_data['updated_at'] = now
-        
+
 #         set_clauses = []
 #         params = []
-        
+
 #         for key, value in template_data.items():
 #             if key != 'template_id': # template_id should not be updated
 #                 set_clauses.append(f"{key} = ?")
 #                 params.append(value)
-        
+
 #         if not set_clauses:
 #             return False
-            
+
 #         sql = f"UPDATE Templates SET {', '.join(set_clauses)} WHERE template_id = ?"
 #         params.append(template_id)
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return cursor.rowcount > 0
@@ -5370,8 +5370,8 @@ if __name__ == '__main__':
 
 #         sql = """
 #             INSERT INTO TeamMembers (
-#                 user_id, full_name, email, role_or_title, department, 
-#                 phone_number, profile_picture_url, is_active, notes, 
+#                 user_id, full_name, email, role_or_title, department,
+#                 phone_number, profile_picture_url, is_active, notes,
 #                 hire_date, performance, skills,
 #                 created_at, updated_at
 #             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -5427,13 +5427,13 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         sql = "SELECT * FROM TeamMembers"
 #         params = []
-        
+
 #         if filters:
 #             where_clauses = []
-#             allowed_filters = ['is_active', 'department', 'user_id'] 
+#             allowed_filters = ['is_active', 'department', 'user_id']
 #             for key, value in filters.items():
 #                 if key in allowed_filters:
 #                     if key == 'is_active' and isinstance(value, bool):
@@ -5444,7 +5444,7 @@ if __name__ == '__main__':
 #                         params.append(value)
 #             if where_clauses:
 #                 sql += " WHERE " + " AND ".join(where_clauses)
-                
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -5469,12 +5469,12 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
 #         member_data['updated_at'] = now
-        
+
 #         set_clauses = []
 #         params = []
-        
+
 #         valid_columns = [
-#             'user_id', 'full_name', 'email', 'role_or_title', 'department', 
+#             'user_id', 'full_name', 'email', 'role_or_title', 'department',
 #             'phone_number', 'profile_picture_url', 'is_active', 'notes',
 #             'hire_date', 'performance', 'skills', 'updated_at'
 #         ]
@@ -5482,13 +5482,13 @@ if __name__ == '__main__':
 #             if key in valid_columns:
 #                 set_clauses.append(f"{key} = ?")
 #                 params.append(value)
-        
+
 #         if not set_clauses:
 #             return False
-            
+
 #         sql = f"UPDATE TeamMembers SET {', '.join(set_clauses)} WHERE team_member_id = ?"
 #         params.append(team_member_id)
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return cursor.rowcount > 0
@@ -5621,10 +5621,10 @@ if __name__ == '__main__':
 #                 params.append(f"%{filters['name']}%")
 #                 params.append(f"%{filters['name']}%")
 #             # TODO: Add filters for new fields if needed
-        
+
 #         if where_clauses:
 #             sql += " WHERE " + " AND ".join(where_clauses)
-            
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -5673,13 +5673,13 @@ if __name__ == '__main__':
 #                 params.append(value)
 #             elif key == 'contact_id': # Skip primary key
 #                 continue
-        
+
 #         if not set_clauses:
 #             print("Warning: No valid fields to update in update_contact.")
 #             return False
 
 #         params.append(contact_id)
-        
+
 #         sql = f"UPDATE Contacts SET {', '.join(set_clauses)} WHERE contact_id = ?"
 #         cursor.execute(sql, params)
 #         conn.commit()
@@ -5842,7 +5842,7 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         set_clauses = []
 #         params = []
 #         if 'is_primary_for_client' in details:
@@ -5851,12 +5851,12 @@ if __name__ == '__main__':
 #         if 'can_receive_documents' in details:
 #             set_clauses.append("can_receive_documents = ?")
 #             params.append(details['can_receive_documents'])
-        
+
 #         if not set_clauses: return False # Should not happen due to check above
 
 #         params.append(client_contact_id)
 #         sql = f"UPDATE ClientContacts SET {', '.join(set_clauses)} WHERE client_contact_id = ?"
-        
+
 #         cursor.execute(sql, params)
 #         conn.commit()
 #         return cursor.rowcount > 0
@@ -6211,10 +6211,10 @@ if __name__ == '__main__':
 #             if 'product_name' in filters:
 #                 where_clauses.append("product_name LIKE ?")
 #                 params.append(f"%{filters['product_name']}%")
-        
+
 #         if where_clauses:
 #             sql += " WHERE " + " AND ".join(where_clauses)
-            
+
 #         cursor.execute(sql, params)
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -6234,14 +6234,14 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
 #         product_data['updated_at'] = now
-        
+
 #         # Ensure only valid columns are updated
 #         valid_columns = [
 #             'product_name', 'description', 'category', 'language_code',
 #             'base_unit_price', 'unit_of_measure', 'weight', 'dimensions',
 #             'is_active', 'updated_at'
 #         ]
-        
+
 #         set_clauses = []
 #         params = []
 #         for key, value in product_data.items():
@@ -6489,7 +6489,7 @@ if __name__ == '__main__':
 #     try:
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
-        
+
 #         sql = """
 #             SELECT cpp.*,
 #                    p.product_id as product_id_original_lang, p.product_name, p.description as product_description,
@@ -6501,13 +6501,13 @@ if __name__ == '__main__':
 #             WHERE cpp.client_id = ?
 #         """
 #         params = [client_id]
-        
+
 #         if project_id:
 #             sql += " AND cpp.project_id = ?"
 #             params.append(project_id)
 #         else: # Explicitly handle case where we want products not tied to any project for this client
 #             sql += " AND cpp.project_id IS NULL"
-            
+
 #         cursor.execute(sql, tuple(params))
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -6531,7 +6531,7 @@ if __name__ == '__main__':
 #         if not current_link:
 #             print(f"ClientProjectProduct link with ID {link_id} not found.")
 #             return False
-        
+
 #         current_link_dict = dict(current_link)
 #         new_quantity = update_data.get('quantity', current_link_dict['quantity'])
 #         new_unit_price_override = update_data.get('unit_price_override', current_link_dict['unit_price_override'])
@@ -6546,7 +6546,7 @@ if __name__ == '__main__':
 #             product_info = get_product_by_id(current_link_dict['product_id'])
 #             if not product_info: return False # Should not happen if data is consistent
 #             final_unit_price = product_info['base_unit_price']
-        
+
 #         update_data['total_price_calculated'] = new_quantity * float(final_unit_price or 0) # Ensure float for calc
 
 #         # Add new fields to update_data if they were provided in the call, so they get included in set_clauses
@@ -6563,12 +6563,12 @@ if __name__ == '__main__':
 #             if key in update_data:
 #                 set_clauses.append(f"{key} = ?")
 #                 params_list.append(update_data[key])
-        
+
 #         if not set_clauses: # No valid fields to update
 #             return False
 
 #         params_list.append(link_id)
-        
+
 #         sql = f"UPDATE ClientProjectProducts SET {', '.join(set_clauses)} WHERE client_project_product_id = ?"
 #         cursor.execute(sql, tuple(params_list)) # Use tuple for params
 #         conn.commit()
@@ -6670,7 +6670,7 @@ if __name__ == '__main__':
 
 # def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]:
 #     """
-#     Retrieves documents for a client. 
+#     Retrieves documents for a client.
 #     Filters by 'document_type_generated' (exact) or 'project_id' (exact) or 'order_identifier'.
 #     """
 #     conn = None
@@ -6679,7 +6679,7 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         sql = "SELECT * FROM ClientDocuments WHERE client_id = ?"
 #         params = [client_id]
-        
+
 #         if filters:
 #             if 'document_type_generated' in filters:
 #                 sql += " AND document_type_generated = ?"
@@ -6696,7 +6696,7 @@ if __name__ == '__main__':
 #                 else:
 #                     sql += " AND order_identifier = ?"
 #                     params.append(filters['order_identifier'])
-            
+
 #         cursor.execute(sql, tuple(params))
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -6708,7 +6708,7 @@ if __name__ == '__main__':
 
 # def get_documents_for_project(project_id: str, filters: dict = None) -> list[dict]:
 #     """
-#     Retrieves documents for a project. 
+#     Retrieves documents for a project.
 #     Filters by 'document_type_generated' (exact).
 #     """
 #     conn = None
@@ -6717,11 +6717,11 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         sql = "SELECT * FROM ClientDocuments WHERE project_id = ?"
 #         params = [project_id]
-        
+
 #         if filters and 'document_type_generated' in filters:
 #             sql += " AND document_type_generated = ?"
 #             params.append(filters['document_type_generated'])
-            
+
 #         cursor.execute(sql, tuple(params))
 #         rows = cursor.fetchall()
 #         return [dict(row) for row in rows]
@@ -6740,11 +6740,11 @@ if __name__ == '__main__':
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
 #         doc_data['updated_at'] = now
-        
+
 #         # Exclude primary key from update set
 #         valid_columns = [
 #             'client_id', 'project_id', 'order_identifier', 'document_name', 'file_name_on_disk',
-#             'file_path_relative', 'document_type_generated', 'source_template_id', 
+#             'file_path_relative', 'document_type_generated', 'source_template_id',
 #             'version_tag', 'notes', 'updated_at', 'created_by_user_id'
 #         ]
 #         current_doc_data = {k: v for k, v in doc_data.items() if k in valid_columns}
@@ -6754,7 +6754,7 @@ if __name__ == '__main__':
 #         set_clauses = [f"{key} = ?" for key in current_doc_data.keys()]
 #         params_list = list(current_doc_data.values()) # Renamed to avoid conflict
 #         params_list.append(document_id)
-        
+
 #         sql = f"UPDATE ClientDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
 #         cursor.execute(sql, params_list) # Use new params_list
 #         cursor.execute(sql, params)
@@ -6994,7 +6994,7 @@ if __name__ == '__main__':
 #         print(f"Database error in add_smtp_config: {e}")
 #         return None
 #     finally:
-#         if conn: 
+#         if conn:
 #             conn.isolation_level = '' # Reset to default
 #             conn.close()
 
@@ -7059,12 +7059,12 @@ if __name__ == '__main__':
 
 #         if config_data.get('is_default'):
 #             _ensure_single_default_smtp(cursor, exclude_id=smtp_config_id)
-        
+
 #         # Ensure password_encrypted is handled if present, otherwise original remains
 #         # This assumes if 'password_encrypted' is not in config_data, it's not being updated.
 #         valid_columns = [
-#             'config_name', 'smtp_server', 'smtp_port', 'username', 
-#             'password_encrypted', 'use_tls', 'is_default', 
+#             'config_name', 'smtp_server', 'smtp_port', 'username',
+#             'password_encrypted', 'use_tls', 'is_default',
 #             'sender_email_address', 'sender_display_name'
 #         ]
 #         current_config_data = {k: v for k,v in config_data.items() if k in valid_columns}
@@ -7075,7 +7075,7 @@ if __name__ == '__main__':
 #         set_clauses = [f"{key} = ?" for key in current_config_data.keys()]
 #         params = list(current_config_data.values())
 #         params.append(smtp_config_id)
-        
+
 #         sql = f"UPDATE SmtpConfigs SET {', '.join(set_clauses)} WHERE smtp_config_id = ?"
 #         cursor.execute(sql, params)
 #         conn.commit()
@@ -7085,7 +7085,7 @@ if __name__ == '__main__':
 #         print(f"Database error in update_smtp_config: {e}")
 #         return False
 #     finally:
-#         if conn: 
+#         if conn:
 #             conn.isolation_level = ''
 #             conn.close()
 
@@ -7114,11 +7114,11 @@ if __name__ == '__main__':
 #         conn.isolation_level = None
 #         cursor = conn.cursor()
 #         cursor.execute("BEGIN")
-        
+
 #         _ensure_single_default_smtp(cursor, exclude_id=smtp_config_id)
 #         cursor.execute("UPDATE SmtpConfigs SET is_default = TRUE WHERE smtp_config_id = ?", (smtp_config_id,))
 #         updated_rows = cursor.rowcount
-        
+
 #         conn.commit()
 #         return updated_rows > 0
 #     except sqlite3.Error as e:
@@ -7126,7 +7126,7 @@ if __name__ == '__main__':
 #         print(f"Database error in set_default_smtp_config: {e}")
 #         return False
 #     finally:
-#         if conn: 
+#         if conn:
 #             conn.isolation_level = ''
 #             conn.close()
 
@@ -7137,8 +7137,8 @@ if __name__ == '__main__':
 #         conn = get_db_connection()
 #         cursor = conn.cursor()
 #         now = datetime.utcnow().isoformat() + "Z"
-#         sql = """INSERT INTO ScheduledEmails (recipient_email, subject, body_html, body_text, 
-#                                            scheduled_send_at, status, related_client_id, 
+#         sql = """INSERT INTO ScheduledEmails (recipient_email, subject, body_html, body_text,
+#                                            scheduled_send_at, status, related_client_id,
 #                                            related_project_id, created_by_user_id, created_at)
 #                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
 #         params = (

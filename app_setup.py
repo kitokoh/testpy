@@ -10,7 +10,7 @@ from PyQt5.QtCore import QFile, QTextStream # QStandardPaths, QLocale, QLibraryI
 # from PyQt5.QtGui import QFont # Removed as QFont is not used here
 # Assuming db_manager and other necessary utils will be imported if functions using them are moved.
 import db as db_manager # For initialize_default_templates
-from db import DATABASE_NAME as CENTRAL_DATABASE_NAME # For DATABASE_NAME
+from config import DATABASE_NAME as CENTRAL_DATABASE_NAME # For DATABASE_NAME
 from utils import load_config # save_config removed as it's not used here
 
 # --- Global Constants and Configurations ---
