@@ -302,6 +302,39 @@ def get_city_by_name_and_country_id(name: str, country_id: int, conn: sqlite3.Co
 def get_city_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None: # Added
     cursor=conn.cursor(); cursor.execute("SELECT * FROM Cities WHERE city_id = ?",(id,)); row=cursor.fetchone()
     return dict(row) if row else None
+
+@_manage_conn
+def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new city to the Cities table.
+    STUB FUNCTION - Full implementation pending.
+    Expects data['city_name'] and data['country_id'].
+    """
+    # Example:
+    # cursor = conn.cursor()
+    # sql = "INSERT INTO Cities (city_name, country_id, latitude, longitude, population, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    # now = datetime.utcnow().isoformat() + "Z"
+    # params = (
+    #     data.get('city_name'),
+    #     data.get('country_id'),
+    #     data.get('latitude'),
+    #     data.get('longitude'),
+    #     data.get('population'),
+    #     now,
+    #     now
+    # )
+    # try:
+    #     cursor.execute(sql, params)
+    #     return cursor.lastrowid
+    # except sqlite3.IntegrityError: # e.g. city_name + country_id not unique, or country_id FK violation
+    #     logging.error(f"Integrity error adding city: {data.get('city_name')}")
+    #     return None
+    # except sqlite3.Error as e:
+    #     logging.error(f"Database error in add_city: {e}")
+    #     return None
+    logging.warning(f"Called stub function add_city with data: {data}. Full implementation is missing.")
+    return None
+
 @_manage_conn
 def get_status_setting_by_name(name: str, type: str, conn: sqlite3.Connection = None) -> dict | None:
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?",(name,type)); row=cursor.fetchone()
@@ -368,6 +401,37 @@ def get_contacts_for_client(client_id: str, conn: sqlite3.Connection = None) -> 
              FROM Contacts c JOIN ClientContacts cc ON c.contact_id = cc.contact_id WHERE cc.client_id = ?"""
     cursor.execute(sql, (client_id,))
     return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def add_client_document(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new client document entry.
+    STUB FUNCTION - Full implementation pending.
+    Expected data keys: 'client_id', 'document_name', 'document_type', 'file_path', 'user_id'.
+    Optional: 'project_id', 'storage_identifier', 'version', 'tags_json', 'metadata_json'.
+    """
+    # Example structure:
+    # cursor = conn.cursor()
+    # sql = """INSERT INTO ClientDocuments (
+    #             client_id, project_id, document_name, document_type, file_path,
+    #             storage_identifier, version, tags_json, metadata_json,
+    #             created_at, updated_at, created_by_user_id, is_archived
+    #         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)"""
+    # now = datetime.utcnow().isoformat() + "Z"
+    # params = (
+    #     data.get('client_id'), data.get('project_id'), data.get('document_name'),
+    #     data.get('document_type'), data.get('file_path'), data.get('storage_identifier'),
+    #     data.get('version', '1.0'), json.dumps(data.get('tags')),
+    #     json.dumps(data.get('metadata')), now, now, data.get('user_id')
+    # )
+    # try:
+    #     cursor.execute(sql, params)
+    #     return cursor.lastrowid
+    # except sqlite3.Error as e:
+    #     logging.error(f"Database error in add_client_document: {e}")
+    #     return None
+    logging.warning(f"Called stub function add_client_document with data: {data}. Full implementation is missing.")
+    return None
 
 # --- ClientDocumentNotes CRUD ---
 @_manage_conn
@@ -1123,6 +1187,26 @@ def update_client_contact_link(client_contact_id: int, details: dict, conn: sqli
 
 # (Ensure all other CRUD functions from original db.py are added here, refactored with @_manage_conn and `conn` parameter)
 # For brevity, I will assume the rest of the functions are added in a similar fashion.
+
+@_manage_conn
+def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Logs an activity in the ActivityLog table.
+    STUB FUNCTION - Full implementation pending.
+    """
+    # Example: cursor = conn.cursor()
+    # sql = "INSERT INTO ActivityLog (user_id, action, target_type, target_id, details_json, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
+    # now = datetime.utcnow().isoformat() + "Z"
+    # params = (data.get('user_id'), data.get('action'), data.get('target_type'), data.get('target_id'), json.dumps(data.get('details')), now)
+    # try:
+    #     cursor.execute(sql, params)
+    #     return cursor.lastrowid
+    # except sqlite3.Error as e:
+    #     logging.error(f"Database error in add_activity_log: {e}")
+    #     return None
+    logging.warning(f"Called stub function add_activity_log with data: {data}. Full implementation is missing.")
+    return None
+
 # The __all__ list needs to be fully comprehensive.
 
 __all__ = [
