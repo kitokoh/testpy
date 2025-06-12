@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime
 import json
 import os
+import logging
 
 # Configuration and Utilities
 try:
@@ -377,6 +378,26 @@ def get_client_document_notes(client_id: str, document_type: str = None, languag
     if is_active is not None: sql+=" AND is_active = ?"; params.append(1 if is_active else 0)
     sql+=" ORDER BY created_at DESC"; cursor.execute(sql,params)
     return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def add_client_document_note(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    logging.warning("Called stub function add_client_document_note. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_client_document_note(note_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
+    logging.warning(f"Called stub function update_client_document_note for note_id {note_id}. Full implementation is missing.")
+    return False
+
+@_manage_conn
+def delete_client_document_note(note_id: int, conn: sqlite3.Connection = None) -> bool:
+    logging.warning(f"Called stub function delete_client_document_note for note_id {note_id}. Full implementation is missing.")
+    return False
+
+@_manage_conn
+def get_client_document_note_by_id(note_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    logging.warning(f"Called stub function get_client_document_note_by_id for note_id {note_id}. Full implementation is missing.")
+    return None
 
 
 # --- TemplateCategories (Continued) ---
@@ -1105,6 +1126,48 @@ def update_client_contact_link(client_contact_id: int, details: dict, conn: sqli
 # The __all__ list needs to be fully comprehensive.
 
 __all__ = [
+    "add_activity_log", "add_city", "add_client", "add_client_document", "add_client_document_note",
+    "add_client_note", "add_company", "add_company_personnel", "add_contact", "add_contact_list",
+    "add_contact_to_list", "add_country", "add_cover_page", "add_cover_page_template", "add_default_template_if_not_exists",
+    "add_email_reminder", "add_freight_forwarder", "add_important_date", "add_kpi", "add_or_update_product_dimension",
+    "add_product", "add_product_equivalence", "add_product_to_client_or_project", "add_project", "add_sav_ticket",
+    "add_scheduled_email", "add_smtp_config", "add_task", "add_team_member", "add_template",
+    "add_template_category", "add_transporter", "add_user", "assign_forwarder_to_client", "assign_personnel_to_client",
+    "assign_transporter_to_client", "delete_client", "delete_client_document", "delete_client_document_note", "delete_company",
+    "delete_company_personnel", "delete_contact", "delete_contact_list", "delete_cover_page", "delete_cover_page_template",
+    "delete_email_reminder", "delete_freight_forwarder", "delete_important_date", "delete_kpi", "delete_product",
+    "delete_product_dimension", "delete_project", "delete_sav_ticket", "delete_scheduled_email", "delete_smtp_config",
+    "delete_task", "delete_team_member", "delete_template", "delete_template_and_get_file_info", "delete_template_category",
+    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_projects_count", "get_activity_logs",
+    "get_all_cities", "get_all_clients", "get_all_clients_with_details", "get_all_companies", "get_all_contact_lists",
+    "get_all_contacts", "get_all_countries", "get_all_cover_page_templates", "get_all_file_based_templates", "get_all_freight_forwarders",
+    "get_all_important_dates", "get_all_product_equivalencies", "get_all_products", "get_all_products_for_selection", "get_all_products_for_selection_filtered",
+    "get_all_projects", "get_all_smtp_configs", "get_all_status_settings", "get_all_tasks", "get_all_team_members",
+    "get_all_templates", "get_all_transporters", "get_assigned_forwarders_for_client", "get_assigned_personnel_for_client", "get_assigned_transporters_for_client",
+    "get_city_by_id", "get_city_by_name_and_country_id", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
+    "get_client_document_notes", "get_client_notes", "get_client_project_product_by_id", "get_client_segmentation_by_category", "get_client_segmentation_by_city",
+    "get_client_segmentation_by_status", "get_clients_by_archival_status", "get_clients_for_contact", "get_company_by_id", "get_contact_by_email",
+    "get_contact_by_id", "get_contact_list_by_id", "get_contacts_for_client", "get_contacts_for_client_count", "get_contacts_in_list",
+    "get_country_by_id", "get_country_by_name", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
+    "get_cover_pages_for_client", "get_cover_pages_for_project", "get_cover_pages_for_user", "get_default_company", "get_default_smtp_config",
+    "get_distinct_languages_for_template_type", "get_distinct_template_languages", "get_distinct_template_types", "get_document_by_id", "get_documents_for_client",
+    "get_documents_for_project", "get_equivalent_products", "get_filtered_templates", "get_freight_forwarder_by_id", "get_important_date_by_id",
+    "get_kpi_by_id", "get_kpis_for_project", "get_pending_reminders", "get_pending_scheduled_emails", "get_personnel_for_company",
+    "get_product_by_id", "get_product_by_name", "get_product_dimension", "get_products", "get_products_by_name_pattern",
+    "get_products_for_client_or_project", "get_project_by_id", "get_projects_by_client_id", "get_sav_ticket_by_id", "get_sav_tickets_for_client",
+    "get_scheduled_email_by_id", "get_setting", "get_smtp_config_by_id", "get_specific_client_contact_link_details", "get_status_setting_by_id",
+    "get_status_setting_by_name", "get_task_by_id", "get_tasks_by_assignee_id", "get_tasks_by_project_id", "get_team_member_by_id",
+    "get_template_by_id", "get_template_by_type_lang_default", "get_template_category_by_id", "get_template_category_by_name", "get_template_category_details",
+    "get_template_details_for_preview", "get_template_path_info", "get_templates_by_category_id", "get_templates_by_type", "get_total_products_count",
+    "get_total_projects_count", "get_transporter_by_id", "get_user_by_email", "get_user_by_id", "get_user_by_username",
+    "link_contact_to_client", "remove_contact_from_list", "remove_product_equivalence", "remove_product_from_client_or_project", "set_default_company",
+    "set_default_smtp_config", "set_default_template_by_id", "set_setting", "unassign_forwarder_from_client", "unassign_personnel_from_client",
+    "unassign_transporter_from_client", "unlink_contact_from_client", "update_client", "update_client_contact_link", "update_client_document",
+    "update_client_document_note", "update_company", "update_company_personnel", "update_contact", "update_contact_list",
+    "update_cover_page", "update_cover_page_template", "update_freight_forwarder", "update_important_date", "update_kpi",
+    "update_product", "update_product_price", "update_project", "update_reminder_status", "update_sav_ticket",
+    "update_scheduled_email_status", "update_smtp_config", "update_task", "update_team_member", "update_template",
+    "update_template_category", "update_transporter", "update_user", "verify_user_password"
     "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user", "verify_user_password",
     "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company", "set_default_company", "get_default_company",
     "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
