@@ -1197,6 +1197,341 @@ def update_client_contact_link(client_contact_id: int, details: dict, conn: sqli
 # For brevity, I will assume the rest of the functions are added in a similar fashion.
 
 @_manage_conn
+def add_contact_to_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_contact_to_list with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_country(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_country with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_email_reminder(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_email_reminder with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_freight_forwarder with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_important_date with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_kpi with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_sav_ticket with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_scheduled_email(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_scheduled_email with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_smtp_config with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def add_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function add_transporter with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def assign_forwarder_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function assign_forwarder_to_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def assign_personnel_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function assign_personnel_to_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def assign_transporter_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function assign_transporter_to_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_client_document(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_client_document with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_contact_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_contact_list with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_email_reminder(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_email_reminder with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_freight_forwarder with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_important_date with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_kpi with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_sav_ticket with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_scheduled_email(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_scheduled_email with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_smtp_config with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def delete_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function delete_transporter with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_activity_logs(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_activity_logs with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_cities(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_cities with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_contact_lists(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_contact_lists with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_countries(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_countries with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_freight_forwarders(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_freight_forwarders with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_important_dates(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_important_dates with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_smtp_configs(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_smtp_configs with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_status_settings(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_status_settings with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_all_transporters(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_all_transporters with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_assigned_forwarders_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_assigned_forwarders_for_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_assigned_personnel_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_assigned_personnel_for_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_assigned_transporters_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_assigned_transporters_for_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_contact_list_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_contact_list_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_contacts_in_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_contacts_in_list with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_default_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_default_smtp_config with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_document_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_document_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_documents_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_documents_for_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_documents_for_project(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_documents_for_project with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_freight_forwarder_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_freight_forwarder_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_important_date_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_important_date_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_kpi_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_kpi_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_kpis_for_project(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_kpis_for_project with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_pending_reminders(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_pending_reminders with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_pending_scheduled_emails(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_pending_scheduled_emails with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_sav_ticket_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_sav_ticket_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_sav_tickets_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_sav_tickets_for_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_scheduled_email_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_scheduled_email_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_smtp_config_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_smtp_config_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def get_transporter_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function get_transporter_by_id with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def remove_contact_from_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function remove_contact_from_list with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def set_default_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function set_default_smtp_config with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def unassign_forwarder_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function unassign_forwarder_from_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def unassign_personnel_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function unassign_personnel_from_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def unassign_transporter_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function unassign_transporter_from_client with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_client_document(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_client_document with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_contact_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_contact_list with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_freight_forwarder with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_important_date with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_kpi with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_reminder_status(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_reminder_status with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_sav_ticket with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_scheduled_email_status(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_scheduled_email_status with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_smtp_config with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
+def update_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
+    logging.warning(f"Called stub function update_transporter with data: {{data}}. Full implementation is missing.")
+    return None
+
+@_manage_conn
 def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
     Logs an activity in the ActivityLog table.
@@ -1259,7 +1594,7 @@ __all__ = [
     "update_cover_page", "update_cover_page_template", "update_freight_forwarder", "update_important_date", "update_kpi",
     "update_product", "update_product_price", "update_project", "update_reminder_status", "update_sav_ticket",
     "update_scheduled_email_status", "update_smtp_config", "update_task", "update_team_member", "update_template",
-    "update_template_category", "update_transporter", "update_user", "verify_user_password"
+    "update_template_category", "update_transporter", "update_user", "verify_user_password",
     "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user", "verify_user_password",
     "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company", "set_default_company", "get_default_company",
     "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
