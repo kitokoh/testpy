@@ -52,8 +52,10 @@ from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard
 from statistics_module import StatisticsDashboard # Will be refactored/removed later
 from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
+
 from utils import save_config
 from company_management import CompanyTabWidget
+from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -295,6 +297,9 @@ class DocumentManager(QMainWindow):
         self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
         self.main_area_stack.addWidget(self.statistics_dashboard_instance)
 
+        self.partner_management_widget_instance = PartnerMainWidget(parent=self)
+        self.main_area_stack.addWidget(self.partner_management_widget_instance)
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main()
@@ -442,6 +447,10 @@ class DocumentManager(QMainWindow):
         self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product List"), self) # Using a generic book icon for now
         self.product_list_action.triggered.connect(self.open_product_list_placeholder)
 
+        self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self)
+        self.partner_management_action.triggered.connect(self.show_partner_management_view)
+
+
     def create_menus_main(self): 
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu(self.tr("Fichier"))
@@ -453,6 +462,7 @@ class DocumentManager(QMainWindow):
         modules_menu.addAction(self.project_management_action)
         modules_menu.addAction(self.statistics_action)
         modules_menu.addAction(self.product_list_action) # Add new action here
+        modules_menu.addAction(self.partner_management_action) # Add Partner Management action
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -487,6 +497,9 @@ class DocumentManager(QMainWindow):
         # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
         # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
 
+
+    def show_partner_management_view(self):
+        self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
 
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))

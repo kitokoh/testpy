@@ -33,8 +33,5 @@ __all__ = [
     "get_document_context_data",
 ] + _crud_exports
 
-# Clean up to avoid exposing dir and _crud_exports itself if someone does import *
+# Clean up to avoid exposing _crud_exports itself if someone does import *
 del _crud_exports
-del dir
-del globals
-del callable

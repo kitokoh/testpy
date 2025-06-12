@@ -161,6 +161,53 @@ def initialize_database():
     # (Continue with all other CREATE TABLE statements from the existing schema.py)
     cursor.execute("CREATE TABLE IF NOT EXISTS Client_FreightForwarders (client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE, UNIQUE (client_id, forwarder_id))")
 
+    # --- New Partner Tables ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Partners (
+            partner_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            address TEXT,
+            phone TEXT,
+            location TEXT,
+            email TEXT UNIQUE,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerContacts (
+            contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            role TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
+            partner_id TEXT NOT NULL,
+            category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, category_id),
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES PartnerCategories(category_id) ON DELETE CASCADE
+        )
+    """)
+    # --- End New Partner Tables ---
 
     cursor.execute("CREATE TABLE IF NOT EXISTS TemplateCategories (category_id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL UNIQUE, description TEXT)")
     general_category_id_for_migration = None
@@ -208,6 +255,11 @@ def initialize_database():
     # ... (ALL OTHER CREATE INDEX STATEMENTS from existing schema.py)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
+    # --- Indexes for New Partner Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    # --- End Indexes for New Partner Tables ---
 
     # --- Seed Data ---
     try:
