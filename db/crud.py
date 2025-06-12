@@ -410,26 +410,6 @@ def add_client_document(data: dict, conn: sqlite3.Connection = None) -> int | No
     Expected data keys: 'client_id', 'document_name', 'document_type', 'file_path', 'user_id'.
     Optional: 'project_id', 'storage_identifier', 'version', 'tags_json', 'metadata_json'.
     """
-    # Example structure:
-    # cursor = conn.cursor()
-    # sql = """INSERT INTO ClientDocuments (
-    #             client_id, project_id, document_name, document_type, file_path,
-    #             storage_identifier, version, tags_json, metadata_json,
-    #             created_at, updated_at, created_by_user_id, is_archived
-    #         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)"""
-    # now = datetime.utcnow().isoformat() + "Z"
-    # params = (
-    #     data.get('client_id'), data.get('project_id'), data.get('document_name'),
-    #     data.get('document_type'), data.get('file_path'), data.get('storage_identifier'),
-    #     data.get('version', '1.0'), json.dumps(data.get('tags')),
-    #     json.dumps(data.get('metadata')), now, now, data.get('user_id')
-    # )
-    # try:
-    #     cursor.execute(sql, params)
-    #     return cursor.lastrowid
-    # except sqlite3.Error as e:
-    #     logging.error(f"Database error in add_client_document: {e}")
-    #     return None
     logging.warning(f"Called stub function add_client_document with data: {data}. Full implementation is missing.")
     return None
 
