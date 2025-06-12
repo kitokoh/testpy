@@ -1168,6 +1168,50 @@ __all__ = [
     "update_product", "update_product_price", "update_project", "update_reminder_status", "update_sav_ticket",
     "update_scheduled_email_status", "update_smtp_config", "update_task", "update_team_member", "update_template",
     "update_template_category", "update_transporter", "update_user", "verify_user_password"
+    "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user", "verify_user_password",
+    "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company", "set_default_company", "get_default_company",
+    "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
+    "get_setting", "set_setting",
+    "add_template_category",
+    "add_template", "add_default_template_if_not_exists",
+    "add_cover_page_template", "get_cover_page_template_by_name",
+    "get_country_by_name", "get_country_by_id", "get_city_by_name_and_country_id", "get_city_by_id",
+    "get_status_setting_by_name", "get_status_setting_by_id", # Keep existing
+    "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client", "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country", "get_client_segmentation_by_city", "get_client_segmentation_by_status", "get_client_segmentation_by_category", "get_clients_by_archival_status", # Client related
+    "add_client_note", "get_client_notes", # ClientNotes
+    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered","get_total_products_count", # Products
+    "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
+    "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence", # ProductEquivalencies
+    "get_products_for_client_or_project", "add_product_to_client_or_project", "update_client_project_product", "remove_product_from_client_or_project", "get_client_project_product_by_id", # ClientProjectProducts
+    "get_project_by_id", "add_project", "get_projects_by_client_id", "get_all_projects", "update_project", "delete_project", "get_total_projects_count", "get_active_projects_count", # Projects
+    "get_contacts_for_client", "add_contact", "get_contact_by_id", "get_contact_by_email", "get_all_contacts", "update_contact", "delete_contact", # Contacts
+    "link_contact_to_client", "unlink_contact_from_client", "get_contacts_for_client_count", "get_clients_for_contact", "get_specific_client_contact_link_details", "update_client_contact_link", # ClientContacts
+    "get_client_document_notes", "add_client_document_note", "update_client_document_note", "delete_client_document_note", "get_client_document_note_by_id", # ClientDocumentNotes
+    "get_template_category_by_id", "get_template_category_by_name", "get_all_template_categories", "update_template_category", "delete_template_category", "get_template_category_details", # TemplateCategories (add is already there)
+    "get_template_by_id", "get_templates_by_type", "update_template", "delete_template", "get_distinct_template_languages", "get_distinct_template_types", "get_filtered_templates", "get_template_details_for_preview", "get_template_path_info", "delete_template_and_get_file_info", "set_default_template_by_id", "get_template_by_type_lang_default", "get_all_templates", "get_distinct_languages_for_template_type", "get_all_file_based_templates", "get_templates_by_category_id", # Templates (add & add_default already there)
+    "get_cover_page_template_by_id", "get_all_cover_page_templates", "update_cover_page_template", "delete_cover_page_template", # CoverPageTemplates (add & get_by_name already there)
+    "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project", "update_cover_page", "delete_cover_page", "get_cover_pages_for_user", # CoverPages
+    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_all_tasks", "get_tasks_by_assignee_id", # Tasks
+    "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member", # TeamMembers
+    "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket", # SAVTickets
+    "add_important_date", "get_important_date_by_id", "get_all_important_dates", "update_important_date", "delete_important_date", # ImportantDates
+    "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter", # Transporters
+    "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders", "update_freight_forwarder", "delete_freight_forwarder", # FreightForwarders
+    "assign_personnel_to_client", "get_assigned_personnel_for_client", "unassign_personnel_from_client", # Client_AssignedPersonnel
+    "assign_transporter_to_client", "get_assigned_transporters_for_client", "unassign_transporter_from_client", # Client_Transporters
+    "assign_forwarder_to_client", "get_assigned_forwarders_for_client", "unassign_forwarder_from_client", # Client_FreightForwarders
+    "add_kpi", "get_kpi_by_id", "get_kpis_for_project", "update_kpi", "delete_kpi", # KPIs
+    "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs", "update_smtp_config", "delete_smtp_config", "set_default_smtp_config", # SmtpConfigs
+    "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email", # ScheduledEmails
+    "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder", # EmailReminders
+    "add_contact_list", "get_contact_list_by_id", "get_all_contact_lists", "update_contact_list", "delete_contact_list", # ContactLists
+    "add_contact_to_list", "remove_contact_from_list", "get_contacts_in_list", # ContactListMembers
+    "add_activity_log", "get_activity_logs", # ActivityLog
+    "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project", "update_client_document", "delete_client_document", # ClientDocuments
+    "add_country", "get_all_countries", "add_city", "get_all_cities", # Countries, Cities (get_by_id/name already listed)
+    "get_all_status_settings", # StatusSettings (get_by_id/name already listed)
+    # _get_or_create_category_id is internal to schema.py, not exposed via crud
+    # _populate_default_cover_page_templates is internal to schema.py
 ]
 # Ensure all previously added functions are here.
 
