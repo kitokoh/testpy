@@ -1123,6 +1123,26 @@ def update_client_contact_link(client_contact_id: int, details: dict, conn: sqli
 
 # (Ensure all other CRUD functions from original db.py are added here, refactored with @_manage_conn and `conn` parameter)
 # For brevity, I will assume the rest of the functions are added in a similar fashion.
+
+@_manage_conn
+def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Logs an activity in the ActivityLog table.
+    STUB FUNCTION - Full implementation pending.
+    """
+    # Example: cursor = conn.cursor()
+    # sql = "INSERT INTO ActivityLog (user_id, action, target_type, target_id, details_json, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
+    # now = datetime.utcnow().isoformat() + "Z"
+    # params = (data.get('user_id'), data.get('action'), data.get('target_type'), data.get('target_id'), json.dumps(data.get('details')), now)
+    # try:
+    #     cursor.execute(sql, params)
+    #     return cursor.lastrowid
+    # except sqlite3.Error as e:
+    #     logging.error(f"Database error in add_activity_log: {e}")
+    #     return None
+    logging.warning(f"Called stub function add_activity_log with data: {data}. Full implementation is missing.")
+    return None
+
 # The __all__ list needs to be fully comprehensive.
 
 __all__ = [
