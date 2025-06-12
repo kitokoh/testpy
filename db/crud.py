@@ -1531,6 +1531,430 @@ def update_transporter(data: dict, conn: sqlite3.Connection = None) -> object | 
     logging.warning(f"Called stub function update_transporter with data: {{data}}. Full implementation is missing.")
     return None
 
+
+# --- PartnerCategories CRUD ---
+@_manage_conn
+def add_partner_category(name: str, description: str = None, conn: sqlite3.Connection = None) -> int | None:
+    """Adds a new partner category."""
+    cursor = conn.cursor()
+    sql = "INSERT INTO PartnerCategories (name, description) VALUES (?, ?)"
+    try:
+        cursor.execute(sql, (name, description))
+        return cursor.lastrowid
+    except sqlite3.IntegrityError:  # Unique constraint on name
+        logging.warning(f"Partner category '{name}' already exists.")
+        # Optionally, retrieve and return the ID of the existing category
+        existing_category = get_partner_category_by_name(name, conn=conn)
+        return existing_category['category_id'] if existing_category else None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_partner_category: {e}")
+        return None
+
+@_manage_conn
+def get_partner_category_by_id(category_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a partner category by its ID."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM PartnerCategories WHERE category_id = ?", (category_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a partner category by its name."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM PartnerCategories WHERE name = ?", (name,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def get_all_partner_categories(conn: sqlite3.Connection = None) -> list[dict]:
+    """Retrieves all partner categories."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM PartnerCategories ORDER BY name")
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def update_partner_category(category_id: int, name: str = None, description: str = None, conn: sqlite3.Connection = None) -> bool:
+    """Updates a partner category."""
+    if name is None and description is None:
+        return False # Nothing to update
+
+    cursor = conn.cursor()
+    fields_to_update = []
+    params = []
+
+    if name is not None:
+        fields_to_update.append("name = ?")
+        params.append(name)
+    if description is not None:
+        fields_to_update.append("description = ?")
+        params.append(description)
+
+    if not fields_to_update: return False # Should not happen if initial check passed
+
+    sql = f"UPDATE PartnerCategories SET {', '.join(fields_to_update)} WHERE category_id = ?"
+    params.append(category_id)
+
+    try:
+        cursor.execute(sql, tuple(params))
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError: # Potential unique constraint violation on name
+        logging.warning(f"Failed to update partner category {category_id} due to name conflict.")
+        return False
+    except sqlite3.Error as e:
+        logging.error(f"Database error in update_partner_category: {e}")
+        return False
+
+@_manage_conn
+def delete_partner_category(category_id: int, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes a partner category.
+    Note: If the category is in use by PartnerCategoryLink, this might fail
+    if ON DELETE RESTRICT is set (default is NO ACTION, which allows delete but breaks FK).
+    The schema uses ON DELETE CASCADE for PartnerCategoryLink, so links will be removed.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM PartnerCategories WHERE category_id = ?", (category_id,))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_partner_category: {e}")
+        return False
+# --- End PartnerCategories CRUD ---
+
+
+# --- Partners CRUD ---
+@_manage_conn
+def add_partner(partner_data: dict, conn: sqlite3.Connection = None) -> str | None:
+    """
+    Adds a new partner. partner_id is generated as UUID.
+    partner_data keys: name (required), address, phone, location, email, notes.
+    """
+    cursor = conn.cursor()
+    new_partner_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat() + "Z"
+    sql = """
+        INSERT INTO Partners (partner_id, name, address, phone, location, email, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        new_partner_id,
+        partner_data.get('name'),
+        partner_data.get('address'),
+        partner_data.get('phone'),
+        partner_data.get('location'),
+        partner_data.get('email'),
+        partner_data.get('notes'),
+        now,
+        now
+    )
+    try:
+        if not partner_data.get('name'): # Name is NOT NULL
+            logging.error("Partner name is required.")
+            return None
+        cursor.execute(sql, params)
+        return new_partner_id
+    except sqlite3.IntegrityError as e: # Handles email UNIQUE constraint
+        logging.warning(f"Failed to add partner, possibly due to duplicate email: {partner_data.get('email')}. Error: {e}")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_partner: {e}")
+        return None
+
+@_manage_conn
+def get_partner_by_id(partner_id: str, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a partner by their ID."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Partners WHERE partner_id = ?", (partner_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def get_partner_by_email(email: str, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a partner by their email address."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Partners WHERE email = ?", (email,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def get_all_partners(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all partners, optionally filtered.
+    Initial filter: filters={'name': 'search_term'} (case-insensitive search)
+    """
+    cursor = conn.cursor()
+    sql = "SELECT * FROM Partners"
+    query_params = []
+
+    if filters:
+        conditions = []
+        if 'name' in filters and filters['name']:
+            conditions.append("name LIKE ?")
+            query_params.append(f"%{filters['name']}%")
+        # Add more filters here as needed, e.g., location
+        if 'location' in filters and filters['location']:
+            conditions.append("location LIKE ?")
+            query_params.append(f"%{filters['location']}%")
+        if 'email' in filters and filters['email']: # Exact match for email
+            conditions.append("email = ?")
+            query_params.append(filters['email'])
+
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
+
+    sql += " ORDER BY name"
+    cursor.execute(sql, tuple(query_params))
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def update_partner(partner_id: str, partner_data: dict, conn: sqlite3.Connection = None) -> bool:
+    """
+    Updates partner details.
+    partner_data can contain: name, address, phone, location, email, notes.
+    """
+    if not partner_data:
+        return False
+
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat() + "Z"
+    partner_data['updated_at'] = now
+
+    valid_columns = ['name', 'address', 'phone', 'location', 'email', 'notes', 'updated_at']
+    fields_to_update = []
+    params = []
+
+    for col in valid_columns:
+        if col in partner_data:
+            fields_to_update.append(f"{col} = ?")
+            params.append(partner_data[col])
+
+    if not fields_to_update:
+        return False # Nothing valid to update
+
+    sql = f"UPDATE Partners SET {', '.join(fields_to_update)} WHERE partner_id = ?"
+    params.append(partner_id)
+
+    try:
+        cursor.execute(sql, tuple(params))
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError as e: # Handles email UNIQUE constraint
+        logging.warning(f"Failed to update partner {partner_id} due to integrity constraint (e.g. duplicate email). Error: {e}")
+        return False
+    except sqlite3.Error as e:
+        logging.error(f"Database error in update_partner for {partner_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_partner(partner_id: str, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes a partner. ON DELETE CASCADE in schema handles linked PartnerContacts and PartnerCategoryLink.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Partners WHERE partner_id = ?", (partner_id,))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_partner for {partner_id}: {e}")
+        return False
+# --- End Partners CRUD ---
+
+
+# --- PartnerContacts CRUD ---
+@_manage_conn
+def add_partner_contact(contact_data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new contact for a partner.
+    contact_data keys: partner_id (required), name (required), email, phone, role.
+    """
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat() + "Z"
+    sql = """
+        INSERT INTO PartnerContacts (partner_id, name, email, phone, role, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        contact_data.get('partner_id'),
+        contact_data.get('name'),
+        contact_data.get('email'),
+        contact_data.get('phone'),
+        contact_data.get('role'),
+        now,
+        now
+    )
+    try:
+        if not contact_data.get('partner_id') or not contact_data.get('name'):
+            logging.error("partner_id and name are required for adding a partner contact.")
+            return None
+        cursor.execute(sql, params)
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as e: # Foreign key constraint on partner_id
+        logging.warning(f"Failed to add partner contact, likely invalid partner_id: {contact_data.get('partner_id')}. Error: {e}")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_partner_contact: {e}")
+        return None
+
+@_manage_conn
+def get_partner_contact_by_id(contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a specific partner contact by their contact_id."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def get_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """Retrieves all contacts for a given partner_id."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM PartnerContacts WHERE partner_id = ? ORDER BY name", (partner_id,))
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def update_partner_contact(contact_id: int, contact_data: dict, conn: sqlite3.Connection = None) -> bool:
+    """
+    Updates details for a partner contact.
+    contact_data can contain: name, email, phone, role. partner_id is not updatable here.
+    """
+    if not contact_data:
+        return False
+
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat() + "Z"
+    contact_data['updated_at'] = now
+
+    valid_columns = ['name', 'email', 'phone', 'role', 'updated_at']
+    fields_to_update = []
+    params = []
+
+    for col in valid_columns:
+        if col in contact_data:
+            fields_to_update.append(f"{col} = ?")
+            params.append(contact_data[col])
+
+    if not fields_to_update: # Only updated_at might be there, but usually we expect other fields.
+        # If only updated_at is present, it means no actual data field was provided for update.
+        # Depending on requirements, one might allow just touching the record.
+        # For now, let's assume at least one other field should be changing.
+        # However, if only 'updated_at' is in fields_to_update because other valid_columns were not in contact_data,
+        # it's still a valid update to just change the timestamp.
+        # The check `if not contact_data:` already handles empty input.
+        # This check `if not fields_to_update:` is for when contact_data might have irrelevant keys.
+         if 'updated_at' in contact_data and len(contact_data) == 1 : # only updated_at was passed
+            logging.info(f"update_partner_contact called for {contact_id} with no data fields to update other than timestamp.")
+            # decide if this is an error or not, for now, proceed to update timestamp
+         elif not fields_to_update : # No valid fields were found.
+            return False
+
+
+    sql = f"UPDATE PartnerContacts SET {', '.join(fields_to_update)} WHERE contact_id = ?"
+    params.append(contact_id)
+
+    try:
+        cursor.execute(sql, tuple(params))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in update_partner_contact for {contact_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_partner_contact(contact_id: int, conn: sqlite3.Connection = None) -> bool:
+    """Deletes a specific partner contact by their contact_id."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_partner_contact for {contact_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes all contacts associated with a given partner_id.
+    This is also handled by ON DELETE CASCADE when a Partner is deleted,
+    but this function provides a more direct way if needed.
+    """
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM PartnerContacts WHERE partner_id = ?", (partner_id,))
+        # cursor.rowcount might be 0 if partner had no contacts, still a success.
+        # To be more precise, one might return number of rows deleted.
+        # For a boolean success, this is fine.
+        return True # Assuming success if statement executes without error
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_contacts_for_partner for partner {partner_id}: {e}")
+        return False
+# --- End PartnerContacts CRUD ---
+
+
+# --- PartnerCategoryLink CRUD ---
+@_manage_conn
+def link_partner_to_category(partner_id: str, category_id: int, conn: sqlite3.Connection = None) -> bool:
+    """Links a partner to a category."""
+    cursor = conn.cursor()
+    sql = "INSERT INTO PartnerCategoryLink (partner_id, category_id) VALUES (?, ?)"
+    try:
+        cursor.execute(sql, (partner_id, category_id))
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError: # Primary key violation (already linked) or Foreign key violation
+        logging.warning(f"Failed to link partner {partner_id} to category {category_id}. Already linked or invalid ID.")
+        # Check if already linked, if so, consider it a success for idempotency
+        cursor.execute("SELECT 1 FROM PartnerCategoryLink WHERE partner_id = ? AND category_id = ?", (partner_id, category_id))
+        return cursor.fetchone() is not None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in link_partner_to_category: {e}")
+        return False
+
+@_manage_conn
+def unlink_partner_from_category(partner_id: str, category_id: int, conn: sqlite3.Connection = None) -> bool:
+    """Unlinks a partner from a category."""
+    cursor = conn.cursor()
+    sql = "DELETE FROM PartnerCategoryLink WHERE partner_id = ? AND category_id = ?"
+    try:
+        cursor.execute(sql, (partner_id, category_id))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in unlink_partner_from_category: {e}")
+        return False
+
+@_manage_conn
+def get_categories_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all categories for a given partner.
+    Joins with PartnerCategories to get category names and descriptions.
+    """
+    cursor = conn.cursor()
+    sql = """
+        SELECT pc.category_id, pc.name, pc.description
+        FROM PartnerCategories pc
+        JOIN PartnerCategoryLink pcl ON pc.category_id = pcl.category_id
+        WHERE pcl.partner_id = ?
+        ORDER BY pc.name
+    """
+    cursor.execute(sql, (partner_id,))
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def get_partners_in_category(category_id: int, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all partners in a given category.
+    Joins with Partners to get partner details.
+    """
+    cursor = conn.cursor()
+    # Selecting all columns from Partners. Adjust if only specific details are needed.
+    sql = """
+        SELECT p.*
+        FROM Partners p
+        JOIN PartnerCategoryLink pcl ON p.partner_id = pcl.partner_id
+        WHERE pcl.category_id = ?
+        ORDER BY p.name
+    """
+    cursor.execute(sql, (category_id,))
+    return [dict(row) for row in cursor.fetchall()]
+# --- End PartnerCategoryLink CRUD ---
+
+
 @_manage_conn
 def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
@@ -1637,6 +2061,23 @@ __all__ = [
     "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project", "update_client_document", "delete_client_document", # ClientDocuments
     "add_country", "get_all_countries", "add_city", "get_all_cities", # Countries, Cities (get_by_id/name already listed)
     "get_all_status_settings", # StatusSettings (get_by_id/name already listed)
+
+    # Partner Categories
+    "add_partner_category", "get_partner_category_by_id", "get_partner_category_by_name",
+    "get_all_partner_categories", "update_partner_category", "delete_partner_category",
+
+    # Partners
+    "add_partner", "get_partner_by_id", "get_partner_by_email", "get_all_partners",
+    "update_partner", "delete_partner",
+
+    # Partner Contacts
+    "add_partner_contact", "get_partner_contact_by_id", "get_contacts_for_partner",
+    "update_partner_contact", "delete_partner_contact", "delete_contacts_for_partner",
+
+    # PartnerCategoryLink
+    "link_partner_to_category", "unlink_partner_from_category",
+    "get_categories_for_partner", "get_partners_in_category",
+
     # _get_or_create_category_id is internal to schema.py, not exposed via crud
     # _populate_default_cover_page_templates is internal to schema.py
 ]
