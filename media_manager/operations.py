@@ -2,8 +2,9 @@ import os
 import shutil
 import uuid
 import sqlite3
+import json
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Any
 from . import models
 import db
 
@@ -11,40 +12,101 @@ import asyncio
 import aiofiles
 import aiofiles.os as aios
 
-from PIL import Image # For Pillow
-import cv2 # For OpenCV
+from PIL import Image, ExifTags # Added ExifTags
+import cv2
 
 from config import MEDIA_FILES_BASE_PATH, DEFAULT_DOWNLOAD_PATH
 
 THUMBNAIL_SIZE = (128, 128)
-THUMBNAIL_DIR_NAME = ".thumbnails" # Relative to MEDIA_FILES_BASE_PATH
-=======
-import json
-import os
-import shutil
-import uuid
-from . import models
+THUMBNAIL_DIR_NAME = ".thumbnails"
 
-MEDIA_LIBRARY_FILE = "media_library.json"
-MEDIA_FILES_DIR = "media_files"
-
-def _load_media_library() -> list[dict]:
-    """Loads the media library from a JSON file."""
-    if not os.path.exists(MEDIA_LIBRARY_FILE):
-        return []
+# --- Metadata Extraction Helpers ---
+def _extract_image_metadata(source_path: str) -> dict:
+    metadata = {'type': 'image'}
     try:
-        with open(MEDIA_LIBRARY_FILE, 'r') as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return [] # Return empty list if JSON is invalid
+        img = Image.open(source_path)
+        metadata['width'] = img.width
+        metadata['height'] = img.height
+        metadata['format'] = img.format
+        metadata['mode'] = img.mode
 
-def _save_media_library(library: list[dict]) -> None:
-    """Saves the given library to media_library.json."""
-    with open(MEDIA_LIBRARY_FILE, 'w') as f:
-        json.dump(library, f, indent=4)
+        exif_data_raw = img.getexif() # getexif() is preferred
+        if exif_data_raw:
+            exif_data_processed = {}
+            for tag_id, value in exif_data_raw.items():
+                tag_name = ExifTags.TAGS.get(tag_id, tag_id)
 
+                # Handle bytes values by trying to decode or representing as string
+                if isinstance(value, bytes):
+                    try:
+                        value = value.decode('utf-8', errors='replace')
+                    except UnicodeDecodeError:
+                        value = str(value) # Fallback for non-decodable bytes
+
+                if tag_name == 'GPSInfo':
+                    # Store raw GPSInfo dict; further processing can be done by consumer
+                    gps_info_processed = {}
+                    if isinstance(value, dict):
+                        for gps_tag_id, gps_value in value.items():
+                            gps_tag_name = ExifTags.GPSTAGS.get(gps_tag_id, gps_tag_id)
+                            gps_info_processed[gps_tag_name] = str(gps_value) # Convert to string for simplicity
+                    exif_data_processed[str(tag_name)] = gps_info_processed
+                elif isinstance(tag_name, str): # Ensure tag_name is a string key
+                     # Limit value length to avoid overly large JSON strings
+                    if isinstance(value, str) and len(value) > 256:
+                        value = value[:253] + "..."
+                    exif_data_processed[tag_name] = value
+                else: # If tag_name is still an int (unknown tag)
+                    exif_data_processed[str(tag_name)] = str(value)
+
+
+            if exif_data_processed: # Add only if there's something to add
+                 metadata['exif'] = exif_data_processed
+        img.close()
+    except FileNotFoundError:
+        print(f"Error: Image file not found at {source_path} for metadata extraction.")
+        metadata['error'] = "File not found"
+    except Exception as e:
+        print(f"Error extracting image metadata for {source_path}: {e}")
+        metadata['error'] = str(e)
+    return metadata
+
+def _extract_video_metadata(source_path: str) -> dict:
+    metadata = {'type': 'video'}
+    cap = None
+    try:
+        cap = cv2.VideoCapture(source_path)
+        if not cap.isOpened():
+            print(f"Error: Could not open video file {source_path} for metadata extraction.")
+            metadata['error'] = "Could not open video file"
+            return metadata
+
+        metadata['width'] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        metadata['height'] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        metadata['fps'] = fps
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        metadata['frame_count'] = frame_count
+        if fps > 0:
+            metadata['duration_seconds'] = frame_count / fps
+        else:
+            metadata['duration_seconds'] = 0
+
+        # FourCC code
+        fourcc_int = int(cap.get(cv2.CAP_PROP_FOURCC))
+        fourcc_str = "".join([chr((fourcc_int >> 8 * i) & 0xFF) for i in range(4)])
+        metadata['fourcc'] = fourcc_str.strip()
+
+    except Exception as e:
+        print(f"Error extracting video metadata for {source_path}: {e}")
+        metadata['error'] = str(e)
+    finally:
+        if cap:
+            cap.release()
+    return metadata
+
+# --- Core Operations ---
 def _generate_id() -> str:
-    """Generates a unique ID."""
     return str(uuid.uuid4())
 
 def _get_or_create_tag_id(tag_name: str, cursor: sqlite3.Cursor) -> int:
@@ -70,49 +132,40 @@ def get_tags_for_media_item(media_item_id: str, cursor: sqlite3.Cursor) -> List[
     return [row['tag_name'] for row in cursor.fetchall()]
 
 def _blocking_pil_image_thumbnail(source_path: str, thumb_dest_path: str, size: tuple[int, int]):
-    """Synchronous/blocking function to create image thumbnail using Pillow."""
     try:
         img = Image.open(source_path)
         img.thumbnail(size)
-        # Ensure the image is in RGB mode before saving as JPG if it's RGBA (like PNGs)
-        if img.mode in ("RGBA", "P"): # P is for paletted images
+        if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        img.save(thumb_dest_path, "JPEG") # Save as JPEG
+        img.save(thumb_dest_path, "JPEG")
         return True
     except Exception as e:
         print(f"Pillow: Error generating image thumbnail for {source_path}: {e}")
         return False
 
 async def _generate_image_thumbnail(source_media_path: str, media_item_id: str) -> str | None:
-    """Generates a thumbnail for an image file using Pillow in an executor."""
     thumb_dir = os.path.join(MEDIA_FILES_BASE_PATH, THUMBNAIL_DIR_NAME)
     await aios.makedirs(thumb_dir, exist_ok=True)
-    thumb_filename = f"{media_item_id}.jpg" # Standardize to JPG
+    thumb_filename = f"{media_item_id}.jpg"
     thumb_dest_path_abs = os.path.join(thumb_dir, thumb_filename)
-
     loop = asyncio.get_event_loop()
     success = await loop.run_in_executor(None, _blocking_pil_image_thumbnail, source_media_path, thumb_dest_path_abs, THUMBNAIL_SIZE)
-
     if success:
-        return os.path.join(THUMBNAIL_DIR_NAME, thumb_filename) # Return relative path
+        return os.path.join(THUMBNAIL_DIR_NAME, thumb_filename)
     return None
 
 def _blocking_cv2_video_thumbnail(source_path: str, thumb_dest_path: str, size: tuple[int, int]):
-    """Synchronous/blocking function to create video thumbnail using OpenCV and Pillow."""
     cap = None
     try:
         cap = cv2.VideoCapture(source_path)
         if not cap.isOpened():
             print(f"OpenCV: Could not open video file: {source_path}")
             return False
-
-        # Try to capture a frame a few seconds into the video
-        cap.set(cv2.CAP_PROP_POS_FRAMES, min(50, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) -1 )) # frame 50 or last frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, min(50, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) -1 ))
         ret, frame = cap.read()
-        if not ret: # If that fails, try the first frame
+        if not ret:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             ret, frame = cap.read()
-
         if ret:
             pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             pil_img.thumbnail(size)
@@ -127,126 +180,34 @@ def _blocking_cv2_video_thumbnail(source_path: str, thumb_dest_path: str, size: 
         print(f"OpenCV/Pillow: Error generating video thumbnail for {source_path}: {e}")
         return False
     finally:
-        if cap:
-            cap.release()
+        if cap: cap.release()
 
 async def _generate_video_thumbnail(source_media_path: str, media_item_id: str) -> str | None:
-    """Generates a thumbnail for a video file using OpenCV and Pillow in an executor."""
     thumb_dir = os.path.join(MEDIA_FILES_BASE_PATH, THUMBNAIL_DIR_NAME)
     await aios.makedirs(thumb_dir, exist_ok=True)
     thumb_filename = f"{media_item_id}.jpg"
     thumb_dest_path_abs = os.path.join(thumb_dir, thumb_filename)
-
     loop = asyncio.get_event_loop()
     success = await loop.run_in_executor(None, _blocking_cv2_video_thumbnail, source_media_path, thumb_dest_path_abs, THUMBNAIL_SIZE)
-
     if success:
-        return os.path.join(THUMBNAIL_DIR_NAME, thumb_filename) # Relative path
+        return os.path.join(THUMBNAIL_DIR_NAME, thumb_filename)
     return None
 
-
-async def add_video(title: str, description: str, filepath: str, uploader_user_id: str, tags: List[str] | None = None) -> models.VideoItem:
+async def add_video(title: str, description: str, filepath: str, uploader_user_id: str, tags: List[str] | None = None, metadata: Dict[str, Any] | None = None) -> models.VideoItem:
     if not await aios.path.exists(filepath):
         raise FileNotFoundError(f"Video file not found: {filepath}")
     if not uploader_user_id:
         raise ValueError("uploader_user_id is mandatory to add media.")
-def add_video(title: str, description: str, category: str, filepath: str) -> models.VideoItem:
-    """Adds a new video item."""
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Video file not found: {filepath}")
-
-    item_id = _generate_id()
-    _, extension = os.path.splitext(filepath)
-    new_filename = f"{item_id}{extension}"
-    new_media_filepath_abs = os.path.join(MEDIA_FILES_BASE_PATH, new_filename) # Absolute path for copy
-    new_media_filepath_rel = os.path.join(new_filename) # Relative path for DB and model (relative to MEDIA_FILES_BASE_PATH)
-
-
-    await aios.makedirs(MEDIA_FILES_BASE_PATH, exist_ok=True)
-    thumbnail_rel_path = None # Initialize
-
-    try:
-        async with aiofiles.open(filepath, 'rb') as src_f:
-            async with aiofiles.open(new_media_filepath_abs, 'wb') as dest_f:
-                while True:
-                    chunk = await src_f.read(8192)
-                    if not chunk: break
-                    await dest_f.write(chunk)
-
-        # Generate thumbnail after successful file copy
-        thumbnail_rel_path = await _generate_video_thumbnail(new_media_filepath_abs, item_id)
-
-    except Exception as e_copy:
-        print(f"Error during async file copy/thumb for {filepath}: {e_copy}")
-        if await aios.path.exists(new_media_filepath_abs):
-            try: await aios.remove(new_media_filepath_abs)
-            except OSError as oe: print(f"Error cleaning up file {new_media_filepath_abs}: {oe}")
-        raise
-
-    video_item_model = models.VideoItem(id=item_id, title=title, description=description, filepath=new_media_filepath_rel, tags=tags if tags else [], thumbnail_path=thumbnail_rel_path)
-
-    conn = None
-    try:
-        conn = db.get_db_connection()
-        cursor = conn.cursor()
-        now_iso = datetime.utcnow().isoformat()
-
-        cursor.execute(
-            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (video_item_model.id, video_item_model.title, video_item_model.description,
-             video_item_model.item_type, video_item_model.filepath, None, uploader_user_id, now_iso, now_iso, video_item_model.thumbnail_path)
-        )
-
-        if video_item_model.tags:
-            for tag_name in video_item_model.tags:
-                tag_id = _get_or_create_tag_id(tag_name, cursor)
-                cursor.execute("INSERT INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (video_item_model.id, tag_id))
-
-        conn.commit()
-    except sqlite3.Error as e_db:
-        if conn: conn.rollback()
-        print(f"Database error in add_video: {e_db}")
-        # File was already copied, and thumbnail might have been generated.
-        # This state might require manual cleanup or more sophisticated rollback of file ops.
-        raise
-    finally:
-        if conn: conn.close()
-    return video_item_model
-
-async def add_image(title: str, description: str, filepath: str, uploader_user_id: str, tags: List[str] | None = None) -> models.ImageItem:
-    if not await aios.path.exists(filepath):
-        raise FileNotFoundError(f"Image file not found: {filepath}")
-    if not uploader_user_id:
-        raise ValueError("uploader_user_id is mandatory to add media.")
-
-    new_filepath = os.path.join(MEDIA_FILES_DIR, new_filename)
-
-    os.makedirs(MEDIA_FILES_DIR, exist_ok=True) # Ensure media_files directory exists
-    shutil.copy(filepath, new_filepath)
-
-    video_item = models.VideoItem(id=item_id, title=title, description=description, category=category, filepath=new_filepath)
-
-    library = _load_media_library()
-    library.append(video_item.to_dict())
-    _save_media_library(library)
-
-    return video_item
-
-def add_image(title: str, description: str, category: str, filepath: str) -> models.ImageItem:
-    """Adds a new image item."""
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Image file not found: {filepath}")
 
     item_id = _generate_id()
     _, extension = os.path.splitext(filepath)
     new_filename = f"{item_id}{extension}"
     new_media_filepath_abs = os.path.join(MEDIA_FILES_BASE_PATH, new_filename)
-    new_media_filepath_rel = os.path.join(new_filename) # Relative to MEDIA_FILES_BASE_PATH
+    new_media_filepath_rel = new_filename
 
     await aios.makedirs(MEDIA_FILES_BASE_PATH, exist_ok=True)
     thumbnail_rel_path = None
-
+    extracted_metadata = {}
     try:
         async with aiofiles.open(filepath, 'rb') as src_f:
             async with aiofiles.open(new_media_filepath_abs, 'wb') as dest_f:
@@ -255,7 +216,10 @@ def add_image(title: str, description: str, category: str, filepath: str) -> mod
                     if not chunk: break
                     await dest_f.write(chunk)
 
-        thumbnail_rel_path = await _generate_image_thumbnail(new_media_filepath_abs, item_id)
+        thumbnail_rel_path = await _generate_video_thumbnail(new_media_filepath_abs, item_id)
+        # Extract metadata after successful file copy
+        extracted_metadata = _extract_video_metadata(new_media_filepath_abs)
+
     except Exception as e_copy:
         print(f"Error during async file copy/thumb for {filepath}: {e_copy}")
         if await aios.path.exists(new_media_filepath_abs):
@@ -263,26 +227,93 @@ def add_image(title: str, description: str, category: str, filepath: str) -> mod
             except OSError as oe: print(f"Error cleaning up file {new_media_filepath_abs}: {oe}")
         raise
 
-    image_item_model = models.ImageItem(id=item_id, title=title, description=description, filepath=new_media_filepath_rel, tags=tags if tags else [], thumbnail_path=thumbnail_rel_path)
+    # Combine provided metadata with extracted metadata
+    final_metadata = metadata if metadata is not None else {}
+    final_metadata.update(extracted_metadata) # Extracted data (like dimensions) can augment or override
+
+    video_item_model = models.VideoItem(id=item_id, title=title, description=description, filepath=new_media_filepath_rel, tags=tags, thumbnail_path=thumbnail_rel_path, metadata=final_metadata)
 
     conn = None
     try:
         conn = db.get_db_connection()
         cursor = conn.cursor()
         now_iso = datetime.utcnow().isoformat()
+        metadata_json_str = json.dumps(video_item_model.metadata) if video_item_model.metadata else None
 
         cursor.execute(
-            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (image_item_model.id, image_item_model.title, image_item_model.description,
-             image_item_model.item_type, image_item_model.filepath, None, uploader_user_id, now_iso, now_iso, image_item_model.thumbnail_path)
+            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (video_item_model.id, video_item_model.title, video_item_model.description,
+             video_item_model.item_type, video_item_model.filepath, None, uploader_user_id,
+             now_iso, now_iso, video_item_model.thumbnail_path, metadata_json_str)
         )
+        if video_item_model.tags:
+            for tag_name in video_item_model.tags:
+                tag_id = _get_or_create_tag_id(tag_name, cursor)
+                cursor.execute("INSERT INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (video_item_model.id, tag_id))
+        conn.commit()
+    except sqlite3.Error as e_db:
+        if conn: conn.rollback()
+        print(f"Database error in add_video: {e_db}")
+        raise
+    finally:
+        if conn: conn.close()
+    return video_item_model
 
+async def add_image(title: str, description: str, filepath: str, uploader_user_id: str, tags: List[str] | None = None, metadata: Dict[str, Any] | None = None) -> models.ImageItem:
+    if not await aios.path.exists(filepath):
+        raise FileNotFoundError(f"Image file not found: {filepath}")
+    if not uploader_user_id:
+        raise ValueError("uploader_user_id is mandatory to add media.")
+
+    item_id = _generate_id()
+    _, extension = os.path.splitext(filepath)
+    new_filename = f"{item_id}{extension}"
+    new_media_filepath_abs = os.path.join(MEDIA_FILES_BASE_PATH, new_filename)
+    new_media_filepath_rel = new_filename
+
+    await aios.makedirs(MEDIA_FILES_BASE_PATH, exist_ok=True)
+    thumbnail_rel_path = None
+    extracted_metadata = {}
+    try:
+        async with aiofiles.open(filepath, 'rb') as src_f:
+            async with aiofiles.open(new_media_filepath_abs, 'wb') as dest_f:
+                while True:
+                    chunk = await src_f.read(8192)
+                    if not chunk: break
+                    await dest_f.write(chunk)
+        thumbnail_rel_path = await _generate_image_thumbnail(new_media_filepath_abs, item_id)
+        extracted_metadata = _extract_image_metadata(new_media_filepath_abs)
+    except Exception as e_copy:
+        print(f"Error during async file copy/thumb for {filepath}: {e_copy}")
+        if await aios.path.exists(new_media_filepath_abs):
+            try: await aios.remove(new_media_filepath_abs)
+            except OSError as oe: print(f"Error cleaning up file {new_media_filepath_abs}: {oe}")
+        raise
+
+    final_metadata = metadata if metadata is not None else {}
+    final_metadata.update(extracted_metadata)
+
+    image_item_model = models.ImageItem(id=item_id, title=title, description=description, filepath=new_media_filepath_rel, tags=tags, thumbnail_path=thumbnail_rel_path, metadata=final_metadata)
+
+    conn = None
+    try:
+        conn = db.get_db_connection()
+        cursor = conn.cursor()
+        now_iso = datetime.utcnow().isoformat()
+        metadata_json_str = json.dumps(image_item_model.metadata) if image_item_model.metadata else None
+
+        cursor.execute(
+            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (image_item_model.id, image_item_model.title, image_item_model.description,
+             image_item_model.item_type, image_item_model.filepath, None, uploader_user_id,
+             now_iso, now_iso, image_item_model.thumbnail_path, metadata_json_str)
+        )
         if image_item_model.tags:
             for tag_name in image_item_model.tags:
                 tag_id = _get_or_create_tag_id(tag_name, cursor)
                 cursor.execute("INSERT INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (image_item_model.id, tag_id))
-
         conn.commit()
     except sqlite3.Error as e_db:
         if conn: conn.rollback()
@@ -292,23 +323,26 @@ def add_image(title: str, description: str, category: str, filepath: str) -> mod
         if conn: conn.close()
     return image_item_model
 
-# add_link remains synchronous
-def add_link(title: str, description: str, url: str, uploader_user_id: str, tags: List[str] | None = None) -> models.LinkItem:
+def add_link(title: str, description: str, url: str, uploader_user_id: str, tags: List[str] | None = None, metadata: Dict[str, Any] | None = None) -> models.LinkItem:
     if not uploader_user_id:
         raise ValueError("uploader_user_id is mandatory to add media.")
     item_id = _generate_id()
-    # Links don't have file-based thumbnails generated by this system.
-    link_item_model = models.LinkItem(id=item_id, title=title, description=description, url=url, tags=tags if tags else [], thumbnail_path=None)
+    # For links, metadata might include info fetched from the URL, but that's out of scope for auto-extraction here.
+    final_metadata = metadata if metadata is not None else {}
+    # No specific auto-extraction for links, so final_metadata is just user-provided metadata.
+    link_item_model = models.LinkItem(id=item_id, title=title, description=description, url=url, tags=tags, thumbnail_path=None, metadata=final_metadata)
     conn = None
     try:
         conn = db.get_db_connection()
         cursor = conn.cursor()
         now_iso = datetime.utcnow().isoformat()
+        metadata_json_str = json.dumps(link_item_model.metadata) if link_item_model.metadata else None
         cursor.execute(
-            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (link_item_model.id, link_item_model.title, link_item_model.description,
-             link_item_model.item_type, None, link_item_model.url, uploader_user_id, now_iso, now_iso, None) # thumbnail_path is None for links
+             link_item_model.item_type, None, link_item_model.url, uploader_user_id,
+             now_iso, now_iso, None, metadata_json_str)
         )
         if link_item_model.tags:
             for tag_name in link_item_model.tags:
@@ -323,8 +357,6 @@ def add_link(title: str, description: str, url: str, uploader_user_id: str, tags
         if conn: conn.close()
     return link_item_model
 
-# list_media, search_media, get_media_items_by_ids remain synchronous for DB queries
-# but they already correctly fetch all columns including thumbnail_path for from_dict.
 def list_media(filter_tags: List[str] | None = None, filter_type: str | None = None, filter_by_uploader_id: str | None = None) -> list[models.MediaItem]:
     conn = None
     media_items_objects = []
@@ -419,6 +451,7 @@ def search_media(
         if filter_by_uploader_id:
             sql_conditions.append("m.uploader_user_id = ?")
             params.append(filter_by_uploader_id)
+
         if not sql_conditions:
              if not query and not created_after and not created_before and not updated_after and not updated_before and not filter_by_uploader_id:
                 return []
@@ -426,6 +459,7 @@ def search_media(
         if sql_conditions:
             sql += " WHERE " + " AND ".join(sql_conditions)
         sql += " ORDER BY m.created_at DESC"
+
         cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
         for row_data in rows:
@@ -480,7 +514,6 @@ async def download_selected_media(selected_ids: list[str], download_path: str) -
     link_file_data = []
     for item in media_items_to_download:
         if isinstance(item, (models.VideoItem, models.ImageItem)):
-            # Filepath in DB is relative to MEDIA_FILES_BASE_PATH
             source_file_abs_path = os.path.join(MEDIA_FILES_BASE_PATH, item.filepath) if item.filepath else None
             if source_file_abs_path and await aios.path.exists(source_file_abs_path):
                 try:
@@ -499,8 +532,8 @@ async def download_selected_media(selected_ids: list[str], download_path: str) -
                 print(f"Filepath for item ID {item.id} not found or invalid: {source_file_abs_path}")
         elif isinstance(item, models.LinkItem):
             if hasattr(item, 'url') and item.url:
-                tags_str = f"Tags: {', '.join(sorted(item.tags))}" if item.tags else "Tags: None" # Sort tags for consistent output
-                link_file_data.append(f"Title: {item.title}\nURL: {item.url}\n{tags_str}\n")
+                tags_str = f"Tags: {', '.join(sorted(item.tags))}" if item.tags else "Tags: None"
+                link_file_data.append(f"Title: {item.title}\nURL: {item.url}\n{tags_str}\nMetadata: {json.dumps(item.metadata)}\n")
             else:
                 print(f"URL for item ID {item.id} not found or None.")
     if link_file_data:
@@ -519,9 +552,11 @@ def share_media_by_email(selected_ids: list[str], recipient_email: str) -> str:
         return f"No media items found for IDs: {selected_ids}."
     items_details = []
     for item in items:
-        details = f"ID: {item.id}, Title: {item.title}"
+        details = f"ID: {item.id}, Title: {item.title}, Type: {item.item_type}"
         if item.tags:
             details += f", Tags: {', '.join(sorted(item.tags))}" # Sort tags
+        if item.metadata:
+            details += f", Metadata: {json.dumps(item.metadata)}"
         items_details.append(details)
     message = (
         f"Attempting to share {len(items)} media item(s) to {recipient_email}:\n" +
@@ -537,211 +572,16 @@ def share_media_by_whatsapp(selected_ids: list[str], recipient_phone: str) -> st
         return f"No media items found for IDs: {selected_ids}."
     items_details = []
     for item in items:
-        details = f"ID: {item.id}, Title: {item.title}"
+        details = f"ID: {item.id}, Title: {item.title}, Type: {item.item_type}"
         if item.tags:
             details += f", Tags: {', '.join(sorted(item.tags))}" # Sort tags
+        if item.metadata:
+            details += f", Metadata: {json.dumps(item.metadata)}"
         items_details.append(details)
     message = (
         f"Attempting to share {len(items)} media item(s) to WhatsApp user {recipient_phone}:\n" +
         "\n".join(items_details) +
         "\nWhatsApp functionality is not fully implemented and may require specific API integrations."
-    new_filepath = os.path.join(MEDIA_FILES_DIR, new_filename)
-
-    os.makedirs(MEDIA_FILES_DIR, exist_ok=True) # Ensure media_files directory exists
-    shutil.copy(filepath, new_filepath)
-
-    image_item = models.ImageItem(id=item_id, title=title, description=description, category=category, filepath=new_filepath)
-
-    library = _load_media_library()
-    library.append(image_item.to_dict())
-    _save_media_library(library)
-
-    return image_item
-
-def add_link(title: str, description: str, category: str, url: str) -> models.LinkItem:
-    """Adds a new link item."""
-    item_id = _generate_id()
-    link_item = models.LinkItem(id=item_id, title=title, description=description, category=category, url=url)
-
-    library = _load_media_library()
-    library.append(link_item.to_dict())
-    _save_media_library(library)
-
-    library.append(link_item.to_dict())
-    _save_media_library(library)
-
-    return link_item
-
-def list_media(filter_category: str | None = None, filter_type: str | None = None) -> list[models.MediaItem]:
-    """Lists all media items, with optional filtering by category and/or type."""
-    library_dicts = _load_media_library()
-    media_items_objects = []
-    for item_dict in library_dicts:
-        try:
-            media_items_objects.append(models.MediaItem.from_dict(item_dict))
-        except ValueError as e:
-            print(f"Error reconstructing media item: {e}. Skipping item: {item_dict.get('id')}")
-            # Continue to next item if one is corrupted
-
-    # Apply category filter (case-insensitive)
-    if filter_category:
-        media_items_objects = [
-            item for item in media_items_objects
-            if item.category.lower() == filter_category.lower()
-        ]
-
-    # Apply type filter (exact match)
-    if filter_type:
-        media_items_objects = [
-            item for item in media_items_objects
-            if item.item_type == filter_type
-        ]
-            # Alternative: isinstance check if filter_type is mapped to class types
-            # For example, if filter_type == "video":
-            #   media_items_objects = [item for item in media_items_objects if isinstance(item, models.VideoItem)]
-            # But using item.item_type is more direct with current setup.
-
-    return media_items_objects
-
-def search_media(query: str) -> list[models.MediaItem]:
-    """Searches media items by keyword in title and description."""
-    all_items = list_media() # Get all media items, no filters
-
-    if not query or query.isspace():
-        return [] # Return empty list if query is empty or just whitespace
-
-    normalized_query = query.lower()
-    matched_items_set = set() # Use a set to store IDs of matched items to ensure uniqueness
-    result_items = []
-
-    for item in all_items:
-        # Check if item already added to avoid duplicate processing if not strictly necessary
-        # (though set logic below handles final uniqueness)
-        # if item.id in matched_items_set:
-        # continue
-
-        # Check title
-        if normalized_query in item.title.lower():
-            if item.id not in matched_items_set:
-                result_items.append(item)
-                matched_items_set.add(item.id)
-            # No continue here, to allow checking description as well,
-            # though the set handles uniqueness.
-            # If we only want to add once and stop, `continue` would be here.
-
-        # Check description (only if not already added from title match)
-        if item.id not in matched_items_set: # Optimization: check description only if not already added
-            if normalized_query in item.description.lower():
-                result_items.append(item)
-                matched_items_set.add(item.id)
-
-    return result_items
-
-def get_media_items_by_ids(ids: list[str]) -> list[models.MediaItem]:
-    """Retrieves media items based on a list of their IDs."""
-    all_items = list_media() # Get all media items
-
-    if not ids:
-        return []
-
-    selected_ids_set = set(ids)
-    found_items = []
-
-    for item in all_items:
-        if item.id in selected_ids_set:
-            found_items.append(item)
-            # If items should be unique and order of input `ids` list matters,
-            # and an ID might be duplicated in `ids`:
-            # selected_ids_set.remove(item.id) # To ensure we pick an item once if ID is duplicated in input.
-            # However, standard use is unique IDs in the input list.
-
-    # The problem statement says: "order of returned items can be based on the order
-    # in the original library or the order of IDs provided; for simplicity,
-    # the order from list_media() is fine."
-    # The current implementation respects the order from list_media().
-
-    # If preserving input ID order is strictly needed and all_items is large,
-    # creating an item_map first might be more efficient for lookup.
-    # Example for preserving input ID order:
-    # item_map = {item.id: item for item in all_items}
-    # ordered_found_items = [item_map[id_val] for id_val in ids if id_val in item_map]
-    # return ordered_found_items
-
-    return found_items
-
-def download_selected_media(selected_ids: list[str], download_path: str) -> list[str]:
-    """Downloads selected media items (copies files, saves links)."""
-    if not selected_ids:
-        return []
-
-    media_items_to_download = get_media_items_by_ids(selected_ids)
-    if not media_items_to_download:
-        return []
-
-    os.makedirs(download_path, exist_ok=True)
-    downloaded_file_paths = []
-    link_file_data = [] # Collect all links to write them once
-
-    for item in media_items_to_download:
-        if isinstance(item, (models.VideoItem, models.ImageItem)):
-            if hasattr(item, 'filepath') and os.path.exists(item.filepath):
-                try:
-                    # Sanitize title for use as a filename component, or use ID
-                    # For simplicity, using original filename from item.filepath
-                    base_filename = os.path.basename(item.filepath)
-                    destination_path = os.path.join(download_path, base_filename)
-                    shutil.copy(item.filepath, destination_path)
-                    downloaded_file_paths.append(destination_path)
-                except Exception as e:
-                    print(f"Error copying file {item.filepath} for item ID {item.id}: {e}")
-            else:
-                print(f"Filepath for item ID {item.id} not found or invalid: {getattr(item, 'filepath', 'N/A')}")
-        elif isinstance(item, models.LinkItem):
-            if hasattr(item, 'url'):
-                link_file_data.append(f"Title: {item.title}\nURL: {item.url}\n")
-            else:
-                print(f"URL for item ID {item.id} not found.")
-
-    if link_file_data:
-        links_file_path = os.path.join(download_path, "downloaded_links.txt")
-        try:
-            with open(links_file_path, 'w') as f:
-                f.write("\n---\n".join(link_file_data)) # Separate entries
-            downloaded_file_paths.append(links_file_path)
-        except Exception as e:
-            print(f"Error writing links file to {links_file_path}: {e}")
-
-    return downloaded_file_paths
-
-def share_media_by_email(selected_ids: list[str], recipient_email: str) -> str:
-    """Placeholder for sharing media by email."""
-    items = get_media_items_by_ids(selected_ids)
-    if not items:
-        return f"No media items found for IDs: {selected_ids}."
-
-    # In a real implementation, this would involve formatting and sending an email.
-    # For example, listing titles, descriptions, and attaching/linking files.
-
-    message = (
-        f"Attempting to share {len(items)} media item(s) with IDs {selected_ids} to {recipient_email}.\n"
-        "Email functionality is not fully implemented in this backend module."
-    )
-    print(message)
-    # Simulate a success/failure message
-    return f"Placeholder: Email sharing process initiated for {len(items)} items to {recipient_email}."
-
-def share_media_by_whatsapp(selected_ids: list[str], recipient_phone: str) -> str:
-    """Placeholder for sharing media by WhatsApp."""
-    items = get_media_items_by_ids(selected_ids)
-    if not items:
-        return f"No media items found for IDs: {selected_ids}."
-
-    # Real implementation would use WhatsApp Business API or similar.
-    # This would involve formatting messages, handling media uploads/links per WhatsApp constraints.
-
-    message = (
-        f"Attempting to share {len(items)} media item(s) with IDs {selected_ids} to WhatsApp user {recipient_phone}.\n"
-        "WhatsApp functionality is not fully implemented and may require specific API integrations."
     )
     print(message)
     return f"Placeholder: WhatsApp sharing process initiated for {len(items)} items to {recipient_phone}."
