@@ -19,6 +19,7 @@ from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
 import db as db_manager
+from db import db_seed
 from db import get_all_companies, add_company # Specific imports for company check
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
@@ -213,33 +214,16 @@ def main():
     logging.info("Call to app_setup.initialize_default_templates completed (ensures template files on disk).")
 
     # --- Coordinated Data Seeding ---
-    # This block handles the seeding of initial data after the schema is created.
-    # It uses a single connection and transaction for all seeding operations defined in db_manager.seed_initial_data.
-    conn_seed = None
+    # This block handles the seeding of initial data after the schema is created,
+    # using the dedicated seeding module.
     try:
-        logging.info("Attempting to connect for data seeding...")
-        conn_seed = db_manager.get_db_connection() # Get a fresh connection for seeding
-        cursor_seed = conn_seed.cursor()
-        logging.info("Connection successful. Seeding initial data if necessary...")
-        db_manager.seed_initial_data(cursor_seed) # Call the centralized seeding function
-        conn_seed.commit() # Commit all seeding changes
-        logging.info("Data seeding transaction committed successfully.")
-    except db_manager.sqlite3.Error as e_seed: # Catch SQLite specific errors
-        logging.error(f"Error during data seeding: {e_seed}")
-        if conn_seed:
-            conn_seed.rollback()
-            logging.info("Data seeding transaction rolled back due to SQLite error.")
-        # Depending on the severity, you might want to inform the user or exit.
-        # For now, logging the error and attempting to continue.
-    except Exception as e_general_seed: # Catch other potential errors during seeding
-        logging.error(f"A non-database error occurred during data seeding: {e_general_seed}", exc_info=True)
-        if conn_seed: # If connection was made, attempt rollback
-            conn_seed.rollback()
-            logging.info("Data seeding transaction rolled back due to non-database error.")
-    finally:
-        if conn_seed:
-            conn_seed.close()
-            logging.info("Seeding connection closed.")
+        logging.info("Attempting to run data seeding if necessary...")
+        db_seed.run_seed() # Call the main seeding function from db_seed.py
+        # run_seed() handles its own connection, commit, rollback, and logging.
+        logging.info("Data seeding process via db_seed.run_seed() completed.")
+    except Exception as e_seed_run:
+        # Catch any unexpected error from run_seed() itself, though it should handle its own.
+        logging.error(f"An unexpected error occurred when calling db_seed.run_seed(): {e_seed_run}", exc_info=True)
     # --- End Coordinated Data Seeding ---
 
     # --- Startup Dialog Logic ---
