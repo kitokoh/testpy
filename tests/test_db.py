@@ -108,6 +108,101 @@ class TestDBContactsPagination(unittest.TestCase):
         contacts = db_manager.get_contacts_for_client(self.test_client_id, limit=0)
         self.assertEqual(len(contacts), 0)
 
+
+class TestCarrierEmailDB(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.original_db_name = db_manager.DATABASE_NAME
+        cls.test_db_name = "test_carrier_email_db.sqlite" # Use a different DB for these tests or ensure clean tables
+        db_manager.DATABASE_NAME = cls.test_db_name
+
+        if os.path.exists(cls.test_db_name):
+            os.remove(cls.test_db_name)
+        db_manager.initialize_database() # This will create Client_Transporters with email_status
+
+    @classmethod
+    def tearDownClass(cls):
+        db_manager.DATABASE_NAME = cls.original_db_name
+        if os.path.exists(cls.test_db_name):
+            os.remove(cls.test_db_name)
+
+    def setUp(self):
+        conn = db_manager.get_db_connection()
+        cursor = conn.cursor()
+        # Clear relevant tables before each test
+        cursor.execute("DELETE FROM Client_Transporters")
+        cursor.execute("DELETE FROM Transporters")
+        cursor.execute("DELETE FROM Clients")
+        # Add other necessary table cleanups if foreign keys are involved
+        conn.commit()
+        conn.close()
+
+        # Add a test client
+        self.client_id = db_manager.add_client({'client_name': 'Test Client for Carrier Email', 'project_identifier': 'CARRIER_EMAIL_TEST'})
+        self.assertIsNotNone(self.client_id, "Failed to create test client for carrier email tests")
+
+        # Add a test transporter
+        self.transporter_id = db_manager.add_transporter({'name': 'Test Transporter'})
+        self.assertIsNotNone(self.transporter_id, "Failed to create test transporter")
+
+    def test_assign_transporter_default_email_status(self):
+        """Test that assigning a transporter defaults email_status to 'Pending'."""
+        assignment_id = db_manager.assign_transporter_to_client(self.client_id, self.transporter_id, "Details", 100.0)
+        self.assertIsNotNone(assignment_id, "Failed to assign transporter to client")
+
+        assigned_transporters = db_manager.get_assigned_transporters_for_client(self.client_id)
+        self.assertEqual(len(assigned_transporters), 1)
+        self.assertEqual(assigned_transporters[0]['email_status'], 'Pending')
+        self.assertEqual(assigned_transporters[0]['client_transporter_id'], assignment_id)
+
+
+    def test_update_client_transporter_email_status(self):
+        """Test updating the email_status of a client-transporter assignment."""
+        assignment_id = db_manager.assign_transporter_to_client(self.client_id, self.transporter_id, "Initial Details", 200.0)
+        self.assertIsNotNone(assignment_id, "Failed to assign transporter for status update test")
+
+        # Update status to "Sent"
+        update_success_sent = db_manager.update_client_transporter_email_status(assignment_id, "Sent")
+        self.assertTrue(update_success_sent, "Failed to update email_status to Sent")
+
+        assigned_transporters_sent = db_manager.get_assigned_transporters_for_client(self.client_id)
+        self.assertEqual(len(assigned_transporters_sent), 1)
+        self.assertEqual(assigned_transporters_sent[0]['email_status'], "Sent")
+
+        # Update status to "Failed"
+        update_success_failed = db_manager.update_client_transporter_email_status(assignment_id, "Failed")
+        self.assertTrue(update_success_failed, "Failed to update email_status to Failed")
+
+        assigned_transporters_failed = db_manager.get_assigned_transporters_for_client(self.client_id)
+        self.assertEqual(len(assigned_transporters_failed), 1)
+        self.assertEqual(assigned_transporters_failed[0]['email_status'], "Failed")
+
+        # Test updating a non-existent assignment_id
+        non_existent_id = 99999
+        update_fail_non_existent = db_manager.update_client_transporter_email_status(non_existent_id, "Sent")
+        self.assertFalse(update_fail_non_existent, "Update should fail for non-existent assignment ID")
+
+
+    def test_get_assigned_transporters_includes_email_status(self):
+        """Test that get_assigned_transporters_for_client includes the email_status field."""
+        assignment_id = db_manager.assign_transporter_to_client(self.client_id, self.transporter_id, "Details for get test", 300.0)
+        self.assertIsNotNone(assignment_id)
+
+        # First check: Default status
+        assigned_transporters = db_manager.get_assigned_transporters_for_client(self.client_id)
+        self.assertEqual(len(assigned_transporters), 1)
+        self.assertIn('email_status', assigned_transporters[0])
+        self.assertEqual(assigned_transporters[0]['email_status'], 'Pending')
+
+        # Update status and check again
+        db_manager.update_client_transporter_email_status(assignment_id, "CustomStatus")
+        assigned_transporters_updated = db_manager.get_assigned_transporters_for_client(self.client_id)
+        self.assertEqual(len(assigned_transporters_updated), 1)
+        self.assertIn('email_status', assigned_transporters_updated[0])
+        self.assertEqual(assigned_transporters_updated[0]['email_status'], 'CustomStatus')
+
+
 if __name__ == '__main__':
     # This allows running the tests directly from this file
     unittest.main(argv=['first-arg-is-ignored'], exit=False)

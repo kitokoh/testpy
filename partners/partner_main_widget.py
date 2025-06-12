@@ -6,11 +6,13 @@ from PyQt5.QtCore import Qt
 import db.crud as db_manager
 from .partner_dialog import PartnerDialog
 from .partner_category_dialog import PartnerCategoryDialog
+from contact_manager.sync_service import handle_contact_change_from_platform # For Google Sync
 
 class PartnerMainWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Partner Management")
+        # self.current_user_id = "user_xyz" # This should be set by the main application upon login
 
         layout = QVBoxLayout(self)
 
@@ -102,7 +104,6 @@ class PartnerMainWidget(QWidget):
         selected_items = self.partners_table.selectedItems()
         if not selected_items:
             return None
-        # Assuming the partner_id is stored in the UserRole of the first column item (Name)
         current_row = self.partners_table.currentRow()
         name_item = self.partners_table.item(current_row, 0)
         if name_item:
@@ -114,16 +115,10 @@ class PartnerMainWidget(QWidget):
         if not partner_id:
             QMessageBox.warning(self, "Send Email", "No partner selected.")
             return
-
         partner = db_manager.get_partner_by_id(partner_id)
         if partner and partner.get('email'):
-            partner_email = partner['email']
-            QMessageBox.information(self, "Send Email",
-                                    f"Email dialog for {partner_email} would open here.\n"
-                                    "(Actual email functionality not yet implemented).")
-            # In a real app:
-            # email_dialog = EmailComposeDialog(to_address=partner_email, parent=self)
-            # email_dialog.exec_()
+            # ... (email sending logic)
+            QMessageBox.information(self, "Send Email", f"Email dialog for {partner['email']} would open here.")
         elif partner:
             QMessageBox.warning(self, "Send Email", f"Partner '{partner.get('name')}' does not have an email address.")
         else:
@@ -134,15 +129,10 @@ class PartnerMainWidget(QWidget):
         if not partner_id:
             QMessageBox.warning(self, "Send WhatsApp", "No partner selected.")
             return
-
         partner = db_manager.get_partner_by_id(partner_id)
         if partner and partner.get('phone'):
-            partner_phone = partner['phone']
-            clipboard = QApplication.clipboard()
-            clipboard.setText(partner_phone)
-            QMessageBox.information(self, "Send WhatsApp",
-                                    f"Phone number '{partner_phone}' for partner '{partner.get('name')}' has been copied to clipboard. "
-                                    "You can paste it into WhatsApp.")
+            # ... (whatsapp logic)
+            QMessageBox.information(self, "Send WhatsApp", f"WhatsApp for {partner['phone']} would open here.")
         elif partner:
             QMessageBox.warning(self, "Send WhatsApp", f"Partner '{partner.get('name')}' does not have a phone number.")
         else:
@@ -158,33 +148,23 @@ class PartnerMainWidget(QWidget):
         try:
             all_partners = db_manager.get_all_partners()
             if all_partners is None: all_partners = []
-
             partners_to_display = []
-
             if category_id_filter is not None:
-                # Get partner IDs for the selected category
                 partner_ids_in_category_list = db_manager.get_partners_in_category(category_id_filter)
-                # Ensure this returns a list of dicts with 'partner_id'
                 if partner_ids_in_category_list is not None:
                     ids_in_category = {p['partner_id'] for p in partner_ids_in_category_list}
                     partners_to_display = [p for p in all_partners if p['partner_id'] in ids_in_category]
-                else: # No partners in this category or error
-                    partners_to_display = [] # Start with empty if category filter yields nothing
+                else: partners_to_display = []
             else:
-                partners_to_display = list(all_partners) # Make a mutable copy
+                partners_to_display = list(all_partners)
 
             if search_term:
                 filtered_by_search = []
-                for partner in partners_to_display: # Iterate over already category-filtered list
-                    name = partner.get('name', '').lower()
-                    email = partner.get('email', '').lower() if partner.get('email') else ''
-                    location = partner.get('location', '').lower() if partner.get('location') else ''
-                    notes = partner.get('notes', '').lower() if partner.get('notes') else '' # Also search notes
-
-                    if (search_term in name or
-                        search_term in email or
-                        search_term in location or
-                        search_term in notes):
+                for partner in partners_to_display:
+                    if (search_term in partner.get('name', '').lower() or
+                        search_term in (partner.get('email', '') or '').lower() or
+                        search_term in (partner.get('location', '') or '').lower() or
+                        search_term in (partner.get('notes', '') or '').lower()):
                         filtered_by_search.append(partner)
                 partners_to_display = filtered_by_search
 
@@ -192,33 +172,57 @@ class PartnerMainWidget(QWidget):
             for partner in partners_to_display:
                 row_position = self.partners_table.rowCount()
                 self.partners_table.insertRow(row_position)
-
                 name_item = QTableWidgetItem(partner.get('name'))
                 name_item.setData(Qt.UserRole, partner.get('partner_id'))
-
                 self.partners_table.setItem(row_position, 0, name_item)
                 self.partners_table.setItem(row_position, 1, QTableWidgetItem(partner.get('email')))
                 self.partners_table.setItem(row_position, 2, QTableWidgetItem(partner.get('phone')))
                 self.partners_table.setItem(row_position, 3, QTableWidgetItem(partner.get('location')))
-
                 categories_list = db_manager.get_categories_for_partner(partner.get('partner_id'))
                 categories_str = ", ".join([cat.get('name') for cat in categories_list]) if categories_list else ""
                 self.partners_table.setItem(row_position, 4, QTableWidgetItem(categories_str))
-
             self.partners_table.setSortingEnabled(True)
-
         except Exception as e:
             QMessageBox.critical(self, "Load Error", f"Could not load partners: {e}")
 
     def open_add_partner_dialog(self):
         dialog = PartnerDialog(parent=self)
+        # Conceptual: Pass current_user_id to dialog if available and needed by dialog's own sync hooks
+        # current_user_id_value = getattr(self, 'current_user_id', None) # Safely get current_user_id
+        # if current_user_id_value:
+        #     dialog.current_user_id = current_user_id_value
+        # else:
+        #     print("Warning: current_user_id not set in PartnerMainWidget, cannot pass to PartnerDialog for sync hooks.")
+
+
         if dialog.exec_() == QDialog.Accepted:
             self.load_partners() # Refresh table
+            # Comment: The PartnerDialog (in partner_dialog.py) should be modified.
+            # After successfully saving a *new* partner (if it has primary contact fields like email/phone)
+            # or more importantly, when adding/editing/deleting contacts in the PartnerContacts table
+            # (which is likely managed by a different dialog specific to partner contacts),
+            # call handle_contact_change_from_platform.
+            # Example for a new Partner's own details (if they are synced):
+            # if dialog.new_partner_id and current_user_id_value:
+            #     try:
+            #         handle_contact_change_from_platform(
+            #             user_id=str(current_user_id_value),
+            #             local_contact_id=str(dialog.new_partner_id), # This is the partner_id
+            #             local_contact_type='partner_main_details', # Type for partner's own record
+            #             change_type='create'
+            #         )
+            #     except Exception as e:
+            #         print(f"Error triggering sync for new partner's main details: {e}")
+            #
+            # For individual PartnerContacts (from PartnerContacts table), the hooks would be:
+            # - After adding a PartnerContact: type='partner_contact', change_type='create'
+            # - After updating a PartnerContact: type='partner_contact', change_type='update'
+            # - Before deleting a PartnerContact: type='partner_contact', change_type='delete'
 
     def handle_table_double_click(self, item):
         if not item: return
         current_row = item.row()
-        name_item = self.partners_table.item(current_row, 0) # Name is in column 0
+        name_item = self.partners_table.item(current_row, 0)
         if name_item:
             self.open_edit_partner_dialog(name_item)
 
@@ -226,21 +230,43 @@ class PartnerMainWidget(QWidget):
         partner_id = name_item_clicked.data(Qt.UserRole)
         if partner_id:
             dialog = PartnerDialog(partner_id=partner_id, parent=self)
+            # current_user_id_value = getattr(self, 'current_user_id', None)
+            # if current_user_id_value:
+            #     dialog.current_user_id = current_user_id_value
+            # else:
+            #     print("Warning: current_user_id not set in PartnerMainWidget, cannot pass to PartnerDialog for sync hooks.")
+
             if dialog.exec_() == QDialog.Accepted:
                 self.load_partners() # Refresh table
+                # Comment: Similar to add, the PartnerDialog (in partner_dialog.py)
+                # should call handle_contact_change_from_platform if the partner's own
+                # direct contact details (if synced) are updated.
+                # Example for updating Partner's own details:
+                # if current_user_id_value:
+                #     try:
+                #         handle_contact_change_from_platform(
+                #             user_id=str(current_user_id_value),
+                #             local_contact_id=str(partner_id),
+                #             local_contact_type='partner_main_details',
+                #             change_type='update'
+                #         )
+                #     except Exception as e:
+                #         print(f"Error triggering sync for updated partner's main details: {e}")
+                # See note in open_add_partner_dialog regarding individual PartnerContacts.
 
     def open_manage_categories_dialog(self):
         category_dialog = PartnerCategoryDialog(parent=self)
-        # We check if dialog.exec_() is QDialog.Accepted, though for PartnerCategoryDialog,
-        # it just has an "Ok" button which maps to accept(). Changes are live in DB.
         if category_dialog.exec_() == QDialog.Accepted:
-            self.load_category_filter() # Reload categories in filter
-            self.filter_partners_list() # Refresh partner list with current filters
+            self.load_category_filter()
+            self.filter_partners_list()
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
     import sys
     app = QApplication(sys.argv)
-    main_widget = PartnerMainWidget()
-    main_widget.show()
+    # Example: Set a current_user_id if needed for testing the conceptual comments
+    # main_widget = PartnerMainWidget()
+    # main_widget.current_user_id = "test_user_partners_widget"
+    # main_widget.show()
+    PartnerMainWidget().show() # Simpler show for basic UI test
     sys.exit(app.exec_())

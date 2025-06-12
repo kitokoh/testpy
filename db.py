@@ -1015,11 +1015,24 @@ def initialize_database():
         transport_details TEXT,
         cost_estimate REAL,
         assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        email_status TEXT DEFAULT 'Pending', -- Added new column
         FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
         FOREIGN KEY (transporter_id) REFERENCES Transporters (transporter_id) ON DELETE CASCADE,
         UNIQUE (client_id, transporter_id)
     )
     """)
+    # Check and add email_status column to Client_Transporters if it doesn't exist
+    cursor.execute("PRAGMA table_info(Client_Transporters)")
+    columns_ct = [column['name'] for column in cursor.fetchall()] # Assumes conn.row_factory = sqlite3.Row
+    if 'email_status' not in columns_ct:
+        try:
+            cursor.execute("ALTER TABLE Client_Transporters ADD COLUMN email_status TEXT DEFAULT 'Pending'")
+            conn.commit() # Commit ALTER TABLE immediately
+            print("Added 'email_status' column to Client_Transporters table.")
+        except sqlite3.Error as e_ct_alter:
+            print(f"Error adding 'email_status' column to Client_Transporters: {e_ct_alter}")
+            # No rollback here, as it's a DDL change outside a larger transaction for this specific part.
+
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_client_id ON Client_Transporters(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_transporter_id ON Client_Transporters(transporter_id)")
 
@@ -10301,10 +10314,10 @@ def assign_transporter_to_client(client_id: str, transporter_id: str, transport_
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat() + "Z"
         sql = """
-            INSERT INTO Client_Transporters (client_id, transporter_id, transport_details, cost_estimate, assigned_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO Client_Transporters (client_id, transporter_id, transport_details, cost_estimate, assigned_at, email_status)
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        params = (client_id, transporter_id, transport_details, cost_estimate, now)
+        params = (client_id, transporter_id, transport_details, cost_estimate, now, 'Pending') # Added email_status
         cursor.execute(sql, params)
         conn.commit()
         return cursor.lastrowid
@@ -10325,7 +10338,7 @@ def get_assigned_transporters_for_client(client_id: str) -> list[dict]:
         conn = get_db_connection()
         cursor = conn.cursor()
         sql = """
-            SELECT ct.*, t.name as transporter_name, t.contact_person, t.phone, t.email
+            SELECT ct.*, t.name as transporter_name, t.contact_person, t.phone, t.email, ct.email_status
             FROM Client_Transporters ct
             JOIN Transporters t ON ct.transporter_id = t.transporter_id
             WHERE ct.client_id = ?
@@ -10351,6 +10364,22 @@ def unassign_transporter_from_client(client_transporter_id: int) -> bool:
         return cursor.rowcount > 0
     except sqlite3.Error as e:
         print(f"Database error in unassign_transporter_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def update_client_transporter_email_status(client_transporter_id: int, status: str) -> bool:
+    """Updates the email_status for a specific client-transporter assignment."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "UPDATE Client_Transporters SET email_status = ? WHERE client_transporter_id = ?"
+        cursor.execute(sql, (status, client_transporter_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_client_transporter_email_status: {e}")
         return False
     finally:
         if conn: conn.close()
