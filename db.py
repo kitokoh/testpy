@@ -1241,258 +1241,259 @@ def seed_initial_data(cursor: sqlite3.Cursor):
     # strictly use the provided cursor. Such logic needs to be adapted for direct cursor use
     # or the helper functions refactored to accept a cursor.
 
-    # 1. Users
-    cursor.execute("SELECT COUNT(*) FROM Users")
-    if cursor.fetchone()[0] == 0:
-        admin_user_id = str(uuid.uuid4())
+    try:
+        # 1. Users
+        cursor.execute("SELECT COUNT(*) FROM Users")
+        if cursor.fetchone()[0] == 0:
+            admin_user_id = str(uuid.uuid4())
         admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
         cursor.execute("""
             INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
-        print("Seeded admin user.")
+            print("Seeded admin user.")
 
-    # The rest of the seeding logic will be moved here incrementally.
-    # For now, this function only seeds users.
+        # The rest of the seeding logic will be moved here incrementally.
+        # For now, this function only seeds users.
 
-    # 2. Companies
-    default_company_id = None
-    cursor.execute("SELECT COUNT(*) FROM Companies")
-    if cursor.fetchone()[0] == 0:
-        default_company_id = str(uuid.uuid4())
-        cursor.execute("""
-            INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
-            VALUES (?, ?, ?, ?)
-        """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
-        print("Seeded default company.")
-    else:
-        # If company exists, try to get the default one for personnel and other linking
-        cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
-        row = cursor.fetchone()
-        if row:
-            default_company_id = row[0]
-
-    # 3. CompanyPersonnel
-    if default_company_id:
-        cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
-        if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
+        # 2. Companies
+        default_company_id = None
+        cursor.execute("SELECT COUNT(*) FROM Companies")
+        if cursor.fetchone()[0] == 0:
+            default_company_id = str(uuid.uuid4())
             cursor.execute("""
-                INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
-                VALUES (?, ?, ?, ?, ?)
-            """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
-            print("Seeded default company personnel.")
+                INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
+                VALUES (?, ?, ?, ?)
+            """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
+            print("Seeded default company.")
+        else:
+            # If company exists, try to get the default one for personnel and other linking
+            cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
+            row = cursor.fetchone()
+            if row:
+                default_company_id = row[0]
 
-    # 4. TeamMembers (link to admin user if created)
-    # Note: get_user_by_username will need to be adapted or this logic changed for direct cursor use
-    # For now, assuming direct cursor usage for this specific check during seeding
-    cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
-    admin_user_row = cursor.fetchone()
-    if admin_user_row:
-        admin_user_id_for_tm = admin_user_row[0]
-        cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
+        # 3. CompanyPersonnel
+        if default_company_id:
+            cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
+            if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
+                cursor.execute("""
+                    INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
+                print("Seeded default company personnel.")
+
+        # 4. TeamMembers (link to admin user if created)
+        # Note: get_user_by_username will need to be adapted or this logic changed for direct cursor use
+        # For now, assuming direct cursor usage for this specific check during seeding
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+        admin_user_row = cursor.fetchone()
+        if admin_user_row:
+            admin_user_id_for_tm = admin_user_row[0]
+            cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
+            if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
+                    VALUES (?, ?, ?, ?)
+                """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
+                print("Seeded admin team member.")
+
+        # 5. Countries
+        default_countries = [
+            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
+        ]
+        for country in default_countries:
+            cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
+        print(f"Seeded {len(default_countries)} countries.")
+
+        # 6. Cities
+        default_cities_map = {
+            'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
+        }
+        for country_name, city_name in default_cities_map.items():
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+            country_row = cursor.fetchone()
+            if country_row:
+                country_id = country_row[0]
+                cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+        print(f"Seeded {len(default_cities_map)} cities.")
+
+        # 7. Clients
+        # Note: The following get_user_by_username, get_country_by_name, etc. create their own connections.
+        # This will need to be refactored to use the provided cursor or adapt logic.
+        # For this step, moving as is, refactoring helpers later.
+        cursor.execute("SELECT COUNT(*) FROM Clients")
+        if cursor.fetchone()[0] == 0:
+            admin_user_id_for_client = None
+            cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+            admin_user_client_row = cursor.fetchone()
+            if admin_user_client_row: admin_user_id_for_client = admin_user_client_row[0]
+
+            default_country_id_for_client = None
+            cursor.execute("SELECT country_id FROM Countries WHERE country_name = 'France'")
+            country_client_row = cursor.fetchone()
+            if country_client_row: default_country_id_for_client = country_client_row[0]
+
+            default_city_id_for_client = None
+            if default_country_id_for_client:
+                cursor.execute("SELECT city_id FROM Cities WHERE city_name = 'Paris' AND country_id = ?", (default_country_id_for_client,))
+                city_client_row = cursor.fetchone()
+                if city_client_row: default_city_id_for_client = city_client_row[0]
+
+            active_client_status_id = None
+            cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Actif' AND status_type = 'Client'")
+            status_client_row = cursor.fetchone()
+            if status_client_row: active_client_status_id = status_client_row[0]
+
+            if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
+                client_uuid = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
+                print("Seeded sample client.")
+            else:
+                print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+
+        # 8. Projects
+        cursor.execute("SELECT COUNT(*) FROM Projects")
+        if cursor.fetchone()[0] == 0:
+            sample_client_id = None
+            cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
+            sample_client_proj_row = cursor.fetchone()
+            if sample_client_proj_row: sample_client_id = sample_client_proj_row[0]
+
+            planning_project_status_id = None
+            cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Planning' AND status_type = 'Project'")
+            status_proj_row = cursor.fetchone()
+            if status_proj_row: planning_project_status_id = status_proj_row[0]
+
+            admin_user_id_for_project = None
+            cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'") # Assuming admin user is manager
+            admin_user_proj_row = cursor.fetchone()
+            if admin_user_proj_row: admin_user_id_for_project = admin_user_proj_row[0]
+
+            if sample_client_id and planning_project_status_id and admin_user_id_for_project:
+                project_uuid = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
+                print("Seeded sample project.")
+            else:
+                print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
+
+        # 9. Contacts
+        cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
+        if cursor.fetchone()[0] == 0:
+                cursor.execute("""
+                INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
+                VALUES (?, ?, ?, ?, ?)
+            """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
+                print("Seeded generic contact.")
+
+        # 10. Products
+        cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
         if cursor.fetchone()[0] == 0:
             cursor.execute("""
-                INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
-                VALUES (?, ?, ?, ?)
-            """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
-            print("Seeded admin team member.")
+                INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
+            print("Seeded default product.")
 
-    # 5. Countries
-    default_countries = [
-        {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
-    ]
-    for country in default_countries:
-        cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
-    print(f"Seeded {len(default_countries)} countries.")
-
-    # 6. Cities
-    default_cities_map = {
-        'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
-    }
-    for country_name, city_name in default_cities_map.items():
-        cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
-        country_row = cursor.fetchone()
-        if country_row:
-            country_id = country_row[0]
-            cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
-    print(f"Seeded {len(default_cities_map)} cities.")
-
-    # 7. Clients
-    # Note: The following get_user_by_username, get_country_by_name, etc. create their own connections.
-    # This will need to be refactored to use the provided cursor or adapt logic.
-    # For this step, moving as is, refactoring helpers later.
-    cursor.execute("SELECT COUNT(*) FROM Clients")
-    if cursor.fetchone()[0] == 0:
-        admin_user_id_for_client = None
-        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
-        admin_user_client_row = cursor.fetchone()
-        if admin_user_client_row: admin_user_id_for_client = admin_user_client_row[0]
-
-        default_country_id_for_client = None
-        cursor.execute("SELECT country_id FROM Countries WHERE country_name = 'France'")
-        country_client_row = cursor.fetchone()
-        if country_client_row: default_country_id_for_client = country_client_row[0]
-
-        default_city_id_for_client = None
-        if default_country_id_for_client:
-            cursor.execute("SELECT city_id FROM Cities WHERE city_name = 'Paris' AND country_id = ?", (default_country_id_for_client,))
-            city_client_row = cursor.fetchone()
-            if city_client_row: default_city_id_for_client = city_client_row[0]
-
-        active_client_status_id = None
-        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Actif' AND status_type = 'Client'")
-        status_client_row = cursor.fetchone()
-        if status_client_row: active_client_status_id = status_client_row[0]
-
-        if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
-            client_uuid = str(uuid.uuid4())
+        # 11. SmtpConfigs
+        cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
+        if cursor.fetchone()[0] == 0:
             cursor.execute("""
-                INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
-            print("Seeded sample client.")
-        else:
-            print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+                INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
+            print("Seeded placeholder SMTP config.")
 
-    # 8. Projects
-    cursor.execute("SELECT COUNT(*) FROM Projects")
-    if cursor.fetchone()[0] == 0:
-        sample_client_id = None
-        cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
-        sample_client_proj_row = cursor.fetchone()
-        if sample_client_proj_row: sample_client_id = sample_client_proj_row[0]
+        # 12. ApplicationSettings
+        # Calls to set_setting now correctly pass the cursor.
+        set_setting('initial_data_seeded_version', '1', cursor)
+        set_setting('default_app_language', 'en', cursor)
+        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
+        print("Seeded application settings.")
 
-        planning_project_status_id = None
-        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Planning' AND status_type = 'Project'")
-        status_proj_row = cursor.fetchone()
-        if status_proj_row: planning_project_status_id = status_proj_row[0]
+        # 13. Email Templates (New)
+        # Calls to add_default_template_if_not_exists now pass the cursor.
+        add_default_template_if_not_exists({
+            'template_name': 'SAV Ticket Ouvert (FR)',
+            'template_type': 'email_sav_ticket_opened',
+            'language_code': 'fr',
+            'base_file_name': 'sav_ticket_opened_fr.html',
+            'description': 'Email envoyé quand un ticket SAV est ouvert.',
+            'category_name': 'Modèles Email SAV',
+            'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
+            'is_default_for_type_lang': True
+        }, cursor)
+        add_default_template_if_not_exists({
+            'template_name': 'SAV Ticket Résolu (FR)',
+            'template_type': 'email_sav_ticket_resolved',
+            'language_code': 'fr',
+            'base_file_name': 'sav_ticket_resolved_fr.html',
+            'description': 'Email envoyé quand un ticket SAV est résolu.',
+            'category_name': 'Modèles Email SAV',
+            'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
+            'is_default_for_type_lang': True
+        }, cursor)
+        add_default_template_if_not_exists({
+            'template_name': 'Suivi Prospect Proforma (FR)',
+            'template_type': 'email_follow_up_prospect',
+            'language_code': 'fr',
+            'base_file_name': 'follow_up_prospect_fr.html',
+            'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
+            'category_name': 'Modèles Email Marketing/Suivi',
+            'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
+            'is_default_for_type_lang': True
+        }, cursor)
+        add_default_template_if_not_exists({
+            'template_name': 'Vœux Noël (FR)',
+            'template_type': 'email_greeting_christmas',
+            'language_code': 'fr',
+            'base_file_name': 'greeting_holiday_christmas_fr.html',
+            'description': 'Email de vœux pour Noël.',
+            'category_name': 'Modèles Email Vœux',
+            'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
+            'is_default_for_type_lang': True
+        }, cursor)
+        add_default_template_if_not_exists({
+            'template_name': 'Vœux Nouvelle Année (FR)',
+            'template_type': 'email_greeting_newyear',
+            'language_code': 'fr',
+            'base_file_name': 'greeting_holiday_newyear_fr.html',
+            'description': 'Email de vœux pour la nouvelle année.',
+            'category_name': 'Modèles Email Vœux',
+            'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
+            'is_default_for_type_lang': True
+        }, cursor)
+        add_default_template_if_not_exists({
+            'template_name': 'Message Générique (FR)',
+            'template_type': 'email_generic_message',
+            'language_code': 'fr',
+            'base_file_name': 'generic_message_fr.html',
+            'description': 'Modèle générique pour communication spontanée.',
+            'category_name': 'Modèles Email Généraux',
+            'email_subject_template': 'Un message de {{seller.company_name}}',
+            'is_default_for_type_lang': True
+        }, cursor)
+        print("Seeded new email templates.")
 
-        admin_user_id_for_project = None
-        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'") # Assuming admin user is manager
-        admin_user_proj_row = cursor.fetchone()
-        if admin_user_proj_row: admin_user_id_for_project = admin_user_proj_row[0]
+        # 14. CoverPageTemplates
+        _populate_default_cover_page_templates(cursor)
+        print("Called _populate_default_cover_page_templates for seeding.")
 
-        if sample_client_id and planning_project_status_id and admin_user_id_for_project:
-            project_uuid = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
-            print("Seeded sample project.")
-        else:
-            print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
+        # All seeding operations that were previously in initialize_database's try block are now moved here.
+        # The main try...except...finally for the whole seeding process is around these calls within seed_initial_data.
+        # The commit for seed_initial_data will be handled by its caller.
+        print("Data seeding operations completed within seed_initial_data.")
 
-    # 9. Contacts
-    cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
-    if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-            INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
-            VALUES (?, ?, ?, ?, ?)
-        """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
-            print("Seeded generic contact.")
-
-    # 10. Products
-    cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("""
-            INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
-        print("Seeded default product.")
-
-    # 11. SmtpConfigs
-    cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("""
-            INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
-        print("Seeded placeholder SMTP config.")
-
-    # 12. ApplicationSettings
-    # Calls to set_setting now correctly pass the cursor.
-    set_setting('initial_data_seeded_version', '1', cursor)
-    set_setting('default_app_language', 'en', cursor)
-    set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
-    print("Seeded application settings.")
-
-    # 13. Email Templates (New)
-    # Calls to add_default_template_if_not_exists now pass the cursor.
-    add_default_template_if_not_exists({
-        'template_name': 'SAV Ticket Ouvert (FR)',
-        'template_type': 'email_sav_ticket_opened',
-        'language_code': 'fr',
-        'base_file_name': 'sav_ticket_opened_fr.html',
-        'description': 'Email envoyé quand un ticket SAV est ouvert.',
-        'category_name': 'Modèles Email SAV',
-        'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
-        'is_default_for_type_lang': True
-    }, cursor)
-    add_default_template_if_not_exists({
-        'template_name': 'SAV Ticket Résolu (FR)',
-        'template_type': 'email_sav_ticket_resolved',
-        'language_code': 'fr',
-        'base_file_name': 'sav_ticket_resolved_fr.html',
-        'description': 'Email envoyé quand un ticket SAV est résolu.',
-        'category_name': 'Modèles Email SAV',
-        'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
-        'is_default_for_type_lang': True
-    }, cursor)
-    add_default_template_if_not_exists({
-        'template_name': 'Suivi Prospect Proforma (FR)',
-        'template_type': 'email_follow_up_prospect',
-        'language_code': 'fr',
-        'base_file_name': 'follow_up_prospect_fr.html',
-        'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
-        'category_name': 'Modèles Email Marketing/Suivi',
-        'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
-        'is_default_for_type_lang': True
-    }, cursor)
-    add_default_template_if_not_exists({
-        'template_name': 'Vœux Noël (FR)',
-        'template_type': 'email_greeting_christmas',
-        'language_code': 'fr',
-        'base_file_name': 'greeting_holiday_christmas_fr.html',
-        'description': 'Email de vœux pour Noël.',
-        'category_name': 'Modèles Email Vœux',
-        'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
-        'is_default_for_type_lang': True
-    }, cursor)
-    add_default_template_if_not_exists({
-        'template_name': 'Vœux Nouvelle Année (FR)',
-        'template_type': 'email_greeting_newyear',
-        'language_code': 'fr',
-        'base_file_name': 'greeting_holiday_newyear_fr.html',
-        'description': 'Email de vœux pour la nouvelle année.',
-        'category_name': 'Modèles Email Vœux',
-        'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
-        'is_default_for_type_lang': True
-    }, cursor)
-    add_default_template_if_not_exists({
-        'template_name': 'Message Générique (FR)',
-        'template_type': 'email_generic_message',
-        'language_code': 'fr',
-        'base_file_name': 'generic_message_fr.html',
-        'description': 'Modèle générique pour communication spontanée.',
-        'category_name': 'Modèles Email Généraux',
-        'email_subject_template': 'Un message de {{seller.company_name}}',
-        'is_default_for_type_lang': True
-    }, cursor)
-    print("Seeded new email templates.")
-
-    # 14. CoverPageTemplates
-    _populate_default_cover_page_templates(cursor)
-    print("Called _populate_default_cover_page_templates for seeding.")
-
-    # All seeding operations that were previously in initialize_database's try block are now moved here.
-    # The main try...except...finally for the whole seeding process is around these calls within seed_initial_data.
-    # The commit for seed_initial_data will be handled by its caller.
-    print("Data seeding operations completed within seed_initial_data.")
-
-except sqlite3.Error as e: # This except is part of seed_initial_data
-    print(f"An error occurred during data seeding within seed_initial_data: {e}")
-    # Rollback should be handled by the caller who owns the connection and cursor
-    raise # Re-raise the exception so the caller can handle rollback
+    except sqlite3.Error as e: # This except is part of seed_initial_data
+        print(f"An error occurred during data seeding within seed_initial_data: {e}")
+        # Rollback should be handled by the caller who owns the connection and cursor
+        raise # Re-raise the exception so the caller can handle rollback
     # No finally block here for seed_initial_data, connection management is external.
 
 # CRUD functions for SAVTickets
