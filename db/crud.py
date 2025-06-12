@@ -333,12 +333,94 @@ def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
     #     logging.error(f"Database error in add_city: {e}")
     #     return None
     logging.warning(f"Called stub function add_city with data: {data}. Full implementation is missing.")
+    # This stub was pre-existing. The new get_or_add_city will be more complete.
     return None
+
+@_manage_conn
+def get_or_add_city(city_name: str, country_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves an existing city by name and country_id, or adds it if it doesn't exist.
+    Returns the city data (dict) or None if an error occurs.
+    """
+    if not city_name or not country_id:
+        logging.warning("get_or_add_city: city_name and country_id are required.")
+        return None
+
+    cursor = conn.cursor()
+    # Check if city exists for the given country
+    cursor.execute("SELECT * FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+    row = cursor.fetchone()
+    if row:
+        return dict(row)
+    else:
+        # City does not exist, add it
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = "INSERT INTO Cities (city_name, country_id, created_at, updated_at) VALUES (?, ?, ?, ?)"
+        params = (city_name, country_id, now, now)
+        try:
+            cursor.execute(sql, params)
+            new_city_id = cursor.lastrowid
+            if new_city_id:
+                # conn.commit() # Handled by _manage_conn
+                return {'city_id': new_city_id, 'city_name': city_name, 'country_id': country_id, 'created_at': now, 'updated_at': now}
+            else:
+                logging.error(f"Failed to get lastrowid after inserting city: {city_name}")
+                return None
+        except sqlite3.IntegrityError as e:
+            logging.error(f"Integrity error adding city '{city_name}' for country_id {country_id}: {e}")
+            # conn.rollback() # Handled by _manage_conn
+            return None # Or re-fetch in case of race condition, though less likely here
+        except sqlite3.Error as e_general:
+            logging.error(f"General SQLite error adding city '{city_name}': {e_general}")
+            # conn.rollback() # Handled by _manage_conn
+            return None
 
 @_manage_conn
 def get_status_setting_by_name(name: str, type: str, conn: sqlite3.Connection = None) -> dict | None:
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?",(name,type)); row=cursor.fetchone()
     return dict(row) if row else None
+
+@_manage_conn
+def get_or_add_country(country_name: str, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves an existing country by name, or adds it if it doesn't exist.
+    Returns the country data (dict) or None if an error occurs.
+    """
+    if not country_name:
+        logging.warning("get_or_add_country: country_name is required.")
+        return None
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+    row = cursor.fetchone()
+    if row:
+        return dict(row)
+    else:
+        # Country does not exist, add it
+        now = datetime.utcnow().isoformat() + "Z"
+        # Assuming basic structure for Countries table: country_id, country_name, created_at, updated_at
+        sql = "INSERT INTO Countries (country_name, created_at, updated_at) VALUES (?, ?, ?)"
+        params = (country_name, now, now)
+        try:
+            cursor.execute(sql, params)
+            new_country_id = cursor.lastrowid
+            if new_country_id:
+                # conn.commit() # Handled by _manage_conn
+                return {'country_id': new_country_id, 'country_name': country_name, 'created_at': now, 'updated_at': now}
+            else:
+                logging.error(f"Failed to get lastrowid after inserting country: {country_name}")
+                return None
+        except sqlite3.IntegrityError as e: # country_name likely has a UNIQUE constraint
+            logging.error(f"Integrity error adding country '{country_name}': {e}. It might have been added concurrently.")
+            # conn.rollback() # Handled by _manage_conn
+            cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+            row_after_error = cursor.fetchone()
+            return dict(row_after_error) if row_after_error else None
+        except sqlite3.Error as e_general:
+            logging.error(f"General SQLite error adding country '{country_name}': {e_general}")
+            # conn.rollback() # Handled by _manage_conn
+            return None
+
 @_manage_conn
 def get_status_setting_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None: # Added
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_id = ?",(id,)); row=cursor.fetchone()
@@ -773,6 +855,50 @@ def get_clients_by_archival_status(is_archived: bool, include_null_status_for_ac
     sql = f"{base_query} {'WHERE ' + ' AND '.join(conditions) if conditions else ''} ORDER BY c.client_name;"
     cursor.execute(sql, params)
     return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def get_active_clients_per_country(conn: sqlite3.Connection = None) -> dict:
+    """
+    Retrieves active clients grouped by country name.
+    Active clients are those not linked to an archival status or with a null status.
+    Returns a dictionary: {'CountryName': [{'client_id': id, 'client_name': name}, ...]}
+    """
+    cursor = conn.cursor()
+    # Get IDs of statuses that are considered "archival"
+    cursor.execute("SELECT status_id FROM StatusSettings WHERE is_archival_status = TRUE AND status_type = 'Client'") # Added status_type
+    archival_status_ids = [row['status_id'] for row in cursor.fetchall()]
+
+    query_parts = [
+        "SELECT",
+        "    co.country_name,",
+        "    cl.client_id,",
+        "    cl.client_name",
+        "FROM Clients cl",
+        "JOIN Countries co ON cl.country_id = co.country_id"
+    ]
+    params = []
+
+    if archival_status_ids:
+        placeholders = ','.join('?' for _ in archival_status_ids)
+        query_parts.append(f"WHERE (cl.status_id IS NULL OR cl.status_id NOT IN ({placeholders}))")
+        params.extend(archival_status_ids)
+    else: # No archival statuses defined, so all clients (with or without status_id) are considered active
+        query_parts.append("WHERE 1=1") # Effectively no status filtering if no archival statuses exist
+
+    query_parts.append("ORDER BY co.country_name, cl.client_name;")
+    query = "\n".join(query_parts)
+
+    cursor.execute(query, params)
+
+    clients_by_country_map = {}
+    for row in cursor.fetchall():
+        country = row['country_name']
+        client_detail = {'client_id': row['client_id'], 'client_name': row['client_name']}
+        if country not in clients_by_country_map:
+            clients_by_country_map[country] = []
+        clients_by_country_map[country].append(client_detail)
+
+    return clients_by_country_map
 
 # --- ClientNotes CRUD ---
 @_manage_conn
@@ -1565,17 +1691,17 @@ __all__ = [
     "delete_email_reminder", "delete_freight_forwarder", "delete_important_date", "delete_kpi", "delete_product",
     "delete_product_dimension", "delete_project", "delete_sav_ticket", "delete_scheduled_email", "delete_smtp_config",
     "delete_task", "delete_team_member", "delete_template", "delete_template_and_get_file_info", "delete_template_category",
-    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_projects_count", "get_activity_logs",
+    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_clients_per_country", "get_active_projects_count", "get_activity_logs",
     "get_all_cities", "get_all_clients", "get_all_clients_with_details", "get_all_companies", "get_all_contact_lists",
     "get_all_contacts", "get_all_countries", "get_all_cover_page_templates", "get_all_file_based_templates", "get_all_freight_forwarders",
     "get_all_important_dates", "get_all_product_equivalencies", "get_all_products", "get_all_products_for_selection", "get_all_products_for_selection_filtered",
     "get_all_projects", "get_all_smtp_configs", "get_all_status_settings", "get_all_tasks", "get_all_team_members",
     "get_all_templates", "get_all_transporters", "get_assigned_forwarders_for_client", "get_assigned_personnel_for_client", "get_assigned_transporters_for_client",
-    "get_city_by_id", "get_city_by_name_and_country_id", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
+    "get_city_by_id", "get_city_by_name_and_country_id", "get_or_add_city", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
     "get_client_document_notes", "get_client_notes", "get_client_project_product_by_id", "get_client_segmentation_by_category", "get_client_segmentation_by_city",
     "get_client_segmentation_by_status", "get_clients_by_archival_status", "get_clients_for_contact", "get_company_by_id", "get_contact_by_email",
     "get_contact_by_id", "get_contact_list_by_id", "get_contacts_for_client", "get_contacts_for_client_count", "get_contacts_in_list",
-    "get_country_by_id", "get_country_by_name", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
+    "get_country_by_id", "get_country_by_name", "get_or_add_country", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
     "get_cover_pages_for_client", "get_cover_pages_for_project", "get_cover_pages_for_user", "get_default_company", "get_default_smtp_config",
     "get_distinct_languages_for_template_type", "get_distinct_template_languages", "get_distinct_template_types", "get_document_by_id", "get_documents_for_client",
     "get_documents_for_project", "get_equivalent_products", "get_filtered_templates", "get_freight_forwarder_by_id", "get_important_date_by_id",
@@ -1606,7 +1732,7 @@ __all__ = [
     "get_status_setting_by_name", "get_status_setting_by_id", # Keep existing
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client", "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country", "get_client_segmentation_by_city", "get_client_segmentation_by_status", "get_client_segmentation_by_category", "get_clients_by_archival_status", # Client related
     "add_client_note", "get_client_notes", # ClientNotes
-    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered","get_total_products_count", # Products
+    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered", "get_total_products_count", # Products
     "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
     "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence", # ProductEquivalencies
     "get_products_for_client_or_project", "add_product_to_client_or_project", "update_client_project_product", "remove_product_from_client_or_project", "get_client_project_product_by_id", # ClientProjectProducts
