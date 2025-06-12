@@ -6,9 +6,9 @@ from datetime import datetime
 import json
 
 # Assuming config.py is in the parent directory (root)
-from ..config import DATABASE_PATH
+from config import DATABASE_PATH
 # Assuming db.py is in the parent directory (root)
-from .. import db as db_main_manager
+import db as db_main_manager
 
 # Path adjustments for db_seed.py located in db/
 # __file__ is db/db_seed.py. os.path.dirname(__file__) is db/. os.pardir goes up one level.
