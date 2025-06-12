@@ -23,6 +23,9 @@ DEFAULT_ADMIN_USERNAME = "admin"
 # In a real app, use a more secure default, an environment variable, or prompt user during setup.
 DEFAULT_ADMIN_PASSWORD = "adminpassword" # Changed from "admin_password" to match original db.py seeding logic
 
+# --- Partner Documents Configuration ---
+PARTNERS_DOCUMENTS_DIR = os.path.join(APP_ROOT_DIR_CONTEXT, "partners_documents")
+
 # --- Other Configurations (Add as needed) ---
 # Example:
 # API_KEY = "your_api_key_here"
