@@ -207,6 +207,20 @@ def initialize_database():
             FOREIGN KEY (category_id) REFERENCES PartnerCategories(category_id) ON DELETE CASCADE
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerDocuments (
+            document_id TEXT PRIMARY KEY,
+            partner_id TEXT NOT NULL,
+            document_name TEXT NOT NULL,
+            file_path_relative TEXT NOT NULL,
+            document_type TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
     # --- End New Partner Tables ---
 
     # --- Google Contact Sync Tables ---
@@ -300,6 +314,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
     # --- End Indexes for New Partner Tables ---
 
     # --- Indexes for Google Contact Sync Tables ---
