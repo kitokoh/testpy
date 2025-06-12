@@ -402,6 +402,17 @@ def get_contacts_for_client(client_id: str, conn: sqlite3.Connection = None) -> 
     cursor.execute(sql, (client_id,))
     return [dict(row) for row in cursor.fetchall()]
 
+@_manage_conn
+def add_client_document(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new client document entry.
+    STUB FUNCTION - Full implementation pending.
+    Expected data keys: 'client_id', 'document_name', 'document_type', 'file_path', 'user_id'.
+    Optional: 'project_id', 'storage_identifier', 'version', 'tags_json', 'metadata_json'.
+    """
+    logging.warning(f"Called stub function add_client_document with data: {data}. Full implementation is missing.")
+    return None
+
 # --- ClientDocumentNotes CRUD ---
 @_manage_conn
 def get_client_document_notes(client_id: str, document_type: str = None, language_code: str = None, is_active: bool = None, conn: sqlite3.Connection = None) -> list[dict]:
