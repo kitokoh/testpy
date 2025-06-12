@@ -1507,6 +1507,16 @@ def get_contacts_in_list(data: dict, conn: sqlite3.Connection = None) -> object 
     logging.warning(f"Called stub function get_contacts_in_list with data: {{data}}. Full implementation is missing.")
     return None
 
+
+# def _ensure_single_default_smtp(cursor: sqlite3.Cursor, exclude_id: int | None = None):
+#     """Internal helper to ensure only one SMTP config is default."""
+#     sql = "UPDATE SmtpConfigs SET is_default = FALSE WHERE is_default = TRUE"
+#     if exclude_id is not None:
+#         sql += " AND smtp_config_id != ?"
+#         cursor.execute(sql, (exclude_id,))
+#     else:
+#         cursor.execute(sql)
+
 @_manage_conn
 def get_default_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
     logging.warning(f"Called stub function get_default_smtp_config with data: {{data}}. Full implementation is missing.")
