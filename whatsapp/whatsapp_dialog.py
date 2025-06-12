@@ -12,7 +12,7 @@ try:
 except ImportError:
     # Fallback for direct execution of this file (e.g., for testing)
     # This might happen if you run this file directly without the package context
-    from whatsapp_service import WhatsAppService
+    from whatsapp.whatsapp_service import WhatsAppService
 
 class SendWhatsAppDialog(QDialog):
     def __init__(self, phone_number: str = "", client_name: str = "", parent=None):
@@ -179,4 +179,3 @@ if __name__ == '__main__':
     # For interactive testing where you want the app to stay alive for other potential windows, it's needed.
     # Let's assume the script ends after tests.
     sys.exit(0) # Clean exit
-```

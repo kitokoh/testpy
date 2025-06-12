@@ -171,8 +171,8 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    language_code_from_db = db_manager.get_setting('user_selected_language')
-
+    # language_code_from_db = db_manager.get_setting('user_selected_language')
+    language_code_from_db = "fr"
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
         logging.info(f"Language '{language_code}' loaded from database setting.")

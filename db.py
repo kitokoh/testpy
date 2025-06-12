@@ -2914,19 +2914,19 @@ if __name__ == '__main__':
 #             conn.close()
 
 # # --- ApplicationSettings Functions ---
-# def get_setting(key: str) -> str | None: # Will need similar refactoring if used during seeding with a passed cursor
-#     conn = None
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT setting_value FROM ApplicationSettings WHERE setting_key = ?", (key,))
-#         row = cursor.fetchone()
-#         return row['setting_value'] if row else None
-#     except sqlite3.Error as e:
-#         print(f"DB error in get_setting: {e}")
-#         return None
-#     finally:
-#         if conn: conn.close()
+def get_setting(key: str) -> str | None: # Will need similar refactoring if used during seeding with a passed cursor
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT setting_value FROM ApplicationSettings WHERE setting_key = ?", (key,))
+        row = cursor.fetchone()
+        return row['setting_value'] if row else None
+    except sqlite3.Error as e:
+        print(f"DB error in get_setting: {e}")
+        return None
+    finally:
+        if conn: conn.close()
 
 # # --- ActivityLog Functions ---
 # def add_activity_log(log_data: dict) -> int | None:

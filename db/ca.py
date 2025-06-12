@@ -15,7 +15,7 @@ from config import DATABASE_PATH
 # Or by ensuring db.py is structured to allow these imports.
 
 # Import the original db.py as a module to access its helper functions
-from . import db as db_helpers
+from db import db_seed as db_helpers
 
 def initialize_database():
     """

@@ -13,8 +13,10 @@ from PyQt5.QtWidgets import (
     QTextEdit, QSplitter # Added QTextEdit for SettingsDialog notes, QSplitter for layout
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
-from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot, QWebChannel
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
 from PyQt5.QtWebEngineWidgets import QWebEngineView # For integrated map
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
+from PyQt5.QtWebChannel import QWebChannel
 
 import db as db_manager
 import icons_rc
@@ -32,22 +34,18 @@ from document_manager_logic import (
     permanently_delete_client
 )
 from dialogs import (
-    SettingsDialog, TemplateDialog, AddNewClientDialog, # EditClientDialog is called from logic
+    SettingsDialog as OriginalSettingsDialog, TemplateDialog, AddNewClientDialog, # EditClientDialog is called from logic
     ProductEquivalencyDialog, # Added for product equivalency
-    ManageProductMasterDialog # Added for global product management
+    ManageProductMasterDialog ,# Added for global product management
+    TransporterDialog,
+    FreightForwarderDialog
 )
 from product_list_dialog import ProductListDialog # Import the new dialog
 
 # Dialogs directly instantiated by DocumentManager
 from client_widget import ClientWidget # For client tabs
-from projectManagement import MainDashboard as ProjectManagementDashboard # For PM tab
-    SettingsDialog as OriginalSettingsDialog,
-    TemplateDialog, AddNewClientDialog,
-    ProductEquivalencyDialog,
-    ManageProductMasterDialog,
-    TransporterDialog,
-    FreightForwarderDialog
-)
+from projectManagement import MainDashboard as ProjectManagementDashboard
+
 from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard
 from statistics_module import StatisticsDashboard # Will be refactored/removed later
@@ -271,7 +269,8 @@ class DocumentManager(QMainWindow):
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
         self.config = CONFIG
-        db_google_maps_url = db_manager.get_setting('google_maps_review_url')
+        # db_google_maps_url = db_manager.get_setting('google_maps_review_url')
+        db_google_maps_url = "https://maps.google.com/?cid=YOUR_CID_HERE" 
         if db_google_maps_url is not None:
             self.config['google_maps_review_url'] = db_google_maps_url
         elif 'google_maps_review_url' not in self.config:

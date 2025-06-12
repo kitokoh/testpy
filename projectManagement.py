@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
 import db as db_manager # Standardized to db_manager
-from db import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
+from db.cruds.status_settings_crud import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
 import json # For CoverPageEditorDialog style_config_json
