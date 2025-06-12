@@ -19,7 +19,7 @@ from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
 import db as db_manager
-from db import db_seed
+from db.db_seed import run_seed
 from db import get_all_companies, add_company # Specific imports for company check
 from db.ca import initialize_database # <<<< Initialize function moved to db/ca.py
 from auth.login_window import LoginWindow # Added for authentication
@@ -213,12 +213,12 @@ def main():
     # using the dedicated seeding module.
     try:
         logging.info("Attempting to run data seeding if necessary...")
-        db_seed.run_seed() # Call the main seeding function from db_seed.py
+        run_seed() # Call the main seeding function from db_seed.py
         # run_seed() handles its own connection, commit, rollback, and logging.
-        logging.info("Data seeding process via db_seed.run_seed() completed.")
+        logging.info("Data seeding process via run_seed() completed.")
     except Exception as e_seed_run:
         # Catch any unexpected error from run_seed() itself, though it should handle its own.
-        logging.error(f"An unexpected error occurred when calling db_seed.run_seed(): {e_seed_run}", exc_info=True)
+        logging.error(f"An unexpected error occurred when calling run_seed(): {e_seed_run}", exc_info=True)
     # --- End Coordinated Data Seeding ---
 
     # --- Startup Dialog Logic ---
