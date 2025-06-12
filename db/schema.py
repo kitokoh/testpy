@@ -209,6 +209,47 @@ def initialize_database():
     """)
     # --- End New Partner Tables ---
 
+    # --- Google Contact Sync Tables ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS UserGoogleAccounts (
+            user_google_account_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            google_account_id TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL,
+            refresh_token TEXT,
+            access_token TEXT,
+            token_expiry TIMESTAMP,
+            scopes TEXT,
+            last_sync_initiated_at TIMESTAMP NULL,
+            last_sync_successful_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ContactSyncLog (
+            sync_log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_google_account_id TEXT NOT NULL,
+            local_contact_id TEXT NOT NULL,
+            local_contact_type TEXT NOT NULL,
+            google_contact_id TEXT NOT NULL,
+            platform_etag TEXT NULL,
+            google_etag TEXT NULL,
+            last_sync_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            sync_status TEXT NOT NULL,
+            sync_direction TEXT NULL,
+            error_message TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_google_account_id) REFERENCES UserGoogleAccounts(user_google_account_id) ON DELETE CASCADE,
+            UNIQUE (user_google_account_id, local_contact_id, local_contact_type),
+            UNIQUE (user_google_account_id, google_contact_id)
+        )
+    """)
+    # --- End Google Contact Sync Tables ---
+
     cursor.execute("CREATE TABLE IF NOT EXISTS TemplateCategories (category_id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL UNIQUE, description TEXT)")
     general_category_id_for_migration = None
     try:
@@ -260,6 +301,14 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
     # --- End Indexes for New Partner Tables ---
+
+    # --- Indexes for Google Contact Sync Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_email ON UserGoogleAccounts(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_user_google_account_id ON ContactSyncLog(user_google_account_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
+    # --- End Indexes for Google Contact Sync Tables ---
 
     # --- Seed Data ---
     try:
