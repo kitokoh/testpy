@@ -114,9 +114,10 @@ def initialize_default_templates(config, app_root_dir):
     # Ensure "General" category exists for default templates
     # db_manager must be imported or passed as an argument if this function is to use it.
     # For now, assuming db_manager is imported in app_setup.py
-    general_category_id = db_manager.add_template_category("General", "General purpose templates")
-    if general_category_id is None:
-        logging.error("CRITICAL ERROR: Could not create or find the 'General' template category. Default Excel templates may not be added correctly to DB.")
+    # general_category_id = db_manager.add_template_category("General", "General purpose templates") # DB seeding call removed
+    # if general_category_id is None:
+    #     logging.error("CRITICAL ERROR: Could not create or find the 'General' template category. Default Excel templates may not be added correctly to DB.")
+    # Seeding of categories is now handled by db.seed_initial_data
 
     default_excel_templates_data = {
         SPEC_TECH_TEMPLATE_NAME: pd.DataFrame({'Section': ["Info Client", "Détails Tech"], 'Champ': ["Nom:", "Exigence:"], 'Valeur': ["{NOM_CLIENT}", ""]}),
@@ -140,32 +141,13 @@ def initialize_default_templates(config, app_root_dir):
                 except Exception as e:
                     logging.error(f"Error creating Excel template file {template_file_name} for {lang_code}: {str(e)}")
 
-            if general_category_id is not None: # Only attempt DB registration if category exists
-                template_name_for_db = "Unknown Template"
-                if template_file_name == SPEC_TECH_TEMPLATE_NAME:
-                    template_name_for_db = "Spécification Technique (Défaut)"
-                elif template_file_name == PROFORMA_TEMPLATE_NAME:
-                    template_name_for_db = "Proforma (Défaut)"
-                elif template_file_name == CONTRAT_VENTE_TEMPLATE_NAME:
-                    template_name_for_db = "Contrat de Vente (Défaut)"
-                elif template_file_name == PACKING_LISTE_TEMPLATE_NAME:
-                    template_name_for_db = "Packing Liste (Défaut)"
+            # DB registration for Excel templates removed. This is now handled by db.seed_initial_data if these templates are to be seeded.
+            # The file creation part above is preserved.
+            if created_file_on_disk:
+                 logging.info(f"Excel template file '{template_file_name}' for {lang_code} ensured on disk.")
+            else:
+                 logging.info(f"Excel template file '{template_file_name}' for {lang_code} already exists on disk or failed to create.")
 
-                template_metadata = {
-                    'template_name': template_name_for_db,
-                    'template_type': 'document_excel',
-                    'language_code': lang_code,
-                    'base_file_name': template_file_name,
-                    'description': f"Modèle Excel par défaut pour {template_name_for_db} en {lang_code}.",
-                    'category_id': general_category_id,
-                    'is_default_for_type_lang': True if lang_code == 'fr' else False # Default French ones
-                }
-                db_template_id = db_manager.add_default_template_if_not_exists(template_metadata)
-                if db_template_id and created_file_on_disk:
-                    logging.info(f"Registered new Excel template '{template_name_for_db}' ({lang_code}) in DB. ID: {db_template_id}")
-                elif not db_template_id:
-                    logging.warning(f"Failed to register Excel template '{template_name_for_db}' ({lang_code}) in DB.")
-            # else: (general_category_id is None) - error already logged
 
     # --- HTML Templates ---
     DEFAULT_HTML_TEMPLATES_METADATA = [
@@ -1027,10 +1009,11 @@ def initialize_default_templates(config, app_root_dir):
 
     html_template_languages = ["fr", "en", "ar", "tr", "pt"]
 
-    logging.info("Processing HTML templates...")
-    html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.")
-    if html_category_id is None:
-        logging.error("CRITICAL ERROR: Could not create or find 'Documents HTML' category. HTML templates may not be added correctly to DB.")
+    logging.info("Processing HTML templates (file creation only)...")
+    # html_category_id = db_manager.add_template_category("Documents HTML", "Modèles de documents basés sur HTML.") # DB seeding call removed
+    # if html_category_id is None:
+    #     logging.error("CRITICAL ERROR: Could not create or find 'Documents HTML' category. HTML templates may not be added correctly to DB.")
+    # Seeding of categories is now handled by db.seed_initial_data
 
     for html_meta in DEFAULT_HTML_TEMPLATES_METADATA:
         base_fn = html_meta['base_file_name']
@@ -1066,53 +1049,34 @@ def initialize_default_templates(config, app_root_dir):
                 except IOError as e_io:
                     logging.error(f"Error creating HTML template file {template_file_full_path}: {e_io}")
 
-            if html_category_id is not None: # Only register if category exists
-                db_template_name = f"{html_meta['display_name_fr']} ({lang_code.upper()})"
-                # Determine if this template should be default for its type and language
-                is_default = False # Default to False
-                current_template_type = html_meta['template_type']
-
-                if current_template_type == "HTML_COVER_PAGE":
-                    if lang_code in ['en', 'fr', 'ar', 'tr']:
-                        is_default = True
-                    # else is_default remains False for other languages of cover pages
-                elif current_template_type == "HTML_PACKING_LIST": # This was html_meta['base_file_name'] == "packing_list_template.html"
-                    if lang_code in ['en', 'fr', 'ar', 'tr']:
-                        is_default = True
-                    # else is_default remains False for other languages of packing lists
-              
-                    # Existing logic for other templates (e.g., French default for all other HTML types)
-                elif html_meta['base_file_name'] == "packing_list_template.html":
-                    if lang_code in ['en', 'fr', 'ar', 'tr']:
-                        is_default = True
-                    # For other languages of packing_list_template.html, it remains False unless explicitly set by other logic
-                else:
-                    # Existing logic for other templates (e.g., French default)
-                    is_default = True if lang_code == 'fr' else False
-
-                template_data_for_db = {
-                    'template_name': db_template_name, 'template_type': html_meta['template_type'],
-                    'language_code': lang_code, 'base_file_name': html_meta['base_file_name'],
-                    'description': html_meta['description_fr'], 'category_id': html_category_id,
-                    'is_default_for_type_lang': is_default
-                }
-                db_html_template_id = db_manager.add_default_template_if_not_exists(template_data_for_db)
-                if db_html_template_id and created_file_on_disk_html:
-                    logging.info(f"Registered new HTML template '{db_template_name}' ({lang_code}) in DB. ID: {db_html_template_id}")
-                elif not db_html_template_id:
-                     logging.warning(f"Failed to register HTML template '{db_template_name}' ({lang_code}) in DB.")
-            # else: (html_category_id is None) - error already logged
+            # DB registration for HTML templates removed. This is now handled by db.seed_initial_data if these templates are to be seeded.
+            # The file creation part above is preserved.
+            if created_file_on_disk_html:
+                logging.info(f"HTML template file '{base_fn}' for {lang_code} ensured on disk.")
+            else:
+                logging.info(f"HTML template file '{base_fn}' for {lang_code} already exists on disk or failed to create.")
 
     # --- Default Email Templates ---
-    logging.info("Processing Email templates...")
-    email_category_obj = db_manager.get_template_category_by_name("Modèles Email")
-    email_category_id = email_category_obj['category_id'] if email_category_obj else None
+    # Email template DB registration and file creation logic is removed from here.
+    # db.seed_initial_data now handles email template DB records,
+    # and db.add_default_template_if_not_exists reads content from 'email_template_designs'
+    # if the file exists there, storing it in raw_template_file_data.
+    # app_setup.py should not be responsible for creating email template files in 'templates_root_dir/lang_code/'
+    # if their content is meant to be sourced from 'email_template_designs' and stored in DB.
+    logging.info("Skipping Email template file creation and DB registration in app_setup.py.")
+    logging.info("Email template records are seeded by db.seed_initial_data, and content is loaded from 'email_template_designs' into the DB.")
 
-    if email_category_id is None:
-        logging.error("CRITICAL ERROR: 'Modèles Email' category not found. Cannot register default email templates.")
-    else:
-        # Full email template data here (from main.py)
-        default_email_templates_data = [
+    # Removed: Old logic for default_email_templates_data and loops creating files and DB entries.
+    # The following code block related to default_email_templates_data was removed:
+    # email_category_obj = db_manager.get_template_category_by_name("Modèles Email")
+    # email_category_id = email_category_obj['category_id'] if email_category_obj else None
+    # ... (and the entire loop processing default_email_templates_data) ...
+
+    logging.info("Default template initialization finished.")
+# Example of how this might be called by main.py after app object creation
+# if __name__ == "__main__": # Or rather, in main.py
+# setup_logging() # Call early
+# initialize_default_templates(CONFIG, APP_ROOT_DIR)
             {
                 "name_key": "EMAIL_GREETING",
                 "display_name_prefix": {"fr": "Salutation Générale", "en": "General Greeting", "ar": "تحية عامة", "tr": "Genel Selamlama", "pt": "Saudação Geral"},
@@ -1208,35 +1172,10 @@ def initialize_default_templates(config, app_root_dir):
                     'template_name': f"{display_name_prefix} (HTML) {lang_code.upper()}", 'template_type': 'EMAIL_BODY_HTML',
                     'language_code': lang_code, 'base_file_name': base_file_name_html,
                     'email_subject_template': subject_content, 'description': description_html_str,
-                    'category_id': email_category_id, 'is_default_for_type_lang': False
-                })
-                if db_email_html_id and created_email_html_file: logging.info(f"Registered new Email HTML template '{base_file_name_html}' in DB.")
-                elif not db_email_html_id: logging.warning(f"Failed to register Email HTML template '{base_file_name_html}' in DB.")
-
-
-                # TXT Email Part
-                base_file_name_txt = f"{name_key.lower()}_{lang_code}.txt"
-                full_path_txt = os.path.join(lang_specific_template_dir, base_file_name_txt)
-                txt_content_str = template_set['txt_content'].get(lang_code, template_set['txt_content'].get('en', "Default TXT content."))
-                description_txt_str = template_set['description_txt'].get(lang_code, template_set['description_txt'].get('en', "Default TXT email template."))
-                created_email_txt_file = False
-                if not os.path.exists(full_path_txt):
-                    try:
-                        with open(full_path_txt, "w", encoding="utf-8") as f_txt: f_txt.write(txt_content_str)
-                        logging.info(f"Created Email TXT template: {full_path_txt}")
-                        created_email_txt_file = True
-                    except IOError as e: logging.error(f"Error creating email TXT file {full_path_txt}: {e}")
-
-                db_email_txt_id = db_manager.add_default_template_if_not_exists({
-                    'template_name': f"{display_name_prefix} (TXT) {lang_code.upper()}", 'template_type': 'EMAIL_BODY_TXT',
-                    'language_code': lang_code, 'base_file_name': base_file_name_txt,
-                    'email_subject_template': subject_content, 'description': description_txt_str,
-                    'category_id': email_category_id, 'is_default_for_type_lang': False
-                })
-                if db_email_txt_id and created_email_txt_file: logging.info(f"Registered new Email TXT template '{base_file_name_txt}' in DB.")
-                elif not db_email_txt_id: logging.warning(f"Failed to register Email TXT template '{base_file_name_txt}' in DB.")
-
-    logging.info("Default template initialization finished.")
+# Example of how this might be called by main.py after app object creation
+# if __name__ == "__main__": # Or rather, in main.py
+# setup_logging() # Call early
+# initialize_default_templates(CONFIG, APP_ROOT_DIR)
 
 # Example of how this might be called by main.py after app object creation
 # if __name__ == "__main__": # Or rather, in main.py
