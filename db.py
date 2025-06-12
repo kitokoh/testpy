@@ -4,9 +4,10 @@ import hashlib
 from datetime import datetime
 import json
 import os # Added os import
+from config import DATABASE_PATH # Added
 
 # Global variable for the database name
-DATABASE_NAME = "app_data.db"
+DATABASE_NAME = os.path.basename(DATABASE_PATH) # Updated to use DATABASE_PATH
 
 # Constants for document context paths
 # Assuming db.py is in a subdirectory of the app root (e.g., /app/core/db.py or /app/db.py)
@@ -20,7 +21,7 @@ def initialize_database():
     """
     Initializes the database by creating tables if they don't already exist.
     """
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(DATABASE_PATH) # Updated to use DATABASE_PATH
     conn.row_factory = sqlite3.Row # <-- ADD THIS LINE
     cursor = conn.cursor()
 
@@ -1039,6 +1040,168 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
+    # MediaItems Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS MediaItems (
+            media_item_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            category TEXT,
+            item_type TEXT NOT NULL, -- 'video', 'image', 'link'
+            filepath TEXT,           -- Relative path for 'video'/'image', NULL for 'link'
+            url TEXT,                -- URL for 'link', NULL for 'video'/'image'
+            uploader_user_id TEXT,   -- Optional: Who uploaded/added this item
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            thumbnail_path TEXT, -- Added for thumbnails
+            FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
+        );
+    ''')
+    # Add thumbnail_path column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(MediaItems)")
+    columns = [column[1] for column in cursor.fetchall()]
+    if 'thumbnail_path' not in columns:
+        try:
+            cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
+            conn.commit() # Commit alter table immediately
+            print("Added 'thumbnail_path' column to MediaItems table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'thumbnail_path' column: {e_alter}")
+            # If altering fails, it might be part of a larger transaction that needs rollback,
+            # but usually DDL statements like ALTER TABLE commit implicitly or should be run separately.
+
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_item_type ON MediaItems(item_type);''')
+    # cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_category ON MediaItems(category);''') # category column removed
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_uploader_user_id ON MediaItems(uploader_user_id);''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_created_at ON MediaItems(created_at);''')
+
+    # Tags Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Tags (
+            tag_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tag_name TEXT NOT NULL UNIQUE
+        );
+    ''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_tags_tag_name ON Tags(tag_name);''')
+
+    # MediaItemTags Table (Junction Table)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS MediaItemTags (
+            media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            media_item_id TEXT NOT NULL,
+            tag_id INTEGER NOT NULL,
+            FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE,
+            UNIQUE (media_item_id, tag_id)
+        );
+    ''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitemtags_media_item_id ON MediaItemTags(media_item_id);''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitemtags_tag_id ON MediaItemTags(tag_id);''')
+
+    # Migration logic for existing MediaItems with 'category'
+    cursor.execute("PRAGMA table_info(MediaItems)")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    if 'category' in columns:
+        print("Migrating 'category' from MediaItems to Tags system...")
+        # Fetch all items with categories
+        cursor.execute("SELECT media_item_id, category FROM MediaItems WHERE category IS NOT NULL AND category != ''")
+        items_with_categories = cursor.fetchall()
+
+        migrated_count = 0
+        for item_row in items_with_categories:
+            item_id = item_row['media_item_id']
+            category_name = item_row['category']
+
+            # Get or create tag_id for the category_name
+            cursor.execute("SELECT tag_id FROM Tags WHERE tag_name = ?", (category_name,))
+            tag_row = cursor.fetchone()
+            if tag_row:
+                tag_id = tag_row['tag_id']
+            else:
+                cursor.execute("INSERT INTO Tags (tag_name) VALUES (?)", (category_name,))
+                tag_id = cursor.lastrowid
+
+            # Link item to this tag
+            if tag_id:
+                try:
+                    cursor.execute("INSERT INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (item_id, tag_id))
+                    migrated_count +=1
+                except sqlite3.IntegrityError: # Should not happen if logic is clean but good for safety
+                    print(f"Warning: Could not link item {item_id} to tag '{category_name}' (ID: {tag_id}), possibly already linked.")
+
+        conn.commit() # Commit tag creation and linking before altering table
+        print(f"Committed {migrated_count} category-to-tag migrations.")
+
+        # Recreate MediaItems table without the category column
+        # This is the safer way in SQLite to drop a column if direct DROP is not universally available/safe.
+        print("Recreating MediaItems table to remove 'category' column...")
+        cursor.execute("ALTER TABLE MediaItems RENAME TO MediaItems_old_for_category_migration")
+
+        # Create new MediaItems table without 'category'
+        cursor.execute('''
+            CREATE TABLE MediaItems (
+                media_item_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                description TEXT,
+                -- category TEXT, -- This column is now removed
+                item_type TEXT NOT NULL,
+                filepath TEXT,
+                url TEXT,
+                uploader_user_id TEXT,
+                thumbnail_path TEXT, -- Added here as well for new table creation
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
+            );
+        ''')
+
+        # Copy data from old table to new table, excluding 'category', including new 'thumbnail_path' as NULL
+        cursor.execute('''
+            INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, thumbnail_path, created_at, updated_at)
+            SELECT media_item_id, title, description, item_type, filepath, url, uploader_user_id, NULL, created_at, updated_at
+            FROM MediaItems_old_for_category_migration;
+        ''')
+
+        cursor.execute("DROP TABLE MediaItems_old_for_category_migration")
+        conn.commit() # Commit table recreation
+        print("MediaItems table recreated without 'category' column and with 'thumbnail_path', data copied.")
+        # Re-create indexes for the new MediaItems table (as they are dropped with the old table)
+        cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_item_type ON MediaItems(item_type);''')
+        cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_uploader_user_id ON MediaItems(uploader_user_id);''')
+        cursor.execute('''CREATE INDEX IF NOT EXISTS idx_mediaitems_created_at ON MediaItems(created_at);''')
+        print("Indexes for new MediaItems table recreated.")
+
+    # Playlists Table (ensure it exists, as PlaylistItems depends on it)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Playlists (
+            playlist_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            user_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+        );
+    ''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON Playlists(user_id);''')
+
+
+    # PlaylistItems Table - Ensure FK to MediaItems is correctly defined
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS PlaylistItems (
+            playlist_item_id TEXT PRIMARY KEY,
+            playlist_id TEXT NOT NULL,
+            media_item_id TEXT NOT NULL,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (playlist_id) REFERENCES Playlists(playlist_id) ON DELETE CASCADE,
+            FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE
+        );
+    ''')
+    # Ensure indexes for PlaylistItems are also created (might be redundant if table already existed with them)
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_playlistitems_playlist_id ON PlaylistItems(playlist_id);''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_playlistitems_media_item_id ON PlaylistItems(media_item_id);''')
+
     # Schema creation is done. Commit and close connection for initialize_database.
     conn.commit()
     conn.close()
@@ -1585,7 +1748,7 @@ def get_db_connection():
     Returns a new database connection object.
     The connection is configured to return rows as dictionary-like objects.
     """
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(DATABASE_PATH) # Updated to use DATABASE_PATH
     conn.row_factory = sqlite3.Row
     return conn
 
