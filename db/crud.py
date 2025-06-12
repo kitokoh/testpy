@@ -2223,6 +2223,61 @@ def get_contact_sync_log_by_google_contact_id(user_google_account_id: str, googl
     cursor = conn.cursor()
     sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? AND google_contact_id = ?"
     cursor.execute(sql, (user_google_account_id, google_contact_id))
+
+# --- PartnerDocuments CRUD ---
+@_manage_conn
+def add_partner_document(data: dict, conn: sqlite3.Connection = None) -> str | None:
+    """
+    Adds a new document for a partner.
+    data keys: partner_id, document_name, file_path_relative (all required),
+               document_type, description (optional).
+    Generates a new UUID for document_id.
+    """
+    cursor = conn.cursor()
+    new_document_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat() + "Z"
+    sql = """
+        INSERT INTO PartnerDocuments (document_id, partner_id, document_name, file_path_relative,
+                                      document_type, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        new_document_id,
+        data.get('partner_id'),
+        data.get('document_name'),
+        data.get('file_path_relative'),
+        data.get('document_type'),
+        data.get('description'),
+        now,
+        now
+    )
+    try:
+        if not all(data.get(k) for k in ['partner_id', 'document_name', 'file_path_relative']):
+            logging.error("partner_id, document_name, and file_path_relative are required for adding a partner document.")
+            return None
+        cursor.execute(sql, params)
+        return new_document_id
+    except sqlite3.IntegrityError as e: # Handles FK constraint on partner_id
+        logging.warning(f"Failed to add partner document, possibly invalid partner_id: {data.get('partner_id')}. Error: {e}")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_partner_document: {e}")
+        return None
+
+@_manage_conn
+def get_documents_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """Retrieves all documents for a given partner_id, ordered by creation date."""
+    cursor = conn.cursor()
+    sql = "SELECT * FROM PartnerDocuments WHERE partner_id = ? ORDER BY created_at DESC"
+    cursor.execute(sql, (partner_id,))
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def get_partner_document_by_id(document_id: str, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a specific partner document by its document_id."""
+    cursor = conn.cursor()
+    sql = "SELECT * FROM PartnerDocuments WHERE document_id = ?"
+    cursor.execute(sql, (document_id,))
     row = cursor.fetchone()
     return dict(row) if row else None
 
@@ -2296,6 +2351,56 @@ def get_all_sync_logs_for_account(user_google_account_id: str, conn: sqlite3.Con
     cursor.execute(sql, (user_google_account_id,))
     return [dict(row) for row in cursor.fetchall()]
 # --- End ContactSyncLog CRUD ---
+
+def update_partner_document(document_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
+    """
+    Updates a partner document.
+    data can contain: document_name, document_type, description.
+    """
+    if not data or not any(k in data for k in ['document_name', 'document_type', 'description']):
+        logging.info("No updatable fields provided for update_partner_document.")
+        return False # Nothing to update or only irrelevant fields
+
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat() + "Z"
+
+    update_fields = {}
+    if 'document_name' in data:
+        update_fields['document_name'] = data['document_name']
+    if 'document_type' in data:
+        update_fields['document_type'] = data['document_type']
+    if 'description' in data:
+        update_fields['description'] = data['description']
+
+    if not update_fields: # Should be caught by the initial check, but as a safeguard
+        return False
+
+    update_fields['updated_at'] = now
+
+    set_clauses = [f"{key} = ?" for key in update_fields.keys()]
+    params = list(update_fields.values())
+    params.append(document_id)
+
+    sql = f"UPDATE PartnerDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
+    try:
+        cursor.execute(sql, tuple(params))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in update_partner_document for {document_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_partner_document(document_id: str, conn: sqlite3.Connection = None) -> bool:
+    """Deletes a partner document by its document_id."""
+    cursor = conn.cursor()
+    sql = "DELETE FROM PartnerDocuments WHERE document_id = ?"
+    try:
+        cursor.execute(sql, (document_id,))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_partner_document for {document_id}: {e}")
+        return False
+# --- End PartnerDocuments CRUD ---
 
 @_manage_conn
 def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
@@ -2428,6 +2533,11 @@ __all__ = [
     "add_contact_sync_log", "get_contact_sync_log_by_local_contact", "get_contact_sync_log_by_google_contact_id",
     "get_contact_sync_log_by_id", "update_contact_sync_log", "delete_contact_sync_log",
     "get_contacts_pending_sync", "get_all_sync_logs_for_account",
+
+    # Partner Documents
+    "add_partner_document", "get_documents_for_partner", "get_partner_document_by_id",
+    "update_partner_document", "delete_partner_document",
+
 
     # _get_or_create_category_id is internal to schema.py, not exposed via crud
     # _populate_default_cover_page_templates is internal to schema.py
