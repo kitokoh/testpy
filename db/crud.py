@@ -2223,6 +2223,7 @@ def get_contact_sync_log_by_google_contact_id(user_google_account_id: str, googl
     cursor = conn.cursor()
     sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? AND google_contact_id = ?"
     cursor.execute(sql, (user_google_account_id, google_contact_id))
+
 # --- PartnerDocuments CRUD ---
 @_manage_conn
 def add_partner_document(data: dict, conn: sqlite3.Connection = None) -> str | None:
@@ -2350,6 +2351,7 @@ def get_all_sync_logs_for_account(user_google_account_id: str, conn: sqlite3.Con
     cursor.execute(sql, (user_google_account_id,))
     return [dict(row) for row in cursor.fetchall()]
 # --- End ContactSyncLog CRUD ---
+
 def update_partner_document(document_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
     """
     Updates a partner document.
@@ -2531,9 +2533,11 @@ __all__ = [
     "add_contact_sync_log", "get_contact_sync_log_by_local_contact", "get_contact_sync_log_by_google_contact_id",
     "get_contact_sync_log_by_id", "update_contact_sync_log", "delete_contact_sync_log",
     "get_contacts_pending_sync", "get_all_sync_logs_for_account",
+
     # Partner Documents
     "add_partner_document", "get_documents_for_partner", "get_partner_document_by_id",
     "update_partner_document", "delete_partner_document",
+
 
     # _get_or_create_category_id is internal to schema.py, not exposed via crud
     # _populate_default_cover_page_templates is internal to schema.py
