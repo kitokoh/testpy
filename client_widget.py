@@ -7,10 +7,12 @@ from datetime import datetime
 # import sqlite3 # No longer needed as methods are refactored to use db_manager
 import math # Added for pagination
 
+from carrier_email_dialog import CarrierEmailDialog # Added import
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog
+    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QApplication
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap, QTextCursor
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication, QEvent
@@ -566,8 +568,8 @@ class ClientWidget(QWidget):
         assigned_transporters_widget = QWidget()
         assigned_transporters_layout = QVBoxLayout(assigned_transporters_widget)
         self.assigned_transporters_table = QTableWidget()
-        self.assigned_transporters_table.setColumnCount(5)
-        self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé")])
+        self.assigned_transporters_table.setColumnCount(6) # Increased column count
+        self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé"), self.tr("Actions")])
         self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.assigned_transporters_table.horizontalHeader().setStretchLastSection(True)
@@ -948,6 +950,66 @@ class ClientWidget(QWidget):
         has_selection = bool(self.assigned_forwarders_table.selectedItems())
         self.remove_assigned_forwarder_btn.setEnabled(has_selection)
 
+    def open_carrier_email_dialog(self, row_index):
+        try:
+            transporter_name_item = self.assigned_transporters_table.item(row_index, 0) # Nom Transporteur
+
+            if not transporter_name_item:
+                QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("Impossible de récupérer le nom du transporteur."))
+                return
+
+            transporter_name = transporter_name_item.text()
+            client_transporter_id = transporter_name_item.data(Qt.UserRole)
+
+            if client_transporter_id is None:
+                QMessageBox.warning(self, self.tr("Erreur Données"), self.tr("ID du transporteur non trouvé pour cette ligne."))
+                return
+
+            # Fetch transporter details to get a reliable email.
+            # This is a simplified way to get the email. Ideally, fetch directly or store more info in the table item's UserRole.
+            assigned_list = db_manager.get_assigned_transporters_for_client(self.client_info.get('client_id'))
+            transporter_email = ""
+            if assigned_list: # Ensure assigned_list is not None
+                for item_data in assigned_list:
+                    if item_data.get('client_transporter_id') == client_transporter_id:
+                        # Check for an 'email' field first
+                        transporter_email = item_data.get('email')
+                        if not transporter_email: # Fallback to 'contact_person' if it might be an email
+                            contact_person_field = item_data.get('contact_person', '')
+                            # Basic check if contact_person_field looks like an email
+                            if '@' in contact_person_field and '.' in contact_person_field.split('@')[-1]:
+                                transporter_email = contact_person_field
+                        break
+
+            if not transporter_email:
+                email_text, ok = QInputDialog.getText(self, self.tr("Email du Transporteur Manquant"),
+                                                      self.tr("L'email pour {0} n'est pas trouvé. Veuillez le saisir:").format(transporter_name))
+                if ok and email_text.strip():
+                    transporter_email = email_text.strip()
+                else:
+                    QMessageBox.information(self, self.tr("Annulé"), self.tr("Envoi d'email annulé car l'email du destinataire est manquant."))
+                    self.load_assigned_transporters() # Refresh table even if cancelled here
+                    return
+
+            client_name = self.client_info.get("client_name", self.tr("Notre Client"))
+
+            # Ensure self.config (application config) is passed to CarrierEmailDialog
+            # self.config should be available from ClientWidget's __init__
+            dialog = CarrierEmailDialog(
+                carrier_name=transporter_name,
+                carrier_email=transporter_email,
+                client_name=client_name,
+                client_transporter_id=client_transporter_id, # Pass the ID
+                parent=self,
+                config=self.config
+            )
+            dialog.exec_()
+            self.load_assigned_transporters() # Refresh table after dialog closes
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Dialogue Email"),
+                                 self.tr("Une erreur est survenue lors de l'ouverture du dialogue d'email: {0}").format(str(e)))
+            # For debugging: logging.error(f"Error opening carrier email dialog: {e}", exc_info=True)
 
     # Data Loading methods for Assignment Tables
     def load_assigned_vendors_personnel(self):
@@ -1015,6 +1077,31 @@ class ClientWidget(QWidget):
                 cost_item = QTableWidgetItem(f"{item_data.get('cost_estimate', 0.0):.2f} €")
                 cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.assigned_transporters_table.setItem(row, 4, cost_item)
+
+                email_status = item_data.get('email_status', 'Pending') # Get email_status
+
+                btn_send_email = QPushButton()
+                if email_status == "Sent":
+                    btn_send_email.setText(self.tr("Email Sent"))
+                    btn_send_email.setStyleSheet("background-color: lightgray; color: black;")
+                    btn_send_email.setEnabled(False)
+                elif email_status == "Failed":
+                    btn_send_email.setText(self.tr("Resend Email (Failed)"))
+                    btn_send_email.setStyleSheet("background-color: orange; color: black;")
+                    btn_send_email.clicked.connect(lambda checked, r=row: self.open_carrier_email_dialog(r))
+                else: # Pending or other
+                    btn_send_email.setText(self.tr("Send Email"))
+                    btn_send_email.setStyleSheet("background-color: green; color: white;")
+                    btn_send_email.clicked.connect(lambda checked, r=row: self.open_carrier_email_dialog(r))
+
+                action_widget = QWidget()
+                action_layout = QHBoxLayout(action_widget)
+                action_layout.addWidget(btn_send_email)
+                action_layout.setContentsMargins(0, 0, 0, 0)
+                action_layout.setAlignment(Qt.AlignCenter)
+                action_widget.setLayout(action_layout)
+                self.assigned_transporters_table.setCellWidget(row, 5, action_widget)
+
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Chargement"), self.tr("Impossible de charger les transporteurs assignés: {0}").format(str(e)))
         self.assigned_transporters_table.setSortingEnabled(True)
