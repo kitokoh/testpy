@@ -3,13 +3,19 @@ from typing import Union, TypeVar, Any
 # Forward declaration for type hinting MediaItem in MediaItem.from_dict
 _MediaItemType = TypeVar('_MediaItemType', bound='MediaItem')
 
+from typing import Union, TypeVar, Any, List
+
+# Forward declaration for type hinting MediaItem in MediaItem.from_dict
+_MediaItemType = TypeVar('_MediaItemType', bound='MediaItem')
+
 class MediaItem:
-    def __init__(self, id: str, title: str, description: str, category: str, item_type: str):
+    def __init__(self, id: str, title: str, description: str, item_type: str, tags: List[str] | None = None, thumbnail_path: str | None = None):
         self.id: str = id
         self.title: str = title
         self.description: str = description
-        self.category: str = category
-        self.item_type: str = item_type # Renamed from 'type'
+        self.item_type: str = item_type
+        self.tags: List[str] = tags if tags is not None else []
+        self.thumbnail_path: str | None = thumbnail_path
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MediaItem):
@@ -17,67 +23,73 @@ class MediaItem:
         return (self.id == other.id and
                 self.title == other.title and
                 self.description == other.description and
-                self.category == other.category and
-                self.item_type == other.item_type)
+                self.item_type == other.item_type and
+                sorted(self.tags) == sorted(other.tags) and
+                self.thumbnail_path == other.thumbnail_path)
 
     def to_dict(self) -> dict:
         return {
             'id': self.id,
             'title': self.title,
             'description': self.description,
-            'category': self.category,
-            'type': self.item_type, # Ensure this key is 'type' for serialization
+            'type': self.item_type,
+            'tags': self.tags,
+            'thumbnail_path': self.thumbnail_path,
         }
 
     @staticmethod
     def from_dict(item_dict: dict[str, Any]) -> _MediaItemType:
         item_type = item_dict.get('type')
+        tags_list = item_dict.get('tags', [])
+        if not isinstance(tags_list, list):
+            tags_list = []
+
+        thumbnail_path_val = item_dict.get('thumbnail_path')
+
+
+        common_args = {
+            'id': item_dict['id'],
+            'title': item_dict['title'],
+            'description': item_dict['description'],
+            'tags': tags_list,
+            'thumbnail_path': thumbnail_path_val
+        }
+
         if item_type == 'video':
             return VideoItem(
-                id=item_dict['id'],
-                title=item_dict['title'],
-                description=item_dict['description'],
-                category=item_dict['category'],
+                **common_args,
                 filepath=item_dict['filepath']
             )
         elif item_type == 'image':
             return ImageItem(
-                id=item_dict['id'],
-                title=item_dict['title'],
-                description=item_dict['description'],
-                category=item_dict['category'],
+                **common_args,
                 filepath=item_dict['filepath']
             )
         elif item_type == 'link':
+            # Links typically won't have a 'filepath' but ensure from_dict handles its absence
+            common_args.pop('thumbnail_path', None) # Links might not have thumbnails this way
+            if 'filepath' in item_dict: # Should not be there for link type from DB
+                 del item_dict['filepath']
             return LinkItem(
-                id=item_dict['id'],
-                title=item_dict['title'],
-                description=item_dict['description'],
-                category=item_dict['category'],
+                **common_args, # Pass only relevant common args
                 url=item_dict['url']
             )
         else:
-            # Fallback or error for unknown type.
-            # For now, let's try to create a base MediaItem if common fields are present,
-            # or raise an error if that's not desired.
-            # raise ValueError(f"Unknown media type: {item_type}")
-            # Alternatively, return a base MediaItem if it makes sense.
-            # This part depends on desired error handling for unknown types.
-            # For strictness, raising ValueError is better.
-            if 'id' in item_dict and 'title' in item_dict and 'description' in item_dict and 'category' in item_dict:
-                 return MediaItem(
+            if 'id' in item_dict and 'title' in item_dict and 'description' in item_dict:
+                 return MediaItem( # type: ignore
                     id=item_dict['id'],
                     title=item_dict['title'],
                     description=item_dict['description'],
-                    category=item_dict['category'],
-                    item_type=item_dict.get('type', 'unknown') # Store original type or 'unknown'
+                    item_type=item_dict.get('type', 'unknown'),
+                    tags=tags_list,
+                    thumbnail_path=thumbnail_path_val
                 )
-            raise ValueError(f"Unknown or malformed media type: {item_type}")
+            raise ValueError(f"Unknown or malformed media type: {item_type} with data {item_dict}")
 
 
 class VideoItem(MediaItem):
-    def __init__(self, id: str, title: str, description: str, category: str, filepath: str):
-        super().__init__(id, title, description, category, "video") # Explicitly pass 'video'
+    def __init__(self, id: str, title: str, description: str, filepath: str, tags: List[str] | None = None, thumbnail_path: str | None = None):
+        super().__init__(id, title, description, "video", tags, thumbnail_path)
         self.filepath: str = filepath
 
     def __eq__(self, other: object) -> bool:
@@ -91,8 +103,8 @@ class VideoItem(MediaItem):
         return data
 
 class ImageItem(MediaItem):
-    def __init__(self, id: str, title: str, description: str, category: str, filepath: str):
-        super().__init__(id, title, description, category, "image") # Explicitly pass 'image'
+    def __init__(self, id: str, title: str, description: str, filepath: str, tags: List[str] | None = None, thumbnail_path: str | None = None):
+        super().__init__(id, title, description, "image", tags, thumbnail_path)
         self.filepath: str = filepath
 
     def __eq__(self, other: object) -> bool:
@@ -106,8 +118,8 @@ class ImageItem(MediaItem):
         return data
 
 class LinkItem(MediaItem):
-    def __init__(self, id: str, title: str, description: str, category: str, url: str):
-        super().__init__(id, title, description, category, "link") # Explicitly pass 'link'
+    def __init__(self, id: str, title: str, description: str, url: str, tags: List[str] | None = None, thumbnail_path: str | None = None): # Links might not have thumbnails
+        super().__init__(id, title, description, "link", tags, thumbnail_path)
         self.url: str = url
 
     def __eq__(self, other: object) -> bool:
