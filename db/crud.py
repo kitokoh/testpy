@@ -302,6 +302,39 @@ def get_city_by_name_and_country_id(name: str, country_id: int, conn: sqlite3.Co
 def get_city_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None: # Added
     cursor=conn.cursor(); cursor.execute("SELECT * FROM Cities WHERE city_id = ?",(id,)); row=cursor.fetchone()
     return dict(row) if row else None
+
+@_manage_conn
+def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new city to the Cities table.
+    STUB FUNCTION - Full implementation pending.
+    Expects data['city_name'] and data['country_id'].
+    """
+    # Example:
+    # cursor = conn.cursor()
+    # sql = "INSERT INTO Cities (city_name, country_id, latitude, longitude, population, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    # now = datetime.utcnow().isoformat() + "Z"
+    # params = (
+    #     data.get('city_name'),
+    #     data.get('country_id'),
+    #     data.get('latitude'),
+    #     data.get('longitude'),
+    #     data.get('population'),
+    #     now,
+    #     now
+    # )
+    # try:
+    #     cursor.execute(sql, params)
+    #     return cursor.lastrowid
+    # except sqlite3.IntegrityError: # e.g. city_name + country_id not unique, or country_id FK violation
+    #     logging.error(f"Integrity error adding city: {data.get('city_name')}")
+    #     return None
+    # except sqlite3.Error as e:
+    #     logging.error(f"Database error in add_city: {e}")
+    #     return None
+    logging.warning(f"Called stub function add_city with data: {data}. Full implementation is missing.")
+    return None
+
 @_manage_conn
 def get_status_setting_by_name(name: str, type: str, conn: sqlite3.Connection = None) -> dict | None:
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?",(name,type)); row=cursor.fetchone()
