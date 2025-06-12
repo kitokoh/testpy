@@ -4330,162 +4330,6 @@ def get_equivalent_products(product_id: int) -> list[dict]:
     finally:
         if conn: conn.close()
 
-# CRUD functions for ProductEquivalencies (This one was duplicated, keeping one instance)
-def add_product_equivalence(product_id_a: int, product_id_b: int) -> int | None:
-    """
-    Adds a product equivalence pair.
-    Ensures product_id_a < product_id_b to maintain uniqueness.
-    Returns equivalence_id of the new or existing record.
-    """
-    if product_id_a == product_id_b:
-        print("Error: Cannot create equivalence for a product with itself.")
-        return None
-
-    # Ensure p_a is always the smaller ID
-    p_a = min(product_id_a, product_id_b)
-    p_b = max(product_id_a, product_id_b)
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        sql = "INSERT INTO ProductEquivalencies (product_id_a, product_id_b) VALUES (?, ?)"
-        cursor.execute(sql, (p_a, p_b))
-        conn.commit()
-        return cursor.lastrowid
-    except sqlite3.IntegrityError: # Pair already exists
-        print(f"IntegrityError: Product equivalence pair ({p_a}, {p_b}) likely already exists.")
-        # Fetch the ID of the existing pair
-        try:
-            cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a, p_b))
-            row = cursor.fetchone()
-            if row:
-                return row['equivalence_id']
-            else:
-                # This case should be rare if IntegrityError was due to the unique constraint
-                print(f"Warning: IntegrityError for pair ({p_a}, {p_b}) but could not retrieve existing ID.")
-                return None
-        except sqlite3.Error as e_select:
-            print(f"Database error while trying to retrieve existing equivalence_id for ({p_a}, {p_b}): {e_select}")
-            return None
-    except sqlite3.Error as e:
-        print(f"Database error in add_product_equivalence: {e}")
-        if conn:
-            conn.rollback() # Rollback if not an integrity error on insert
-        return None
-    finally:
-        if conn: conn.close()
-
-def get_equivalent_products(product_id: int) -> list[dict]:
-    """
-    Retrieves all products equivalent to the given product_id.
-    Returns a list of product dictionaries (including weight and dimensions).
-    """
-    conn = None
-# This SEARCH block is for the duplicated get_equivalent_products, we are removing it.
-# The actual refactored function is above.
-
-# CRUD functions for ProductDimensions
-def add_or_update_product_dimension(product_id: int, dimension_data: dict) -> bool:
-    """
-    Adds or updates a product's dimensions.
-    Performs an "upsert" operation. Updates 'updated_at' timestamp.
-    Returns True on success, False on failure.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.utcnow().isoformat() + "Z"
-
-        # Check if record exists
-        cursor.execute("SELECT product_id FROM ProductDimensions WHERE product_id = ?", (product_id,))
-        exists = cursor.fetchone()
-
-        if exists:
-            # Update existing record
-            dimension_data['updated_at'] = now
-            set_clauses = [f"{key} = ?" for key in dimension_data.keys() if key != 'product_id']
-            # Filter out product_id from params if it was accidentally included in dimension_data keys
-            params = [value for key, value in dimension_data.items() if key != 'product_id']
-
-            if not set_clauses: # No actual dimension data to update, only product_id was passed
-                # Still, we might want to update the 'updated_at' timestamp
-                # Forcing an update to 'updated_at' even if other fields are empty
-                cursor.execute("UPDATE ProductDimensions SET updated_at = ? WHERE product_id = ?", (now, product_id))
-                conn.commit()
-                return True
-
-            params.append(product_id)
-            sql = f"UPDATE ProductDimensions SET {', '.join(set_clauses)} WHERE product_id = ?"
-            cursor.execute(sql, params)
-        else:
-            # Insert new record
-            # Ensure all dimension columns are potentially included, defaulting to None if not in dimension_data
-            all_dim_columns = ['dim_A', 'dim_B', 'dim_C', 'dim_D', 'dim_E', 'dim_F', 'dim_G', 'dim_H', 'dim_I', 'dim_J', 'technical_image_path']
-
-            columns_to_insert = ['product_id', 'created_at', 'updated_at']
-            values_to_insert = [product_id, now, now]
-
-            for col in all_dim_columns:
-                columns_to_insert.append(col)
-                values_to_insert.append(dimension_data.get(col))
-
-            placeholders = ', '.join(['?'] * len(columns_to_insert))
-            sql = f"INSERT INTO ProductDimensions ({', '.join(columns_to_insert)}) VALUES ({placeholders})"
-            cursor.execute(sql, tuple(values_to_insert))
-
-        conn.commit()
-        return cursor.rowcount > 0 or (not exists and cursor.lastrowid is not None) # For INSERT, check lastrowid
-    except sqlite3.Error as e:
-        print(f"Database error in add_or_update_product_dimension for product_id {product_id}: {e}")
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def get_product_dimension(product_id: int) -> dict | None:
-    """
-    Fetches the dimension data for the given product_id.
-    Returns a dictionary of the dimension data if found, otherwise None.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ProductDimensions WHERE product_id = ?", (product_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-    except sqlite3.Error as e:
-        print(f"Database error in get_product_dimension for product_id {product_id}: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-def delete_product_dimension(product_id: int) -> bool:
-    """
-    Deletes the dimension record for the given product_id.
-    Returns True if a row was deleted, False otherwise.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM ProductDimensions WHERE product_id = ?", (product_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"Database error in delete_product_dimension for product_id {product_id}: {e}")
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
 # CRUD functions for ProductDimensions
 def add_or_update_product_dimension(product_id: int, dimension_data: dict) -> bool:
     """
@@ -7586,8 +7430,375 @@ def get_document_context_data(
 
     return context
 
-
-
+# This is the duplicated, shorter version of get_document_context_data that will be removed.
+# The actual, more complete version is located earlier in the file.
+# def get_document_context_data(
+# client_id: str,
+# company_id: str, # For seller info
+# target_language_code: str, # New parameter
+# project_id: str = None,
+# linked_product_ids_for_doc: list[int] = None,
+# additional_context: dict = None
+# ) -> dict:
+# """
+# Gathers and structures data for document generation, with product language resolution.
+# and specific handling for packing list details if provided in additional_context.
+# """
+# context = {
+# "doc": {}, "client": {}, "seller": {}, "project": {}, "products": [], "lang": {},
+# "additional": {}
+# }
+# effective_additional_context = additional_context if isinstance(additional_context, dict) else {}
+# context["additional"] = effective_additional_context
+# now_dt = datetime.now()
+# cover_page_translations = {
+# 'en': {
+# 'cover_page_title_suffix': "Cover Page",
+# 'cover_logo_alt_text': "Company Logo",
+# 'cover_client_label': "Client",
+# 'cover_project_id_label': "Project ID",
+# 'cover_date_label': "Date",
+# 'cover_version_label': "Version",
+# 'cover_prepared_for_title': "Prepared for",
+# 'cover_prepared_by_title': "Prepared by",
+# 'cover_contact_label': "Contact",
+# 'cover_footer_confidential': "This document is confidential and intended solely for the use of the individual or entity to whom it is addressed."
+# },
+# 'fr': {
+# 'cover_page_title_suffix': "Page de Garde",
+# 'cover_logo_alt_text': "Logo de l'Entreprise",
+# 'cover_client_label': "Client",
+# 'cover_project_id_label': "ID Projet",
+# 'cover_date_label': "Date",
+# 'cover_version_label': "Version",
+# 'cover_prepared_for_title': "Préparé pour",
+# 'cover_prepared_by_title': "Préparé par",
+# 'cover_contact_label': "Contact",
+# 'cover_footer_confidential': "Ce document est confidentiel et destiné uniquement à l'usage de la personne ou de l'entité à qui il est adressé."
+# },
+# 'ar': {
+# 'cover_page_title_suffix': "صفحة الغلاف",
+# 'cover_logo_alt_text': "شعار الشركة",
+# 'cover_client_label': "العميل",
+# 'cover_project_id_label': "معرف المشروع",
+# 'cover_date_label': "التاريخ",
+# 'cover_version_label': "الإصدار",
+# 'cover_prepared_for_title': "أعدت لـ",
+# 'cover_prepared_by_title': "أعدها",
+# 'cover_contact_label': "الاتصال",
+# 'cover_footer_confidential': "هذا المستند سري ومخصص فقط لاستخدام الفرد أو الكيان الموجه إليه."
+# },
+# 'tr': {
+# 'cover_page_title_suffix': "Kapak Sayfası",
+# 'cover_logo_alt_text': "Şirket Logosu",
+# 'cover_client_label': "Müşteri",
+# 'cover_project_id_label': "Proje ID",
+# 'cover_date_label': "Tarih",
+# 'cover_version_label': "Sürüm",
+# 'cover_prepared_for_title': "Hazırlayan",
+# 'cover_prepared_by_title': "Hazırlanan",
+# 'cover_contact_label': "İletişim",
+# 'cover_footer_confidential': "Bu belge gizlidir ve yalnızca muhatabı olan kişi veya kuruluşun kullanımı içindir."
+# }
+# }
+# context['lang'] = cover_page_translations.get(target_language_code, cover_page_translations.get('en', {}))
+# context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
+# context["doc"]["current_year"] = str(now_dt.year)
+# context["doc"]["document_title"] = context["additional"].get("document_title", "Document")
+# context["doc"]["document_subtitle"] = context["additional"].get("document_subtitle", "")
+# context["doc"]["document_version"] = context["additional"].get("document_version", "1.0")
+# context["doc"]["currency_symbol"] = context["additional"].get("currency_symbol", "€")
+# context["doc"]["vat_rate_percentage"] = context["additional"].get("vat_rate_percentage", 20.0)
+# context["doc"]["discount_rate_percentage"] = context["additional"].get("discount_rate_percentage", 0.0)
+# context["doc"]["proforma_id"] = context["additional"].get("proforma_id", f"PRO-{now_dt.strftime('%Y%m%d-%H%M%S')}")
+# context["doc"]["invoice_id"] = context["additional"].get("invoice_id", f"INV-{now_dt.strftime('%Y%m%d-%H%M%S')}")
+# context["doc"]["payment_terms"] = context["additional"].get("payment_terms", "Net 30 Days")
+# context["doc"]["delivery_terms"] = context["additional"].get("delivery_terms", "FOB Port of Loading")
+# context["doc"]["incoterms"] = context["additional"].get("incoterms", "FOB")
+# context["doc"]["named_place_of_delivery"] = context["additional"].get("named_place_of_delivery", "Port of Loading")
+# context["doc"]["packing_list_id"] = context["additional"].get("packing_list_id", f"PL-{now_dt.strftime('%Y%m%d-%H%M%S')}")
+# context["doc"]["client_specific_footer_notes"] = ""
+# context["doc"]["notify_party_name"] = "N/A"
+# context["doc"]["notify_party_address"] = "N/A"
+# context["doc"]["vessel_flight_no"] = "N/A"
+# context["doc"]["port_of_loading"] = "N/A"
+# context["doc"]["port_of_discharge"] = "N/A"
+# context["doc"]["final_destination_country"] = "N/A"
+# context["doc"]["total_packages"] = "N/A"
+# context["doc"]["total_net_weight"] = "N/A"
+# context["doc"]["total_gross_weight"] = "N/A"
+# context["doc"]["total_volume_cbm"] = "N/A"
+# context["doc"]["packing_list_items"] = f"<tr><td colspan='7'>Packing details not provided.</td></tr>"
+# context["doc"]["warranty_certificate_id"] = context["additional"].get("warranty_id", f"WAR-{now_dt.strftime('%Y%m%d-%H%M%S')}")
+# context["doc"]["warranty_period_months"] = context["additional"].get("warranty_period_months", "12")
+# seller_company_data = get_company_by_id(company_id)
+# if seller_company_data:
+# context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
+# context["seller"]["company_name"] = seller_company_data.get('company_name', "N/A")
+# raw_address = seller_company_data.get('address', "N/A")
+# context["seller"]["address"] = raw_address
+# context["seller"]["address_line1"] = raw_address
+# context["seller"]["city_zip_country"] = "N/A (Structure adr. manquante)"
+# context["seller"]["full_address"] = raw_address
+# context["seller"]["payment_info"] = seller_company_data.get('payment_info')
+# context["seller"]["other_info"] = seller_company_data.get('other_info')
+# logo_path_relative = seller_company_data.get('logo_path')
+# context["seller"]["logo_path_relative"] = logo_path_relative
+# if logo_path_relative:
+# abs_logo_path = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_path_relative)
+# if os.path.exists(abs_logo_path):
+# context["seller"]["logo_path_absolute"] = abs_logo_path
+# context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}"
+# else:
+# context["seller"]["logo_path_absolute"] = None
+# context["seller"]["company_logo_path"] = None
+# print(f"Warning: Seller logo file not found at {abs_logo_path}")
+# else:
+# context["seller"]["logo_path_absolute"] = None
+# context["seller"]["company_logo_path"] = None
+# context["seller"]["phone"] = context["additional"].get("seller_phone", "N/A Seller Phone")
+# context["seller"]["email"] = context["additional"].get("seller_email", "N/A Seller Email")
+# context["seller"]["vat_id"] = context["additional"].get("seller_vat_id", "N/A Seller VAT ID")
+# context["seller"]["registration_number"] = context["additional"].get("seller_registration_number", "N/A Seller Reg No.")
+# context["seller"]["bank_details_raw"] = seller_company_data.get('payment_info', "N/A")
+# context["seller"]["bank_name"] = context["additional"].get("seller_bank_name", "N/A Bank")
+# context["seller"]["bank_account_number"] = context["additional"].get("seller_bank_account_number", "N/A Account No.")
+# context["seller"]["bank_swift_bic"] = context["additional"].get("seller_bank_swift_bic", "N/A SWIFT/BIC")
+# context["seller"]["bank_address"] = context["additional"].get("seller_bank_address", "N/A Bank Address")
+# context["seller"]["bank_account_holder_name"] = context["seller"]["company_name"]
+# context["seller"]["footer_company_name"] = context["seller"]["company_name"]
+# context["seller"]["footer_contact_info"] = f"{context['seller']['phone']} | {context['seller']['email']}"
+# context["seller"]["footer_additional_info"] = seller_company_data.get('other_info', "")
+# context["seller"]["personnel"] = {}
+# seller_personnel_list = get_personnel_for_company(company_id)
+# if seller_personnel_list:
+# main_seller_contact = next((p for p in seller_personnel_list if p.get('role') == 'seller'), seller_personnel_list[0])
+# context["seller"]["personnel"]["representative_name"] = main_seller_contact.get('name')
+# context["seller"]["personnel"]["representative_title"] = main_seller_contact.get('role')
+# context["seller"]["personnel"]["sales_person_name"] = next((p.get('name') for p in seller_personnel_list if p.get('role') == 'seller'), "N/A")
+# context["seller"]["personnel"]["technical_manager_name"] = next((p.get('name') for p in seller_personnel_list if p.get('role') == 'technical_manager'), "N/A")
+# context["seller"]["personnel"]["authorized_signature_name"] = context["seller"]["personnel"]["sales_person_name"]
+# context["seller"]["personnel"]["authorized_signature_title"] = next((p.get('role') for p in seller_personnel_list if p.get('name') == context["seller"]["personnel"]["authorized_signature_name"]), "N/A")
+# else:
+# context["seller"]["personnel"]["representative_name"] = "N/A"
+# context["seller"]["personnel"]["representative_title"] = "N/A"
+# context["seller"]["personnel"]["sales_person_name"] = "N/A"
+# context["seller"]["personnel"]["technical_manager_name"] = "N/A"
+# context["seller"]["personnel"]["authorized_signature_name"] = "N/A"
+# context["seller"]["personnel"]["authorized_signature_title"] = "N/A"
+# client_data = get_client_by_id(client_id)
+# if client_data:
+# context["client"]["id"] = client_data.get('client_id')
+# context["client"]["contact_person_name"] = client_data.get('client_name')
+# context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
+# context["client"]["project_identifier"] = client_data.get('project_identifier')
+# context["client"]["primary_need"] = client_data.get('primary_need_description')
+# context["client"]["notes"] = client_data.get('notes')
+# context["client"]["price_formatted"] = format_currency(client_data.get('price'), context["doc"]["currency_symbol"])
+# context["client"]["raw_price"] = client_data.get('price')
+# client_country_name, client_city_name = "N/A", "N/A"
+# if client_data.get('country_id'):
+# country = get_country_by_id(client_data['country_id'])
+# if country: client_country_name = country.get('country_name', "N/A")
+# if client_data.get('city_id'):
+# city = get_city_by_id(client_data['city_id'])
+# if city: client_city_name = city.get('city_name', "N/A")
+# context["client"]["country_name"] = client_country_name
+# context["client"]["city_name"] = client_city_name
+# address_parts = [part for part in [client_city_name, client_country_name] if part != "N/A"]
+# context["client"]["address"] = ", ".join(address_parts) if address_parts else "N/A (Adresse manquante)"
+# context["client"]["city_zip_country"] = context["client"]["address"]
+# client_contacts = get_contacts_for_client(client_id)
+# primary_client_contact = next((c for c in client_contacts if c.get('is_primary_for_client')), None)
+# if not primary_client_contact and client_contacts: primary_client_contact = client_contacts[0]
+# if primary_client_contact:
+# context["client"]["contact_person_name"] = primary_client_contact.get('name', client_data.get('client_name'))
+# context["client"]["contact_email"] = primary_client_contact.get('email', "N/A")
+# context["client"]["contact_phone"] = primary_client_contact.get('phone', "N/A")
+# context["client"]["contact_position"] = primary_client_contact.get('position', "N/A")
+# else:
+# context["client"]["contact_email"] = "N/A"
+# context["client"]["contact_phone"] = "N/A"
+# context["client"]["contact_position"] = "N/A"
+# context["client"]["vat_id"] = context["additional"].get("client_vat_id", "N/A Client VAT ID")
+# context["client"]["registration_number"] = context["additional"].get("client_registration_number", "N/A Client Reg No.")
+# context["client"]["full_address"] = context["client"]["address"]
+# context["client"]["representative_name"] = context["client"].get("contact_person_name", client_data.get('client_name'))
+# context["client"]["representative_title"] = context["client"]["contact_position"]
+# if project_id:
+# project_data = get_project_by_id(project_id)
+# if project_data:
+# context["project"]["name"] = project_data.get('project_name')
+# context["project"]["id"] = project_data.get('project_id')
+# context["project"]["description"] = project_data.get('description')
+# context["project"]["start_date"] = project_data.get('start_date')
+# context["project"]["deadline_date"] = project_data.get('deadline_date')
+# context["project"]["budget_formatted"] = format_currency(project_data.get('budget'), context["doc"]["currency_symbol"])
+# context["project"]["raw_budget"] = project_data.get('budget')
+# context["project"]["progress_percentage"] = project_data.get('progress_percentage')
+# context["project"]["manager_id"] = project_data.get('manager_team_member_id')
+# status_id = project_data.get('status_id')
+# status_info = get_status_setting_by_id(status_id) if status_id else None
+# context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
+# else:
+# context["project"]["name"] = context["additional"].get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
+# context["project"]["id"] = context["additional"].get("project_id", client_data.get('project_identifier', "N/A") if client_data else "N/A")
+# context["project"]["description"] = context["additional"].get("project_description", client_data.get('primary_need_description', "") if client_data else "")
+# contact_page_details_from_context = context["additional"].get('contact_page_details', {})
+# if contact_page_details_from_context:
+# doc_title_override = contact_page_details_from_context.get('document_title_override')
+# if doc_title_override:
+# context["doc"]["document_title"] = doc_title_override
+# project_name_override = contact_page_details_from_context.get('project_name_override')
+# if project_name_override:
+# context["project"]["name"] = project_name_override
+# contacts_for_page = contact_page_details_from_context.get('contacts', [])
+# if contacts_for_page:
+# html_rows = []
+# for contact_detail in contacts_for_page:
+# row_html = "<tr>"
+# row_html += f"<td>{contact_detail.get('role_org', '')}</td>"
+# row_html += f"<td>{contact_detail.get('name', '')}</td>"
+# row_html += f"<td>{contact_detail.get('title', '')}</td>"
+# row_html += f"<td>{contact_detail.get('email', '')}</td>"
+# row_html += f"<td>{contact_detail.get('phone', '')}</td>"
+# row_html += "</tr>"
+# html_rows.append(row_html)
+# context['doc']['contact_list_items_html'] = "".join(html_rows)
+# else:
+# context['doc']['contact_list_items_html'] = '<tr><td colspan="5">Contact details not provided.</td></tr>'
+# else:
+# context['doc']['contact_list_items_html'] = '<tr><td colspan="5">Contact page details not applicable or not provided.</td></tr>'
+# products_table_html_rows_list = []
+# subtotal_amount_calculated = 0.0
+# item_counter = 0
+# context["products"] = []
+# lite_selected_products = effective_additional_context.get('lite_selected_products')
+# if lite_selected_products:
+# product_ids_from_lite_selection = [
+# p['product_id'] for p in lite_selected_products if isinstance(p, dict) and 'product_id' in p
+# ]
+# batched_product_details_map = _get_batch_products_and_equivalents(
+# product_ids_from_lite_selection, target_language_code
+# )
+# for selected_prod_info in lite_selected_products:
+# if not isinstance(selected_prod_info, dict): continue
+# item_counter += 1
+# original_product_id = selected_prod_info['product_id']
+# quantity = selected_prod_info.get('quantity', 1)
+# product_batch_data = batched_product_details_map.get(original_product_id, {})
+# original_details_dict = product_batch_data.get('original')
+# if not original_details_dict:
+# product_name_for_doc = selected_prod_info.get('name', 'Unknown Product')
+# product_description_for_doc = "Description not available"
+# unit_price_float = 0.0
+# is_language_match = False
+# unit_of_measure = "N/A"
+# weight = "N/A"
+# dimensions = "N/A"
+# else:
+# original_lang_code = original_details_dict.get('language_code')
+# product_name_for_doc = original_details_dict.get('product_name')
+# product_description_for_doc = original_details_dict.get('description')
+# unit_of_measure = original_details_dict.get('unit_of_measure')
+# weight = original_details_dict.get('weight')
+# dimensions = original_details_dict.get('dimensions')
+# is_language_match = (original_lang_code == target_language_code)
+# if not is_language_match:
+# for eq_prod_dict in product_batch_data.get('equivalents', []):
+# if eq_prod_dict.get('language_code') == target_language_code:
+# product_name_for_doc = eq_prod_dict.get('product_name')
+# product_description_for_doc = eq_prod_dict.get('description')
+# is_language_match = True
+# break
+# base_price_str = original_details_dict.get('base_unit_price')
+# unit_price_float = float(base_price_str) if base_price_str is not None else 0.0
+# total_price = quantity * unit_price_float
+# subtotal_amount_calculated += total_price
+# products_table_html_rows_list.append(f"<tr><td>{item_counter}</td><td>{product_name_for_doc}</td><td>{quantity}</td><td>{format_currency(unit_price_float, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price, context['doc']['currency_symbol'])}</td></tr>")
+# context["products"].append({
+# "id": original_product_id, "name": product_name_for_doc, "description": product_description_for_doc,
+# "quantity": quantity,
+# "unit_price_formatted": format_currency(unit_price_float, context["doc"]["currency_symbol"]),
+# "total_price_formatted": format_currency(total_price, context["doc"]["currency_symbol"]),
+# "raw_unit_price": unit_price_float, "raw_total_price": total_price,
+# "unit_of_measure": unit_of_measure, "weight": weight, "dimensions": dimensions,
+# "is_language_match": is_language_match
+# })
+# elif linked_product_ids_for_doc or project_id or client_id :
+# effective_linked_products_source_data = []
+# if linked_product_ids_for_doc:
+# conn_temp_links_std = get_db_connection()
+# cursor_temp_links_std = conn_temp_links_std.cursor()
+# placeholders_links_std = ','.join('?' for _ in linked_product_ids_for_doc)
+# cursor_temp_links_std.execute(f"""
+# SELECT cpp.product_id, cpp.quantity, cpp.unit_price_override, cpp.total_price_calculated,
+# p.product_name, p.description, p.language_code, p.weight, p.dimensions, p.base_unit_price, p.unit_of_measure
+# FROM ClientProjectProducts cpp
+# JOIN Products p ON cpp.product_id = p.product_id
+# WHERE cpp.client_project_product_id IN ({placeholders_links_std})
+# """, tuple(linked_product_ids_for_doc))
+# for row_std_link in cursor_temp_links_std.fetchall():
+# effective_linked_products_source_data.append(dict(row_std_link))
+# conn_temp_links_std.close()
+# elif client_id:
+# effective_linked_products_source_data = get_products_for_client_or_project(client_id, project_id)
+# product_ids_for_standard_path = [p['product_id'] for p in effective_linked_products_source_data if isinstance(p, dict) and 'product_id' in p]
+# batched_standard_product_details_map = {}
+# if product_ids_for_standard_path:
+# batched_standard_product_details_map = _get_batch_products_and_equivalents(
+# product_ids_for_standard_path, target_language_code
+# )
+# for linked_prod_data_dict in effective_linked_products_source_data:
+# item_counter += 1
+# original_product_id_std = linked_prod_data_dict['product_id']
+# product_batch_info_std = batched_standard_product_details_map.get(original_product_id_std, {})
+# original_details_dict_std = product_batch_info_std.get('original')
+# if not original_details_dict_std:
+# original_details_dict_std = linked_prod_data_dict
+# original_lang_code_std = original_details_dict_std.get('language_code')
+# product_name_for_doc_std = original_details_dict_std.get('product_name')
+# product_description_for_doc_std = original_details_dict_std.get('description')
+# is_language_match_std = (original_lang_code_std == target_language_code)
+# if not is_language_match_std:
+# for eq_prod_dict_std in product_batch_info_std.get('equivalents', []):
+# if eq_prod_dict_std.get('language_code') == target_language_code:
+# product_name_for_doc_std = eq_prod_dict_std.get('product_name')
+# product_description_for_doc_std = eq_prod_dict_std.get('description')
+# is_language_match_std = True
+# break
+# quantity_std = linked_prod_data_dict.get('quantity', 1)
+# unit_price_override_std = linked_prod_data_dict.get('unit_price_override')
+# base_unit_price_std_str = original_details_dict_std.get('base_unit_price')
+# effective_unit_price_std = unit_price_override_std if unit_price_override_std is not None else base_unit_price_std_str
+# unit_price_float_std = float(effective_unit_price_std) if effective_unit_price_std is not None else 0.0
+# total_price_std = quantity_std * unit_price_float_std
+# subtotal_amount_calculated += total_price_std
+# products_table_html_rows_list.append(f"<tr><td>{item_counter}</td><td>{product_name_for_doc_std if product_name_for_doc_std else 'N/A'}</td><td>{quantity_std}</td><td>{format_currency(unit_price_float_std, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price_std, context['doc']['currency_symbol'])}</td></tr>")
+# context["products"].append({
+# "id": original_product_id_std, "name": product_name_for_doc_std, "description": product_description_for_doc_std,
+# "quantity": quantity_std,
+# "unit_price_formatted": format_currency(unit_price_float_std, context["doc"]["currency_symbol"]),
+# "total_price_formatted": format_currency(total_price_std, context["doc"]["currency_symbol"]),
+# "raw_unit_price": unit_price_float_std, "raw_total_price": total_price_std,
+# "unit_of_measure": original_details_dict_std.get('unit_of_measure'),
+# "weight": original_details_dict_std.get('weight'),
+# "dimensions": original_details_dict_std.get('dimensions'),
+# "is_language_match": is_language_match_std
+# })
+# context["doc"]["products_table_rows"] = "".join(products_table_html_rows_list)
+# context["doc"]["subtotal_amount"] = format_currency(subtotal_amount_calculated, context["doc"]["currency_symbol"])
+# discount_rate = context["doc"].get("discount_rate_percentage", 0.0) / 100.0
+# discount_amount_calculated = subtotal_amount_calculated * discount_rate
+# context["doc"]["discount_amount"] = format_currency(discount_amount_calculated, context["doc"]["currency_symbol"])
+# amount_after_discount = subtotal_amount_calculated - discount_amount_calculated
+# vat_rate = context["doc"].get("vat_rate_percentage", 0.0) / 100.0
+# vat_amount_calculated = amount_after_discount * vat_rate
+# context["doc"]["vat_amount"] = format_currency(vat_amount_calculated, context["doc"]["currency_symbol"])
+# grand_total_amount_calculated = amount_after_discount + vat_amount_calculated
+# context["doc"]["grand_total_amount"] = format_currency(grand_total_amount_calculated, context["doc"]["currency_symbol"])
+# context["doc"]["grand_total_amount_words"] = "N/A (Number to words not implemented)"
+# return context
 
 if __name__ == '__main__':
     initialize_database()
@@ -8625,8 +8836,8 @@ if __name__ == '__main__':
 
         # return context
 
-
-
+# Removed the duplicated __main__ block that was here.
+# The primary __main__ block with comprehensive tests is now the sole one.
 
 if __name__ == '__main__':
     initialize_database()
