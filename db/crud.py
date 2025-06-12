@@ -333,12 +333,94 @@ def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
     #     logging.error(f"Database error in add_city: {e}")
     #     return None
     logging.warning(f"Called stub function add_city with data: {data}. Full implementation is missing.")
+    # This stub was pre-existing. The new get_or_add_city will be more complete.
     return None
+
+@_manage_conn
+def get_or_add_city(city_name: str, country_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves an existing city by name and country_id, or adds it if it doesn't exist.
+    Returns the city data (dict) or None if an error occurs.
+    """
+    if not city_name or not country_id:
+        logging.warning("get_or_add_city: city_name and country_id are required.")
+        return None
+
+    cursor = conn.cursor()
+    # Check if city exists for the given country
+    cursor.execute("SELECT * FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+    row = cursor.fetchone()
+    if row:
+        return dict(row)
+    else:
+        # City does not exist, add it
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = "INSERT INTO Cities (city_name, country_id, created_at, updated_at) VALUES (?, ?, ?, ?)"
+        params = (city_name, country_id, now, now)
+        try:
+            cursor.execute(sql, params)
+            new_city_id = cursor.lastrowid
+            if new_city_id:
+                # conn.commit() # Handled by _manage_conn
+                return {'city_id': new_city_id, 'city_name': city_name, 'country_id': country_id, 'created_at': now, 'updated_at': now}
+            else:
+                logging.error(f"Failed to get lastrowid after inserting city: {city_name}")
+                return None
+        except sqlite3.IntegrityError as e:
+            logging.error(f"Integrity error adding city '{city_name}' for country_id {country_id}: {e}")
+            # conn.rollback() # Handled by _manage_conn
+            return None # Or re-fetch in case of race condition, though less likely here
+        except sqlite3.Error as e_general:
+            logging.error(f"General SQLite error adding city '{city_name}': {e_general}")
+            # conn.rollback() # Handled by _manage_conn
+            return None
 
 @_manage_conn
 def get_status_setting_by_name(name: str, type: str, conn: sqlite3.Connection = None) -> dict | None:
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_name = ? AND status_type = ?",(name,type)); row=cursor.fetchone()
     return dict(row) if row else None
+
+@_manage_conn
+def get_or_add_country(country_name: str, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves an existing country by name, or adds it if it doesn't exist.
+    Returns the country data (dict) or None if an error occurs.
+    """
+    if not country_name:
+        logging.warning("get_or_add_country: country_name is required.")
+        return None
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+    row = cursor.fetchone()
+    if row:
+        return dict(row)
+    else:
+        # Country does not exist, add it
+        now = datetime.utcnow().isoformat() + "Z"
+        # Assuming basic structure for Countries table: country_id, country_name, created_at, updated_at
+        sql = "INSERT INTO Countries (country_name, created_at, updated_at) VALUES (?, ?, ?)"
+        params = (country_name, now, now)
+        try:
+            cursor.execute(sql, params)
+            new_country_id = cursor.lastrowid
+            if new_country_id:
+                # conn.commit() # Handled by _manage_conn
+                return {'country_id': new_country_id, 'country_name': country_name, 'created_at': now, 'updated_at': now}
+            else:
+                logging.error(f"Failed to get lastrowid after inserting country: {country_name}")
+                return None
+        except sqlite3.IntegrityError as e: # country_name likely has a UNIQUE constraint
+            logging.error(f"Integrity error adding country '{country_name}': {e}. It might have been added concurrently.")
+            # conn.rollback() # Handled by _manage_conn
+            cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
+            row_after_error = cursor.fetchone()
+            return dict(row_after_error) if row_after_error else None
+        except sqlite3.Error as e_general:
+            logging.error(f"General SQLite error adding country '{country_name}': {e_general}")
+            # conn.rollback() # Handled by _manage_conn
+            return None
+
 @_manage_conn
 def get_status_setting_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None: # Added
     cursor=conn.cursor(); cursor.execute("SELECT * FROM StatusSettings WHERE status_id = ?",(id,)); row=cursor.fetchone()
@@ -773,6 +855,50 @@ def get_clients_by_archival_status(is_archived: bool, include_null_status_for_ac
     sql = f"{base_query} {'WHERE ' + ' AND '.join(conditions) if conditions else ''} ORDER BY c.client_name;"
     cursor.execute(sql, params)
     return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def get_active_clients_per_country(conn: sqlite3.Connection = None) -> dict:
+    """
+    Retrieves active clients grouped by country name.
+    Active clients are those not linked to an archival status or with a null status.
+    Returns a dictionary: {'CountryName': [{'client_id': id, 'client_name': name}, ...]}
+    """
+    cursor = conn.cursor()
+    # Get IDs of statuses that are considered "archival"
+    cursor.execute("SELECT status_id FROM StatusSettings WHERE is_archival_status = TRUE AND status_type = 'Client'") # Added status_type
+    archival_status_ids = [row['status_id'] for row in cursor.fetchall()]
+
+    query_parts = [
+        "SELECT",
+        "    co.country_name,",
+        "    cl.client_id,",
+        "    cl.client_name",
+        "FROM Clients cl",
+        "JOIN Countries co ON cl.country_id = co.country_id"
+    ]
+    params = []
+
+    if archival_status_ids:
+        placeholders = ','.join('?' for _ in archival_status_ids)
+        query_parts.append(f"WHERE (cl.status_id IS NULL OR cl.status_id NOT IN ({placeholders}))")
+        params.extend(archival_status_ids)
+    else: # No archival statuses defined, so all clients (with or without status_id) are considered active
+        query_parts.append("WHERE 1=1") # Effectively no status filtering if no archival statuses exist
+
+    query_parts.append("ORDER BY co.country_name, cl.client_name;")
+    query = "\n".join(query_parts)
+
+    cursor.execute(query, params)
+
+    clients_by_country_map = {}
+    for row in cursor.fetchall():
+        country = row['country_name']
+        client_detail = {'client_id': row['client_id'], 'client_name': row['client_name']}
+        if country not in clients_by_country_map:
+            clients_by_country_map[country] = []
+        clients_by_country_map[country].append(client_detail)
+
+    return clients_by_country_map
 
 # --- ClientNotes CRUD ---
 @_manage_conn
@@ -1954,6 +2080,113 @@ def get_partners_in_category(category_id: int, conn: sqlite3.Connection = None) 
     return [dict(row) for row in cursor.fetchall()]
 # --- End PartnerCategoryLink CRUD ---
 
+# --- PartnerDocuments CRUD ---
+@_manage_conn
+def add_partner_document(data: dict, conn: sqlite3.Connection = None) -> str | None:
+    """
+    Adds a new document for a partner.
+    data keys: partner_id, document_name, file_path_relative (all required),
+               document_type, description (optional).
+    Generates a new UUID for document_id.
+    """
+    cursor = conn.cursor()
+    new_document_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat() + "Z"
+    sql = """
+        INSERT INTO PartnerDocuments (document_id, partner_id, document_name, file_path_relative,
+                                      document_type, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        new_document_id,
+        data.get('partner_id'),
+        data.get('document_name'),
+        data.get('file_path_relative'),
+        data.get('document_type'),
+        data.get('description'),
+        now,
+        now
+    )
+    try:
+        if not all(data.get(k) for k in ['partner_id', 'document_name', 'file_path_relative']):
+            logging.error("partner_id, document_name, and file_path_relative are required for adding a partner document.")
+            return None
+        cursor.execute(sql, params)
+        return new_document_id
+    except sqlite3.IntegrityError as e: # Handles FK constraint on partner_id
+        logging.warning(f"Failed to add partner document, possibly invalid partner_id: {data.get('partner_id')}. Error: {e}")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_partner_document: {e}")
+        return None
+
+@_manage_conn
+def get_documents_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """Retrieves all documents for a given partner_id, ordered by creation date."""
+    cursor = conn.cursor()
+    sql = "SELECT * FROM PartnerDocuments WHERE partner_id = ? ORDER BY created_at DESC"
+    cursor.execute(sql, (partner_id,))
+    return [dict(row) for row in cursor.fetchall()]
+
+@_manage_conn
+def get_partner_document_by_id(document_id: str, conn: sqlite3.Connection = None) -> dict | None:
+    """Retrieves a specific partner document by its document_id."""
+    cursor = conn.cursor()
+    sql = "SELECT * FROM PartnerDocuments WHERE document_id = ?"
+    cursor.execute(sql, (document_id,))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+@_manage_conn
+def update_partner_document(document_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
+    """
+    Updates a partner document.
+    data can contain: document_name, document_type, description.
+    """
+    if not data or not any(k in data for k in ['document_name', 'document_type', 'description']):
+        logging.info("No updatable fields provided for update_partner_document.")
+        return False # Nothing to update or only irrelevant fields
+
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat() + "Z"
+
+    update_fields = {}
+    if 'document_name' in data:
+        update_fields['document_name'] = data['document_name']
+    if 'document_type' in data:
+        update_fields['document_type'] = data['document_type']
+    if 'description' in data:
+        update_fields['description'] = data['description']
+
+    if not update_fields: # Should be caught by the initial check, but as a safeguard
+        return False
+
+    update_fields['updated_at'] = now
+
+    set_clauses = [f"{key} = ?" for key in update_fields.keys()]
+    params = list(update_fields.values())
+    params.append(document_id)
+
+    sql = f"UPDATE PartnerDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
+    try:
+        cursor.execute(sql, tuple(params))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in update_partner_document for {document_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_partner_document(document_id: str, conn: sqlite3.Connection = None) -> bool:
+    """Deletes a partner document by its document_id."""
+    cursor = conn.cursor()
+    sql = "DELETE FROM PartnerDocuments WHERE document_id = ?"
+    try:
+        cursor.execute(sql, (document_id,))
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in delete_partner_document for {document_id}: {e}")
+        return False
+# --- End PartnerDocuments CRUD ---
 
 @_manage_conn
 def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
@@ -1989,17 +2222,17 @@ __all__ = [
     "delete_email_reminder", "delete_freight_forwarder", "delete_important_date", "delete_kpi", "delete_product",
     "delete_product_dimension", "delete_project", "delete_sav_ticket", "delete_scheduled_email", "delete_smtp_config",
     "delete_task", "delete_team_member", "delete_template", "delete_template_and_get_file_info", "delete_template_category",
-    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_projects_count", "get_activity_logs",
+    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_clients_per_country", "get_active_projects_count", "get_activity_logs",
     "get_all_cities", "get_all_clients", "get_all_clients_with_details", "get_all_companies", "get_all_contact_lists",
     "get_all_contacts", "get_all_countries", "get_all_cover_page_templates", "get_all_file_based_templates", "get_all_freight_forwarders",
     "get_all_important_dates", "get_all_product_equivalencies", "get_all_products", "get_all_products_for_selection", "get_all_products_for_selection_filtered",
     "get_all_projects", "get_all_smtp_configs", "get_all_status_settings", "get_all_tasks", "get_all_team_members",
     "get_all_templates", "get_all_transporters", "get_assigned_forwarders_for_client", "get_assigned_personnel_for_client", "get_assigned_transporters_for_client",
-    "get_city_by_id", "get_city_by_name_and_country_id", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
+    "get_city_by_id", "get_city_by_name_and_country_id", "get_or_add_city", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
     "get_client_document_notes", "get_client_notes", "get_client_project_product_by_id", "get_client_segmentation_by_category", "get_client_segmentation_by_city",
     "get_client_segmentation_by_status", "get_clients_by_archival_status", "get_clients_for_contact", "get_company_by_id", "get_contact_by_email",
     "get_contact_by_id", "get_contact_list_by_id", "get_contacts_for_client", "get_contacts_for_client_count", "get_contacts_in_list",
-    "get_country_by_id", "get_country_by_name", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
+    "get_country_by_id", "get_country_by_name", "get_or_add_country", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
     "get_cover_pages_for_client", "get_cover_pages_for_project", "get_cover_pages_for_user", "get_default_company", "get_default_smtp_config",
     "get_distinct_languages_for_template_type", "get_distinct_template_languages", "get_distinct_template_types", "get_document_by_id", "get_documents_for_client",
     "get_documents_for_project", "get_equivalent_products", "get_filtered_templates", "get_freight_forwarder_by_id", "get_important_date_by_id",
@@ -2030,7 +2263,7 @@ __all__ = [
     "get_status_setting_by_name", "get_status_setting_by_id", # Keep existing
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client", "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country", "get_client_segmentation_by_city", "get_client_segmentation_by_status", "get_client_segmentation_by_category", "get_clients_by_archival_status", # Client related
     "add_client_note", "get_client_notes", # ClientNotes
-    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered","get_total_products_count", # Products
+    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered", "get_total_products_count", # Products
     "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
     "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence", # ProductEquivalencies
     "get_products_for_client_or_project", "add_product_to_client_or_project", "update_client_project_product", "remove_product_from_client_or_project", "get_client_project_product_by_id", # ClientProjectProducts
@@ -2077,6 +2310,10 @@ __all__ = [
     # PartnerCategoryLink
     "link_partner_to_category", "unlink_partner_from_category",
     "get_categories_for_partner", "get_partners_in_category",
+
+    # Partner Documents
+    "add_partner_document", "get_documents_for_partner", "get_partner_document_by_id",
+    "update_partner_document", "delete_partner_document",
 
     # _get_or_create_category_id is internal to schema.py, not exposed via crud
     # _populate_default_cover_page_templates is internal to schema.py
