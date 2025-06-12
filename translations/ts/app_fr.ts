@@ -168,7 +168,7 @@
     </message>
     <message>
         <source>Client Info Placeholder for: {0}</source>
-        <translation>Client Info Placeholder for: {0}</translation>
+        <translation>Informations client pour : {0}</translation>
     </message>
     <message>
         <source>Client: {0}</source>
@@ -192,7 +192,7 @@
     </message>
     <message>
         <source>Close</source>
-        <translation>Close</translation>
+        <translation>Fermer</translation>
     </message>
     <message>
         <source>Colonne {0}</source>
@@ -244,11 +244,11 @@
     </message>
     <message>
         <source>Could not load HTML file: {0}\n{1}</source>
-        <translation>Could not load HTML file: {0}\n{1}</translation>
+        <translation>Impossible de charger le fichier HTML : {0}\n{1}</translation>
     </message>
     <message>
         <source>Could not save HTML file: {0}\n{1}</source>
-        <translation>Could not save HTML file: {0}\n{1}</translation>
+        <translation>Impossible d&apos;enregistrer le fichier HTML : {0}\n{1}</translation>
     </message>
     <message>
         <source>Couleur du Texte Principal:</source>
@@ -348,7 +348,7 @@
     </message>
     <message>
         <source>Enter HTML content here...</source>
-        <translation>Enter HTML content here...</translation>
+        <translation>Saisissez le contenu HTML ici...</translation>
     </message>
     <message>
         <source>Entrez le nom de la nouvelle ville pour {0}:</source>
@@ -624,7 +624,7 @@
     </message>
     <message>
         <source>HTML Editor - {0}</source>
-        <translation>HTML Editor - {0}</translation>
+        <translation>Éditeur HTML - {0}</translation>
     </message>
     <message>
         <source>HTML</source>
@@ -760,7 +760,7 @@
     </message>
     <message>
         <source>Load Error</source>
-        <translation>Load Error</translation>
+        <translation>Erreur de chargement</translation>
     </message>
     <message>
         <source>Modifications Non Sauvegardées</source>
@@ -1048,7 +1048,7 @@
     </message>
     <message>
         <source>Refresh Preview</source>
-        <translation>Refresh Preview</translation>
+        <translation>Actualiser l&apos;aperçu</translation>
     </message>
     <message>
         <source>Retirer Logo</source>
@@ -1064,11 +1064,11 @@
     </message>
     <message>
         <source>Save Error</source>
-        <translation>Save Error</translation>
+        <translation>Erreur de sauvegarde</translation>
     </message>
     <message>
         <source>Save</source>
-        <translation>Save</translation>
+        <translation>Sauvegarder</translation>
     </message>
     <message>
         <source>Sauvegarde Réussie</source>

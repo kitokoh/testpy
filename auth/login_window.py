@@ -204,6 +204,7 @@ class LoginWindow(QDialog):
         # For simplicity, creating RegistrationWindow potentially without a direct Qt parent from here,
         # or with self if it makes sense in the application structure.
         # Let's assume self (LoginWindow instance) can be a logical parent.
+        from .registration_window import  RegistrationWindow
         reg_window = RegistrationWindow(parent=self)
         reg_window.exec_()
         self.show()

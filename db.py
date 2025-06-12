@@ -147,7 +147,9 @@ def initialize_database():
         # Client Statuses
         {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True},
         {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True},
@@ -167,7 +169,14 @@ def initialize_database():
         {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
         {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False},
         {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True}
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
+
+        # SAVTicket Statuses
+        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False},
+        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False},
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True}
     ]
 
     for status in default_statuses:
@@ -207,6 +216,7 @@ def initialize_database():
         price REAL DEFAULT 0, -- Added from main.py
         notes TEXT,
         category TEXT,
+        distributor_specific_info TEXT, -- Added for distributor specific information
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to creation_date from main.py
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Maps to last_modified from main.py
         created_by_user_id TEXT,
@@ -216,6 +226,25 @@ def initialize_database():
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
     )
     """)
+
+    # Check if distributor_specific_info column exists and add it if not.
+    # This check is robust for multiple runs.
+    cursor.execute("PRAGMA table_info(Clients)")
+    columns_info = cursor.fetchall()
+    column_names = [info['name'] for info in columns_info] # Use dict access due to row_factory
+    if 'distributor_specific_info' not in column_names:
+        try:
+            # Ensure this ALTER TABLE is executed outside of any potential transaction
+            # on the cursor if it was part of a larger one before this point.
+            # However, standard practice is to commit DDL changes immediately.
+            conn.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
+            conn.commit() # Commit ALTER TABLE immediately
+            print("Added 'distributor_specific_info' column to Clients table.")
+        except sqlite3.Error as e:
+            print(f"Error adding 'distributor_specific_info' column to Clients table: {e}")
+            # Depending on the error (e.g., "duplicate column name"), might not need to rollback.
+            # If other critical error, rollback might be considered if part of a larger uncommitted transaction.
+            # For standalone ALTER, commit/rollback is managed per statement or by connection settings.
 
     # Create ClientNotes table
     cursor.execute("""
@@ -381,6 +410,8 @@ def initialize_database():
         quantity INTEGER NOT NULL DEFAULT 1,
         unit_price_override REAL, 
         total_price_calculated REAL, 
+        serial_number TEXT,
+        purchase_confirmed_at TIMESTAMP,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
         FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
@@ -675,6 +706,7 @@ def initialize_database():
         document_id TEXT PRIMARY KEY,
         client_id TEXT NOT NULL,
         project_id TEXT,
+        order_identifier TEXT, -- New column
         document_name TEXT NOT NULL,
         file_name_on_disk TEXT NOT NULL, -- Actual name on the file system
         file_path_relative TEXT NOT NULL, -- Relative to a base documents folder
@@ -691,6 +723,17 @@ def initialize_database():
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
     )
     """)
+
+    # Check if order_identifier column exists in ClientDocuments and add it if not
+    cursor.execute("PRAGMA table_info(ClientDocuments)")
+    columns_cd = [column[1] for column in cursor.fetchall()]
+    if 'order_identifier' not in columns_cd:
+        try:
+            cursor.execute("ALTER TABLE ClientDocuments ADD COLUMN order_identifier TEXT")
+            conn.commit()
+            print("Added 'order_identifier' column to ClientDocuments table.")
+        except sqlite3.Error as e:
+            print(f"Error adding 'order_identifier' column to ClientDocuments: {e}")
 
     # Create ClientDocumentNotes table
     cursor.execute("""
@@ -831,6 +874,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_document_type_generated ON ClientDocuments(document_type_generated)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_source_template_id ON ClientDocuments(source_template_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_order_identifier ON ClientDocuments(order_identifier)")
 
     # Indexes for TeamMembers table
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_user_id ON TeamMembers(user_id)")
@@ -868,184 +912,673 @@ def initialize_database():
     # StatusSettings: UNIQUE(status_name, status_type) already indexed. Index on status_type alone might be useful.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_statussettings_type ON StatusSettings(status_type)")
 
-    # --- Seed Data ---
-    try:
-        # 1. Users
-        cursor.execute("SELECT COUNT(*) FROM Users")
-        if cursor.fetchone()[0] == 0:
-            admin_user_id = str(uuid.uuid4())
-            admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
-            cursor.execute("""
-                INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
-            print("Seeded admin user.")
+    # Create SAVTickets table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS SAVTickets (
+        ticket_id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        client_project_product_id INTEGER,
+        issue_description TEXT NOT NULL,
+        status_id INTEGER NOT NULL,
+        assigned_technician_id INTEGER,
+        resolution_details TEXT,
+        opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closed_at TIMESTAMP,
+        created_by_user_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (client_project_product_id) REFERENCES ClientProjectProducts (client_project_product_id) ON DELETE SET NULL,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (assigned_technician_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_client_id ON SAVTickets(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_status_id ON SAVTickets(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_savtickets_assigned_technician_id ON SAVTickets(assigned_technician_id)")
 
-        # 2. Companies
-        default_company_id = None
-        cursor.execute("SELECT COUNT(*) FROM Companies")
-        if cursor.fetchone()[0] == 0:
-            default_company_id = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
-                VALUES (?, ?, ?, ?)
-            """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
-            print("Seeded default company.")
-        else:
-            # If company exists, try to get the default one for personnel and other linking
-            cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
-            row = cursor.fetchone()
-            if row:
-                default_company_id = row[0]
+    # Create ImportantDates table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ImportantDates (
+        important_date_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_name TEXT NOT NULL,
+        date_value DATE NOT NULL,
+        is_recurring_annually BOOLEAN DEFAULT TRUE,
+        language_code TEXT,
+        email_template_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (date_name, date_value, language_code),
+        FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_importantdates_date_value ON ImportantDates(date_value)")
 
+    # Create Transporters table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Transporters (
+        transporter_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        service_area TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transporters_name ON Transporters(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_transporters_service_area ON Transporters(service_area)")
 
-        # 3. CompanyPersonnel
-        if default_company_id:
-            cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
-            if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
-                cursor.execute("""
-                    INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
-                print("Seeded default company personnel.")
+    # Create FreightForwarders table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS FreightForwarders (
+        forwarder_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        contact_person TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        services_offered TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_freightforwarders_name ON FreightForwarders(name)")
 
-        # 4. TeamMembers (link to admin user if created)
-        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
-        admin_user_row = cursor.fetchone()
-        if admin_user_row:
-            admin_user_id_for_tm = admin_user_row[0]
-            cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
-                    VALUES (?, ?, ?, ?)
-                """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
-                print("Seeded admin team member.")
+    # Create Client_AssignedPersonnel association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_AssignedPersonnel (
+        assignment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        personnel_id INTEGER NOT NULL,
+        role_in_project TEXT,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE CASCADE,
+        UNIQUE (client_id, personnel_id, role_in_project)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_client_id ON Client_AssignedPersonnel(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_personnel_id ON Client_AssignedPersonnel(personnel_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientassignedpersonnel_role ON Client_AssignedPersonnel(role_in_project)")
 
-        # 5. Countries
-        default_countries = [
-            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
-        ]
-        for country in default_countries:
-            cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
-        print(f"Seeded {len(default_countries)} countries.")
+    # Create Client_Transporters association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_Transporters (
+        client_transporter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        transporter_id TEXT NOT NULL,
+        transport_details TEXT,
+        cost_estimate REAL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (transporter_id) REFERENCES Transporters (transporter_id) ON DELETE CASCADE,
+        UNIQUE (client_id, transporter_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_client_id ON Client_Transporters(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clienttransporters_transporter_id ON Client_Transporters(transporter_id)")
 
-        # 6. Cities
-        default_cities_map = {
-            'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
-        }
-        for country_name, city_name in default_cities_map.items():
-            cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
-            country_row = cursor.fetchone()
-            if country_row:
-                country_id = country_row[0]
-                cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
-        print(f"Seeded {len(default_cities_map)} cities.")
+    # Create Client_FreightForwarders association table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Client_FreightForwarders (
+        client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        forwarder_id TEXT NOT NULL,
+        task_description TEXT,
+        cost_estimate REAL,
+        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE,
+        UNIQUE (client_id, forwarder_id)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-        # 7. Clients
-        cursor.execute("SELECT COUNT(*) FROM Clients")
-        if cursor.fetchone()[0] == 0:
-            # Fetch IDs needed for a sample client
-            admin_user_for_client = get_user_by_username('admin') # Use existing function if available
-            admin_user_id_for_client = admin_user_for_client['user_id'] if admin_user_for_client else None
-
-            default_country_for_client = get_country_by_name('France') # Use existing function
-            default_country_id_for_client = default_country_for_client['country_id'] if default_country_for_client else None
-
-            default_city_for_client = None
-            if default_country_id_for_client:
-                default_city_for_client = get_city_by_name_and_country_id('Paris', default_country_id_for_client)
-            default_city_id_for_client = default_city_for_client['city_id'] if default_city_for_client else None
-
-            active_client_status = get_status_setting_by_name('Actif', 'Client') # Use existing function
-            active_client_status_id = active_client_status['status_id'] if active_client_status else None
-
-            if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
-                client_uuid = str(uuid.uuid4())
-                cursor.execute("""
-                    INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
-                print("Seeded sample client.")
-            else:
-                print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
-
-        # 8. Projects
-        cursor.execute("SELECT COUNT(*) FROM Projects")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
-            sample_client_row = cursor.fetchone()
-            if sample_client_row:
-                sample_client_id = sample_client_row[0]
-                planning_project_status = get_status_setting_by_name('Planning', 'Project')
-                planning_project_status_id = planning_project_status['status_id'] if planning_project_status else None
-                admin_user_for_project = get_user_by_username('admin')
-                admin_user_id_for_project = admin_user_for_project['user_id'] if admin_user_for_project else None
-
-                if sample_client_id and planning_project_status_id and admin_user_id_for_project:
-                    project_uuid = str(uuid.uuid4())
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
-                    print("Seeded sample project.")
-                else:
-                    print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
-
-        # 9. Contacts
-        # Add a generic contact
-        cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
-        if cursor.fetchone()[0] == 0:
-             cursor.execute("""
-                INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
-                VALUES (?, ?, ?, ?, ?)
-            """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
-             print("Seeded generic contact.")
-
-        # 10. Products
-        cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
-            print("Seeded default product.")
-
-        # 11. SmtpConfigs
-        cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
-            print("Seeded placeholder SMTP config.")
-
-        # 12. ApplicationSettings
-        set_setting('initial_data_seeded_version', '1') # Uses existing function
-        set_setting('default_app_language', 'en')    # Uses existing function
-        print("Seeded application settings.")
-
-        # 13. CoverPageTemplates (Call the existing population function)
-        # Ensure this is called after CoverPageTemplates table is created and before final commit for initialize_database
-        _populate_default_cover_page_templates() # This function handles its own prints and commits if any internally
-        print("Called _populate_default_cover_page_templates for seeding.")
-
-        conn.commit() # Commit all seeding changes
-        print("Data seeding completed.")
-
-    except sqlite3.Error as e:
-        print(f"An error occurred during data seeding: {e}")
-        if conn:
-            conn.rollback() # Rollback on error
-    finally:
-        # The main initialize_database function will close the connection if it opened it.
-        # If conn was passed, it should be closed by the caller.
-        # Here, we assume conn is local to this seeding block if it were standalone,
-        # but it's part of initialize_database, so no separate close here.
-        pass
-
-    conn.commit() # Final commit for initialize_database itself
+    # Schema creation is done. Commit and close connection for initialize_database.
+    conn.commit()
     conn.close()
+
+
+def seed_initial_data(cursor: sqlite3.Cursor):
+    """
+    Seeds the database with initial data using the provided cursor.
+    All database operations within this function and any helper functions it calls
+    must use this provided cursor.
+    """
+    # Helper functions like get_user_by_username, get_country_by_name, etc.,
+    # which create their own connections, cannot be directly used here if we are to
+    # strictly use the provided cursor. Such logic needs to be adapted for direct cursor use
+    # or the helper functions refactored to accept a cursor.
+
+    # 1. Users
+    cursor.execute("SELECT COUNT(*) FROM Users")
+    if cursor.fetchone()[0] == 0:
+        admin_user_id = str(uuid.uuid4())
+        admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
+        cursor.execute("""
+            INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
+        print("Seeded admin user.")
+
+    # The rest of the seeding logic will be moved here incrementally.
+    # For now, this function only seeds users.
+
+    # 2. Companies
+    default_company_id = None
+    cursor.execute("SELECT COUNT(*) FROM Companies")
+    if cursor.fetchone()[0] == 0:
+        default_company_id = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
+            VALUES (?, ?, ?, ?)
+        """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
+        print("Seeded default company.")
+    else:
+        # If company exists, try to get the default one for personnel and other linking
+        cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
+        row = cursor.fetchone()
+        if row:
+            default_company_id = row[0]
+
+    # 3. CompanyPersonnel
+    if default_company_id:
+        cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
+        if cursor.fetchone()[0] == 0: # Only add if no personnel for this company yet
+            cursor.execute("""
+                INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
+                VALUES (?, ?, ?, ?, ?)
+            """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
+            print("Seeded default company personnel.")
+
+    # 4. TeamMembers (link to admin user if created)
+    # Note: get_user_by_username will need to be adapted or this logic changed for direct cursor use
+    # For now, assuming direct cursor usage for this specific check during seeding
+    cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+    admin_user_row = cursor.fetchone()
+    if admin_user_row:
+        admin_user_id_for_tm = admin_user_row[0]
+        cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+                INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
+                VALUES (?, ?, ?, ?)
+            """, (admin_user_id_for_tm, 'Default Admin', 'admin@example.com', 'Administrator'))
+            print("Seeded admin team member.")
+
+    # 5. Countries
+    default_countries = [
+        {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
+    ]
+    for country in default_countries:
+        cursor.execute("INSERT OR IGNORE INTO Countries (country_name) VALUES (?)", (country['country_name'],))
+    print(f"Seeded {len(default_countries)} countries.")
+
+    # 6. Cities
+    default_cities_map = {
+        'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
+    }
+    for country_name, city_name in default_cities_map.items():
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+        country_row = cursor.fetchone()
+        if country_row:
+            country_id = country_row[0]
+            cursor.execute("INSERT OR IGNORE INTO Cities (country_id, city_name) VALUES (?, ?)", (country_id, city_name))
+    print(f"Seeded {len(default_cities_map)} cities.")
+
+    # 7. Clients
+    # Note: The following get_user_by_username, get_country_by_name, etc. create their own connections.
+    # This will need to be refactored to use the provided cursor or adapt logic.
+    # For this step, moving as is, refactoring helpers later.
+    cursor.execute("SELECT COUNT(*) FROM Clients")
+    if cursor.fetchone()[0] == 0:
+        admin_user_id_for_client = None
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'")
+        admin_user_client_row = cursor.fetchone()
+        if admin_user_client_row: admin_user_id_for_client = admin_user_client_row[0]
+
+        default_country_id_for_client = None
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = 'France'")
+        country_client_row = cursor.fetchone()
+        if country_client_row: default_country_id_for_client = country_client_row[0]
+
+        default_city_id_for_client = None
+        if default_country_id_for_client:
+            cursor.execute("SELECT city_id FROM Cities WHERE city_name = 'Paris' AND country_id = ?", (default_country_id_for_client,))
+            city_client_row = cursor.fetchone()
+            if city_client_row: default_city_id_for_client = city_client_row[0]
+
+        active_client_status_id = None
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Actif' AND status_type = 'Client'")
+        status_client_row = cursor.fetchone()
+        if status_client_row: active_client_status_id = status_client_row[0]
+
+        if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
+            client_uuid = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
+            print("Seeded sample client.")
+        else:
+            print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+
+    # 8. Projects
+    cursor.execute("SELECT COUNT(*) FROM Projects")
+    if cursor.fetchone()[0] == 0:
+        sample_client_id = None
+        cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
+        sample_client_proj_row = cursor.fetchone()
+        if sample_client_proj_row: sample_client_id = sample_client_proj_row[0]
+
+        planning_project_status_id = None
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_name = 'Planning' AND status_type = 'Project'")
+        status_proj_row = cursor.fetchone()
+        if status_proj_row: planning_project_status_id = status_proj_row[0]
+
+        admin_user_id_for_project = None
+        cursor.execute("SELECT user_id FROM Users WHERE username = 'admin'") # Assuming admin user is manager
+        admin_user_proj_row = cursor.fetchone()
+        if admin_user_proj_row: admin_user_id_for_project = admin_user_proj_row[0]
+
+        if sample_client_id and planning_project_status_id and admin_user_id_for_project:
+            project_uuid = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (project_uuid, sample_client_id, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
+            print("Seeded sample project.")
+        else:
+            print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
+
+    # 9. Contacts
+    cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
+    if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+            INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
+            VALUES (?, ?, ?, ?, ?)
+        """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
+            print("Seeded generic contact.")
+
+    # 10. Products
+    cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
+        print("Seeded default product.")
+
+    # 11. SmtpConfigs
+    cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
+        print("Seeded placeholder SMTP config.")
+
+    # 12. ApplicationSettings
+    # Calls to set_setting now correctly pass the cursor.
+    set_setting('initial_data_seeded_version', '1', cursor)
+    set_setting('default_app_language', 'en', cursor)
+    set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
+    print("Seeded application settings.")
+
+    # 13. Email Templates (New)
+    # Calls to add_default_template_if_not_exists now pass the cursor.
+    add_default_template_if_not_exists({
+        'template_name': 'SAV Ticket Ouvert (FR)',
+        'template_type': 'email_sav_ticket_opened',
+        'language_code': 'fr',
+        'base_file_name': 'sav_ticket_opened_fr.html',
+        'description': 'Email envoyé quand un ticket SAV est ouvert.',
+        'category_name': 'Modèles Email SAV',
+        'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'SAV Ticket Résolu (FR)',
+        'template_type': 'email_sav_ticket_resolved',
+        'language_code': 'fr',
+        'base_file_name': 'sav_ticket_resolved_fr.html',
+        'description': 'Email envoyé quand un ticket SAV est résolu.',
+        'category_name': 'Modèles Email SAV',
+        'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Suivi Prospect Proforma (FR)',
+        'template_type': 'email_follow_up_prospect',
+        'language_code': 'fr',
+        'base_file_name': 'follow_up_prospect_fr.html',
+        'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
+        'category_name': 'Modèles Email Marketing/Suivi',
+        'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Vœux Noël (FR)',
+        'template_type': 'email_greeting_christmas',
+        'language_code': 'fr',
+        'base_file_name': 'greeting_holiday_christmas_fr.html',
+        'description': 'Email de vœux pour Noël.',
+        'category_name': 'Modèles Email Vœux',
+        'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Vœux Nouvelle Année (FR)',
+        'template_type': 'email_greeting_newyear',
+        'language_code': 'fr',
+        'base_file_name': 'greeting_holiday_newyear_fr.html',
+        'description': 'Email de vœux pour la nouvelle année.',
+        'category_name': 'Modèles Email Vœux',
+        'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    add_default_template_if_not_exists({
+        'template_name': 'Message Générique (FR)',
+        'template_type': 'email_generic_message',
+        'language_code': 'fr',
+        'base_file_name': 'generic_message_fr.html',
+        'description': 'Modèle générique pour communication spontanée.',
+        'category_name': 'Modèles Email Généraux',
+        'email_subject_template': 'Un message de {{seller.company_name}}',
+        'is_default_for_type_lang': True
+    }, cursor)
+    print("Seeded new email templates.")
+
+    # 14. CoverPageTemplates
+    _populate_default_cover_page_templates(cursor)
+    print("Called _populate_default_cover_page_templates for seeding.")
+
+    # All seeding operations that were previously in initialize_database's try block are now moved here.
+    # The main try...except...finally for the whole seeding process is around these calls within seed_initial_data.
+    # The commit for seed_initial_data will be handled by its caller.
+    print("Data seeding operations completed within seed_initial_data.")
+
+except sqlite3.Error as e: # This except is part of seed_initial_data
+    print(f"An error occurred during data seeding within seed_initial_data: {e}")
+    # Rollback should be handled by the caller who owns the connection and cursor
+    raise # Re-raise the exception so the caller can handle rollback
+    # No finally block here for seed_initial_data, connection management is external.
+
+# CRUD functions for SAVTickets
+def add_sav_ticket(ticket_data: dict) -> str | None:
+    """Adds a new SAV ticket. Returns ticket_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_ticket_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+
+        sql = """
+            INSERT INTO SAVTickets (
+                ticket_id, client_id, client_project_product_id, issue_description,
+                status_id, assigned_technician_id, resolution_details,
+                opened_at, closed_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_ticket_id,
+            ticket_data.get('client_id'),
+            ticket_data.get('client_project_product_id'),
+            ticket_data.get('issue_description'),
+            ticket_data.get('status_id'),
+            ticket_data.get('assigned_technician_id'),
+            ticket_data.get('resolution_details'),
+            ticket_data.get('opened_at', now), # Default to now if not provided
+            ticket_data.get('closed_at'),
+            ticket_data.get('created_by_user_id')
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_ticket_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_sav_ticket: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_sav_ticket_by_id(ticket_id: str) -> dict | None:
+    """Retrieves an SAV ticket by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM SAVTickets WHERE ticket_id = ?", (ticket_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_sav_ticket_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_sav_tickets_for_client(client_id: str, status_id: int = None) -> list[dict]:
+    """Retrieves SAV tickets for a client, optionally filtered by status_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM SAVTickets WHERE client_id = ?"
+        params = [client_id]
+        if status_id is not None:
+            sql += " AND status_id = ?"
+            params.append(status_id)
+        sql += " ORDER BY opened_at DESC"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_sav_tickets_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_sav_ticket(ticket_id: str, update_data: dict) -> bool:
+    """Updates an SAV ticket. Returns True on success."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Add closed_at timestamp automatically if status is changed to a completion/archival one
+        if 'status_id' in update_data:
+            status_info = get_status_setting_by_id(update_data['status_id'])
+            if status_info and (status_info['is_completion_status'] or status_info['is_archival_status']):
+                if 'closed_at' not in update_data: # Only set if not already being explicitly set
+                    update_data['closed_at'] = datetime.utcnow().isoformat() + "Z"
+            elif 'closed_at' not in update_data: # If moving to a non-closed status, ensure closed_at is NULL unless specified
+                 # This logic might need refinement: if explicitly setting closed_at to null, allow it.
+                 # If status moves to open and closed_at is not in update_data, set it to NULL.
+                 current_ticket = get_sav_ticket_by_id(ticket_id)
+                 if current_ticket and current_ticket.get('closed_at') is not None:
+                    update_data['closed_at'] = None
+
+
+        valid_columns = [
+            'client_project_product_id', 'issue_description', 'status_id',
+            'assigned_technician_id', 'resolution_details', 'opened_at', 'closed_at'
+            # client_id and created_by_user_id are generally not updated post-creation
+        ]
+        set_clauses = []
+        params_list = []
+        for key, value in update_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(value)
+
+        if not set_clauses: return False
+
+        params_list.append(ticket_id)
+        sql = f"UPDATE SAVTickets SET {', '.join(set_clauses)} WHERE ticket_id = ?"
+
+        cursor.execute(sql, tuple(params_list))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_sav_ticket: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_sav_ticket(ticket_id: str) -> bool:
+    """Deletes an SAV ticket. Consider if soft delete is more appropriate in a real app."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM SAVTickets WHERE ticket_id = ?", (ticket_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_sav_ticket: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# CRUD functions for ImportantDates
+def add_important_date(date_data: dict) -> int | None:
+    """Adds a new important date. Returns important_date_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO ImportantDates (
+                date_name, date_value, is_recurring_annually, language_code,
+                email_template_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            date_data.get('date_name'),
+            date_data.get('date_value'),
+            date_data.get('is_recurring_annually', True),
+            date_data.get('language_code'),
+            date_data.get('email_template_id'),
+            now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as ie: # Handles UNIQUE constraint
+        print(f"Database IntegrityError in add_important_date: {ie}")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in add_important_date: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_important_date_by_id(date_id: int) -> dict | None:
+    """Retrieves an important date by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ImportantDates WHERE important_date_id = ?", (date_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_important_date_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_important_dates(upcoming_only: bool = False) -> list[dict]:
+    """
+    Retrieves all important dates.
+    If upcoming_only is True, filters for dates from today onwards,
+    or recurring dates whose month/day is upcoming.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM ImportantDates"
+        params = []
+        if upcoming_only:
+            today_str = datetime.utcnow().strftime('%Y-%m-%d')
+            today_month_day = datetime.utcnow().strftime('%m-%d')
+            # Non-recurring dates: date_value >= today
+            # Recurring dates: month-day of date_value >= month-day of today
+            sql += """
+                WHERE (is_recurring_annually = FALSE AND date_value >= ?)
+                   OR (is_recurring_annually = TRUE AND SUBSTR(date_value, 6) >= ?)
+            """
+            params.extend([today_str, today_month_day])
+
+        sql += " ORDER BY date_value ASC" # Or by month/day for recurring
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_important_dates: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_important_date(date_id: int, update_data: dict) -> bool:
+    """Updates an important date. Returns True on success."""
+    conn = None
+    if not update_data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        update_data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+
+        valid_columns = [
+            'date_name', 'date_value', 'is_recurring_annually',
+            'language_code', 'email_template_id', 'updated_at'
+        ]
+        set_clauses = []
+        params_list = []
+        for key, value in update_data.items():
+            if key in valid_columns:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(value)
+
+        if not set_clauses: return False
+
+        params_list.append(date_id)
+        sql = f"UPDATE ImportantDates SET {', '.join(set_clauses)} WHERE important_date_id = ?"
+
+        cursor.execute(sql, tuple(params_list))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.IntegrityError as ie:
+        print(f"Database IntegrityError in update_important_date: {ie}")
+        return False
+    except sqlite3.Error as e:
+        print(f"Database error in update_important_date: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_important_date(date_id: int) -> bool:
+    """Deletes an important date."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ImportantDates WHERE important_date_id = ?", (date_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_important_date: {e}")
+        return False
+    finally:
+        if conn: conn.close()
 
 def get_db_connection():
     """
@@ -1077,15 +1610,16 @@ def add_client(client_data: dict) -> str | None:
             INSERT INTO Clients (
                 client_id, client_name, company_name, primary_need_description, project_identifier,
                 country_id, city_id, default_base_folder_path, status_id,
-                selected_languages, notes, category, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                selected_languages, notes, category, distributor_specific_info,
+                created_at, updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_client_id,
             client_data.get('client_name'),
             client_data.get('company_name'),
             client_data.get('primary_need_description'),
-            client_data.get('project_identifier'), # Added
+            client_data.get('project_identifier'),
             client_data.get('country_id'),
             client_data.get('city_id'),
             client_data.get('default_base_folder_path'),
@@ -1093,6 +1627,7 @@ def add_client(client_data: dict) -> str | None:
             client_data.get('selected_languages'),
             client_data.get('notes'),
             client_data.get('category'),
+            client_data.get('distributor_specific_info'), # Handled by .get if missing, defaults to None
             now,  # created_at
             now,  # updated_at
             client_data.get('created_by_user_id')
@@ -1339,8 +1874,10 @@ def update_client(client_id: str, client_data: dict) -> bool:
         
         for key, value in client_data.items():
             # Validate keys against actual column names to prevent SQL injection if keys are from unsafe source
-            # For now, assuming keys are controlled or map to valid columns
-            if key != 'client_id': # client_id should not be updated here
+            if key in ['client_name', 'company_name', 'primary_need_description', 'project_identifier',
+                       'country_id', 'city_id', 'default_base_folder_path', 'status_id',
+                       'selected_languages', 'price', 'notes', 'category', 'distributor_specific_info',
+                       'updated_at', 'created_by_user_id']: # client_id should not be updated here
                  set_clauses.append(f"{key} = ?")
                  params.append(value)
         
@@ -1385,10 +1922,11 @@ def get_all_clients_with_details():
     SELECT
         c.client_id, c.client_name, c.company_name, c.primary_need_description,
         c.project_identifier, c.default_base_folder_path, c.selected_languages,
-        c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-        co.country_name AS country,  -- Alias to match existing expected key 'country'
-        ci.city_name AS city,        -- Alias to match existing expected key 'city'
-        s.status_name AS status      -- Alias to match existing expected key 'status'
+        c.price, c.notes, c.created_at, c.category, c.distributor_specific_info, -- Ensure new column is selected
+        c.status_id, c.country_id, c.city_id,
+        co.country_name AS country,
+        ci.city_name AS city,
+        s.status_name AS status
     FROM clients c
     LEFT JOIN countries co ON c.country_id = co.country_id
     LEFT JOIN cities ci ON c.city_id = ci.city_id
@@ -1757,35 +2295,46 @@ def delete_company_personnel(personnel_id: int) -> bool:
             conn.close()
 
 # CRUD functions for TemplateCategories
-def add_template_category(category_name: str, description: str = None) -> int | None:
+def add_template_category(category_name: str, description: str = None, cursor: sqlite3.Cursor = None) -> int | None:
     """
     Adds a new template category if it doesn't exist by name.
+    If a cursor is provided, it uses it for database operations and does not commit.
+    If no cursor is provided, it manages its own connection and transaction.
     Returns the category_id of the new or existing category, or None on error.
     """
-    conn = None
+    is_external_cursor = cursor is not None
+    conn_internal = None
+
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if is_external_cursor:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to add_template_category.")
+            cursor_to_use = cursor
+        else:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
 
-        # Check if category already exists
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
+        cursor_to_use.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor_to_use.fetchone()
         if row:
-            return row['category_id']
+            return row[0] if isinstance(row, tuple) else row['category_id']
 
-        # If not, insert new category
         sql = "INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)"
-        cursor.execute(sql, (category_name, description))
-        conn.commit()
-        return cursor.lastrowid
+        cursor_to_use.execute(sql, (category_name, description))
+
+        if not is_external_cursor and conn_internal:
+            conn_internal.commit()
+
+        return cursor_to_use.lastrowid
     except sqlite3.Error as e:
-        print(f"Database error in add_template_category: {e}")
-        if conn:
-            conn.rollback()
+        print(f"Database error in add_template_category for '{category_name}': {e}")
+        if not is_external_cursor and conn_internal:
+            conn_internal.rollback()
+        # If using an external cursor, the caller is responsible for rollback.
         return None
     finally:
-        if conn:
-            conn.close()
+        if not is_external_cursor and conn_internal:
+            conn_internal.close()
 
 def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, default_category_id: int | None) -> int | None:
     """
@@ -2319,26 +2868,17 @@ def set_default_template_by_id(template_id: int) -> bool:
             conn.isolation_level = '' # Reset isolation level
             conn.close()
 
-def add_default_template_if_not_exists(template_data: dict) -> int | None:
+def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Cursor) -> int | None:
     """
     Adds a template to the Templates table if it doesn't already exist
     based on template_name, template_type, and language_code.
+    Uses the provided cursor and does not manage connection or transaction.
     Returns the template_id of the new or existing template, or None on error.
-    Expects template_data to include:
-        'template_name' (e.g., "Proforma"),
-        'template_type' (e.g., "document_excel", "document_word"),
-        'language_code' (e.g., "fr", "en"),
-        'base_file_name' (e.g., "proforma_template.xlsx"),
-        'description' (optional),
-        'category' (optional, e.g., "Finance", "Technical"),
-        'is_default_for_type_lang' (optional, boolean, defaults to False),
-        'category_name' (optional, string, defaults to "General")
     """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor() # Get a cursor from the connection
+    if not isinstance(cursor, sqlite3.Cursor):
+        raise ValueError("Invalid cursor object passed to add_default_template_if_not_exists.")
 
+    try:
         name = template_data.get('template_name')
         ttype = template_data.get('template_type')
         lang = template_data.get('language_code')
@@ -2349,15 +2889,14 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
             print(f"Error: Missing required fields for default template: {template_data}")
             return None
 
-        # Get or create category_id (using a separate connection for this, or pass cursor)
-        # For simplicity here, calling the public function.
-        # In a high-performance scenario, might pass the cursor.
-        category_id = add_template_category(category_name_text, f"{category_name_text} (auto-created)")
+        # Call add_template_category with the provided cursor
+        category_id = add_template_category(category_name_text,
+                                            f"{category_name_text} (auto-created)",
+                                            cursor=cursor) # Pass the cursor
         if category_id is None:
-            print(f"Error: Could not get or create category_id for '{category_name_text}'.")
-            return None # Cannot proceed without a category_id
+            print(f"Error: Could not get or create category_id for '{category_name_text}' using provided cursor.")
+            return None
 
-        # Check if this specific template (name, type, lang) already exists
         cursor.execute("""
             SELECT template_id FROM Templates
             WHERE template_name = ? AND template_type = ? AND language_code = ?
@@ -2365,41 +2904,77 @@ def add_default_template_if_not_exists(template_data: dict) -> int | None:
         existing_template = cursor.fetchone()
 
         if existing_template:
-            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template['template_id']}.")
-            return existing_template['template_id']
+            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template[0]}.")
+            return existing_template[0]
         else:
+            raw_template_content = None
+            db_dir_name = os.path.basename(APP_ROOT_DIR_CONTEXT)
+            if db_dir_name in ['core', 'db', 'database', 'src']:
+                project_root = os.path.dirname(APP_ROOT_DIR_CONTEXT)
+            else:
+                project_root = APP_ROOT_DIR_CONTEXT
+
+            template_file_path = os.path.join(project_root, "email_template_designs", filename)
+            if not os.path.exists(template_file_path):
+                template_file_path_alt = os.path.join(APP_ROOT_DIR_CONTEXT, "email_template_designs", filename)
+                if os.path.exists(template_file_path_alt):
+                    template_file_path = template_file_path_alt
+                else:
+                    print(f"Warning: HTML template file {filename} not found at {template_file_path} or {template_file_path_alt}. raw_template_file_data will be NULL.")
+
+            if os.path.exists(template_file_path):
+                try:
+                    with open(template_file_path, 'r', encoding='utf-8') as f:
+                        raw_template_content = f.read()
+                    print(f"Successfully read content for {filename} from {template_file_path}")
+                except Exception as e_read:
+                    print(f"Error reading template file {filename} from {template_file_path}: {e_read}. raw_template_file_data will be NULL.")
+
             now = datetime.utcnow().isoformat() + "Z"
-            sql = """
+            sql_insert_template = """
                 INSERT INTO Templates (
                     template_name, template_type, language_code, base_file_name,
                     description, category_id, is_default_for_type_lang,
-                    email_subject_template, -- Added email_subject_template
+                    email_subject_template, raw_template_file_data,
                     created_at, updated_at
-                    -- created_by_user_id could be NULL or a system user ID
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) -- Added placeholder for email_subject_template
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
-            params = (
-                name,
-                ttype,
-                lang,
-                filename,
+            params_template = (
+                name, ttype, lang, filename,
                 template_data.get('description', f"Default {name} template"),
-                category_id, # Use the fetched/created category_id
+                category_id,
                 template_data.get('is_default_for_type_lang', True),
-                template_data.get('email_subject_template'), # Get email_subject_template
-                now,
-                now
+                template_data.get('email_subject_template'),
+                raw_template_content.encode('utf-8') if raw_template_content else None,
+                now, now
             )
-            cursor.execute(sql, params)
-            conn.commit()
+            cursor.execute(sql_insert_template, params_template)
+            # No commit here, handled by the caller managing the transaction
             new_id = cursor.lastrowid
             print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
             return new_id
 
     except sqlite3.Error as e:
         print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
-        if conn:
-            conn.rollback() # Rollback on error
+        # Rollback should be handled by the caller managing the cursor and transaction
+        return None
+    # No finally block, cursor and connection management is external
+
+def get_template_by_type_lang_default(template_type: str, language_code: str) -> dict | None:
+    """
+    Retrieves the default template for a given type and language.
+    Returns a dict or None if not found.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "SELECT * FROM Templates WHERE template_type = ? AND language_code = ? AND is_default_for_type_lang = TRUE LIMIT 1"
+        cursor.execute(sql, (template_type, language_code))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_template_by_type_lang_default: {e}")
         return None
     finally:
         if conn:
@@ -4004,6 +4579,64 @@ def delete_product(product_id: int) -> bool:
     finally:
         if conn: conn.close()
 
+def get_products(language_code: str = None) -> list[dict]:
+    """
+    Fetches products from the Products table.
+    If language_code is provided, it filters products by this language.
+    Returns a list of dictionaries, where each dictionary represents a product.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        sql = "SELECT product_id, product_name, description, base_unit_price, language_code, category, unit_of_measure, weight, dimensions, is_active FROM Products"
+        params = []
+
+        if language_code:
+            sql += " WHERE language_code = ? AND is_active = TRUE"
+            params.append(language_code)
+        else:
+            sql += " WHERE is_active = TRUE"
+
+        sql += " ORDER BY product_name"
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_products: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def update_product_price(product_id: int, new_price: float) -> bool:
+    """
+    Updates the base_unit_price of the product with the given product_id.
+    Returns True if the update was successful, False otherwise.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = "UPDATE Products SET base_unit_price = ?, updated_at = ? WHERE product_id = ?"
+        params = (new_price, now, product_id)
+
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_product_price for product_id {product_id}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 def get_products_by_name_pattern(pattern: str) -> list[dict] | None:
     """
     Retrieves products where the product_name matches the given pattern (LIKE %pattern%).
@@ -4114,8 +4747,9 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
 
         sql = """
             INSERT INTO ClientProjectProducts (
-                client_id, project_id, product_id, quantity, unit_price_override, total_price_calculated, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                client_id, project_id, product_id, quantity, unit_price_override,
+                total_price_calculated, serial_number, purchase_confirmed_at, added_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             link_data.get('client_id'),
@@ -4124,6 +4758,8 @@ def add_product_to_client_or_project(link_data: dict) -> int | None:
             quantity,
             link_data.get('unit_price_override'), # Store override, or NULL if base used
             total_price_calculated,
+            link_data.get('serial_number'), # New field
+            link_data.get('purchase_confirmed_at'), # New field
             datetime.utcnow().isoformat() + "Z"
         )
         cursor.execute(sql, params)
@@ -4157,7 +4793,8 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None) -
             SELECT cpp.*,
                    p.product_id as product_id_original_lang, p.product_name, p.description as product_description,
                    p.category as product_category, p.base_unit_price, p.unit_of_measure,
-                   p.weight, p.dimensions, p.language_code
+                   p.weight, p.dimensions, p.language_code,
+                   cpp.serial_number, cpp.purchase_confirmed_at
             FROM ClientProjectProducts cpp
             JOIN Products p ON cpp.product_id = p.product_id
             WHERE cpp.client_id = ?
@@ -4198,20 +4835,41 @@ def update_client_project_product(link_id: int, update_data: dict) -> bool:
         new_quantity = update_data.get('quantity', current_link_dict['quantity'])
         new_unit_price_override = update_data.get('unit_price_override', current_link_dict['unit_price_override'])
 
+        # Handle new optional fields for update
+        new_serial_number = update_data.get('serial_number', current_link_dict.get('serial_number'))
+        new_purchase_confirmed_at = update_data.get('purchase_confirmed_at', current_link_dict.get('purchase_confirmed_at'))
+
+
         final_unit_price = new_unit_price_override
         if final_unit_price is None: # If override is removed or was never there, use base price
             product_info = get_product_by_id(current_link_dict['product_id'])
             if not product_info: return False # Should not happen if data is consistent
             final_unit_price = product_info['base_unit_price']
         
-        update_data['total_price_calculated'] = new_quantity * final_unit_price
+        update_data['total_price_calculated'] = new_quantity * float(final_unit_price or 0) # Ensure float for calc
+
+        # Add new fields to update_data if they were provided in the call, so they get included in set_clauses
+        if 'serial_number' in update_data:
+            update_data['serial_number'] = new_serial_number
+        if 'purchase_confirmed_at' in update_data:
+            update_data['purchase_confirmed_at'] = new_purchase_confirmed_at
+
+        # Construct SET clauses only for fields present in update_data keys
+        set_clauses = []
+        params_list = []
+        valid_update_keys = ['quantity', 'unit_price_override', 'total_price_calculated', 'serial_number', 'purchase_confirmed_at']
+        for key in valid_update_keys:
+            if key in update_data:
+                set_clauses.append(f"{key} = ?")
+                params_list.append(update_data[key])
         
-        set_clauses = [f"{key} = ?" for key in update_data.keys()]
-        params_list = list(update_data.values())
+        if not set_clauses: # No valid fields to update
+            return False
+
         params_list.append(link_id)
         
         sql = f"UPDATE ClientProjectProducts SET {', '.join(set_clauses)} WHERE client_project_product_id = ?"
-        cursor.execute(sql, params_list)
+        cursor.execute(sql, tuple(params_list)) # Use tuple for params
         conn.commit()
         return cursor.rowcount > 0
     except sqlite3.Error as e:
@@ -4236,6 +4894,29 @@ def remove_product_from_client_or_project(link_id: int) -> bool:
     finally:
         if conn: conn.close()
 
+def get_client_project_product_by_id(link_id: int) -> dict | None:
+    """Retrieves a specific client-project-product link by its ID, joining with Products."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cpp.*, p.product_name, p.description as product_description,
+                   p.category as product_category, p.base_unit_price, p.unit_of_measure,
+                   p.weight, p.dimensions, p.language_code
+            FROM ClientProjectProducts cpp
+            JOIN Products p ON cpp.product_id = p.product_id
+            WHERE cpp.client_project_product_id = ?
+        """
+        cursor.execute(sql, (link_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_client_project_product_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
 # CRUD functions for ClientDocuments
 def add_client_document(doc_data: dict) -> str | None:
     """Adds a new client document. Returns document_id (UUID) or None."""
@@ -4248,17 +4929,19 @@ def add_client_document(doc_data: dict) -> str | None:
 
         sql = """
             INSERT INTO ClientDocuments (
-                document_id, client_id, project_id, document_name, file_name_on_disk,
-                file_path_relative, document_type_generated, source_template_id,
-                version_tag, notes, created_at, updated_at, created_by_user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                document_id, client_id, project_id, order_identifier, document_name,
+                file_name_on_disk, file_path_relative, document_type_generated,
+                source_template_id, version_tag, notes, created_at,
+                updated_at, created_by_user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             doc_id, doc_data.get('client_id'), doc_data.get('project_id'),
-            doc_data.get('document_name'), doc_data.get('file_name_on_disk'),
-            doc_data.get('file_path_relative'), doc_data.get('document_type_generated'),
-            doc_data.get('source_template_id'), doc_data.get('version_tag'),
-            doc_data.get('notes'), now, now, doc_data.get('created_by_user_id')
+            doc_data.get('order_identifier'), doc_data.get('document_name'),
+            doc_data.get('file_name_on_disk'), doc_data.get('file_path_relative'),
+            doc_data.get('document_type_generated'), doc_data.get('source_template_id'),
+            doc_data.get('version_tag'), doc_data.get('notes'),
+            now, now, doc_data.get('created_by_user_id')
         )
         cursor.execute(sql, params)
         conn.commit()
@@ -4287,7 +4970,7 @@ def get_document_by_id(document_id: str) -> dict | None:
 def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]:
     """
     Retrieves documents for a client. 
-    Filters by 'document_type_generated' (exact) or 'project_id' (exact).
+    Filters by 'document_type_generated' (exact) or 'project_id' (exact) or 'order_identifier'.
     """
     conn = None
     try:
@@ -4306,6 +4989,12 @@ def get_documents_for_client(client_id: str, filters: dict = None) -> list[dict]
                 else:
                     sql += " AND project_id = ?"
                     params.append(filters['project_id'])
+            if 'order_identifier' in filters:
+                if filters['order_identifier'] is None:
+                    sql += " AND order_identifier IS NULL"
+                else:
+                    sql += " AND order_identifier = ?"
+                    params.append(filters['order_identifier'])
             
         cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
@@ -4353,7 +5042,7 @@ def update_client_document(document_id: str, doc_data: dict) -> bool:
         
         # Exclude primary key from update set
         valid_columns = [
-            'client_id', 'project_id', 'document_name', 'file_name_on_disk', 
+            'client_id', 'project_id', 'order_identifier', 'document_name', 'file_name_on_disk',
             'file_path_relative', 'document_type_generated', 'source_template_id', 
             'version_tag', 'notes', 'updated_at', 'created_by_user_id'
         ]
@@ -4362,10 +5051,11 @@ def update_client_document(document_id: str, doc_data: dict) -> bool:
         if not current_doc_data: return False
 
         set_clauses = [f"{key} = ?" for key in current_doc_data.keys()]
-        params = list(current_doc_data.values())
-        params.append(document_id)
+        params_list = list(current_doc_data.values()) # Renamed to avoid conflict
+        params_list.append(document_id)
         
         sql = f"UPDATE ClientDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
+        cursor.execute(sql, params_list) # Use new params_list
         cursor.execute(sql, params)
         conn.commit()
         return cursor.rowcount > 0
@@ -5152,7 +5842,7 @@ def delete_kpi(kpi_id: int) -> bool:
             conn.close()
 
 # --- ApplicationSettings Functions ---
-def get_setting(key: str) -> str | None:
+def get_setting(key: str) -> str | None: # Will need similar refactoring if used during seeding with a passed cursor
     conn = None
     try:
         conn = get_db_connection()
@@ -5166,21 +5856,37 @@ def get_setting(key: str) -> str | None:
     finally:
         if conn: conn.close()
 
-def set_setting(key: str, value: str) -> bool:
-    conn = None
+def set_setting(key: str, value: str, cursor: sqlite3.Cursor = None) -> bool:
+    """
+    Sets an application setting. Uses the provided cursor if available,
+    otherwise manages its own connection.
+    """
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Using INSERT OR REPLACE (UPSERT)
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to set_setting.")
+            cursor_to_use = cursor
+
         sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
-        cursor.execute(sql, (key, value))
-        conn.commit()
-        return cursor.rowcount > 0
+        cursor_to_use.execute(sql, (key, value))
+
+        if manage_connection and conn_internal:
+            conn_internal.commit()
+
+        return cursor_to_use.rowcount > 0 # Should be > 0 on success
     except sqlite3.Error as e:
-        print(f"DB error in set_setting: {e}")
+        print(f"DB error in set_setting for key '{key}': {e}")
+        if manage_connection and conn_internal:
+            conn_internal.rollback()
         return False
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 # --- ActivityLog Functions ---
 def add_activity_log(log_data: dict) -> int | None:
@@ -5275,24 +5981,23 @@ DEFAULT_COVER_PAGE_TEMPLATES = [
     }
 ]
 
-def _populate_default_cover_page_templates():
+def _populate_default_cover_page_templates(cursor: sqlite3.Cursor):
     """
     Populates the CoverPageTemplates table with predefined default templates
-    if they do not already exist by name.
+    if they do not already exist by name. Uses the provided cursor.
     """
-    print("Attempting to populate default cover page templates...")
-    # Optionally, fetch a system user ID if you want to set created_by_user_id
-    # system_user = get_user_by_username('system_user') # Define or fetch a system user
-    # system_user_id = system_user['user_id'] if system_user else None
+    if not isinstance(cursor, sqlite3.Cursor):
+        raise ValueError("Invalid cursor object passed to _populate_default_cover_page_templates.")
 
+    print("Attempting to populate default cover page templates...")
     for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
-        existing_template = get_cover_page_template_by_name(template_def['template_name'])
+        # Use get_cover_page_template_by_name with the passed cursor
+        existing_template = get_cover_page_template_by_name(template_def['template_name'], cursor=cursor)
         if existing_template:
             print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
         else:
-            # template_def_with_user = {**template_def, 'created_by_user_id': system_user_id}
-            # new_id = add_cover_page_template(template_def_with_user)
-            new_id = add_cover_page_template(template_def) # Simpler: no user_id for defaults for now
+            # Pass the cursor to add_cover_page_template
+            new_id = add_cover_page_template(template_def, cursor=cursor)
             if new_id:
                 print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
             else:
@@ -5300,17 +6005,24 @@ def _populate_default_cover_page_templates():
     print("Default cover page templates population attempt finished.")
 
 # --- CoverPageTemplates CRUD ---
-def add_cover_page_template(template_data: dict) -> str | None:
-    """Adds a new cover page template. Returns template_id or None."""
-    conn = None
+def add_cover_page_template(template_data: dict, cursor: sqlite3.Cursor = None) -> str | None:
+    """Adds a new cover page template. Returns template_id or None. Uses provided cursor if available."""
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to add_cover_page_template.")
+            cursor_to_use = cursor
+
         new_template_id = uuid.uuid4().hex
         now = datetime.utcnow().isoformat() + "Z"
 
         style_config = template_data.get('style_config_json')
-        if isinstance(style_config, dict): # Ensure it's a JSON string
+        if isinstance(style_config, dict):
             style_config = json.dumps(style_config)
 
         sql = """
@@ -5328,18 +6040,24 @@ def add_cover_page_template(template_data: dict) -> str | None:
             template_data.get('default_subtitle'),
             template_data.get('default_author'),
             style_config,
-            template_data.get('is_default_template', 0), # Handle new field, default to 0
+            template_data.get('is_default_template', 0),
             now, now,
             template_data.get('created_by_user_id')
         )
-        cursor.execute(sql, params)
-        conn.commit()
+        cursor_to_use.execute(sql, params)
+
+        if manage_connection and conn_internal:
+            conn_internal.commit()
+
         return new_template_id
     except sqlite3.Error as e:
         print(f"Database error in add_cover_page_template: {e}")
+        if manage_connection and conn_internal:
+            conn_internal.rollback()
         return None
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 def get_cover_page_template_by_id(template_id: str) -> dict | None:
     """Retrieves a cover page template by its ID."""
@@ -5356,7 +6074,6 @@ def get_cover_page_template_by_id(template_id: str) -> dict | None:
                     data['style_config_json'] = json.loads(data['style_config_json'])
                 except json.JSONDecodeError:
                     print(f"Warning: Could not parse style_config_json for template {template_id}")
-                    # Keep as string or set to default dict? For now, keep as is.
             return data
         return None
     except sqlite3.Error as e:
@@ -5365,14 +6082,24 @@ def get_cover_page_template_by_id(template_id: str) -> dict | None:
     finally:
         if conn: conn.close()
 
-def get_cover_page_template_by_name(template_name: str) -> dict | None:
-    """Retrieves a cover page template by its unique name."""
-    conn = None
+def get_cover_page_template_by_name(template_name: str, cursor: sqlite3.Cursor = None) -> dict | None:
+    """
+    Retrieves a cover page template by its unique name.
+    Uses provided cursor if available, otherwise manages its own connection.
+    """
+    manage_connection = cursor is None
+    conn_internal = None
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
-        row = cursor.fetchone()
+        if manage_connection:
+            conn_internal = get_db_connection()
+            cursor_to_use = conn_internal.cursor()
+        else:
+            if not isinstance(cursor, sqlite3.Cursor):
+                raise ValueError("Invalid cursor object passed to get_cover_page_template_by_name.")
+            cursor_to_use = cursor
+
+        cursor_to_use.execute("SELECT * FROM CoverPageTemplates WHERE template_name = ?", (template_name,))
+        row = cursor_to_use.fetchone()
         if row:
             data = dict(row)
             if data.get('style_config_json'):
@@ -5386,7 +6113,8 @@ def get_cover_page_template_by_name(template_name: str) -> dict | None:
         print(f"Database error in get_cover_page_template_by_name: {e}")
         return None
     finally:
-        if conn: conn.close()
+        if manage_connection and conn_internal:
+            conn_internal.close()
 
 def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offset: int = 0) -> list[dict]:
     """
@@ -7708,7 +8436,7 @@ if __name__ == '__main__':
             print(f"Error fetching or formatting client document notes: {e_notes}")
             context['doc']['client_specific_footer_notes'] = "" # Ensure it's empty on error
 
-        return context
+        # return context
 
 
 
@@ -9020,8 +9748,78 @@ def get_active_projects_count() -> int:
         if conn:
             conn.close()
 
+def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True) -> list[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
+        archival_status_rows = cursor.fetchall()
+        archival_status_ids = [row['status_id'] for row in archival_status_rows]
+
+        base_query = """
+            SELECT
+                c.client_id, c.client_name, c.company_name, c.primary_need_description,
+                c.project_identifier, c.default_base_folder_path, c.selected_languages,
+                c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
+                co.country_name AS country,
+                ci.city_name AS city,
+                s.status_name AS status,
+                s.color_hex AS status_color,
+                s.icon_name AS status_icon_name
+            FROM Clients c
+            LEFT JOIN Countries co ON c.country_id = co.country_id
+            LEFT JOIN Cities ci ON c.city_id = ci.city_id
+            LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+        """
+
+        params = []
+        where_conditions = []
+
+        if not archival_status_ids: # No statuses are defined as archival
+            if is_archived: # If we are looking for archived clients but no status is archival type
+                return []
+            else: # If we are looking for active clients and no status is archival type, all clients (with or without status) are considered active
+                  # This case will fall through to the 'else' for where_conditions, fetching all.
+                  pass # No specific condition needed here if all are considered active
+        else: # Archival statuses exist
+            placeholders = ','.join('?' for _ in archival_status_ids)
+            if is_archived:
+                where_conditions.append(f"c.status_id IN ({placeholders})")
+                params.extend(archival_status_ids)
+            else: # Active clients
+                not_in_condition = f"c.status_id NOT IN ({placeholders})"
+                if include_null_status_for_active:
+                    where_conditions.append(f"({not_in_condition} OR c.status_id IS NULL)")
+                else:
+                    where_conditions.append(not_in_condition)
+                params.extend(archival_status_ids) # These params are for the NOT IN part
+
+        if where_conditions:
+            sql = f"{base_query} WHERE {' AND '.join(where_conditions)} ORDER BY c.client_name;"
+        else:
+            # If is_archived=False and no archival_status_ids, this means all clients are non-archived.
+            # If include_null_status_for_active is True, it includes clients with NULL status.
+            # If include_null_status_for_active is False, it implies only clients with a non-archival status.
+            # This default (no WHERE clause) correctly handles the "all active when no archival statuses defined"
+            # and "show all" if no specific archival filtering is applied.
+            sql = f"{base_query} ORDER BY c.client_name;"
+
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_clients_by_archival_status: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def get_total_products_count() -> int:
     conn = None
+    row = None  # Initialize row here
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -9029,10 +9827,430 @@ def get_total_products_count() -> int:
         # Or, more simply, just count rows in Products table if each row is a distinct product offering
         cursor.execute("SELECT COUNT(product_id) as total_count FROM Products")
         row = cursor.fetchone()
-        return row['total_count'] if row else 0
+        # Original return removed from here
     except sqlite3.Error as e:
         print(f"Database error in get_total_products_count: {e}")
-        return 0
+        return 0  # Return 0 on error
     finally:
         if conn:
             conn.close()
+    return row['total_count'] if row else 0  # Corrected indentation for this return
+
+
+# --- CRUD functions for Transporters ---
+def add_transporter(data: dict) -> str | None:
+    """Adds a new transporter. Returns transporter_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_transporter_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Transporters (
+                transporter_id, name, contact_person, phone, email, address,
+                service_area, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_transporter_id, data.get('name'), data.get('contact_person'),
+            data.get('phone'), data.get('email'), data.get('address'),
+            data.get('service_area'), data.get('notes'), now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_transporter_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_transporter: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_transporter_by_id(transporter_id: str) -> dict | None:
+    """Retrieves a transporter by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Transporters WHERE transporter_id = ?", (transporter_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_transporter_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_transporters() -> list[dict]:
+    """Retrieves all transporters."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Transporters ORDER BY name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_transporters: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_transporter(transporter_id: str, data: dict) -> bool:
+    """Updates a transporter. Returns True on success."""
+    conn = None
+    if not data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+        set_clauses = [f"{key} = ?" for key in data.keys() if key != 'transporter_id']
+        params = [value for key, value in data.items() if key != 'transporter_id']
+        if not set_clauses: return False
+        params.append(transporter_id)
+        sql = f"UPDATE Transporters SET {', '.join(set_clauses)} WHERE transporter_id = ?"
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_transporter: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_transporter(transporter_id: str) -> bool:
+    """Deletes a transporter. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consider ON DELETE SET NULL or RESTRICT for Client_Transporters if direct deletion is too destructive
+        cursor.execute("DELETE FROM Transporters WHERE transporter_id = ?", (transporter_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_transporter: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for FreightForwarders ---
+def add_freight_forwarder(data: dict) -> str | None:
+    """Adds a new freight forwarder. Returns forwarder_id (UUID) or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        new_forwarder_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO FreightForwarders (
+                forwarder_id, name, contact_person, phone, email, address,
+                services_offered, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            new_forwarder_id, data.get('name'), data.get('contact_person'),
+            data.get('phone'), data.get('email'), data.get('address'),
+            data.get('services_offered'), data.get('notes'), now, now
+        )
+        cursor.execute(sql, params)
+        conn.commit()
+        return new_forwarder_id
+    except sqlite3.Error as e:
+        print(f"Database error in add_freight_forwarder: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_freight_forwarder_by_id(forwarder_id: str) -> dict | None:
+    """Retrieves a freight forwarder by its ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM FreightForwarders WHERE forwarder_id = ?", (forwarder_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        print(f"Database error in get_freight_forwarder_by_id: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_all_freight_forwarders() -> list[dict]:
+    """Retrieves all freight forwarders."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM FreightForwarders ORDER BY name")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_all_freight_forwarders: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def update_freight_forwarder(forwarder_id: str, data: dict) -> bool:
+    """Updates a freight forwarder. Returns True on success."""
+    conn = None
+    if not data: return False
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        data['updated_at'] = datetime.utcnow().isoformat() + "Z"
+        set_clauses = [f"{key} = ?" for key in data.keys() if key != 'forwarder_id']
+        params = [value for key, value in data.items() if key != 'forwarder_id']
+        if not set_clauses: return False
+        params.append(forwarder_id)
+        sql = f"UPDATE FreightForwarders SET {', '.join(set_clauses)} WHERE forwarder_id = ?"
+        cursor.execute(sql, tuple(params))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in update_freight_forwarder: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def delete_freight_forwarder(forwarder_id: str) -> bool:
+    """Deletes a freight forwarder. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Consider ON DELETE SET NULL or RESTRICT for Client_FreightForwarders
+        cursor.execute("DELETE FROM FreightForwarders WHERE forwarder_id = ?", (forwarder_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in delete_freight_forwarder: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+def get_distinct_purchase_confirmed_at_for_client(client_id: str) -> list[str] | None:
+    """
+    Retrieves a list of distinct, non-null purchase_confirmed_at timestamps
+    for a given client_id from the ClientProjectProducts table.
+    Returns a list of ISO formatted timestamp strings, or None on error.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT DISTINCT purchase_confirmed_at
+            FROM ClientProjectProducts
+            WHERE client_id = ? AND purchase_confirmed_at IS NOT NULL
+            ORDER BY purchase_confirmed_at DESC;
+        """
+        # Using DESC order so more recent orders appear first in UI if not re-sorted there
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        # sqlite3.Row objects behave like tuples for indexing
+        return [row[0] for row in rows if row[0] is not None]
+    except sqlite3.Error as e:
+        print(f"Database error in get_distinct_purchase_confirmed_at_for_client for client {client_id}: {e}")
+        return None # Return None to indicate an error condition
+    except Exception as ex: # Catch any other unexpected errors
+        print(f"Unexpected error in get_distinct_purchase_confirmed_at_for_client for client {client_id}: {ex}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+# --- CRUD functions for Client_AssignedPersonnel ---
+def assign_personnel_to_client(client_id: str, personnel_id: int, role_in_project: str) -> int | None:
+    """Assigns a personnel to a client with a specific role. Returns assignment_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_AssignedPersonnel (client_id, personnel_id, role_in_project, assigned_at)
+            VALUES (?, ?, ?, ?)
+        """
+        params = (client_id, personnel_id, role_in_project, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Personnel {personnel_id} already assigned to client {client_id} with role '{role_in_project}'.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_personnel_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_personnel_for_client(client_id: str, role_filter: str = None) -> list[dict]:
+    """Retrieves assigned personnel for a client, optionally filtered by role.
+       Joins with CompanyPersonnel to get personnel details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cap.*, cp.name as personnel_name, cp.role as personnel_role, cp.email as personnel_email, cp.phone as personnel_phone
+            FROM Client_AssignedPersonnel cap
+            JOIN CompanyPersonnel cp ON cap.personnel_id = cp.personnel_id
+            WHERE cap.client_id = ?
+        """
+        params = [client_id]
+        if role_filter:
+            sql += " AND cap.role_in_project = ?"
+            params.append(role_filter)
+        sql += " ORDER BY cp.name"
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_personnel_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_personnel_from_client(assignment_id: int) -> bool:
+    """Unassigns a personnel from a client by assignment_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_AssignedPersonnel WHERE assignment_id = ?", (assignment_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_personnel_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for Client_Transporters ---
+def assign_transporter_to_client(client_id: str, transporter_id: str, transport_details: str = None, cost_estimate: float = None) -> int | None:
+    """Assigns a transporter to a client. Returns client_transporter_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_Transporters (client_id, transporter_id, transport_details, cost_estimate, assigned_at)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        params = (client_id, transporter_id, transport_details, cost_estimate, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Transporter {transporter_id} already assigned to client {client_id}.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_transporter_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_transporters_for_client(client_id: str) -> list[dict]:
+    """Retrieves assigned transporters for a client.
+       Joins with Transporters table to get transporter details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT ct.*, t.name as transporter_name, t.contact_person, t.phone, t.email
+            FROM Client_Transporters ct
+            JOIN Transporters t ON ct.transporter_id = t.transporter_id
+            WHERE ct.client_id = ?
+            ORDER BY t.name
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_transporters_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_transporter_from_client(client_transporter_id: int) -> bool:
+    """Unassigns a transporter from a client by client_transporter_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_Transporters WHERE client_transporter_id = ?", (client_transporter_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_transporter_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
+
+# --- CRUD functions for Client_FreightForwarders ---
+def assign_forwarder_to_client(client_id: str, forwarder_id: str, task_description: str = None, cost_estimate: float = None) -> int | None:
+    """Assigns a freight forwarder to a client. Returns client_forwarder_id or None."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat() + "Z"
+        sql = """
+            INSERT INTO Client_FreightForwarders (client_id, forwarder_id, task_description, cost_estimate, assigned_at)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        params = (client_id, forwarder_id, task_description, cost_estimate, now)
+        cursor.execute(sql, params)
+        conn.commit()
+        return cursor.lastrowid
+    except sqlite3.IntegrityError: # Handles UNIQUE constraint violation
+        print(f"Freight forwarder {forwarder_id} already assigned to client {client_id}.")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in assign_forwarder_to_client: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+
+def get_assigned_forwarders_for_client(client_id: str) -> list[dict]:
+    """Retrieves assigned freight forwarders for a client.
+       Joins with FreightForwarders table to get forwarder details."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT cff.*, ff.name as forwarder_name, ff.contact_person, ff.phone, ff.email
+            FROM Client_FreightForwarders cff
+            JOIN FreightForwarders ff ON cff.forwarder_id = ff.forwarder_id
+            WHERE cff.client_id = ?
+            ORDER BY ff.name
+        """
+        cursor.execute(sql, (client_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error in get_assigned_forwarders_for_client: {e}")
+        return []
+    finally:
+        if conn: conn.close()
+
+def unassign_forwarder_from_client(client_forwarder_id: int) -> bool:
+    """Unassigns a freight forwarder from a client by client_forwarder_id. Returns True on success."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM Client_FreightForwarders WHERE client_forwarder_id = ?", (client_forwarder_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"Database error in unassign_forwarder_from_client: {e}")
+        return False
+    finally:
+        if conn: conn.close()
