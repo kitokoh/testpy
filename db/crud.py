@@ -1117,7 +1117,7 @@ __all__ = [
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client", "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country", "get_client_segmentation_by_city", "get_client_segmentation_by_status", "get_client_segmentation_by_category", "get_clients_by_archival_status", # Client related
     "add_client_note", "get_client_notes", # ClientNotes
     "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered","get_total_products_count", # Products
-    "add_product_dimension", "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
+    "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
     "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence", # ProductEquivalencies
     "get_products_for_client_or_project", "add_product_to_client_or_project", "update_client_project_product", "remove_product_from_client_or_project", "get_client_project_product_by_id", # ClientProjectProducts
     "get_project_by_id", "add_project", "get_projects_by_client_id", "get_all_projects", "update_project", "delete_project", "get_total_projects_count", "get_active_projects_count", # Projects
