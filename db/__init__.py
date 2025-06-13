@@ -305,6 +305,50 @@ from .cruds.users_crud import (
     delete_user,
 )
 
+# SAV Tickets
+from .cruds.sav_tickets_crud import ( # Assuming sav_tickets_crud.py
+    add_sav_ticket,
+    get_sav_ticket_by_id,
+    get_sav_tickets_for_client,
+    update_sav_ticket,
+    delete_sav_ticket,
+)
+
+# Important Dates
+from .cruds.important_dates_crud import ( # Assuming important_dates_crud.py
+    add_important_date,
+    get_important_date_by_id,
+    get_all_important_dates,
+    update_important_date,
+    delete_important_date,
+)
+
+# Scheduled Emails & Reminders
+from .cruds.scheduled_emails_crud import ( # Assuming scheduled_emails_crud.py
+    add_scheduled_email,
+    get_scheduled_email_by_id,
+    get_pending_scheduled_emails,
+    update_scheduled_email_status,
+    delete_scheduled_email,
+    add_email_reminder,
+    get_pending_reminders,
+    update_reminder_status,
+    delete_email_reminder,
+)
+
+# SmtpConfigs
+from .cruds.smtp_configs_crud import ( # Assuming smtp_configs_crud.py
+    add_smtp_config,
+    get_smtp_config_by_id,
+    get_default_smtp_config,
+    get_all_smtp_configs,
+    update_smtp_config,
+    delete_smtp_config,
+    set_default_smtp_config,
+)
+
+
+
 # --- Transporters (Moved in previous step) ---
 from .cruds.transporters_crud import (
     add_transporter,
@@ -423,6 +467,17 @@ __all__ = [
     # Users
     "add_user", "get_user_by_id", "get_user_by_email", "get_user_by_username", "update_user",
     "verify_user_password", "delete_user",
+    # SAV Tickets
+    "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket",
+    # Important Dates
+    "add_important_date", "get_important_date_by_id", "get_all_important_dates", "update_important_date", "delete_important_date",
+    # Scheduled Emails & Reminders
+    "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email",
+    "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder",
+    # SmtpConfigs
+    "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs",
+    "update_smtp_config", "delete_smtp_config", "set_default_smtp_config",
+
     # Transporters
     "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter",
 ]
