@@ -1082,6 +1082,7 @@ def initialize_database():
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
+
         )
     """)
 
@@ -1106,6 +1107,7 @@ def initialize_database():
             PRIMARY KEY (partner_id, partner_category_id),
             FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
             FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
+
         )
     """)
 
@@ -1131,6 +1133,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
     # --- End Indexes for Partner Tables ---
+
 
     # MediaItems Table
     cursor.execute('''
