@@ -29,7 +29,7 @@ except (ImportError, ValueError):
         config = config_fallback
 
 # CRUD function imports
-try:
+
     # Updated imports to point to specific CRUD files
     from .cruds.companies_crud import get_company_by_id, get_personnel_for_company # Assuming get_personnel_for_company is in companies_crud or a new company_personnel_crud
     from .cruds.clients_crud import get_client_by_id
