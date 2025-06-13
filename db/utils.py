@@ -6,6 +6,7 @@ from datetime import datetime
 # Import global constants from db_config.py
 try:
     from .. import db_config
+    from .. import config # For MEDIA_FILES_BASE_PATH
 except (ImportError, ValueError):
     import sys
     # Correctly get the /app directory (parent of db/)
@@ -14,17 +15,20 @@ except (ImportError, ValueError):
         sys.path.append(app_dir)
     try:
         import db_config
+        import config # For MEDIA_FILES_BASE_PATH
     except ImportError:
-        print("CRITICAL: db_config.py not found in utils.py. Using fallback DATABASE_PATH.")
+        print("CRITICAL: db_config.py or config.py not found in utils.py. Using fallback paths.")
         # Fallback class definition
         class db_config_fallback:
             DATABASE_PATH = os.path.join(app_dir, "app_data_fallback.db") # Use app_dir for path
             APP_ROOT_DIR_CONTEXT = app_dir
             LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
         db_config = db_config_fallback
+        class config_fallback:
+            MEDIA_FILES_BASE_PATH = os.path.join(app_dir, "media_files_fallback")
+        config = config_fallback
 
-# Placeholder/actual imports for CRUD functions
-_crud_functions_imported = False
+# CRUD function imports
 try:
     # Updated imports to point to specific CRUD files
     from .cruds.companies_crud import get_company_by_id, get_personnel_for_company # Assuming get_personnel_for_company is in companies_crud or a new company_personnel_crud
@@ -62,6 +66,7 @@ except ImportError as e:
     if 'get_client_document_notes' not in globals(): get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: _placeholder_crud_func_util("notes_list")
 
 
+
 def get_db_connection(db_path_override=None): # Renamed parameter for clarity
     """
     Returns a new database connection object.
@@ -93,13 +98,19 @@ def _get_batch_products_and_equivalents(product_ids: list[int], target_language_
 
     results = {pid: {'original': None, 'equivalents': []} for pid in product_ids}
     try:
-        cursor = conn.cursor()
-        placeholders = ','.join('?' for _ in product_ids)
-        cursor.execute(f"SELECT * FROM Products WHERE product_id IN ({placeholders})", tuple(product_ids))
-        for row in cursor.fetchall():
-            results[row['product_id']]['original'] = dict(row)
+        cursor = conn.cursor() # Keep cursor for equivalents
 
-        for pid_original in product_ids: # Renamed pid to pid_original for clarity
+        # Fetch original product details using the updated products_crud.get_product_by_id
+        for pid_original in product_ids:
+            # Assuming products_crud.get_product_by_id is correctly imported and available
+            product_detail = products_crud.get_product_by_id(id=pid_original, conn=conn)
+            if product_detail:
+                results[pid_original]['original'] = product_detail
+            # else: product not found, 'original' remains None
+
+        # The rest of the logic for fetching equivalents can remain similar,
+        # using the cursor for ProductEquivalencies and Products table for equivalent details.
+        for pid_original in product_ids:
             equivalent_ids_for_pid = set()
             # Find B when A is known
             cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (pid_original,))
@@ -220,18 +231,59 @@ def get_document_context_data(
 
             if not original_prod_details: continue
 
-            prod_name = original_prod_details['product_name']
-            # Language fallback logic...
+            prod_name = original_prod_details['product_name'] # Add language fallback if necessary
+            # Example: prod_name = original_prod_details.get(f'product_name_{target_language_code}', original_prod_details['product_name'])
 
             qty = item_data.get('quantity', 1)
-            unit_price = item_data.get('unit_price_override', original_prod_details['base_unit_price'])
+            unit_price_override = item_data.get('unit_price_override')
+            unit_price = unit_price_override if unit_price_override is not None else original_prod_details.get('base_unit_price')
             unit_price_f = float(unit_price) if unit_price is not None else 0.0
             total_price_f = qty * unit_price_f
             subtotal_amount += total_price_f
 
-            products_table_html_rows_list.append(f"<tr><td>{idx+1}</td><td>{prod_name}</td><td>{qty}</td><td>{format_currency(unit_price_f, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price_f, context['doc']['currency_symbol'])}</td></tr>")
-            context["products"].append({"id": prod_id, "name": prod_name, "raw_unit_price": unit_price_f, "raw_total_price": total_price_f})
+            processed_media_links = []
+            if original_prod_details.get('media_links'):
+                for link in original_prod_details['media_links']:
+                    image_url = None
+                    thumbnail_url = None
 
+                    if link.get('media_filepath'):
+                        abs_image_path = os.path.join(config.MEDIA_FILES_BASE_PATH, link['media_filepath'])
+                        if os.path.exists(abs_image_path):
+                            image_url = f"file:///{abs_image_path.replace(os.sep, '/')}"
+
+                    if link.get('media_thumbnail_path'):
+                        abs_thumbnail_path = os.path.join(config.MEDIA_FILES_BASE_PATH, link['media_thumbnail_path'])
+                        if os.path.exists(abs_thumbnail_path):
+                            thumbnail_url = f"file:///{abs_thumbnail_path.replace(os.sep, '/')}"
+
+                    processed_media_links.append({
+                        'url': image_url,
+                        'thumbnail_url': thumbnail_url,
+                        'alt_text': link.get('alt_text'),
+                        'display_order': link.get('display_order'),
+                        'title': link.get('media_title')
+                    })
+
+            product_context_item = {
+                "id": prod_id,
+                "name": prod_name,
+                "quantity": qty,
+                "unit_price_formatted": format_currency(unit_price_f, context['doc']['currency_symbol']),
+                "total_price_formatted": format_currency(total_price_f, context['doc']['currency_symbol']),
+                "raw_unit_price": unit_price_f,
+                "raw_total_price": total_price_f,
+                "description": original_prod_details.get('description'),
+                "category": original_prod_details.get('category'),
+                "unit_of_measure": original_prod_details.get('unit_of_measure'),
+                "weight": original_prod_details.get('weight'),
+                "dimensions": original_prod_details.get('dimensions'),
+                "images": processed_media_links,
+                "equivalents": batch_info.get('equivalents', []) # Add equivalents if needed in templates
+            }
+            context["products"].append(product_context_item)
+
+            products_table_html_rows_list.append(f"<tr><td>{idx+1}</td><td>{prod_name}</td><td>{qty}</td><td>{format_currency(unit_price_f, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price_f, context['doc']['currency_symbol'])}</td></tr>")
 
         context["doc"]["products_table_rows"] = "".join(products_table_html_rows_list)
         context["doc"]["subtotal_amount"] = format_currency(subtotal_amount, context["doc"]["currency_symbol"])

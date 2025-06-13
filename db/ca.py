@@ -14,8 +14,9 @@ from config import DATABASE_PATH
 # from .db_main import _get_or_create_category_id, _populate_default_cover_page_templates
 # Or by ensuring db.py is structured to allow these imports.
 
+from .schema import _get_or_create_category_id, _populate_default_cover_page_templates
 # Import the original db.py as a module to access its helper functions
-from db import db_seed as db_helpers
+
 
 def initialize_database():
     """
@@ -599,7 +600,7 @@ def initialize_database():
                 category_name_text = old_template_dict.get('category')
                 # Use the internal helper _get_or_create_category_id
                 # Pass the main cursor, not creating a new one for this helper
-                new_cat_id = db_helpers._get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
+                new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
 
 
                 # Prepare values for insert, ensuring order and handling missing keys
@@ -1053,6 +1054,87 @@ def initialize_database():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+
+    # --- Partner Tables ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Partners (
+            partner_id TEXT PRIMARY KEY,
+            partner_name TEXT NOT NULL,
+            partner_category_id INTEGER,
+            contact_person_name TEXT,
+            email TEXT UNIQUE,
+            phone TEXT,
+            address TEXT,
+            website_url TEXT,
+            services_offered TEXT,
+            collaboration_start_date TEXT,
+            status TEXT DEFAULT 'Active',
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
+
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerContacts (
+            contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            role TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
+            partner_id TEXT NOT NULL,
+            partner_category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, partner_category_id),
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
+
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerDocuments (
+            document_id TEXT PRIMARY KEY,
+            partner_id TEXT NOT NULL,
+            document_name TEXT NOT NULL,
+            file_path_relative TEXT NOT NULL,
+            document_type TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
+    # --- End Partner Tables ---
+
+    # --- Indexes for Partner Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_partner_category_id ON PartnerCategoryLink(partner_category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
+    # --- End Indexes for Partner Tables ---
+
 
     # MediaItems Table
     cursor.execute('''

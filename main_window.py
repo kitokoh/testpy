@@ -54,6 +54,7 @@ from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
 from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
+from main import get_notification_manager # For notifications
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -316,7 +317,34 @@ class DocumentManager(QMainWindow):
         self.check_timer = QTimer(self)
         self.check_timer.timeout.connect(self.check_old_clients_routine_slot)
         self.check_timer.start(3600000)
-        
+
+    def notify(self, title, message, type='INFO', duration=5000, icon_path=None):
+        """
+        Convenience method to show a notification via the global NotificationManager.
+
+        This method provides an easy way for parts of the DocumentManager (or its children,
+        if they have a reference to it) to display notifications without needing to
+        directly import or manage the NotificationManager.
+
+        Args:
+            title (str): The title of the notification.
+            message (str): The main message content of the notification.
+            type (str, optional): Type of notification ('INFO', 'SUCCESS', 'WARNING', 'ERROR').
+                                  Defaults to 'INFO'.
+            duration (int, optional): Duration in milliseconds before the notification auto-closes.
+                                      Defaults to 5000ms.
+            icon_path (str, optional): Path to a custom icon. If None, a default icon based
+                                       on the 'type' will be used. Defaults to None.
+        """
+        manager = get_notification_manager()
+        if manager:
+            manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
+        else:
+            # Fallback or log an error if manager is not found
+            logging.warning(f"Notification Manager not found. Notification: {title} - {message}")
+            # As a basic fallback, show a QMessageBox - though this is modal and not ideal for notifications
+            # QMessageBox.information(self, title, message) # Consider if this fallback is desired
+
     def setup_ui_main(self): 
         central_widget = QWidget(); self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(10,10,10,10); main_layout.setSpacing(10)
@@ -390,10 +418,12 @@ class DocumentManager(QMainWindow):
         right_pane_splitter.addWidget(self.client_tabs_widget)
 
         # Replace placeholder with CollapsibleStatisticsWidget
-        self.collapsible_stats_widget = CollapsibleStatisticsWidget(self)
-        right_pane_splitter.addWidget(self.collapsible_stats_widget)
+        # self.collapsible_stats_widget = CollapsibleStatisticsWidget(self)
+        # right_pane_splitter.addWidget(self.collapsible_stats_widget)
 
-        right_pane_splitter.setSizes([int(self.height() * 0.7), int(self.height() * 0.3)]) # Initial sizes for tabs/stats
+        # right_pane_splitter.setSizes([int(self.height() * 0.7), int(self.height() * 0.3)]) # Initial sizes for tabs/stats
+        # With only one widget, setSizes might not be necessary or could be adjusted.
+        # For now, let's remove it. The splitter should give all space to the single widget.
 
         main_splitter.addWidget(right_pane_splitter)
         main_splitter.setSizes([int(self.width() * 0.35), int(self.width() * 0.65)]) # Initial sizes for left/right panes
@@ -436,9 +466,9 @@ class DocumentManager(QMainWindow):
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self)
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
-        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
-        # self.statistics_action.triggered.connect(self.show_statistics_view) # Old connection
-        self.statistics_action.triggered.connect(self.toggle_collapsible_statistics_panel) # New connection
+        # self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+        # # self.statistics_action.triggered.connect(self.show_statistics_view) # Old connection
+        # self.statistics_action.triggered.connect(self.toggle_collapsible_statistics_panel) # New connection
 
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
@@ -459,7 +489,7 @@ class DocumentManager(QMainWindow):
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action)
         modules_menu.addAction(self.project_management_action)
-        modules_menu.addAction(self.statistics_action)
+        # modules_menu.addAction(self.statistics_action)
         modules_menu.addAction(self.product_list_action) # Add new action here
         modules_menu.addAction(self.partner_management_action) # Add Partner Management action
         help_menu = menu_bar.addMenu(self.tr("Aide"))
@@ -472,29 +502,29 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
-    def toggle_collapsible_statistics_panel(self):
-        if hasattr(self, 'collapsible_stats_widget'):
-            # Ensure the documents page is visible first, as the stats panel is part of it
-            self.show_documents_view()
-
-            # Toggle the button's checked state which in turn calls show_and_expand or hides
-            current_state = self.collapsible_stats_widget.toggle_button.isChecked()
-            self.collapsible_stats_widget.toggle_button.setChecked(not current_state)
-            # If we want to ensure it always expands when menu is clicked:
-            # self.collapsible_stats_widget.show_and_expand()
-        else:
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Le panneau de statistiques n'est pas initialisé."))
+    # def toggle_collapsible_statistics_panel(self):
+    #     if hasattr(self, 'collapsible_stats_widget'):
+    #         # Ensure the documents page is visible first, as the stats panel is part of it
+    #         self.show_documents_view()
+    #
+    #         # Toggle the button's checked state which in turn calls show_and_expand or hides
+    #         current_state = self.collapsible_stats_widget.toggle_button.isChecked()
+    #         self.collapsible_stats_widget.toggle_button.setChecked(not current_state)
+    #         # If we want to ensure it always expands when menu is clicked:
+    #         # self.collapsible_stats_widget.show_and_expand()
+    #     else:
+    #         QMessageBox.warning(self, self.tr("Erreur"), self.tr("Le panneau de statistiques n'est pas initialisé."))
         
-    def show_statistics_view(self):
-        # This method might become obsolete or repurposed.
-        # For now, ensure it doesn't try to show the old StatisticsDashboard in the stack
-        # if that instance is being dismantled.
-        # Option 1: Do nothing / Log deprecation
-        # print("show_statistics_view is being phased out. Use toggle_collapsible_statistics_panel.")
-        # Option 2: Redirect to the new toggle functionality
-        self.toggle_collapsible_statistics_panel()
-        # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
-        # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+    # def show_statistics_view(self):
+    #     # This method might become obsolete or repurposed.
+    #     # For now, ensure it doesn't try to show the old StatisticsDashboard in the stack
+    #     # if that instance is being dismantled.
+    #     # Option 1: Do nothing / Log deprecation
+    #     # print("show_statistics_view is being phased out. Use toggle_collapsible_statistics_panel.")
+    #     # Option 2: Redirect to the new toggle functionality
+    #     self.toggle_collapsible_statistics_panel()
+    #     # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
+    #     # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
 
 
     def show_partner_management_view(self):
@@ -591,6 +621,9 @@ class DocumentManager(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(client_info["base_folder_path"]))
         else:
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Chemin du dossier non trouvé pour ce client."))
+            self.notify(title=self.tr("Accès Dossier Échoué"),
+                        message=self.tr("Chemin du dossier non trouvé pour le client '{0}'.").format(client_info.get('client_name', 'N/A') if client_info else 'N/A'),
+                        type='WARNING')
             
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self)
@@ -612,11 +645,18 @@ class DocumentManager(QMainWindow):
                     logging.info(f"User language preference '{new_language_code}' saved to database.")
                 except Exception as e:
                     logging.error(f"Error saving language preference to database: {e}", exc_info=True)
-                    QMessageBox.warning(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'enregistrer la préférence linguistique dans la base de données : {0}").format(str(e)))
+                    self.notify(title=self.tr("Erreur Sauvegarde Langue"),
+                                message=self.tr("Impossible d'enregistrer la préférence linguistique."),
+                                type='ERROR')
+                    # QMessageBox.warning(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'enregistrer la préférence linguistique dans la base de données : {0}").format(str(e)))
+
 
             os.makedirs(self.config["templates_dir"], exist_ok=True) 
             os.makedirs(self.config["clients_dir"], exist_ok=True)
-            QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés."))
+            # QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés."))
+            self.notify(title=self.tr("Paramètres Sauvegardés"),
+                        message=self.tr("Les nouveaux paramètres de l'application ont été enregistrés avec succès."),
+                        type='SUCCESS')
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
         
@@ -715,8 +755,11 @@ class DocumentManager(QMainWindow):
                         popup_html += f"<li><a href='#' onclick='onClientClick(\"{client['client_id']}\", \"{js_safe_client_name}\")'>{client['client_name']}</a></li>"
                     popup_html += "</ul>"
 
-                popup_html += f"<br><button onclick='onCountryFeatureClick(\"{country_name.replace("'", "\\'")}\")'>{self.tr('Ajouter Client Ici')}</button>"
-                feature['properties']['popup_content'] = popup_html
+            country_name_js_escaped = country_name.replace("'", "\\'")
+            js_onclick_call = f'onCountryFeatureClick("{country_name_js_escaped}")'
+            button_text = self.tr('Ajouter Client Ici')
+            popup_html += f"<br><button onclick='{js_onclick_call}'>{button_text}</button>"
+            feature['properties']['popup_content'] = popup_html
 
             # Add popups using the 'popup_content' property
             popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content']))

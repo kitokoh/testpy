@@ -18,15 +18,16 @@ from utils import is_first_launch, mark_initial_setup_complete
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
-import db as db_manager
 from db.db_seed import run_seed
 from db.cruds.companies_crud import get_all_companies, add_company # Specific imports for company check
+from db.cruds.application_settings_crud import get_setting # New import
 from db.ca import initialize_database # <<<< Initialize function moved to db/ca.py
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
 # import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
+from notifications import NotificationManager # Added for notifications
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
@@ -171,8 +172,8 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    # language_code_from_db = db_manager.get_setting('user_selected_language')
-    language_code_from_db = "fr"
+    language_code_from_db = get_setting('user_selected_language') # Use new import
+    # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
         logging.info(f"Language '{language_code}' loaded from database setting.")
@@ -400,6 +401,12 @@ def main():
 
     if proceed_to_main_app:
         main_window = DocumentManager(APP_ROOT_DIR)
+
+        # Setup Notification Manager
+        # Ensure 'app' is the QApplication instance, available in this scope
+        notification_manager = NotificationManager(parent_window=main_window)
+        QApplication.instance().notification_manager = notification_manager
+
         main_window.show()
         logging.info("Main window shown. Application is running.")
         sys.exit(app.exec_())
@@ -440,6 +447,19 @@ def main():
         logging.info("Login failed or cancelled. Exiting application.")
         sys.exit() # Exit if login is not successful
 
+def get_notification_manager():
+    """
+    Global accessor for the NotificationManager instance.
+
+    Returns:
+        NotificationManager or None: The global NotificationManager instance if it has been set
+                                     on the QApplication instance, otherwise None.
+    """
+    app_instance = QApplication.instance()
+    if hasattr(app_instance, 'notification_manager'):
+        return app_instance.notification_manager
+    logging.warning("NotificationManager not found on QApplication instance.")
+    return None
 
 if __name__ == "__main__":
     main()

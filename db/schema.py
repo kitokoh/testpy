@@ -161,29 +161,57 @@ def initialize_database():
     # (Continue with all other CREATE TABLE statements from the existing schema.py)
     cursor.execute("CREATE TABLE IF NOT EXISTS Client_FreightForwarders (client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE, UNIQUE (client_id, forwarder_id))")
 
-    # --- New Partner Tables ---
+    # --- Product Media Links Table ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ProductMediaLinks (
+            link_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Using INTEGER for simplicity with SQLite autoincrement
+            product_id INTEGER NOT NULL,
+            media_item_id TEXT NOT NULL, -- Matching MediaItems.media_item_id type
+            display_order INTEGER DEFAULT 0,
+            alt_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
+            FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+            UNIQUE (product_id, media_item_id), -- A media item can be linked to a product only once
+            UNIQUE (product_id, display_order) -- Ensures display_order is unique per product (optional, but can simplify reordering)
+        );
+    """)
+    # --- End Product Media Links Table ---
+
+    # --- Updated Partner Tables ---
+    # PartnerCategories table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Partners table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Partners (
             partner_id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            address TEXT,
-            phone TEXT,
-            location TEXT,
+            partner_name TEXT NOT NULL,
+            partner_category_id INTEGER,
+            contact_person_name TEXT,
             email TEXT UNIQUE,
+            phone TEXT,
+            address TEXT,
+            website_url TEXT,
+            services_offered TEXT,
+            collaboration_start_date TEXT,
+            status TEXT DEFAULT 'Active',
             notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerCategories (
-            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT
-        )
-    """)
-
+    # PartnerContacts table (assuming no changes needed based on subtask focus, but FK to Partners is vital)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerContacts (
             contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,13 +226,14 @@ def initialize_database():
         )
     """)
 
+    # PartnerCategoryLink table (Updated to use new FK name for PartnerCategories)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
             partner_id TEXT NOT NULL,
-            category_id INTEGER NOT NULL,
-            PRIMARY KEY (partner_id, category_id),
+            partner_category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, partner_category_id),
             FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
-            FOREIGN KEY (category_id) REFERENCES PartnerCategories(category_id) ON DELETE CASCADE
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
         )
     """)
 
@@ -310,12 +339,20 @@ def initialize_database():
     # ... (ALL OTHER CREATE INDEX STATEMENTS from existing schema.py)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-    # --- Indexes for New Partner Tables ---
+    # --- Indexes for ProductMediaLinks Table ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
+    # --- End Indexes for ProductMediaLinks Table ---
+
+    # --- Indexes for Partner Tables (adjusting PartnerCategoryLink index) ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    # Index for PartnerCategoryLink's category_id foreign key
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_partner_category_id ON PartnerCategoryLink(partner_category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
-    # --- End Indexes for New Partner Tables ---
+    # It's also good practice to have an index on PartnerCategories.category_name for lookups
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
+    # --- End Indexes for Partner Tables ---
 
     # --- Indexes for Google Contact Sync Tables ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
