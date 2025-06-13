@@ -417,7 +417,7 @@ __all__ = [
     "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country",
     "get_client_segmentation_by_city", "get_client_segmentation_by_status",
     "get_client_segmentation_by_category", "get_clients_by_archival_status",
-    "get_active_clients_per_country", "add_client_note", "get_client_notes",
+    "get_active_clients_per_country",
     # from companies_crud
     "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company",
     "set_default_company", "get_default_company",

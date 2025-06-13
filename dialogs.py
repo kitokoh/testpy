@@ -2393,8 +2393,9 @@ class ProductEquivalencyDialog(QDialog):
     def load_equivalencies(self):
         self.equivalencies_table.setRowCount(0)
         try:
-            equivalencies = db_manager.get_all_product_equivalencies()
-            if equivalencies is None: equivalencies = []
+            # Use products_crud_instance, default to not showing equivalencies involving deleted products
+            equivalencies = products_crud_instance.get_all_product_equivalencies(include_deleted_products=False)
+            # if equivalencies is None: equivalencies = [] # Already returns list
 
             for eq_data in equivalencies:
                 row_pos = self.equivalencies_table.rowCount()
@@ -2429,10 +2430,12 @@ class ProductEquivalencyDialog(QDialog):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                if db_manager.remove_product_equivalence(equivalence_id):
+                # Use products_crud_instance
+                remove_result = products_crud_instance.remove_product_equivalence(equivalence_id)
+                if remove_result['success']:
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Équivalence supprimée avec succès."))
                 else:
-                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression de l'équivalence."))
+                    QMessageBox.warning(self, self.tr("Erreur DB"), remove_result.get('error', self.tr("Échec de la suppression de l'équivalence.")))
             except Exception as e:
                  QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la suppression: {0}").format(str(e)))
             finally:
@@ -2444,9 +2447,9 @@ class ProductEquivalencyDialog(QDialog):
             return
 
         try:
-            # Using get_all_products_for_selection_filtered for a broader search
-            products = db_manager.get_all_products_for_selection_filtered(name_pattern=f"%{search_text}%")
-            if products is None: products = []
+            # Use products_crud_instance, ensure only active products are searchable
+            products = products_crud_instance.get_all_products_for_selection_filtered(name_pattern=f"%{search_text}%", include_deleted=False)
+            # if products is None: products = [] # Already returns list
             for prod in products:
                 item_text = f"{prod.get('product_name')} ({prod.get('language_code')}) - ID: {prod.get('product_id')}"
                 list_item = QListWidgetItem(item_text)
@@ -2490,10 +2493,15 @@ class ProductEquivalencyDialog(QDialog):
             return
 
         try:
-            new_eq_id = db_manager.add_product_equivalence(self.current_selected_product_a_id, self.current_selected_product_b_id)
-            if new_eq_id:
+            # Use products_crud_instance.add_product_equivalence
+            # This method in ProductsCRUD already checks if products exist and are not soft-deleted.
+            add_eq_result = products_crud_instance.add_product_equivalence(
+                self.current_selected_product_a_id,
+                self.current_selected_product_b_id
+            )
+            if add_eq_result['success']:
                 QMessageBox.information(self, self.tr("Succès"),
-                                        self.tr("Équivalence ajoutée avec succès (ID: {0}).").format(new_eq_id))
+                                        self.tr("Équivalence ajoutée avec succès (ID: {0}).").format(add_eq_result.get('id', 'N/A')))
                 self.load_equivalencies()
                 # Clear selections
                 self.current_selected_product_a_id = None
@@ -2871,21 +2879,42 @@ class ManageProductMasterDialog(QDialog):
 
     def load_products(self):
         current_selection_product_id = self.selected_product_id
-        if self.load_products_triggered_by_text_change: # If search triggered load, don't keep old selection
+        if self.load_products_triggered_by_text_change:
             current_selection_product_id = None
 
-        self.products_table.setSortingEnabled(False) # Disable sorting during population
+        self.products_table.setSortingEnabled(False)
         self.products_table.clearContents()
         self.products_table.setRowCount(0)
 
         search_text = self.search_product_input.text().strip()
-        filters = None
+        filters = {} # Initialize empty dict for filters
         if search_text:
-            filters = {'product_name': f'%{search_text}%'} # Search by name containing text
+            filters['product_name'] = f'%{search_text}%'
+
+        # Add category filter from UI if it exists in this dialog
+        # Assuming self.category_filter_input for consistency if added:
+        # if hasattr(self, 'category_filter_input') and self.category_filter_input.text().strip():
+        #     filters['category'] = self.category_filter_input.text().strip()
+
+        # Add language filter from UI if it exists
+        # if hasattr(self, 'language_code_filter_combo') and self.language_code_filter_combo.currentData() is not None:
+        #    filters['language_code'] = self.language_code_filter_combo.currentData()
+
+        include_deleted = False # Default for this dialog unless a checkbox is added
+        if hasattr(self, 'include_deleted_checkbox_master') and self.include_deleted_checkbox_master.isChecked():
+            include_deleted = True
 
         try:
-            products = db_manager.get_all_products(filters=filters)
-            products = products if products else []
+            # Use products_crud_instance with pagination (not yet fully implemented in UI here) and soft delete
+            # For now, limit/offset are not used in this specific dialog's load_products.
+            # Add them if pagination is added to ManageProductMasterDialog UI.
+            products = products_crud_instance.get_all_products(
+                filters=filters,
+                include_deleted=include_deleted
+                # limit=self.limit_per_page, # Add if UI supports pagination
+                # offset=self.current_offset  # Add if UI supports pagination
+            )
+            # products = products if products else [] # get_all_products returns list
 
             for row_idx, product_data in enumerate(products):
                 self.products_table.insertRow(row_idx)
@@ -2929,7 +2958,8 @@ class ManageProductMasterDialog(QDialog):
         self.selected_product_id = product_id_item.data(Qt.UserRole)
 
         try:
-            product_data = db_manager.get_product_by_id(self.selected_product_id)
+            # Use products_crud_instance, allow fetching soft-deleted for editing
+            product_data = products_crud_instance.get_product_by_id(self.selected_product_id, include_deleted=True)
             if product_data:
                 self.product_form_group.setDisabled(False)
                 self.name_input.setText(product_data.get('product_name', ''))
@@ -3000,11 +3030,11 @@ class ManageProductMasterDialog(QDialog):
 
         try:
             if self.selected_product_id is None: # Add mode
-                new_id = db_manager.add_product(product_data_dict)
-                if new_id:
+                add_result = products_crud_instance.add_product(product_data_dict)
+                if add_result['success']:
+                    new_id = add_result['id']
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit ajouté avec succès (ID: {0}).").format(new_id))
                     self.load_products() # Refresh list
-                    # Try to select the newly added product
                     for r in range(self.products_table.rowCount()):
                         if self.products_table.item(r, 0).data(Qt.UserRole) == new_id:
                             self.products_table.selectRow(r)
@@ -3012,20 +3042,19 @@ class ManageProductMasterDialog(QDialog):
                     if not self.products_table.selectedItems(): # Fallback if not found or selection failed
                          self._clear_form_and_disable_buttons()
                 else:
-                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le produit. Vérifiez les logs (doublon nom/langue?)."))
+                    QMessageBox.warning(self, self.tr("Échec"), add_result.get('error', self.tr("Impossible d'ajouter le produit.")))
             else: # Edit mode
-                success = db_manager.update_product(self.selected_product_id, product_data_dict)
-                if success:
+                update_result = products_crud_instance.update_product(self.selected_product_id, product_data_dict)
+                if update_result['success']:
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))
                     current_selected_row = self.products_table.currentRow()
                     self.load_products() # Refresh list
                     if current_selected_row >= 0 and current_selected_row < self.products_table.rowCount():
                          self.products_table.selectRow(current_selected_row) # Try to re-select
-                    if not self.products_table.selectedItems():
+                    if not self.products_table.selectedItems(): # If selection lost (e.g. due to sort/filter change on load)
                         self._clear_form_and_disable_buttons()
-
                 else:
-                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le produit."))
+                    QMessageBox.warning(self, self.tr("Échec"), update_result.get('error', self.tr("Impossible de mettre à jour le produit.")))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Une erreur est survenue: {0}").format(str(e)))
 
@@ -3233,7 +3262,8 @@ class ProductDimensionUIDialog(QDialog):
         """Loads existing dimensions from the database and populates the form fields."""
         print(f"INFO: ProductDimensionUIDialog.load_dimensions() called for product_id: {self.product_id}.")
         try:
-            dimension_data = db_manager.get_product_dimension(self.product_id)
+            # Use products_crud_instance, allow viewing dimensions of soft-deleted product if dialog is opened for it
+            dimension_data = products_crud_instance.get_product_dimension(self.product_id, include_deleted_product=True)
             if dimension_data:
                 for dim_ui_key, input_widget in self.dimension_inputs.items():
                     db_key = dim_ui_key.lower()
@@ -3369,15 +3399,15 @@ class ProductDimensionUIDialog(QDialog):
             return
 
         try:
-            success = db_manager.add_or_update_product_dimension(self.product_id, dimension_data_to_save)
-            if success:
+            # Use products_crud_instance
+            result = products_crud_instance.add_or_update_product_dimension(self.product_id, dimension_data_to_save)
+            if result['success']:
                 QMessageBox.information(self, self.tr("Succès"), self.tr("Dimensions du produit enregistrées avec succès."))
-                super().accept() # Call QDialog's accept to close the dialog
+                super().accept()
             else:
-                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'enregistrer les dimensions du produit. Vérifiez les logs."))
+                QMessageBox.warning(self, self.tr("Échec"), result.get('error', self.tr("Impossible d'enregistrer les dimensions.")))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de l'enregistrement des dimensions:\n{0}").format(str(e)))
-            # Do not call super().accept() on error, so dialog stays open
 
 
 class SelectUtilityAttachmentDialog(QDialog):

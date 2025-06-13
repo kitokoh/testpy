@@ -1727,6 +1727,9 @@ class ClientWidget(QWidget):
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
                     self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+
+                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+
             # This 'elif status_text:' should handle other statuses not 'Vendu'
             elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
                 # Ensure client_id_to_update and status_id_to_set are defined in this path
