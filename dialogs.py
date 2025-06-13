@@ -36,6 +36,7 @@ from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
+from main import get_notification_manager # Added for notifications
 
 # The global import from main is removed.
 
@@ -688,9 +689,16 @@ class TemplateDialog(QDialog):
         template_metadata={'template_name':name.strip(),'template_type':template_type_for_db,'language_code':lang,'base_file_name':base_file_name,'description':f"Modèle {name.strip()} en {lang} ({base_file_name})",'category_id':final_category_id,'is_default_for_type_lang':False}
         try:
             shutil.copy(file_path,target_path); new_template_id=db_manager.add_template(template_metadata)
-            if new_template_id:self.load_templates();QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle ajouté avec succès."))
-            else:QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur lors de l'enregistrement du modèle dans la base de données."))
-        except Exception as e:QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
+            if new_template_id:
+                self.load_templates()
+                # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle ajouté avec succès."))
+                get_notification_manager().show(title=self.tr("Modèle Ajouté"), message=self.tr("Modèle '{0}' ajouté avec succès.").format(name.strip()), type='SUCCESS')
+            else:
+                # QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur lors de l'enregistrement du modèle dans la base de données."))
+                get_notification_manager().show(title=self.tr("Erreur Ajout Modèle DB"), message=self.tr("Erreur DB lors de l'ajout du modèle '{0}'.").format(name.strip()), type='ERROR')
+        except Exception as e:
+            # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
+            get_notification_manager().show(title=self.tr("Erreur Ajout Modèle"), message=self.tr("Erreur lors de l'ajout du modèle '{0}' (fichier ou DB): {1}").format(name.strip(), str(e)), type='ERROR')
 
     def edit_template(self):
         current_item=self.template_list.currentItem()
@@ -715,9 +723,15 @@ class TemplateDialog(QDialog):
                 if file_info:
                     file_path_to_delete=os.path.join(self.config["templates_dir"],file_info['language'],file_info['file_name'])
                     if os.path.exists(file_path_to_delete):os.remove(file_path_to_delete)
-                    self.load_templates();QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle supprimé avec succès."))
-                else:QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle."))
-            except Exception as e:QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle:\n{0}").format(str(e)))
+                    self.load_templates()
+                    # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle supprimé avec succès."))
+                    get_notification_manager().show(title=self.tr("Modèle Supprimé"), message=self.tr("Modèle supprimé avec succès."), type='SUCCESS')
+                else:
+                    # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle."))
+                    get_notification_manager().show(title=self.tr("Erreur Suppression Modèle"), message=self.tr("Erreur de suppression du modèle."), type='ERROR')
+            except Exception as e:
+                # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle:\n{0}").format(str(e)))
+                get_notification_manager().show(title=self.tr("Erreur Suppression Modèle"), message=self.tr("Erreur de suppression du modèle: {0}").format(str(e)), type='ERROR')
 
     def set_default_template(self):
         current_item=self.template_list.currentItem()
@@ -726,9 +740,16 @@ class TemplateDialog(QDialog):
         if template_id is None:return
         try:
             success=db_manager.set_default_template_by_id(template_id)
-            if success:self.load_templates();QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle défini comme modèle par défaut."))
-            else:QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur de mise à jour du modèle."))
-        except Exception as e:QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de la définition du modèle par défaut:\n{0}").format(str(e)))
+            if success:
+                self.load_templates()
+                # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle défini comme modèle par défaut."))
+                get_notification_manager().show(title=self.tr("Modèle par Défaut Mis à Jour"), message=self.tr("Modèle défini comme modèle par défaut."), type='SUCCESS')
+            else:
+                # QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur de mise à jour du modèle."))
+                get_notification_manager().show(title=self.tr("Erreur Modèle par Défaut"), message=self.tr("Erreur de mise à jour du modèle par défaut."), type='ERROR')
+        except Exception as e:
+            # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de la définition du modèle par défaut:\n{0}").format(str(e)))
+            get_notification_manager().show(title=self.tr("Erreur Modèle par Défaut"), message=self.tr("Erreur lors de la définition du modèle par défaut: {0}").format(str(e)), type='ERROR')
 
 class ContactDialog(QDialog):
     def __init__(self, client_id=None, contact_data=None, parent=None):
@@ -891,9 +912,11 @@ class ContactDialog(QDialog):
                         update_link_data = {'is_primary_for_client': contact_details_to_save.get("is_primary_for_client", False)}
                         db_manager.update_client_contact_link(client_contact_id, update_link_data)
                     # Else: If no link exists, should we create one? Current behavior is no.
-                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
+                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
+                get_notification_manager().show(title=self.tr("Contact Mis à Jour"), message=self.tr("Les détails du contact ont été mis à jour."), type='SUCCESS')
             else:
-                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
+                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
+                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible de mettre à jour le contact."), type='ERROR')
                 return # Do not accept dialog if update failed
         else: # Adding new contact
             new_contact_id = db_manager.add_contact(contact_details_to_save)
@@ -916,13 +939,17 @@ class ContactDialog(QDialog):
                             {'is_primary_for_client': True}
                         )
                         print(f"Contact {new_contact_id} set as primary for client {self.client_id} as it's the only contact.")
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
+                    # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
+                    get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté et lié au client avec succès."), type='SUCCESS')
                 else:
-                     QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
+                     # QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
+                     get_notification_manager().show(title=self.tr("Erreur Liaison Contact"), message=self.tr("Contact ajouté mais échec de la liaison avec le client."), type='WARNING')
             elif new_contact_id:
-                QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
+                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
+                get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté avec succès (non lié à un client)."), type='SUCCESS')
             else:
-                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible d'ajouter le contact."), type='ERROR')
                 return # Do not accept dialog if add failed
         super().accept() # Proceed to close dialog
 
