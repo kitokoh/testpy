@@ -189,7 +189,7 @@ def get_distinct_purchase_confirmed_at_for_client(client_id: str) -> list[str] |
 
 
 if __name__ == '__main__':
-    from .ca import initialize_database # Function moved to db/ca.py
+    from db.init_schema import initialize_database # Corrected import
     initialize_database()
     print(f"Database '{DATABASE_NAME}' initialized successfully with all tables, including Products, ClientProjectProducts, and Contacts PK/FK updates.")
 

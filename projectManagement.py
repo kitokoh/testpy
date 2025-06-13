@@ -37,7 +37,7 @@ from db.cruds.clients_crud import get_all_clients
 from db.cruds.cover_pages_crud import get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id
 from db.cruds.cover_page_templates_crud import get_all_cover_page_templates, get_cover_page_template_by_id
 from db.cruds.milestones_crud import get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone
-from db.ca import initialize_database # For main block
+from db.init_schema import initialize_database # Corrected import path
 
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination

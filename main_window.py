@@ -10,7 +10,8 @@ from PyQt5.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QTextEdit, QSplitter
+    QTextEdit, QSplitter, QApplication # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
+
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
@@ -389,7 +390,8 @@ class DocumentManager(QMainWindow):
                     tab_widget_ref.refresh_display(client_data_to_show)
                 return
 
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, parent=self)
+        notification_manager = QApplication.instance().notification_manager
+        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
             

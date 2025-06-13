@@ -1,4 +1,4 @@
-import pywhatkit
+# import pywhatkit # Temporarily commented out for import testing
 import time
 import logging # Optional: for logging errors
 
@@ -32,29 +32,34 @@ class WhatsAppService:
         if not phone_number or not message:
             return False, "Phone number and message cannot be empty."
 
-        try:
-            # pywhatkit.sendwhatmsg_instantly sends the message "instantly".
-            # It requires WhatsApp Web to be open and logged in on the default browser.
-            # The user might need to scan a QR code if not already logged in.
-            # The wait_time here is the time the function waits for the message to be sent
-            # once WhatsApp Web is open and the chat is found.
-            pywhatkit.sendwhatmsg_instantly(
-                phone_no=phone_number,
-                message=message,
-                wait_time=wait_time,
-                tab_close=tab_close,
-                close_time=close_time
-            )
-            # sendwhatmsg_instantly doesn't have a direct success return value.
-            # If no exception is raised, it means the command was accepted by pywhatkit.
-            # Actual delivery depends on WhatsApp Web and network conditions.
-            return True, "Message sending process initiated. Check WhatsApp Web for status."
-        except Exception as e:
-            # Catching a generic exception as pywhatkit can raise various errors
-            # (e.g., pywhatkit.exceptions.CountryCodeException, selenium WebDriverException, network issues).
-            error_message = f"Error sending WhatsApp message: {str(e)}"
-            logging.error(error_message) # Log the error
-            return False, error_message
+        # --- Temporarily disabled for import testing ---
+        logging.warning("WhatsAppService.send_message is temporarily disabled due to pywhatkit being commented out for import testing.")
+        return False, "WhatsApp functionality is temporarily disabled."
+        # --- Original code below ---
+
+        # try:
+        #     # pywhatkit.sendwhatmsg_instantly sends the message "instantly".
+        #     # It requires WhatsApp Web to be open and logged in on the default browser.
+        #     # The user might need to scan a QR code if not already logged in.
+        #     # The wait_time here is the time the function waits for the message to be sent
+        #     # once WhatsApp Web is open and the chat is found.
+        #     pywhatkit.sendwhatmsg_instantly(
+        #         phone_no=phone_number,
+        #         message=message,
+        #         wait_time=wait_time,
+        #         tab_close=tab_close,
+        #         close_time=close_time
+        #     )
+        #     # sendwhatmsg_instantly doesn't have a direct success return value.
+        #     # If no exception is raised, it means the command was accepted by pywhatkit.
+        #     # Actual delivery depends on WhatsApp Web and network conditions.
+        #     return True, "Message sending process initiated. Check WhatsApp Web for status."
+        # except Exception as e:
+        #     # Catching a generic exception as pywhatkit can raise various errors
+        #     # (e.g., pywhatkit.exceptions.CountryCodeException, selenium WebDriverException, network issues).
+        #     error_message = f"Error sending WhatsApp message: {str(e)}"
+        #     logging.error(error_message) # Log the error
+        #     return False, error_message
 
 if __name__ == '__main__':
     # Example Usage (for testing this module directly)
