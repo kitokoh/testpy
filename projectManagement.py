@@ -24,20 +24,23 @@ from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
 
-# Import necessary functions directly from their new CRUD module locations
-from db.cruds.status_settings_crud import get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name
-from db.cruds.projects_crud import get_all_projects, get_project_by_id, add_project, update_project, delete_project
-from db.cruds.tasks_crud import (get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
-                                 get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency)
-from db.cruds.kpis_crud import get_kpis_for_project # add_kpi_to_project, update_kpi, delete_kpi (if needed later)
-from db.cruds.activity_logs_crud import add_activity_log, get_activity_logs
-from db.cruds.users_crud import get_user_by_id, get_all_users, update_user, verify_user_password
-from db.cruds.team_members_crud import get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member
-from db.cruds.clients_crud import get_all_clients
-from db.cruds.cover_pages_crud import get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id
-from db.cruds.cover_page_templates_crud import get_all_cover_page_templates, get_cover_page_template_by_id
-from db.cruds.milestones_crud import get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone
-from db.init_schema import initialize_database # Corrected import path
+# Import necessary functions from the db facade
+from db import (
+    get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name,
+    get_all_projects, get_project_by_id, add_project, update_project, delete_project,
+    get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
+    get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency,
+    get_tasks_by_project_id_ordered_by_sequence, # Added this function
+    get_kpis_for_project,
+    add_activity_log, get_activity_logs,
+    get_user_by_id, get_all_users, update_user, verify_user_password,
+    get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member,
+    get_all_clients,
+    get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id,
+    get_all_cover_page_templates, get_cover_page_template_by_id,
+    get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone,
+    initialize_database
+)
 
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
