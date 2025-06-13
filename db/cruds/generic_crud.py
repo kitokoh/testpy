@@ -8,7 +8,7 @@ import logging
 
 # Configuration and Utilities
 try:
-    from .. import db_config # Assumes db_config.py is in /app
+    from ... import db_config # Assumes db_config.py is in /app
     # Corrected import for utils.py, it's in db/, generic_crud.py is in db/cruds/
     # So, to get to db/utils.py from db/cruds/generic_crud.py, it's one level up.
     from ..utils import get_db_connection

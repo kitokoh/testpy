@@ -181,11 +181,9 @@ from .cruds.projects_crud import (
 from .cruds.tasks_crud import (
     add_task,
     get_task_by_id,
-    get_tasks_by_project_id,
+    get_tasks_for_project,
     update_task,
     delete_task,
-    get_all_tasks,
-    get_tasks_by_assignee_id,
 )
 
 # KPIs (often linked to projects or other entities)
@@ -400,7 +398,7 @@ __all__ = [
     # Projects
     "add_project", "get_project_by_id", "get_projects_for_client", "update_project", "delete_project",
     # Tasks
-    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_all_tasks", "get_tasks_by_assignee_id",
+    "add_task", "get_task_by_id", "get_tasks_for_project", "update_task", "delete_task",
     # KPIs
     "add_kpi", "get_kpi_by_id", "get_kpis_for_project", "update_kpi", "delete_kpi",
     # Status Settings
