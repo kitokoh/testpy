@@ -200,6 +200,9 @@ def get_total_products_count(conn: sqlite3.Connection = None) -> int:
         logging.error(f"Error getting total products count: {e}")
         return 0
 
+# Alias for backward compatibility or common misnaming
+get_all_products_for_selection = get_all_products_for_selection_filtered
+
 # --- ProductDimensions CRUD ---
 @_manage_conn
 def add_or_update_product_dimension(product_id: int, dimension_data: dict, conn: sqlite3.Connection = None) -> bool:

@@ -54,7 +54,7 @@ from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
 from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
-from main import get_notification_manager # For notifications
+# from main import get_notification_manager # REMOVING THIS LINE (if present)
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -336,6 +336,7 @@ class DocumentManager(QMainWindow):
             icon_path (str, optional): Path to a custom icon. If None, a default icon based
                                        on the 'type' will be used. Defaults to None.
         """
+        from main import get_notification_manager # Local import
         manager = get_notification_manager()
         if manager:
             manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
