@@ -5,7 +5,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
-import db # For database operations
+# import db # For database operations - No longer needed for user registration
+from db.cruds.users_crud import users_crud_instance # Import the UsersCRUD instance
 import random # For promo text, though might share LoginWindow's list
 from .login_window import LoginWindow # To access PROMOTIONAL_TEXTS
 
@@ -158,11 +159,12 @@ class RegistrationWindow(QDialog):
             QMessageBox.warning(self, "Input Error", "Passwords do not match.")
             return
 
-        if db.get_user_by_username(username):
+        # Use users_crud_instance for checks
+        if users_crud_instance.get_user_by_username(username): # Pass conn=None, decorator handles it
             QMessageBox.warning(self, "Input Error", "Username already exists.")
             return
 
-        if db.get_user_by_email(email):
+        if users_crud_instance.get_user_by_email(email): # Pass conn=None
             QMessageBox.warning(self, "Input Error", "Email already registered.")
             return
 
@@ -170,18 +172,21 @@ class RegistrationWindow(QDialog):
         user_data = {
             'username': username,
             'email': email,
-            'password': password, # The db.add_user function is expected to hash this
+            'password': password, # add_user in UsersCRUD will handle hashing and salting
             'role': 'member',  # Default role
-            'full_name': username # Or prompt for full name separately
+            'full_name': username # Or prompt for full name separately; consider adding a field for it
         }
 
-        user_id = db.add_user(user_data)
+        # Use users_crud_instance to add user
+        reg_result = users_crud_instance.add_user(user_data) # Pass conn=None
 
-        if user_id:
+        if reg_result['success']:
             QMessageBox.information(self, "Success", "Registration successful! You can now log in.")
             self.accept()  # Close the registration dialog
         else:
-            QMessageBox.critical(self, "Error", "Registration failed. Please try again or contact support if the problem persists.")
+            # Display specific error from add_user (e.g., password too short, db error)
+            error_message = reg_result.get('error', "Registration failed. Please try again or contact support.")
+            QMessageBox.critical(self, "Error", error_message)
 
     def go_to_login(self):
         self.accept() # Close the dialog, LoginWindow will re-show itself.
@@ -190,28 +195,28 @@ if __name__ == '__main__':
     # This is for testing the RegistrationWindow independently
     # Similar to LoginWindow, direct execution might need PYTHONPATH adjustments
     # or running as a module from the project root.
-    try:
-        import db
-        db.initialize_database() # Ensure DB and tables are created for the test
-        print("db.py found and imported for test. Database initialized.")
-    except ImportError:
-        print("Failed to import db.py directly. Ensure PYTHONPATH is set or run as a module from root.")
+    # try:
+    #     import db # db is no longer directly used for user operations here
+    #     db.initialize_database() # Ensure DB and tables are created for the test
+    #     print("db.py found and imported for test. Database initialized.")
+    # except ImportError:
+    #     print("Failed to import db.py directly. Ensure PYTHONPATH is set or run as a module from root.")
         # Fallback to mocks for UI testing if db is not found or initialization fails
-        class MockDB:
-            def get_user_by_username(self, username): return None
-            def get_user_by_email(self, email): return None
-            def add_user(self, user_data): return "mock_user_id_123"
-        db = MockDB()
-        print("Using MockDB for RegistrationWindow test.")
-    except Exception as e_init:
-        print(f"Error initializing database for test: {e_init}")
+        # class MockUsersCRUD: # Mock the instance behavior
+        #     def get_user_by_username(self, username, conn=None): return None
+        #     def get_user_by_email(self, email, conn=None): return None
+        #     def add_user(self, user_data, conn=None): return {'success': True, 'id': "mock_user_id_123"}
+        # users_crud_instance = MockUsersCRUD() # Replace actual instance with mock for standalone test
+        # print("Using MockUsersCRUD for RegistrationWindow test.")
+    # except Exception as e_init:
+    #     print(f"Error initializing database for test: {e_init}")
         # Fallback to mocks as well
-        class MockDB:
-            def get_user_by_username(self, username): return None
-            def get_user_by_email(self, email): return None
-            def add_user(self, user_data): return "mock_user_id_123"
-        db = MockDB()
-        print("Using MockDB due to DB initialization error for RegistrationWindow test.")
+        # class MockUsersCRUD:
+        #     def get_user_by_username(self, username, conn=None): return None
+        #     def get_user_by_email(self, email, conn=None): return None
+        #     def add_user(self, user_data, conn=None): return {'success': True, 'id': "mock_user_id_123"}
+        # users_crud_instance = MockUsersCRUD()
+        # print("Using MockUsersCRUD due to DB initialization error for RegistrationWindow test.")
 
 
     app = QApplication(sys.argv)

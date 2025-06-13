@@ -5,7 +5,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, QSettings
-import db # Import the db.py from the root directory
+# import db # Import the db.py from the root directory - No longer needed for user auth
+from db.cruds.users_crud import users_crud_instance # Import the UsersCRUD instance
 import uuid
 import logging # Added for logging
 import random # Added for promotional text
@@ -161,12 +162,13 @@ class LoginWindow(QDialog):
         username = self.username_input.text().strip()
         password = self.password_input.text()
 
-        user = db.verify_user_password(username, password)
+        # Use the new users_crud_instance for verification
+        user_verification_result = users_crud_instance.verify_user_password(username=username, password=password)
 
-        if user:
-            self.current_user = user
+        if user_verification_result:
+            self.current_user = user_verification_result # verify_user_password returns the user dict
             self.session_token = uuid.uuid4().hex
-            logging.info(f"Login successful for user: {username}, Token: {self.session_token}") # Use logging
+            logging.info(f"Login successful for user: {username}, Token: {self.session_token}")
 
             settings = QSettings()
             if self.remember_me_checkbox.isChecked():
@@ -230,18 +232,18 @@ if __name__ == '__main__':
     # or run as a module: python -m auth.login_window
 
     # A simple way to test if db can be imported if this script is run directly:
-    try:
-        import db
-        print("db.py found and imported for test.")
-    except ImportError:
-        print("Failed to import db.py directly. Ensure PYTHONPATH is set or run as a module from root.")
+    # try:
+    #     import db # db.py is no longer directly used for user auth here
+    #     print("db.py found and imported for test.")
+    # except ImportError:
+    #     print("Failed to import db.py directly. Ensure PYTHONPATH is set or run as a module from root.")
         # Fallback to a mock for direct execution if db is not found
-        class PlaceholderDB:
-            def verify_user_password(self, username, password):
-                print(f"Placeholder verify_user_password called with {username}, {password}")
-                if username == "test" and password == "password": return {"username": "test"}
-                return None
-        db = PlaceholderDB()
+        # class PlaceholderDB: # No longer needed as we import users_crud_instance
+        #     def verify_user_password(self, username, password):
+        #         print(f"Placeholder verify_user_password called with {username}, {password}")
+        #         if username == "test" and password == "password": return {"username": "test"}
+        #         return None
+        # db = PlaceholderDB()
 
 
     app = QApplication(sys.argv)

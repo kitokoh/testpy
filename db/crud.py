@@ -265,7 +265,7 @@ imported_function_names = [
     'get_all_clients_with_details', 'get_active_clients_count',
     'get_client_counts_by_country', 'get_client_segmentation_by_city',
     'get_client_segmentation_by_status', 'get_client_segmentation_by_category',
-    'get_clients_by_archival_status', 'add_client_note', 'get_client_notes',
+    'get_clients_by_archival_status',
     # Products & related
     'add_product', 'get_product_by_id', 'get_product_by_name', 'get_all_products',
     'update_product', 'delete_product', 'get_products', 'update_product_price',
