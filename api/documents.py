@@ -9,6 +9,7 @@ import db as db_manager
 from html_to_pdf_util import render_html_template, convert_html_to_pdf, WeasyPrintError
 from .models import DocumentGenerationRequest, DocumentGenerationResponse, UserInDB # UserInDB for type hint
 from .auth import get_current_active_user
+from .dependencies import PermissionRequired
 
 router = APIRouter(
     prefix="/api/documents",
@@ -80,7 +81,7 @@ def _save_generated_pdf(client_id: str, project_id: Optional[str], file_name: st
         return None
 
 @router.post("/generate", response_model=DocumentGenerationResponse)
-async def generate_document_api(request: DocumentGenerationRequest = Body(...), current_user: UserInDB = Depends(get_current_active_user)):
+async def generate_document_api(request: DocumentGenerationRequest = Body(...), current_user: UserInDB = Depends(PermissionRequired("edit_documents"))):
     """
     Generates a new document based on a template and client data.
 
@@ -247,8 +248,9 @@ async def generate_document_api(request: DocumentGenerationRequest = Body(...), 
             'file_path_relative': relative_file_path, # Path relative to client's base folder
             'document_type_generated': template_data.get('template_type', 'generic_pdf'),
             'source_template_id': request.template_id,
-            # 'created_by_user_id': # TODO: Get from authenticated user
+            'user_id': current_user.user_id, # Renamed from created_by_user_id to match stub
         }
+        # The add_client_document stub expects 'user_id' in the data dict.
         db_document_id = db_manager.add_client_document(doc_metadata)
         if not db_document_id:
             # Attempt to clean up saved PDF if DB entry fails
@@ -284,7 +286,7 @@ async def generate_document_api(request: DocumentGenerationRequest = Body(...), 
 
 
 @router.get("/{document_id}/download", response_class=FileResponse)
-async def download_document_api(document_id: str, current_user: UserInDB = Depends(get_current_active_user)):
+async def download_document_api(document_id: str, current_user: UserInDB = Depends(PermissionRequired("view_documents"))):
     """
     Downloads a previously generated document by its ID.
 
