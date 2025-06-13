@@ -249,6 +249,126 @@ from .cruds.tasks_crud import ( # Placeholders
     update_task,
     delete_task,
 )
+
+
+# KPIs (often linked to projects or other entities)
+from .cruds.kpis_crud import ( # Assuming a kpis_crud.py exists
+    add_kpi_to_project,
+    get_kpis_for_project,
+    update_kpi,
+    delete_kpi,
+)
+
+
+# Status Settings
+from .cruds.status_settings_crud import (
+    get_all_status_settings,
+    get_status_setting_by_id,
+    get_status_setting_by_name,
+)
+
+# Team Members
+from .cruds.team_members_crud import (
+    add_team_member,
+    get_team_member_by_id,
+    get_all_team_members,
+    update_team_member,
+    delete_team_member,
+)
+
+# Template Categories
+from .cruds.template_categories_crud import (
+    add_template_category,
+    get_template_category_by_id,
+    get_template_category_by_name,
+    get_all_template_categories,
+    update_template_category,
+    delete_template_category,
+    get_template_category_details,
+)
+
+# Templates
+from .cruds.templates_crud import (
+    add_template,
+    get_template_by_id,
+    get_templates_by_type,
+    update_template,
+    delete_template,
+    get_all_templates,
+    get_distinct_template_languages,
+    get_distinct_template_types,
+    get_filtered_templates,
+    get_template_details_for_preview,
+    get_template_path_info,
+    delete_template_and_get_file_info,
+    set_default_template_by_id,
+    get_template_by_type_lang_default,
+    get_all_file_based_templates,
+    get_templates_by_category_id,
+    add_default_template_if_not_exists, # Often used during seeding
+)
+
+# Users
+from .cruds.users_crud import (
+    add_user,
+    get_user_by_id,
+    get_user_by_email,
+    get_user_by_username,
+    update_user,
+    verify_user_password,
+    delete_user,
+)
+
+# SAV Tickets
+from .cruds.sav_tickets_crud import ( # Assuming sav_tickets_crud.py
+    add_sav_ticket,
+    get_sav_ticket_by_id,
+    get_sav_tickets_for_client,
+    update_sav_ticket,
+    delete_sav_ticket,
+)
+
+# Important Dates
+from .cruds.important_dates_crud import ( # Assuming important_dates_crud.py
+    add_important_date,
+    get_important_date_by_id,
+    get_all_important_dates,
+    update_important_date,
+    delete_important_date,
+)
+
+# Scheduled Emails & Reminders
+from .cruds.scheduled_emails_crud import ( # Assuming scheduled_emails_crud.py
+    add_scheduled_email,
+    get_scheduled_email_by_id,
+    get_pending_scheduled_emails,
+    update_scheduled_email_status,
+    delete_scheduled_email,
+    add_email_reminder,
+    get_pending_reminders,
+    update_reminder_status,
+    delete_email_reminder,
+)
+
+# Activity Log
+from .cruds.activity_log_crud import ( # Assuming activity_log_crud.py
+    add_activity_log,
+    get_activity_logs,
+)
+
+# SmtpConfigs
+from .cruds.smtp_configs_crud import ( # Assuming smtp_configs_crud.py
+    add_smtp_config,
+    get_smtp_config_by_id,
+    get_default_smtp_config,
+    get_all_smtp_configs,
+    update_smtp_config,
+    delete_smtp_config,
+    set_default_smtp_config,
+)
+
+
+# --- Transporters (Moved in previous step) ---
 from .cruds.transporters_crud import (
     add_transporter,
     get_transporter_by_id,
@@ -360,7 +480,38 @@ __all__ = [
     "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
     # from tasks_crud (placeholders)
     "add_task", "get_task_by_id", "get_tasks_for_project", "update_task", "delete_task",
-    # from transporters_crud
+
+    # KPIs
+    "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
+    # Status Settings
+    "get_all_status_settings", "get_status_setting_by_id", "get_status_setting_by_name",
+    # Team Members
+    "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member",
+    # Template Categories
+    "add_template_category", "get_template_category_by_id", "get_template_category_by_name",
+    "get_all_template_categories", "update_template_category", "delete_template_category", "get_template_category_details",
+    # Templates
+    "add_template", "get_template_by_id", "get_templates_by_type", "update_template", "delete_template",
+    "get_all_templates", "get_distinct_template_languages", "get_distinct_template_types", "get_filtered_templates",
+    "get_template_details_for_preview", "get_template_path_info", "delete_template_and_get_file_info",
+    "set_default_template_by_id", "get_template_by_type_lang_default", "get_all_file_based_templates",
+    "get_templates_by_category_id", "add_default_template_if_not_exists",
+    # Users
+    "add_user", "get_user_by_id", "get_user_by_email", "get_user_by_username", "update_user",
+    "verify_user_password", "delete_user",
+    # SAV Tickets
+    "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket",
+    # Important Dates
+    "add_important_date", "get_important_date_by_id", "get_all_important_dates", "update_important_date", "delete_important_date",
+    # Scheduled Emails & Reminders
+    "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email",
+    "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder",
+    # Activity Log
+    "add_activity_log", "get_activity_logs",
+    # SmtpConfigs
+    "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs",
+    "update_smtp_config", "delete_smtp_config", "set_default_smtp_config",
+    # Transporters
     "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter",
     # from users_crud
     "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user",

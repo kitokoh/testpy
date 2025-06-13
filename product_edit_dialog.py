@@ -1,9 +1,11 @@
 # product_edit_dialog.py
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QTextEdit,
-    QPushButton, QCheckBox, QListWidget, QListWidgetItem, QMessageBox, QFileDialog
+    QPushButton, QCheckBox, QListWidget, QListWidgetItem, QMessageBox, QFileDialog,
+    QInputDialog # Add QInputDialog
 )
-from PyQt5.QtCore import Qt, QSize # Import QSize
+from PyQt5.QtCore import Qt, QSize
+
 from PyQt5.QtGui import QPixmap, QIcon
 
 # Assuming db.cruds is accessible. Adjust import path if necessary.
@@ -66,12 +68,22 @@ class ProductEditDialog(QDialog):
         self.add_image_button = QPushButton(self.tr("Add Image..."))
         self.add_image_button.clicked.connect(self._add_image)
         self.remove_image_button = QPushButton(self.tr("Remove Selected Image"))
-        # self.remove_image_button.clicked.connect(self._remove_image) # For later
+        self.remove_image_button.clicked.connect(self._remove_image)
         self.edit_image_button = QPushButton(self.tr("Edit Image Details..."))
-        # self.edit_image_button.clicked.connect(self._edit_image_details) # For later
+        self.edit_image_button.clicked.connect(self._edit_image_details)
+
+        self.move_image_up_button = QPushButton(self.tr("Move Up"))
+        self.move_image_up_button.clicked.connect(self._move_image_up)
+        self.move_image_down_button = QPushButton(self.tr("Move Down"))
+        self.move_image_down_button.clicked.connect(self._move_image_down)
+
         image_buttons_layout.addWidget(self.add_image_button)
         image_buttons_layout.addWidget(self.remove_image_button)
         image_buttons_layout.addWidget(self.edit_image_button)
+        image_buttons_layout.addSpacing(20) # Add some space before move buttons
+        image_buttons_layout.addWidget(self.move_image_up_button)
+        image_buttons_layout.addWidget(self.move_image_down_button)
+
         image_buttons_layout.addStretch()
         main_layout.addLayout(image_buttons_layout)
 
@@ -166,6 +178,114 @@ class ProductEditDialog(QDialog):
             self.image_gallery_list.addItem(list_item)
 
     def _save_changes(self):
+        # --- Gather data from UI fields ---
+        try:
+            product_name = self.name_edit.text().strip()
+            if not product_name:
+                QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Product name cannot be empty."))
+                return
+
+            description = self.description_edit.toPlainText().strip()
+            category = self.category_edit.text().strip()
+            language_code = self.language_code_edit.text().strip()
+
+            base_unit_price_str = self.price_edit.text().strip()
+            base_unit_price = None
+            if base_unit_price_str:
+                try:
+                    base_unit_price = float(base_unit_price_str)
+                    if base_unit_price < 0:
+                        QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Base unit price cannot be negative."))
+                        return
+                except ValueError:
+                    QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Invalid base unit price format."))
+                    return
+
+            unit_of_measure = self.unit_edit.text().strip()
+
+            weight_str = self.weight_edit.text().strip()
+            weight = None
+            if weight_str:
+                try:
+                    weight = float(weight_str)
+                    if weight < 0:
+                         QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Weight cannot be negative."))
+                         return
+                except ValueError:
+                    QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Invalid weight format."))
+                    return
+
+            dimensions = self.dimensions_edit.text().strip()
+            is_active = self.is_active_check.isChecked()
+
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error Reading Input"), self.tr(f"An error occurred while reading product data: {e}"))
+            return
+
+        updated_product_data = {
+            'product_name': product_name,
+            'description': description,
+            'category': category,
+            'language_code': language_code,
+            'base_unit_price': base_unit_price,
+            'unit_of_measure': unit_of_measure,
+            'weight': weight,
+            'dimensions': dimensions,
+            'is_active': is_active
+        }
+
+        # Remove keys with None values if the CRUD update function handles partial updates
+        # based on key presence rather than None values, or if None means "set to NULL".
+        # products_crud.update_product is designed to only update fields present in the data dict.
+        # However, explicit None might try to set DB to NULL.
+        # For safety, let's filter out Nones if the intent is "no change" for that field.
+        # But if the field was cleared in UI, None *should* be passed to clear it in DB.
+        # The current products_crud.update_product builds SET clauses for keys present in `data`.
+        # So, if a field is cleared in UI and results in None, and we want to set it to NULL in DB,
+        # it should be included. If it means "no change", it should be excluded.
+        # For this implementation, we'll pass the data as is.
+        # If a field is optional in DB and user clears it, it should become NULL.
+
+        if self.product_id is not None: # Editing existing product
+            try:
+                success = products_crud.update_product(product_id=self.product_id, data=updated_product_data)
+                if success:
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Product details saved successfully."))
+                    self.accept() # Close the dialog
+                else:
+                    # Check if product still exists, maybe it was deleted by another user?
+                    check_prod = products_crud.get_product_by_id(self.product_id)
+                    if not check_prod:
+                         QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to save product details. The product may have been deleted."))
+                    else:
+                         QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to save product details. Please check data and try again."))
+            except Exception as e:
+                print(f"Error updating product {self.product_id}: {e}")
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred while saving: {e}"))
+        else:
+            # This is "Add New Product" mode.
+            # The current dialog is designed for editing an existing product_id.
+            # To support "Add New", the dialog would need to be opened with product_id=None.
+            # And then, after adding, self.product_id should be set to the new ID.
+            # Image management buttons would typically be disabled until product is first saved.
+            try:
+                new_id = products_crud.add_product(product_data=updated_product_data)
+                if new_id:
+                    self.product_id = new_id # Store the new ID
+                    self.setWindowTitle(self.tr("Edit Product") + f" (ID: {new_id})") # Update title
+                    QMessageBox.information(self, self.tr("Success"),
+                                            self.tr(f"Product '{product_name}' added successfully with ID {new_id}. You can now add images."))
+                    # Dialog remains open, image buttons would now be enabled if they depend on self.product_id
+                    self.load_product_data() # Reload to ensure consistency and enable image ops if any
+                    # Or self.accept() if we want to close after adding.
+                    # For now, let's assume we want to keep it open to add images.
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add new product."))
+            except Exception as e:
+                print(f"Error adding new product: {e}")
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred while adding product: {e}"))
+
+
         # Placeholder for now. Actual save logic will update product and media links.
         updated_data = {
             'product_name': self.name_edit.text(),
@@ -281,8 +401,153 @@ class ProductEditDialog(QDialog):
             if successful_uploads > 0:
                 self.load_product_data() # Reload to refresh gallery and media_links list
 
-    # def _remove_image(self): print("Remove image clicked")
-    # def _edit_image_details(self): print("Edit image details clicked")
+    def _remove_image(self):
+        selected_item = self.image_gallery_list.currentItem()
+        if not selected_item:
+            QMessageBox.warning(self, self.tr("No Image Selected"),
+                                self.tr("Please select an image from the gallery to remove."))
+            return
+
+        link_data = selected_item.data(Qt.UserRole)
+        if not link_data or 'link_id' not in link_data:
+            QMessageBox.critical(self, self.tr("Error"),
+                                 self.tr("Could not retrieve image link details for selected item."))
+            return
+
+        link_id = link_data['link_id']
+        image_title = link_data.get('media_title', os.path.basename(link_data.get('media_filepath', 'this image')))
+
+        reply = QMessageBox.question(self, self.tr("Confirm Removal"),
+                                     self.tr(f"Are you sure you want to remove the link to '{image_title}' from this product?\n(The image will remain in the media library.)"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            try:
+                success = product_media_links_crud.unlink_media_from_product(link_id=link_id)
+                if success:
+                    QMessageBox.information(self, self.tr("Image Unlinked"),
+                                            self.tr(f"The image '{image_title}' has been successfully unlinked from this product."))
+                    # Refresh product data and gallery
+                    self.load_product_data()
+                else:
+                    QMessageBox.critical(self, self.tr("Unlink Failed"),
+                                         self.tr(f"Could not unlink the image '{image_title}'. It might have already been removed or an error occurred."))
+            except Exception as e:
+                print(f"Error during image unlinking: {e}")
+                QMessageBox.critical(self, self.tr("Error"),
+                                     self.tr(f"An unexpected error occurred while unlinking the image: {e}"))
+
+    def _edit_image_details(self):
+        selected_item = self.image_gallery_list.currentItem()
+        if not selected_item:
+            QMessageBox.warning(self, self.tr("No Image Selected"),
+                                self.tr("Please select an image from the gallery to edit its details."))
+            return
+
+        link_data = selected_item.data(Qt.UserRole)
+        if not link_data or 'link_id' not in link_data:
+            QMessageBox.critical(self, self.tr("Error"),
+                                 self.tr("Could not retrieve image link details for the selected item."))
+            return
+
+        link_id = link_data['link_id']
+        current_alt_text = link_data.get('alt_text', '') # Default to empty string if None
+        image_title = link_data.get('media_title', os.path.basename(link_data.get('media_filepath', 'Selected Image')))
+
+        new_alt_text, ok = QInputDialog.getText(self,
+                                                self.tr("Edit Alt Text"),
+                                                self.tr(f"Alt text for '{image_title}':"),
+                                                QLineEdit.Normal,
+                                                current_alt_text)
+
+        if ok: # User clicked OK
+            if new_alt_text != current_alt_text:
+                try:
+                    success = product_media_links_crud.update_media_link(
+                        link_id=link_id,
+                        alt_text=new_alt_text
+                        # display_order is not changed here, so pass None or omit
+                    )
+                    if success:
+                        QMessageBox.information(self, self.tr("Alt Text Updated"),
+                                                self.tr(f"Alt text for '{image_title}' has been updated."))
+                        # Refresh product data and gallery to reflect change (e.g., in tooltip)
+                        self.load_product_data()
+                    else:
+                        QMessageBox.critical(self, self.tr("Update Failed"),
+                                             self.tr("Could not update the alt text for the image."))
+                except Exception as e:
+                    print(f"Error updating alt text: {e}")
+                    QMessageBox.critical(self, self.tr("Error"),
+                                         self.tr(f"An unexpected error occurred while updating alt text: {e}"))
+            # else: No change in alt text, do nothing.
+
+    def _move_image_up(self):
+        current_row = self.image_gallery_list.currentRow()
+        if current_row > 0: # Can move up if not the first item
+            current_item = self.image_gallery_list.takeItem(current_row)
+            self.image_gallery_list.insertItem(current_row - 1, current_item)
+            self.image_gallery_list.setCurrentRow(current_row - 1) # Keep selection on moved item
+            self._save_current_image_order()
+
+    def _move_image_down(self):
+        current_row = self.image_gallery_list.currentRow()
+        # Check if it's not the last item
+        if current_row >= 0 and current_row < self.image_gallery_list.count() - 1:
+            current_item = self.image_gallery_list.takeItem(current_row)
+            self.image_gallery_list.insertItem(current_row + 1, current_item)
+            self.image_gallery_list.setCurrentRow(current_row + 1) # Keep selection on moved item
+            self._save_current_image_order()
+
+    def _save_current_image_order(self):
+        if self.product_id is None:
+            # Should not happen if buttons are enabled only for existing product
+            return
+
+        ordered_media_item_ids = []
+        for i in range(self.image_gallery_list.count()):
+            item = self.image_gallery_list.item(i)
+            if item: # Should always be true in this loop
+                link_data = item.data(Qt.UserRole)
+                if link_data and 'media_item_id' in link_data:
+                    ordered_media_item_ids.append(link_data['media_item_id'])
+                else:
+                    # This case indicates an item in the list without proper data.
+                    # This might happen if the "No images" placeholder item is not cleared correctly
+                    # or if an item failed to load its data.
+                    # For robustness, one might skip or log this.
+                    print(f"Warning: Item at index {i} in gallery list has missing or invalid link_data.")
+
+
+        if not ordered_media_item_ids and self.image_gallery_list.count() > 0:
+            # If count > 0 but list is empty, it means all items had bad data.
+            # This could happen if the "No images linked" placeholder was not handled correctly when items are added.
+            # However, _populate_image_gallery clears and adds "No images..." if self.media_links is empty.
+            # If self.media_links is populated, it adds actual items.
+            # This path should ideally not be hit if _populate_image_gallery is correct.
+             pass # No valid media IDs to save order for.
+
+        try:
+            success = product_media_links_crud.update_product_media_display_orders(
+                product_id=self.product_id,
+                ordered_media_item_ids=ordered_media_item_ids
+            )
+            if success:
+                # Optionally, provide subtle feedback or simply rely on visual order.
+                # For robustness, reload data to ensure self.media_links and tooltips
+                # (if they show display_order from link_data) are updated.
+                print("Image order saved successfully.")
+                self.load_product_data() # Reload to refresh all data based on new order
+            else:
+                QMessageBox.critical(self, self.tr("Reorder Failed"),
+                                     self.tr("Could not save the new image order to the database."))
+                # Potentially revert visual changes or reload to be safe, though load_product_data will fix it.
+        except Exception as e:
+            print(f"Error saving image order: {e}")
+            QMessageBox.critical(self, self.tr("Error"),
+                                 self.tr(f"An unexpected error occurred while saving image order: {e}"))
+            # self.load_product_data() # Revert to last known good state from DB
+
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication

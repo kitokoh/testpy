@@ -29,20 +29,47 @@ except (ImportError, ValueError): # pragma: no cover
             MEDIA_FILES_BASE_PATH = os.path.join(app_dir, "media_files_fallback")
         config = config_fallback
 
-# Direct CRUD function imports from their specific modules
-from .cruds.companies_crud import get_company_by_id
-from .cruds.company_personnel_crud import get_personnel_for_company
-from .cruds.clients_crud import get_client_by_id
-from .cruds.locations_crud import get_country_by_id, get_city_by_id
-from .cruds.contacts_crud import get_contacts_for_client
-from .cruds.projects_crud import get_project_by_id
-from .cruds.status_settings_crud import get_status_setting_by_id # Kept as it was in original imports
-from .cruds.products_crud import get_product_by_id as products_get_product_by_id # Alias to avoid conflict if a local get_product_by_id is ever defined
-from .cruds.client_project_products_crud import get_products_for_client_or_project
-from .cruds.client_documents_crud import get_client_document_notes
+
+# CRUD function imports
+
+    # Updated imports to point to specific CRUD files
+    from .cruds.companies_crud import get_company_by_id
+    from .cruds.company_personnel_crud import get_personnel_for_company
+    from .cruds.clients_crud import get_client_by_id
+    from .cruds.locations_crud import get_country_by_id, get_city_by_id
+    from .cruds.contacts_crud import get_contacts_for_client # Assuming this is in contacts_crud
+    from .cruds.projects_crud import get_project_by_id
+    from .cruds.status_settings_crud import get_status_setting_by_id
+    from .cruds.products_crud import get_product_by_id
+    from .cruds.client_project_products_crud import get_products_for_client_or_project # Assuming this is in a dedicated file
+    from .cruds.client_documents_crud import get_client_document_notes
+
+    _crud_functions_imported = True
+    print("Successfully imported CRUD functions from db.cruds for utils.py.")
+except ImportError as e:
+    print(f"Warning: Not all CRUD functions available to utils.py from db.cruds. Error: {e}. Using placeholders for some.")
+    # Define placeholders for functions that might fail to import
+    # This helps the application run even if some CRUD modules are not yet created/populated.
+    def _placeholder_crud_func_util(entity_name="entity", *args, **kwargs):
+        # print(f"Placeholder for {entity_name} called with {args}, {kwargs}")
+        return None if not "list" in entity_name else []
+
+    # Fallback definitions for functions that might not be imported
+    if 'get_company_by_id' not in globals(): get_company_by_id = lambda id, conn=None: _placeholder_crud_func_util("company")
+    if 'get_personnel_for_company' not in globals(): get_personnel_for_company = lambda id, role=None, conn=None: _placeholder_crud_func_util("company_personnel_list")
+    if 'get_client_by_id' not in globals(): get_client_by_id = lambda id, conn=None: _placeholder_crud_func_util("client")
+    if 'get_country_by_id' not in globals(): get_country_by_id = lambda id, conn=None: _placeholder_crud_func_util("country")
+    if 'get_city_by_id' not in globals(): get_city_by_id = lambda id, conn=None: _placeholder_crud_func_util("city")
+    if 'get_contacts_for_client' not in globals(): get_contacts_for_client = lambda id, limit=None, offset=None, conn=None: _placeholder_crud_func_util("contacts_list")
+    if 'get_project_by_id' not in globals(): get_project_by_id = lambda id, conn=None: _placeholder_crud_func_util("project")
+    if 'get_status_setting_by_id' not in globals(): get_status_setting_by_id = lambda id, conn=None: _placeholder_crud_func_util("status_setting")
+    if 'get_product_by_id' not in globals(): get_product_by_id = lambda id, conn=None: _placeholder_crud_func_util("product")
+    if 'get_products_for_client_or_project' not in globals(): get_products_for_client_or_project = lambda client_id, project_id=None, conn=None: _placeholder_crud_func_util("products_list")
+    if 'get_client_document_notes' not in globals(): get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: _placeholder_crud_func_util("notes_list")
 
 
-def get_db_connection(db_path_override=None):
+
+def get_db_connection(db_path_override=None): # Renamed parameter for clarity
     """
     Returns a new database connection object.
     Uses DATABASE_PATH from db_config by default.

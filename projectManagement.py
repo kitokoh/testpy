@@ -306,6 +306,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.setup_reports_page()
         self.setup_settings_page()
         self.setup_cover_page_management_page() # New page
+        self.setup_production_management_page() # New Production Orders page
 
         # Add main content below the topbar
         self._main_layout.addWidget(self.main_content) # Add main_content to self._main_layout
@@ -439,6 +440,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QIcon(":/icons/layout.svg"),
             "Cover Pages",
             lambda: self.change_page(6)
+        )
+        projects_menu.addAction(
+            QIcon(":/icons/tool.svg"), # Placeholder icon
+            "Production Orders",
+            lambda: self.change_page(7)
         )
 
         projects_btn = QPushButton("Activities")
@@ -2752,6 +2758,1099 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete project {project_name}. Check logs.")
 
+    # --- Production Order Management Methods ---
+    def setup_production_management_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20) # Standard page margins
+        layout.setSpacing(15) # Standard spacing between elements
+
+        # Header section (Title and Add Button)
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0,0,0,0)
+        header_layout.setSpacing(10)
+
+        title = QLabel("Production Order Management")
+        title.setObjectName("pageTitleLabel")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+
+        self.add_production_order_btn = QPushButton("New Production Order")
+        self.add_production_order_btn.setIcon(QIcon(":/icons/plus-square.svg"))
+        self.add_production_order_btn.setObjectName("primaryButton")
+        self.add_production_order_btn.clicked.connect(self.show_add_production_order_dialog)
+        header_layout.addWidget(self.add_production_order_btn)
+
+        layout.addWidget(header_widget)
+
+        # Filters section
+        filters_widget = QWidget()
+        filters_layout = QHBoxLayout(filters_widget)
+        filters_layout.setContentsMargins(0,0,0,0)
+        filters_layout.setSpacing(10)
+
+        self.production_order_search = QLineEdit()
+        self.production_order_search.setPlaceholderText("Search by Order Name or ID...")
+        self.production_order_search.setObjectName("filterLineEdit")
+        self.production_order_search.textChanged.connect(self.filter_production_orders)
+        filters_layout.addWidget(self.production_order_search, 2)
+
+        self.production_status_filter_proj = QComboBox()
+        self.production_status_filter_proj.setObjectName("filterComboBox")
+        # TODO: Populate this from StatusSettings where status_type = 'Project' or a new 'ProductionOrder' type
+        # For now, using project statuses as placeholder
+        self.production_status_filter_proj.addItems(["All Statuses", "Planning", "In Progress", "Completed", "On Hold", "Cancelled"])
+        self.production_status_filter_proj.currentIndexChanged.connect(self.filter_production_orders)
+        filters_layout.addWidget(self.production_status_filter_proj, 1)
+
+        self.production_priority_filter = QComboBox()
+        self.production_priority_filter.setObjectName("filterComboBox")
+        self.production_priority_filter.addItems(["All Priorities", "High", "Medium", "Low"])
+        self.production_priority_filter.currentIndexChanged.connect(self.filter_production_orders)
+        filters_layout.addWidget(self.production_priority_filter, 1)
+
+        layout.addWidget(filters_widget)
+
+        # Production Orders Table
+        self.production_orders_table = QTableWidget()
+        self.production_orders_table.setColumnCount(8)
+        self.production_orders_table.setHorizontalHeaderLabels([
+            "Order Name", "Status", "Progress (%)", "Priority",
+            "Deadline", "Manager", "Steps", "Actions"
+        ])
+        self.production_orders_table.setObjectName("productionOrdersTable")
+        self.production_orders_table.verticalHeader().setVisible(False)
+        self.production_orders_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.production_orders_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.production_orders_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.production_orders_table.setSortingEnabled(True)
+
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+
+        layout.addWidget(self.production_orders_table)
+
+        self.main_content.addWidget(page)
+
+    def load_production_orders(self):
+        # Fetch projects with project_type='PRODUCTION'
+        search_text = ""
+        if hasattr(self, 'production_order_search'): # Check if UI element exists
+            search_text = self.production_order_search.text().lower()
+
+        status_filter_text = "All Statuses"
+        if hasattr(self, 'production_status_filter_proj'):
+            status_filter_text = self.production_status_filter_proj.currentText()
+
+        priority_filter_text = "All Priorities"
+        if hasattr(self, 'production_priority_filter'):
+            priority_filter_text = self.production_priority_filter.currentText()
+
+        status_id_filter = None
+        if status_filter_text != "All Statuses":
+            # This assumes status names in the ComboBox match StatusSettings names for 'Project' type
+            status_setting_obj = get_status_setting_by_name(status_filter_text, "Project")
+            if status_setting_obj:
+                status_id_filter = status_setting_obj['status_id']
+
+        priority_filter_value = None
+        if priority_filter_text == "High": priority_filter_value = 2
+        elif priority_filter_text == "Medium": priority_filter_value = 1
+        elif priority_filter_text == "Low": priority_filter_value = 0
+
+        crud_filters = {'project_type': 'PRODUCTION'}
+        if status_id_filter is not None:
+            crud_filters['status_id'] = status_id_filter
+        if priority_filter_value is not None:
+            crud_filters['priority'] = priority_filter_value
+
+        production_orders_data = get_all_projects(filters=crud_filters)
+
+        if production_orders_data is None:
+            production_orders_data = []
+
+        if search_text:
+            filtered_data = []
+            for order in production_orders_data:
+                name_match = search_text in order.get('project_name', '').lower()
+                id_match = search_text in order.get('project_id', '').lower() # Assuming project_id is a string
+                if name_match or id_match:
+                    filtered_data.append(order)
+            production_orders_data = filtered_data
+
+        if not hasattr(self, 'production_orders_table'):
+            print("DEBUG: production_orders_table not initialized yet. Skipping load.")
+            return
+
+        self.production_orders_table.setRowCount(0)
+        self.production_orders_table.setRowCount(len(production_orders_data))
+
+        for row_idx, order_dict in enumerate(production_orders_data):
+            project_id_str = order_dict.get('project_id')
+
+            name_item = QTableWidgetItem(order_dict.get('project_name', 'N/A'))
+            name_item.setData(Qt.UserRole, project_id_str)
+            self.production_orders_table.setItem(row_idx, 0, name_item)
+
+            status_id = order_dict.get('status_id')
+            status_name_display = "Unknown"
+            status_color_hex = "#7f8c8d"
+            if status_id is not None:
+                status_setting = get_status_setting_by_id(status_id)
+                if status_setting:
+                    status_name_display = status_setting.get('status_name', 'Unknown')
+                    color_from_db = status_setting.get('color_hex')
+                    if color_from_db: status_color_hex = color_from_db
+            status_item = QTableWidgetItem(status_name_display)
+            status_item.setForeground(QColor(status_color_hex))
+            self.production_orders_table.setItem(row_idx, 1, status_item)
+
+            progress = order_dict.get('progress_percentage', 0)
+            progress_widget = QWidget()
+            progress_layout = QHBoxLayout(progress_widget)
+            progress_layout.setContentsMargins(5, 5, 5, 5)
+            progress_bar = QProgressBar()
+            progress_bar.setValue(progress if progress is not None else 0)
+            progress_bar.setAlignment(Qt.AlignCenter)
+            progress_bar.setFormat(f"{progress if progress is not None else 0}%")
+            progress_layout.addWidget(progress_bar)
+            self.production_orders_table.setCellWidget(row_idx, 2, progress_widget)
+
+            priority_val = order_dict.get('priority', 0)
+            priority_item = QTableWidgetItem()
+            if priority_val == 2:
+                priority_item.setIcon(QIcon(":/icons/priority-high.svg"))
+                priority_item.setText("High")
+            elif priority_val == 1:
+                priority_item.setIcon(QIcon(":/icons/priority-medium.svg"))
+                priority_item.setText("Medium")
+            else:
+                priority_item.setIcon(QIcon(":/icons/priority-low.svg"))
+                priority_item.setText("Low")
+            self.production_orders_table.setItem(row_idx, 3, priority_item)
+
+            self.production_orders_table.setItem(row_idx, 4, QTableWidgetItem(order_dict.get('deadline_date', 'N/A')))
+
+            manager_user_id = order_dict.get('manager_team_member_id')
+            manager_display_name = "Unassigned"
+            if manager_user_id:
+                tm_list = get_all_team_members(filters={'user_id': manager_user_id})
+                if tm_list: manager_display_name = tm_list[0].get('full_name', manager_user_id)
+                else:
+                    user_data_manager = get_user_by_id(manager_user_id)
+                    if user_data_manager: manager_display_name = user_data_manager.get('full_name', manager_user_id)
+            self.production_orders_table.setItem(row_idx, 5, QTableWidgetItem(manager_display_name))
+
+            tasks_for_order = get_tasks_by_project_id(project_id_str)
+            num_steps = len(tasks_for_order) if tasks_for_order else 0
+            self.production_orders_table.setItem(row_idx, 6, QTableWidgetItem(str(num_steps)))
+
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0,0,0,0)
+            action_layout.setSpacing(5)
+
+            details_btn = QPushButton()
+            details_btn.setIcon(QIcon(":/icons/eye.svg"))
+            details_btn.setToolTip("View Production Order Details")
+            details_btn.setObjectName("tableActionButton")
+            details_btn.clicked.connect(lambda _, p_id=project_id_str: self.show_production_order_details(p_id))
+
+            edit_btn = QPushButton()
+            edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
+            edit_btn.setToolTip("Edit Production Order")
+            edit_btn.setObjectName("tableActionButton")
+            edit_btn.clicked.connect(lambda _, p_id=project_id_str: self.edit_production_order(p_id))
+
+            delete_btn = QPushButton()
+            delete_btn.setIcon(QIcon(":/icons/trash.svg"))
+            delete_btn.setToolTip("Delete Production Order")
+            delete_btn.setObjectName("dangerButtonTable")
+            delete_btn.clicked.connect(lambda _, p_id=project_id_str: self.delete_production_order(p_id))
+
+            action_layout.addWidget(details_btn)
+            action_layout.addWidget(edit_btn)
+            action_layout.addWidget(delete_btn)
+            action_layout.addStretch()
+            self.production_orders_table.setCellWidget(row_idx, 7, action_widget)
+
+        # self.production_orders_table.resizeColumnsToContents()
+        # Manual resize after data load can sometimes be better than full auto resize for performance
+        # For fixed action column width:
+        # self.production_orders_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.Fixed)
+        # self.production_orders_table.setColumnWidth(7, 120) # Adjust width for 3 buttons
+
+    def filter_production_orders(self):
+        # This method will just trigger a reload of production orders.
+        # The actual filtering logic is now within load_production_orders itself.
+        self.load_production_orders()
+
+    def show_add_production_order_dialog(self):
+        # Pass self.template_manager if the dialog is designed to use it, otherwise remove
+        dialog = AddProductionOrderDialog(parent=self) # Removed template_manager for now
+
+        if dialog.exec_() == QDialog.Accepted:
+            order_data, steps_data = dialog.get_data()
+
+            if not order_data.get('project_name'): # Basic validation
+                QMessageBox.warning(self, "Input Error", "Production Order name is required.")
+                return
+
+            # Ensure project_type is set for production orders
+            order_data['project_type'] = 'PRODUCTION'
+
+            # Add the main production order (which is a project)
+            new_order_id = add_project(order_data) # From projects_crud
+
+            if new_order_id:
+                self.log_activity(f"Added Production Order: {order_data['project_name']} (ID: {new_order_id})")
+
+                # Add initial production steps (which are tasks)
+                default_task_status_id = None
+                status_todo = get_status_setting_by_name("To Do", "Task")
+                if status_todo:
+                    default_task_status_id = status_todo.get('status_id')
+                else:
+                    QMessageBox.warning(self, "Configuration Warning",
+                                        "Default 'To Do' status for tasks not found. Steps will be added without a status.")
+
+                reporter_tm_id = None
+                if self.current_user and self.current_user.get('user_id'):
+                    # Assuming user_id in current_user maps to a team_member's user_id
+                    # This might need adjustment if current_user['user_id'] IS the team_member_id
+                    # For now, assuming it's Users.user_id and we need to find the TeamMembers.team_member_id
+                    tm_list = get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                    if tm_list:
+                        reporter_tm_id = tm_list[0].get('team_member_id')
+
+                for i, step_name in enumerate(steps_data):
+                    task_data = {
+                        'project_id': new_order_id,
+                        'task_name': step_name,
+                        'description': f"Initial step for production order: {step_name}",
+                        'sequence_order': i + 1, # Ensure steps are ordered
+                        'status_id': default_task_status_id,
+                        'reporter_team_member_id': reporter_tm_id
+                        # Other fields like priority, assignee, due_date could be set here or later
+                    }
+                    add_task(task_data) # From tasks_crud
+
+                self.load_production_orders() # Refresh the table view
+                QMessageBox.information(self, "Success",
+                                        f"Production Order '{order_data['project_name']}' and its {len(steps_data)} initial step(s) added successfully.")
+            else:
+                QMessageBox.critical(self, "Database Error", "Failed to add Production Order. Please check the logs.")
+
+    def edit_production_order(self, project_id_str):
+        dialog = EditProductionOrderDialog(project_id=project_id_str, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_production_orders() # Refresh the table
+            self.log_activity(f"Updated Production Order ID: {project_id_str}")
+            QMessageBox.information(self, "Success", f"Production Order {project_id_str} updated successfully.")
+        # Else, if dialog was rejected or closed, or if data loading failed in dialog constructor.
+        # Error messages for data loading failure are handled within the dialog itself.
+
+    def delete_production_order(self, project_id_str):
+        order_to_delete = get_project_by_id(project_id_str) # Fetch to get name for confirmation
+        if not order_to_delete:
+            QMessageBox.warning(self, "Error", f"Production Order with ID {project_id_str} not found.")
+            return
+
+        order_name = order_to_delete.get('project_name', 'Unknown Production Order')
+
+        reply = QMessageBox.question(
+            self,
+            "Confirm Deletion",
+            f"Are you sure you want to delete the Production Order '{order_name}' (ID: {project_id_str})?\n"
+            "This will also delete all its associated steps (tasks). This action is permanent.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No # Default to No
+        )
+
+        if reply == QMessageBox.Yes:
+            success = delete_project(project_id_str) # This is projects_crud.delete_project
+            if success:
+                self.log_activity(f"Deleted Production Order: {order_name} (ID: {project_id_str}) and its associated tasks.")
+                self.load_production_orders() # Refresh the list
+                QMessageBox.information(self, "Success", f"Production Order '{order_name}' and its steps deleted successfully.")
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to delete Production Order '{order_name}'. Check logs.")
+
+    def show_production_order_details(self, project_id_str):
+        dialog = ProductionOrderDetailDialog(project_id_str, parent=self)
+        dialog.exec_() # Show as a modal dialog
+    # --- End Production Order Management Methods ---
+
+
+class ProductionOrderDetailDialog(QDialog):
+    def __init__(self, project_id, parent=None):
+        super().__init__(parent)
+        self.project_id = project_id
+        self.order_data = get_project_by_id(self.project_id)
+
+        if not self.order_data:
+            QMessageBox.critical(self, "Error", f"Could not load details for Production Order ID: {self.project_id}")
+            QTimer.singleShot(0, self.reject)
+            return
+
+        self.setWindowTitle(f"Details: {self.order_data.get('project_name', 'Production Order')}")
+        self.setMinimumSize(750, 650)
+
+        self.layout = QVBoxLayout(self)
+
+        # Main Info Section (using QGroupBox for structure)
+        info_group = QGroupBox("Order Information")
+        info_form_layout = QFormLayout(info_group)
+
+        # Helper to add rows to form layout
+        def add_info_row(label_text, value_text):
+            label_widget = QLabel(f"<b>{label_text}:</b>")
+            value_widget = QLabel(str(value_text) if value_text is not None else "N/A")
+            value_widget.setWordWrap(True)
+            info_form_layout.addRow(label_widget, value_widget)
+
+        add_info_row("Order ID", self.order_data.get('project_id'))
+        add_info_row("Order Name", self.order_data.get('project_name'))
+
+        client_id = self.order_data.get('client_id')
+        client_name = "N/A"
+        if client_id:
+            client_obj = get_all_clients(filters={'client_id': client_id})
+            if client_obj and isinstance(client_obj, list) and client_obj: client_name = client_obj[0].get('client_name', 'Unknown Client')
+            elif client_obj and isinstance(client_obj, dict): client_name = client_obj.get('client_name', 'Unknown Client')
+        add_info_row("Client", client_name)
+
+        add_info_row("Description", self.order_data.get('description', "No description provided."))
+        add_info_row("Start Date", self.order_data.get('start_date'))
+        add_info_row("Deadline", self.order_data.get('deadline_date'))
+
+        status_id = self.order_data.get('status_id')
+        status_text = "N/A"
+        if status_id:
+            status_obj = get_status_setting_by_id(status_id)
+            if status_obj: status_text = status_obj.get('status_name', 'Unknown')
+        add_info_row("Status", status_text)
+
+        priority_map = {0: "Low", 1: "Medium", 2: "High"}
+        add_info_row("Priority", priority_map.get(self.order_data.get('priority'), "N/A"))
+        add_info_row("Progress", f"{self.order_data.get('progress_percentage', 0)}%")
+
+        manager_id = self.order_data.get('manager_team_member_id')
+        manager_name = "Unassigned"
+        if manager_id:
+            manager_tm = get_team_member_by_id(manager_id)
+            if manager_tm: manager_name = manager_tm.get('full_name', 'Unknown Manager')
+        add_info_row("Manager", manager_name)
+
+        add_info_row("Budget", f"€{self.order_data.get('budget', 0.0):,.2f}")
+        add_info_row("Type", self.order_data.get('project_type', 'N/A'))
+        add_info_row("Created At", self.order_data.get('created_at'))
+        add_info_row("Last Updated", self.order_data.get('updated_at'))
+
+        self.layout.addWidget(info_group)
+
+        # Production Steps (Tasks) Section
+        steps_group = QGroupBox("Production Steps")
+        steps_layout = QVBoxLayout(steps_group)
+
+        self.steps_table = QTableWidget()
+        self.steps_table.setColumnCount(8) # Sequence, Name, Assignee, Status, Priority, Due, Est.Hours, Actual Hours
+        self.steps_table.setHorizontalHeaderLabels([
+            "Seq", "Step Name", "Assignee", "Status", "Priority",
+            "Due Date", "Est. Hours", "Actual Hours"
+        ])
+        self.steps_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.steps_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.steps_table.verticalHeader().setVisible(False)
+        self.steps_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        for i in range(1,6): self.steps_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+
+        self.load_production_steps()
+        steps_layout.addWidget(self.steps_table)
+        self.layout.addWidget(steps_group)
+
+        # Close button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        self.layout.addWidget(close_button, 0, Qt.AlignRight)
+
+    def load_production_steps(self):
+        self.steps_table.setRowCount(0)
+        tasks = get_tasks_by_project_id_ordered_by_sequence(self.project_id)
+        if not tasks:
+            return
+
+        self.steps_table.setRowCount(len(tasks))
+        for row, task in enumerate(tasks):
+            seq_item = QTableWidgetItem(str(task.get('sequence_order', '')))
+            self.steps_table.setItem(row, 0, seq_item)
+
+            name_item = QTableWidgetItem(task.get('task_name', 'N/A'))
+            description_tooltip = task.get('description', '')
+            if description_tooltip:
+                name_item.setToolTip(description_tooltip)
+            self.steps_table.setItem(row, 1, name_item)
+
+            assignee_name = "Unassigned"
+            assignee_id = task.get('assignee_team_member_id')
+            if assignee_id:
+                tm = get_team_member_by_id(assignee_id)
+                if tm: assignee_name = tm.get('full_name', 'Unknown')
+            self.steps_table.setItem(row, 2, QTableWidgetItem(assignee_name))
+
+            status_text = "N/A"
+            status_color_hex = "#000000"
+            status_id = task.get('status_id')
+            if status_id:
+                stat = get_status_setting_by_id(status_id)
+                if stat:
+                    status_text = stat.get('status_name', 'Unknown')
+                    status_color_hex = stat.get('color_hex', '#000000')
+            status_item = QTableWidgetItem(status_text)
+            status_item.setForeground(QColor(status_color_hex))
+            self.steps_table.setItem(row, 3, status_item)
+
+            priority_val = task.get('priority', 0)
+            priority_text = "Low"
+            if priority_val == 1: priority_text = "Medium"
+            elif priority_val == 2: priority_text = "High"
+            self.steps_table.setItem(row, 4, QTableWidgetItem(priority_text))
+
+            self.steps_table.setItem(row, 5, QTableWidgetItem(task.get('due_date', '')))
+            self.steps_table.setItem(row, 6, QTableWidgetItem(str(task.get('estimated_duration_hours', ''))))
+            self.steps_table.setItem(row, 7, QTableWidgetItem(str(task.get('actual_duration_hours', ''))))
+
+        self.steps_table.resizeRowsToContents()
+        self.steps_table.resizeColumnsToContents() # Ensure all new columns are sized appropriately
+
+
+class EditProductionStepDialog(QDialog):
+    def __init__(self, task_id, parent_dialog): # parent_dialog is EditProductionOrderDialog
+        super().__init__(parent_dialog)
+        self.task_id = task_id
+        self.parent_dialog = parent_dialog # Keep a reference to the parent dialog
+        self.setWindowTitle(f"Edit Production Step (ID: {self.task_id})")
+        self.setMinimumWidth(450)
+
+        self.task_data = get_task_by_id(self.task_id)
+        if not self.task_data:
+            QMessageBox.critical(self, "Error", "Could not load task data for editing.")
+            QTimer.singleShot(0, self.reject) # Close if data fails to load
+            return
+
+        self.layout = QFormLayout(self)
+        self.layout.setSpacing(10)
+
+        self.step_name_edit = QLineEdit(self.task_data.get('task_name', ''))
+        self.description_edit = QTextEdit(self.task_data.get('description', ''))
+        self.description_edit.setFixedHeight(80)
+
+        self.status_combo = QComboBox()
+        task_statuses = get_all_status_settings(status_type='Task')
+        current_status_id = self.task_data.get('status_id')
+        if task_statuses:
+            for idx, ts in enumerate(task_statuses):
+                self.status_combo.addItem(ts['status_name'], ts['status_id'])
+                if ts['status_id'] == current_status_id:
+                    self.status_combo.setCurrentIndex(idx)
+        elif current_status_id:
+            status_obj = get_status_setting_by_id(current_status_id)
+            if status_obj: self.status_combo.addItem(status_obj['status_name'], status_obj['status_id'])
+
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(["Low", "Medium", "High"]) # 0, 1, 2
+        self.priority_combo.setCurrentIndex(self.task_data.get('priority', 1))
+
+        self.assignee_combo = QComboBox()
+        self.assignee_combo.addItem("Unassigned", None)
+        team_members = get_all_team_members(filters={'is_active': True})
+        current_assignee_id = self.task_data.get('assignee_team_member_id')
+        if team_members:
+            for idx, tm in enumerate(team_members):
+                self.assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
+                if tm['team_member_id'] == current_assignee_id:
+                    self.assignee_combo.setCurrentIndex(idx + 1)
+
+        due_date_str = self.task_data.get('due_date', '')
+        self.due_date_edit = QDateEdit(QDate.fromString(due_date_str, "yyyy-MM-dd") if due_date_str else QDate.currentDate())
+        self.due_date_edit.setCalendarPopup(True)
+        self.due_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        self.est_duration_spin = QDoubleSpinBox()
+        self.est_duration_spin.setRange(0, 9999.99)
+        self.est_duration_spin.setSuffix(" hours")
+        self.est_duration_spin.setValue(self.task_data.get('estimated_duration_hours', 0.0))
+
+        self.layout.addRow("Step Name*:", self.step_name_edit)
+        self.layout.addRow("Description:", self.description_edit)
+        self.layout.addRow("Status:", self.status_combo)
+        self.layout.addRow("Priority:", self.priority_combo)
+        self.layout.addRow("Assignee:", self.assignee_combo)
+        self.layout.addRow("Due Date:", self.due_date_edit)
+        self.layout.addRow("Est. Duration:", self.est_duration_spin)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.on_save_step)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addRow(self.button_box)
+
+    def on_save_step(self):
+        step_name = self.step_name_edit.text().strip()
+        if not step_name:
+            QMessageBox.warning(self, "Input Error", "Step name cannot be empty.")
+            return
+
+        updated_data = {
+            'task_name': step_name,
+            'description': self.description_edit.toPlainText().strip(),
+            'status_id': self.status_combo.currentData(),
+            'priority': self.priority_combo.currentIndex(),
+            'assignee_team_member_id': self.assignee_combo.currentData(),
+            'due_date': self.due_date_edit.date().toString("yyyy-MM-dd") if self.due_date_edit.date().isValid() else None,
+            'estimated_duration_hours': self.est_duration_spin.value()
+        }
+
+        selected_status_id = self.status_combo.currentData()
+        if selected_status_id:
+            status_details = get_status_setting_by_id(selected_status_id)
+            if status_details and status_details.get('is_completion_status'):
+                if not self.task_data.get('completed_at'):
+                    updated_data['completed_at'] = datetime.utcnow().isoformat() + "Z"
+            else:
+                updated_data['completed_at'] = None # Clear completed_at if not a completion status
+
+        if update_task(self.task_id, updated_data):
+            # Access MainDashboard instance through parent_dialog to log activity
+            if hasattr(self.parent_dialog, 'parent_main_dashboard') and self.parent_dialog.parent_main_dashboard:
+                 self.parent_dialog.parent_main_dashboard.log_activity(f"Updated production step/task ID: {self.task_id}")
+            self.accept()
+        else:
+            QMessageBox.critical(self, "Error", "Failed to update step. Check logs.")
+
+
+class EditProductionOrderDialog(QDialog):
+    def __init__(self, project_id, parent=None):
+        super().__init__(parent)
+        self.parent_main_dashboard = parent # Store reference to MainDashboard
+        self.project_id = project_id
+        self.setWindowTitle(f"Edit Production Order - ID: {self.project_id}")
+        self.setMinimumSize(600, 700) # Larger for step management
+
+        self.layout = QVBoxLayout(self)
+
+        # Load existing project data
+        self.order_data = get_project_by_id(self.project_id)
+        if not self.order_data:
+            QMessageBox.critical(self, "Error", "Could not load production order data.")
+            # Close dialog if data loading fails (or handle more gracefully)
+            QTimer.singleShot(0, self.reject)
+            return
+
+        # Form for basic project details (similar to AddProductionOrderDialog)
+        self.form_layout = QFormLayout()
+        self.name_edit = QLineEdit(self.order_data.get('project_name', ''))
+        self.desc_edit = QTextEdit(self.order_data.get('description', ''))
+        self.desc_edit.setMinimumHeight(80)
+
+        start_date_str = self.order_data.get('start_date', QDate.currentDate().toString("yyyy-MM-dd"))
+        self.start_date_edit = QDateEdit(QDate.fromString(start_date_str, "yyyy-MM-dd"))
+        self.start_date_edit.setCalendarPopup(True)
+        self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        deadline_str = self.order_data.get('deadline_date', QDate.currentDate().addDays(30).toString("yyyy-MM-dd"))
+        self.deadline_edit = QDateEdit(QDate.fromString(deadline_str, "yyyy-MM-dd"))
+        self.deadline_edit.setCalendarPopup(True)
+        self.deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+        self.budget_spin = QDoubleSpinBox()
+        self.budget_spin.setRange(0, 10000000)
+        self.budget_spin.setPrefix("€ ")
+        self.budget_spin.setValue(self.order_data.get('budget', 0.0))
+
+        self.status_combo = QComboBox()
+        project_statuses = get_all_status_settings(status_type='Project')
+        current_status_id = self.order_data.get('status_id')
+        if project_statuses:
+            for idx, ps in enumerate(project_statuses):
+                self.status_combo.addItem(ps['status_name'], ps['status_id'])
+                if ps['status_id'] == current_status_id:
+                    self.status_combo.setCurrentIndex(idx)
+        elif current_status_id: # If list empty but current_status_id exists
+            status_obj = get_status_setting_by_id(current_status_id)
+            if status_obj: self.status_combo.addItem(status_obj['status_name'], status_obj['status_id'])
+
+
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(["Low", "Medium", "High"])
+        priority_val = self.order_data.get('priority', 1) # Default to Medium
+        self.priority_combo.setCurrentIndex(priority_val)
+
+
+        self.manager_combo = QComboBox()
+        self.manager_combo.addItem("Unassigned", None)
+        active_team_members = get_all_team_members(filters={'is_active': True})
+        current_manager_id = self.order_data.get('manager_team_member_id')
+        if active_team_members:
+            for idx, tm in enumerate(active_team_members):
+                self.manager_combo.addItem(tm['full_name'], tm['team_member_id'])
+                if tm['team_member_id'] == current_manager_id: # This should be team_member_id
+                    self.manager_combo.setCurrentIndex(idx + 1) # +1 because of "Unassigned"
+
+        self.client_combo = QComboBox()
+        self.client_combo.addItem("No Client Associated", None)
+        all_clients = get_all_clients()
+        current_client_id = self.order_data.get('client_id')
+        if all_clients:
+            for idx, client in enumerate(all_clients):
+                self.client_combo.addItem(client['client_name'], client['client_id'])
+                if client['client_id'] == current_client_id:
+                    self.client_combo.setCurrentIndex(idx + 1)
+
+
+        self.form_layout.addRow("Order Name*:", self.name_edit)
+        self.form_layout.addRow("Client (Optional):", self.client_combo)
+        self.form_layout.addRow("Description:", self.desc_edit)
+        self.form_layout.addRow("Start Date:", self.start_date_edit)
+        self.form_layout.addRow("Deadline:", self.deadline_edit)
+        self.form_layout.addRow("Budget (Optional):", self.budget_spin)
+        self.form_layout.addRow("Status:", self.status_combo)
+        self.form_layout.addRow("Priority:", self.priority_combo)
+        self.form_layout.addRow("Manager:", self.manager_combo)
+        self.layout.addLayout(self.form_layout)
+
+        # Section for Production Steps (Tasks)
+        steps_group = QGroupBox("Production Steps (Tasks)")
+        steps_layout = QVBoxLayout(steps_group)
+
+        self.steps_table = QTableWidget() # Using QTableWidget for more details
+        self.steps_table.setColumnCount(5) # Name, Assignee, Status, Due Date, Actions (simplified)
+        self.steps_table.setHorizontalHeaderLabels(["Step Name", "Assignee", "Status", "Due Date", "Actions"])
+        self.steps_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.steps_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.steps_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.steps_table.verticalHeader().setVisible(False)
+        self.load_existing_steps() # Populate the table
+
+        steps_buttons_layout = QHBoxLayout()
+        add_step_btn = QPushButton("Add New Step")
+        add_step_btn.setIcon(QIcon(":/icons/plus.svg"))
+        add_step_btn.clicked.connect(self.add_new_step_dialog)
+
+        move_up_btn = QPushButton("Move Up")
+        move_up_btn.setIcon(QIcon(":/icons/arrow-up.svg"))
+        move_up_btn.clicked.connect(self.move_step_up)
+
+        move_down_btn = QPushButton("Move Down")
+        move_down_btn.setIcon(QIcon(":/icons/arrow-down.svg"))
+        move_down_btn.clicked.connect(self.move_step_down)
+
+        steps_buttons_layout.addWidget(add_step_btn)
+        steps_buttons_layout.addWidget(move_up_btn)
+        steps_buttons_layout.addWidget(move_down_btn)
+        steps_buttons_layout.addStretch()
+
+        steps_layout.addLayout(steps_buttons_layout)
+        steps_layout.addWidget(self.steps_table)
+        self.layout.addWidget(steps_group)
+
+        # Dialog Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Save).setText("Save Changes")
+        self.button_box.accepted.connect(self.on_save_changes)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
+
+    def load_existing_steps(self):
+        self.steps_table.setRowCount(0)
+        tasks = get_tasks_by_project_id_ordered_by_sequence(self.project_id)
+        if not tasks: return
+
+        self.steps_table.setRowCount(len(tasks))
+        for row, task_dict in enumerate(tasks):
+            task_id = task_dict['task_id']
+            name_item = QTableWidgetItem(task_dict.get('task_name', 'N/A'))
+            name_item.setData(Qt.UserRole, task_id) # Store task_id
+            self.steps_table.setItem(row, 0, name_item)
+
+            assignee_name = "Unassigned"
+            assignee_id = task_dict.get('assignee_team_member_id')
+            if assignee_id:
+                tm = get_team_member_by_id(assignee_id)
+                if tm: assignee_name = tm.get('full_name', 'Unknown')
+            self.steps_table.setItem(row, 1, QTableWidgetItem(assignee_name))
+
+            status_name = "N/A"
+            status_id = task_dict.get('status_id')
+            if status_id:
+                stat = get_status_setting_by_id(status_id)
+                if stat: status_name = stat.get('status_name', 'Unknown')
+            self.steps_table.setItem(row, 2, QTableWidgetItem(status_name))
+
+            self.steps_table.setItem(row, 3, QTableWidgetItem(task_dict.get('due_date', '')))
+
+            # Action buttons for each step
+            step_action_widget = QWidget()
+            step_action_layout = QHBoxLayout(step_action_widget)
+            step_action_layout.setContentsMargins(0,0,0,0)
+            step_action_layout.setSpacing(5)
+
+            edit_step_btn = QPushButton("Edit")
+            edit_step_btn.setObjectName("tableActionButton")
+            edit_step_btn.clicked.connect(lambda _, t_id=task_id: self.edit_single_step_dialog(t_id))
+
+            delete_step_btn = QPushButton("Del")
+            delete_step_btn.setObjectName("dangerButtonTable")
+            delete_step_btn.clicked.connect(lambda _, t_id=task_id, r=row: self.remove_step_from_table_and_db(t_id, r))
+
+            step_action_layout.addWidget(edit_step_btn)
+            step_action_layout.addWidget(delete_step_btn)
+            self.steps_table.setCellWidget(row, 4, step_action_widget)
+        self.steps_table.resizeColumnsToContents()
+
+    def move_step_up(self):
+        selected_rows = self.steps_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+
+        current_row = selected_rows[0].row()
+        if current_row > 0:
+            self.steps_table.insertRow(current_row - 1)
+            for col in range(self.steps_table.columnCount()):
+                # Move item
+                item = self.steps_table.takeItem(current_row + 1, col)
+                self.steps_table.setItem(current_row - 1, col, item)
+                # Move cell widget if any (like action buttons)
+                cell_widget = self.steps_table.cellWidget(current_row + 1, col)
+                if cell_widget:
+                    self.steps_table.setCellWidget(current_row - 1, col, cell_widget)
+
+            self.steps_table.removeRow(current_row + 1)
+            self.steps_table.selectRow(current_row - 1)
+
+    def move_step_down(self):
+        selected_rows = self.steps_table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+
+        current_row = selected_rows[0].row()
+        if current_row < self.steps_table.rowCount() - 1:
+            self.steps_table.insertRow(current_row + 2)
+            for col in range(self.steps_table.columnCount()):
+                # Move item
+                item = self.steps_table.takeItem(current_row, col)
+                self.steps_table.setItem(current_row + 2, col, item)
+                 # Move cell widget if any
+                cell_widget = self.steps_table.cellWidget(current_row, col)
+                if cell_widget:
+                    self.steps_table.setCellWidget(current_row + 2, col, cell_widget)
+
+            # Important: Must re-select the row before removing the original,
+            # otherwise, cellWidgets can be lost if they are taken by `takeItem` from the selected row.
+            # A safer way is to copy data and widgets, then remove original row.
+            # For simplicity, this relies on takeItem and setItem correctly handling QTableWidgetItems.
+            # Cell widgets need to be explicitly moved.
+            self.steps_table.selectRow(current_row + 2) # Select the new row
+            self.steps_table.removeRow(current_row)
+
+
+    def add_new_step_dialog(self):
+        # This would open a dialog similar to show_add_task_dialog but simplified
+        # For now, let's add a placeholder step directly to the table for UI testing
+        # In a full implementation, this would collect details for a new task.
+        new_step_name, ok = QInputDialog.getText(self, "Add New Step", "Step Name:")
+        if ok and new_step_name:
+            # This is a temporary way to add to UI. Does not save to DB until main "Save Changes"
+            row_pos = self.steps_table.rowCount()
+            self.steps_table.insertRow(row_pos)
+            self.steps_table.setItem(row_pos, 0, QTableWidgetItem(new_step_name))
+            # Mark this as a new, unsaved task using UserRole or a flag
+            self.steps_table.item(row_pos, 0).setData(Qt.UserRole, None) # None ID means it's new
+            self.steps_table.setItem(row_pos, 1, QTableWidgetItem("Unassigned"))
+            self.steps_table.setItem(row_pos, 2, QTableWidgetItem("To Do")) # Default status
+            # Add placeholder action buttons
+            step_action_widget = QWidget()
+            step_action_layout = QHBoxLayout(step_action_widget)
+            step_action_layout.setContentsMargins(0,0,0,0)
+            step_action_layout.setSpacing(5)
+            edit_step_btn = QPushButton("Edit"); edit_step_btn.setEnabled(False) # Edit after save
+            delete_step_btn = QPushButton("Del")
+            delete_step_btn.clicked.connect(lambda _, r=row_pos: self.steps_table.removeRow(r)) # Remove from UI only
+            step_action_layout.addWidget(edit_step_btn)
+            step_action_layout.addWidget(delete_step_btn)
+            self.steps_table.setCellWidget(row_pos, 4, step_action_widget)
+
+
+    def edit_single_step_dialog(self, task_id):
+        dialog = EditProductionStepDialog(task_id, parent_dialog=self, parent_main_dashboard=self.parent_main_dashboard)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_existing_steps() # Refresh the steps table in EditProductionOrderDialog
+            # No specific message here, success is implied by dialog closing and table refresh.
+            # Error messages are handled within EditProductionStepDialog.
+
+    def remove_step_from_table_and_db(self, task_id, row_index):
+        if task_id is None: # New task not yet saved to DB
+            self.steps_table.removeRow(row_index)
+            return
+
+        reply = QMessageBox.question(self, "Confirm Delete Step",
+                                     f"Are you sure you want to delete step '{self.steps_table.item(row_index, 0).text()}'?\nThis will remove it from the database.",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if delete_task(task_id):
+                self.steps_table.removeRow(row_index)
+                # No need to log here, main save will log the overall order update
+            else:
+                QMessageBox.warning(self, "Error", "Failed to delete step from database.")
+
+
+    def on_save_changes(self):
+        updated_order_data = {
+            'project_name': self.name_edit.text().strip(),
+            'client_id': self.client_combo.currentData(),
+            'description': self.desc_edit.toPlainText().strip(),
+            'start_date': self.start_date_edit.date().toString("yyyy-MM-dd"),
+            'deadline_date': self.deadline_edit.date().toString("yyyy-MM-dd"),
+            'budget': self.budget_spin.value(),
+            'status_id': self.status_combo.currentData(),
+            'priority': self.priority_combo.currentIndex(),
+            'manager_team_member_id': self.manager_combo.currentData(),
+            'project_type': 'PRODUCTION' # Ensure this is maintained
+        }
+        # Note: progress_percentage is not directly edited here, might be calculated based on tasks
+
+        if not updated_order_data['project_name']:
+            QMessageBox.warning(self, "Input Error", "Production Order name cannot be empty.")
+            return
+
+        # Save the main order details
+        update_project(self.project_id, updated_order_data)
+
+        # --- Manage Steps (Tasks) ---
+        # This needs to compare existing tasks with table, identify new, changed, deleted
+        # For simplicity in this pass, new tasks added via UI are saved.
+        # Deletions via UI buttons are handled. Editing existing tasks via UI buttons (if implemented) would update.
+        # Reordering needs to update sequence_order for all tasks.
+
+        # Get tasks from UI table (these are the desired state)
+        ui_tasks = []
+        for i in range(self.steps_table.rowCount()):
+            task_id = self.steps_table.item(i,0).data(Qt.UserRole)
+            task_name = self.steps_table.item(i,0).text()
+            # TODO: Get other details like assignee, status from table if they become editable
+            ui_tasks.append({'id': task_id, 'name': task_name, 'sequence': i + 1})
+
+        existing_db_tasks = get_tasks_by_project_id_ordered_by_sequence(self.project_id)
+        db_task_map = {t['task_id']: t for t in existing_db_tasks}
+
+        for ui_task_info in ui_tasks:
+            task_id = ui_task_info['id']
+            if task_id is None: # New task
+                # Simplified: Add new task. A full implementation would get more details from UI.
+                add_task_data = {
+                    'project_id': self.project_id,
+                    'task_name': ui_task_info['name'],
+                    'sequence_order': ui_task_info['sequence'],
+                    # TODO: Get status_id, assignee_id etc. from the table or a sub-dialog for new tasks
+                }
+                status_todo = get_status_setting_by_name("To Do", "Task")
+                if status_todo: add_task_data['status_id'] = status_todo['status_id']
+                add_task(add_task_data)
+            else: # Existing task, check for changes (name or sequence)
+                db_task = db_task_map.get(task_id)
+                if db_task:
+                    update_data = {}
+                    if db_task['task_name'] != ui_task_info['name']:
+                        update_data['task_name'] = ui_task_info['name']
+                    if db_task['sequence_order'] != ui_task_info['sequence']:
+                        update_data['sequence_order'] = ui_task_info['sequence']
+                    # Add other fields if they become editable in the table (assignee, status, due_date)
+                    if update_data:
+                        update_task(task_id, update_data)
+                    del db_task_map[task_id] # Remove from map as it's processed
+
+        # Any tasks remaining in db_task_map were deleted from UI
+        for remaining_task_id in db_task_map.keys():
+            delete_task(remaining_task_id) # This is if deletion is handled on save, not interactively.
+                                            # Current setup has interactive delete.
+
+        self.accept()
+
+
+class AddProductionOrderDialog(QDialog):
+    def __init__(self, parent=None, template_manager=None): # Added template_manager for consistency if needed later
+        super().__init__(parent)
+        # self.template_manager = template_manager # Not used in this version, but good for future
+        self.setWindowTitle("New Production Order")
+        self.setMinimumSize(550, 650)
+
+        self.layout = QVBoxLayout(self)
+
+        # Form for basic project details (similar to AddProjectDialog)
+        self.form_layout = QFormLayout()
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("E.g., Custom Furniture Batch A")
+
+        self.desc_edit = QTextEdit()
+        self.desc_edit.setPlaceholderText("Detailed description of the production order...")
+        self.desc_edit.setMinimumHeight(80)
+
+        self.start_date_edit = QDateEdit(QDate.currentDate())
+        self.start_date_edit.setCalendarPopup(True)
+        self.start_date_edit.setDisplayFormat("yyyy-MM-dd")
+
+        self.deadline_edit = QDateEdit(QDate.currentDate().addDays(30)) # Default deadline 30 days
+        self.deadline_edit.setCalendarPopup(True)
+        self.deadline_edit.setDisplayFormat("yyyy-MM-dd")
+
+        self.budget_spin = QDoubleSpinBox() # Optional for production orders
+        self.budget_spin.setRange(0, 10000000)
+        self.budget_spin.setPrefix("€ ")
+        self.budget_spin.setValue(0)
+
+        self.status_combo = QComboBox()
+        # TODO: Populate with relevant statuses for 'ProductionOrder' type if different from 'Project'
+        # For now, using common project statuses
+        project_statuses = get_all_status_settings(status_type='Project')
+        if project_statuses:
+            for ps in project_statuses:
+                if not ps.get('is_archival_status') and not ps.get('is_completion_status'): # Only show active statuses
+                    self.status_combo.addItem(ps['status_name'], ps['status_id'])
+        if self.status_combo.count() == 0:
+            self.status_combo.addItem("Planning", None) # Fallback
+
+        self.priority_combo = QComboBox()
+        self.priority_combo.addItems(["Low", "Medium", "High"])
+        self.priority_combo.setCurrentIndex(1) # Default to Medium
+
+        self.manager_combo = QComboBox()
+        self.manager_combo.addItem("Unassigned", None)
+        active_team_members = get_all_team_members(filters={'is_active': True})
+        if active_team_members:
+            for tm in active_team_members:
+                self.manager_combo.addItem(tm['full_name'], tm['team_member_id'])
+
+        self.client_combo = QComboBox()
+        self.client_combo.addItem("No Client Associated", None) # Default for production orders
+        all_clients = get_all_clients()
+        if all_clients:
+            for client in all_clients:
+                self.client_combo.addItem(client['client_name'], client['client_id'])
+
+        self.form_layout.addRow("Order Name*:", self.name_edit)
+        self.form_layout.addRow("Client (Optional):", self.client_combo)
+        self.form_layout.addRow("Description:", self.desc_edit)
+        self.form_layout.addRow("Start Date:", self.start_date_edit)
+        self.form_layout.addRow("Deadline:", self.deadline_edit)
+        self.form_layout.addRow("Budget (Optional):", self.budget_spin)
+        self.form_layout.addRow("Status:", self.status_combo)
+        self.form_layout.addRow("Priority:", self.priority_combo)
+        self.form_layout.addRow("Manager:", self.manager_combo)
+
+        self.layout.addLayout(self.form_layout)
+
+        # Section for Production Steps
+        steps_group = QGroupBox("Initial Production Steps (Tasks)")
+        steps_group_layout = QVBoxLayout(steps_group) # Renamed to avoid conflict with self.layout
+
+        self.steps_list_widget = QListWidget()
+        self.steps_list_widget.setDragDropMode(QAbstractItemView.InternalMove)
+        self.steps_list_widget.setAlternatingRowColors(True)
+
+        steps_buttons_layout = QHBoxLayout()
+        add_conception_btn = QPushButton("Add 'Conception'")
+        add_conception_btn.clicked.connect(lambda: self.add_step("Conception"))
+        add_realization_btn = QPushButton("Add 'Realization'")
+        add_realization_btn.clicked.connect(lambda: self.add_step("Realization"))
+        add_assembly_btn = QPushButton("Add 'Assembly'") # Example default step
+        add_assembly_btn.clicked.connect(lambda: self.add_step("Assembly"))
+        add_qc_btn = QPushButton("Add 'Quality Control'") # Example default step
+        add_qc_btn.clicked.connect(lambda: self.add_step("Quality Control"))
+
+        steps_buttons_layout.addWidget(add_conception_btn)
+        steps_buttons_layout.addWidget(add_realization_btn)
+        steps_buttons_layout.addWidget(add_assembly_btn)
+        steps_buttons_layout.addWidget(add_qc_btn)
+        steps_buttons_layout.addStretch()
+
+        custom_step_layout = QHBoxLayout()
+        self.custom_step_edit = QLineEdit()
+        self.custom_step_edit.setPlaceholderText("Enter custom step name...")
+        add_custom_step_btn = QPushButton("Add Custom")
+        add_custom_step_btn.clicked.connect(self.add_custom_step_from_input)
+        custom_step_layout.addWidget(self.custom_step_edit, 1)
+        custom_step_layout.addWidget(add_custom_step_btn)
+
+        remove_step_btn = QPushButton("Remove Selected")
+        remove_step_btn.setIcon(QIcon(":/icons/trash.svg"))
+        remove_step_btn.clicked.connect(self.remove_selected_step)
+
+        steps_group_layout.addLayout(steps_buttons_layout)
+        steps_group_layout.addLayout(custom_step_layout)
+        steps_group_layout.addWidget(self.steps_list_widget)
+        steps_group_layout.addWidget(remove_step_btn)
+
+        self.layout.addWidget(steps_group)
+
+        # Dialog Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.button(QDialogButtonBox.Ok).setText("Create Order")
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
+
+    def add_step(self, step_name):
+        if step_name and step_name.strip():
+            # Avoid adding duplicate default steps if already present
+            items = [self.steps_list_widget.item(i).text() for i in range(self.steps_list_widget.count())]
+            if step_name not in items:
+                self.steps_list_widget.addItem(step_name.strip())
+
+    def add_custom_step_from_input(self):
+        step_name = self.custom_step_edit.text().strip()
+        if step_name:
+            self.add_step(step_name)
+            self.custom_step_edit.clear() # Clear after adding
+
+    def remove_selected_step(self):
+        current_item = self.steps_list_widget.currentItem()
+        if current_item:
+            row = self.steps_list_widget.row(current_item)
+            self.steps_list_widget.takeItem(row)
+
+    def get_data(self):
+        # Convert priority text to integer
+        priority_text = self.priority_combo.currentText()
+        priority_val = 0 # Default Low
+        if priority_text == "Medium": priority_val = 1
+        elif priority_text == "High": priority_val = 2
+
+        order_data = {
+            'project_name': self.name_edit.text().strip(),
+            'client_id': self.client_combo.currentData(),
+            'description': self.desc_edit.toPlainText().strip(),
+            'start_date': self.start_date_edit.date().toString("yyyy-MM-dd"),
+            'deadline_date': self.deadline_edit.date().toString("yyyy-MM-dd"),
+            'budget': self.budget_spin.value(),
+            'status_id': self.status_combo.currentData(),
+            'progress_percentage': 0,
+            'manager_team_member_id': self.manager_combo.currentData(), # This should be team_member_id
+            'priority': priority_val
+        }
+
+        steps_data = [] # List of step names
+        for i in range(self.steps_list_widget.count()):
+            steps_data.append(self.steps_list_widget.item(i).text())
+
+        return order_data, steps_data
+
+
     def show_add_task_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Task")
@@ -3373,6 +4472,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         elif index == 6: # Cover Page Management
             self.load_clients_into_cp_combo() # Load/refresh clients
             self.load_cover_pages_for_selected_client() # Load cover pages for current selection
+        elif index == 7: # Production Orders Page
+            self.load_production_orders() # This method will be created later
 
     def resizeEvent(self, event):
         super().resizeEvent(event) # Call parent's resizeEvent
