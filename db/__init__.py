@@ -172,12 +172,9 @@ from .cruds.products_crud import (
 from .cruds.projects_crud import (
     add_project,
     get_project_by_id,
-    get_projects_by_client_id,
-    get_all_projects,
+    get_projects_for_client,
     update_project,
     delete_project,
-    get_total_projects_count, # Statistics related
-    get_active_projects_count,  # Statistics related
 )
 
 # Tasks
@@ -401,8 +398,7 @@ __all__ = [
     "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence",
     "add_or_update_product_dimension", "get_product_dimension", "delete_product_dimension",
     # Projects
-    "add_project", "get_project_by_id", "get_projects_by_client_id", "get_all_projects", "update_project", "delete_project",
-    "get_total_projects_count", "get_active_projects_count",
+    "add_project", "get_project_by_id", "get_projects_for_client", "update_project", "delete_project",
     # Tasks
     "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_all_tasks", "get_tasks_by_assignee_id",
     # KPIs
