@@ -12,10 +12,8 @@ from .utils import get_db_connection, format_currency, get_document_context_data
 
 from .cruds.activity_logs_crud import (
     add_activity_log,
-    get_activity_logs_for_user,
-    get_activity_logs_for_client,
-    get_activity_logs_for_project,
-    get_all_activity_logs,
+    get_activity_logs,
+    get_activity_log_by_id,
 )
 from .cruds.application_settings_crud import (
     get_application_setting,
@@ -350,12 +348,6 @@ from .cruds.scheduled_emails_crud import ( # Assuming scheduled_emails_crud.py
     delete_email_reminder,
 )
 
-# Activity Log
-from .cruds.activity_log_crud import ( # Assuming activity_log_crud.py
-    add_activity_log,
-    get_activity_logs,
-)
-
 # SmtpConfigs
 from .cruds.smtp_configs_crud import ( # Assuming smtp_configs_crud.py
     add_smtp_config,
@@ -395,8 +387,7 @@ __all__ = [
     "format_currency",
     "get_document_context_data",
     # from activity_logs_crud
-    "add_activity_log", "get_activity_logs_for_user", "get_activity_logs_for_client",
-    "get_activity_logs_for_project", "get_all_activity_logs",
+    "add_activity_log", "get_activity_logs", "get_activity_log_by_id",
     # from application_settings_crud
     "get_application_setting", "set_application_setting", "get_all_application_settings",
     "initialize_default_settings",
@@ -506,8 +497,6 @@ __all__ = [
     # Scheduled Emails & Reminders
     "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email",
     "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder",
-    # Activity Log
-    "add_activity_log", "get_activity_logs",
     # SmtpConfigs
     "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs",
     "update_smtp_config", "delete_smtp_config", "set_default_smtp_config",
