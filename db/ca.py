@@ -1054,27 +1054,35 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-
-    # --- New Partner Tables ---
+    # --- Partner Tables ---
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Partners (
-            partner_id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            address TEXT,
-            phone TEXT,
-            location TEXT,
-            email TEXT UNIQUE,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerCategories (
-            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT
+        CREATE TABLE IF NOT EXISTS Partners (
+            partner_id TEXT PRIMARY KEY,
+            partner_name TEXT NOT NULL,
+            partner_category_id INTEGER,
+            contact_person_name TEXT,
+            email TEXT UNIQUE,
+            phone TEXT,
+            address TEXT,
+            website_url TEXT,
+            services_offered TEXT,
+            collaboration_start_date TEXT,
+            status TEXT DEFAULT 'Active',
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
+
         )
     """)
 
@@ -1095,10 +1103,11 @@ def initialize_database():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
             partner_id TEXT NOT NULL,
-            category_id INTEGER NOT NULL,
-            PRIMARY KEY (partner_id, category_id),
+            partner_category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, partner_category_id),
             FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
-            FOREIGN KEY (category_id) REFERENCES PartnerCategories(category_id) ON DELETE CASCADE
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
+
         )
     """)
 
@@ -1115,14 +1124,15 @@ def initialize_database():
             FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
         )
     """)
-    # --- End New Partner Tables ---
+    # --- End Partner Tables ---
 
-    # --- Indexes for New Partner Tables ---
+    # --- Indexes for Partner Tables ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_partner_category_id ON PartnerCategoryLink(partner_category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
-    # --- End Indexes for New Partner Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
+    # --- End Indexes for Partner Tables ---
 
 
     # MediaItems Table
