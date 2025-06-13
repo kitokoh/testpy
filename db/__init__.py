@@ -200,9 +200,6 @@ from .cruds.status_settings_crud import (
     get_all_status_settings,
     get_status_setting_by_id,
     get_status_setting_by_name,
-    add_status_setting, # Assuming this exists
-    update_status_setting, # Assuming this exists
-    delete_status_setting, # Assuming this exists
 )
 
 # Team Members
@@ -402,7 +399,6 @@ __all__ = [
     "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
     # Status Settings
     "get_all_status_settings", "get_status_setting_by_id", "get_status_setting_by_name",
-    "add_status_setting", "update_status_setting", "delete_status_setting",
     # Team Members
     "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member",
     # Template Categories
