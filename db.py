@@ -1402,19 +1402,6 @@ if __name__ == '__main__':
         if outlook_conf_after_gmail_default:
             print(f"'Secondary Outlook' is_default status: {outlook_conf_after_gmail_default['is_default']}")
 
-
-    # Cleanup examples (use with caution)
-    # if doc1_id: delete_client_document(doc1_id)
-    # if client_general_doc_id: delete_client_document(client_general_doc_id)
-    # if smtp1_id: delete_smtp_config(smtp1_id)
-    # if smtp2_id: delete_smtp_config(smtp2_id)
-    # # test_project_id_for_docs, test_client_id_for_docs, test_user_id, test_template_id might be deleted by previous test block's commented out deletions
-    # # Consider re-fetching or ensuring they exist before these deletions if running sequentially multiple times
-    # if test_project_id_for_docs and get_project_by_id(test_project_id_for_docs): delete_project(test_project_id_for_docs)
-    # if test_client_id_for_docs and get_client_by_id(test_client_id_for_docs): delete_client(test_client_id_for_docs)
-    # if test_template_id and get_template_by_id(test_template_id): delete_template(test_template_id)
-    # if test_user_id and get_user_by_id(test_user_id): delete_user(test_user_id)
-
     print("\n--- TeamMembers Extended Fields and KPIs CRUD Examples ---")
 
     # --- Cover Page Templates and Cover Pages Test ---
