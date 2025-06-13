@@ -121,15 +121,6 @@ from .cruds.cover_pages_crud import (
 # Generic (if any public functions)
 # from .cruds.generic_crud import ...
 
-# Google Sync (if any public functions beyond specific token/log handling)
-from .cruds.google_sync_crud import (
-    store_google_sync_token,
-    get_google_sync_token,
-    delete_google_sync_token,
-    add_google_sync_log,
-    get_google_sync_logs,
-)
-
 
 # Locations (Countries, Cities)
 from .cruds.locations_crud import (
@@ -398,8 +389,6 @@ __all__ = [
     # Cover Pages
     "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project",
     "update_cover_page", "delete_cover_page", "get_cover_pages_for_user",
-    # Google Sync
-    "store_google_sync_token", "get_google_sync_token", "delete_google_sync_token", "add_google_sync_log", "get_google_sync_logs",
     # Locations
     "get_all_countries", "get_country_by_id", "get_country_by_name", "add_country", "get_all_cities",
     "get_city_by_id", "get_city_by_name_and_country_id", "add_city",
