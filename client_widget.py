@@ -1725,10 +1725,18 @@ class ClientWidget(QWidget):
                                                     type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
-
                     get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
             # This 'elif status_text:' should handle other statuses not 'Vendu'
             elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
+                # Ensure client_id_to_update and status_id_to_set are defined in this path
+                client_id_to_update = self.client_info.get("client_id")
+                status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+                if not client_id_to_update or not status_setting or status_setting.get('status_id') is None:
+                    QMessageBox.warning(self, self.tr("Erreur Critique"), self.tr("Données client ou statut manquantes pour la mise à jour."))
+                    return # or handle error appropriately
+
+                status_id_to_set = status_setting['status_id']
+
                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
@@ -1737,7 +1745,7 @@ class ClientWidget(QWidget):
                                                     message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
                                                     type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
-                 else:
+                else:
                     # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client pour '{0}'.").format(status_text))
                     get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
 
