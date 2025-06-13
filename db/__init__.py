@@ -224,6 +224,21 @@ from .cruds.products_crud import (
     get_all_product_equivalencies,
     remove_product_equivalence,
 )
+
+# Proforma Invoices & Items
+from .cruds.proforma_invoices_crud import (
+    create_proforma_invoice,
+    get_proforma_invoice_by_id,
+    get_proforma_invoice_by_number,
+    list_proforma_invoices,
+    update_proforma_invoice,
+    delete_proforma_invoice,
+    create_proforma_invoice_item,
+    get_proforma_invoice_item_by_id,
+    update_proforma_invoice_item,
+    delete_proforma_invoice_item,
+)
+
 from .cruds.projects_crud import ( # Placeholders
     add_project,
     get_project_by_id,
@@ -480,6 +495,11 @@ __all__ = [
 
     # Transporters
     "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter",
+    # from proforma_invoices_crud
+    "create_proforma_invoice", "get_proforma_invoice_by_id", "get_proforma_invoice_by_number",
+    "list_proforma_invoices", "update_proforma_invoice", "delete_proforma_invoice",
+    "create_proforma_invoice_item", "get_proforma_invoice_item_by_id",
+    "update_proforma_invoice_item", "delete_proforma_invoice_item",
 ]
 
 # Note: financial_reports_crud.py and media_items_crud.py were not found and are thus not included.

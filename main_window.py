@@ -50,8 +50,8 @@ from statistics_panel import CollapsibleStatisticsWidget
 
 from utils import save_config
 from company_management import CompanyTabWidget
-from partners.partner_main_widget import PartnerMainWidget
-from main import get_notification_manager
+
+from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -182,6 +182,26 @@ class DocumentManager(QMainWindow):
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
 
     def notify(self, title, message, type='INFO', duration=5000, icon_path=None):
+
+        """
+        Convenience method to show a notification via the global NotificationManager.
+
+        This method provides an easy way for parts of the DocumentManager (or its children,
+        if they have a reference to it) to display notifications without needing to
+        directly import or manage the NotificationManager.
+
+        Args:
+            title (str): The title of the notification.
+            message (str): The main message content of the notification.
+            type (str, optional): Type of notification ('INFO', 'SUCCESS', 'WARNING', 'ERROR').
+                                  Defaults to 'INFO'.
+            duration (int, optional): Duration in milliseconds before the notification auto-closes.
+                                      Defaults to 5000ms.
+            icon_path (str, optional): Path to a custom icon. If None, a default icon based
+                                       on the 'type' will be used. Defaults to None.
+        """
+        from main import get_notification_manager # Local import
+
         manager = get_notification_manager()
         if manager: manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
         else: logging.warning(f"Notification Manager not found. Notification: {title} - {message}")

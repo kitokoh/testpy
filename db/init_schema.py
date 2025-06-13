@@ -787,6 +787,52 @@ def initialize_database():
         FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
     )""")
 
+    # Create ProformaInvoices table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS proforma_invoices (
+        id TEXT PRIMARY KEY,
+        proforma_invoice_number TEXT UNIQUE NOT NULL,
+        client_id TEXT NOT NULL,
+        project_id TEXT,
+        company_id TEXT NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        sent_date TIMESTAMP,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        currency TEXT NOT NULL DEFAULT 'USD',
+        subtotal_amount REAL NOT NULL DEFAULT 0.0,
+        discount_amount REAL DEFAULT 0.0,
+        vat_amount REAL NOT NULL DEFAULT 0.0,
+        grand_total_amount REAL NOT NULL DEFAULT 0.0,
+        payment_terms TEXT,
+        delivery_terms TEXT,
+        incoterms TEXT,
+        named_place_of_delivery TEXT,
+        notes TEXT,
+        linked_document_id TEXT,
+        generated_invoice_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE,
+        FOREIGN KEY (linked_document_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL,
+        FOREIGN KEY (generated_invoice_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL
+    )
+    """)
+
+    # Create ProformaInvoiceItems table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS proforma_invoice_items (
+        id TEXT PRIMARY KEY,
+        proforma_invoice_id TEXT NOT NULL,
+        product_id TEXT,
+        description TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        total_price REAL NOT NULL,
+        FOREIGN KEY (proforma_invoice_id) REFERENCES proforma_invoices (id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE SET NULL
+    )
+    """)
+
     # Create Transporters table (from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Transporters (
@@ -1098,6 +1144,19 @@ def initialize_database():
     # ProductMediaLinks
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
+
+    # ProformaInvoices
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_client_id ON proforma_invoices(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_project_id ON proforma_invoices(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_company_id ON proforma_invoices(company_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_status ON proforma_invoices(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_created_date ON proforma_invoices(created_date)")
+
+    # ProformaInvoiceItems
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoice_items_proforma_invoice_id ON proforma_invoice_items(proforma_invoice_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoice_items_product_id ON proforma_invoice_items(product_id)")
+
     # Google Contact Sync Tables
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_email ON UserGoogleAccounts(email)")

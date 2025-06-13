@@ -373,6 +373,7 @@ class ProductsCRUD(GenericCRUD):
 
         now = datetime.utcnow().isoformat() + "Z"
         sql = f"UPDATE {self.table_name} SET base_unit_price = ?, updated_at = ? WHERE {self.id_column} = ?"
+
         try:
             cursor = conn.cursor()
             cursor.execute(sql, (new_price, now, product_id))
