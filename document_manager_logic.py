@@ -69,6 +69,10 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
 
     if not client_name_val or not country_id_val or not project_identifier_val:
         QMessageBox.warning(doc_manager, doc_manager.tr("Champs Requis"), doc_manager.tr("Nom client, Pays et ID Projet sont obligatoires."))
+        # Added notification
+        doc_manager.notify(title=doc_manager.tr("Champs Requis Manquants"),
+                           message=doc_manager.tr("Nom client, Pays et ID Projet sont obligatoires pour la création."),
+                           type='WARNING')
         return
 
     folder_name_str = f"{client_name_val}_{country_name_for_folder}_{project_identifier_val}".replace(" ", "_").replace("/", "-")
@@ -77,6 +81,10 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
     if os.path.exists(base_folder_full_path):
         QMessageBox.warning(doc_manager, doc_manager.tr("Dossier Existant"),
                             doc_manager.tr("Un dossier client avec un chemin similaire existe déjà. Veuillez vérifier les détails ou choisir un ID Projet différent."))
+        # Added notification
+        doc_manager.notify(title=doc_manager.tr("Dossier Client Existant"),
+                           message=doc_manager.tr("Un dossier client avec le nom '{0}' (ou similaire) existe déjà.").format(folder_name_str),
+                           type='ERROR')
         return
 
     default_status_name = "En cours"
@@ -84,6 +92,10 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
     if not status_setting_obj or not status_setting_obj.get('status_id'):
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Configuration"),
                              doc_manager.tr("Statut par défaut '{0}' non trouvé pour les clients. Veuillez configurer les statuts.").format(default_status_name))
+        # Added notification
+        doc_manager.notify(title=doc_manager.tr("Erreur Configuration Statut"),
+                           message=doc_manager.tr("Statut client par défaut '{0}' introuvable.").format(default_status_name),
+                           type='ERROR')
         return
     default_status_id = status_setting_obj['status_id']
 
@@ -110,6 +122,10 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         if not actual_new_client_id:
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
                                  doc_manager.tr("Impossible de créer le client. L'ID de projet ou le chemin du dossier existe peut-être déjà, ou autre erreur de contrainte DB."))
+            # Added notification
+            doc_manager.notify(title=doc_manager.tr("Erreur Création Client DB"),
+                               message=doc_manager.tr("Impossible de créer le client dans la base de données."),
+                               type='ERROR')
             return
 
         os.makedirs(base_folder_full_path, exist_ok=True)
@@ -121,8 +137,12 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         project_status_id_for_pm = project_status_planning_obj['status_id'] if project_status_planning_obj else None
 
         if not project_status_id_for_pm:
-             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Configuration Projet"),
-                                 doc_manager.tr("Statut de projet par défaut 'Planning' non trouvé. Le projet ne sera pas créé avec un statut initial."))
+            QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Configuration Projet"),
+                                doc_manager.tr("Statut de projet par défaut 'Planning' non trouvé. Le projet ne sera pas créé avec un statut initial."))
+            # Added notification for missing project status config
+            doc_manager.notify(title=doc_manager.tr("Erreur Configuration Projet"),
+                               message=doc_manager.tr("Statut projet par défaut 'Planning' non trouvé. Le projet associé n'aura pas de statut initial."),
+                               type='WARNING')
 
         project_data_for_db = {
             'client_id': actual_new_client_id,
@@ -168,6 +188,10 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         else:
             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB Projet"),
                                 doc_manager.tr("Le client a été créé, mais la création du projet associé dans la base de données centrale a échoué."))
+            # Added notification
+            doc_manager.notify(title=doc_manager.tr("Erreur Création Projet Associé"),
+                               message=doc_manager.tr("Client créé, mais échec de la création du projet associé."),
+                               type='WARNING')
 
         client_dict_from_db = get_client_by_id(actual_new_client_id)
         ui_map_data = None
@@ -293,32 +317,40 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
              QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Données Client"), doc_manager.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la séquence de dialogue."))
 
 
-        QMessageBox.information(doc_manager, doc_manager.tr("Client Créé"),
-                                doc_manager.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
+        # QMessageBox.information(doc_manager, doc_manager.tr("Client Créé"),
+        #                         doc_manager.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
+        doc_manager.notify(title=doc_manager.tr("Client Créé"),
+                           message=doc_manager.tr("Le client '{0}' (ID: {1}) a été créé avec succès.").format(client_name_val, actual_new_client_id),
+                           type='SUCCESS')
         doc_manager.open_client_tab_by_id(actual_new_client_id)
         doc_manager.stats_widget.update_stats()
 
     except sqlite3.IntegrityError as e_sqlite_integrity:
         logging.error(f"Database integrity error during client creation: {client_name_val}", exc_info=True)
-        error_msg = str(e_sqlite_integrity).lower()
+        error_msg_detail = str(e_sqlite_integrity).lower()
         user_message = doc_manager.tr("Erreur de base de données lors de la création du client.")
-        if "unique constraint failed: clients.project_identifier" in error_msg:
+        if "unique constraint failed: clients.project_identifier" in error_msg_detail:
             user_message = doc_manager.tr("L'ID de Projet '{0}' existe déjà. Veuillez en choisir un autre.").format(project_identifier_val)
-        elif "unique constraint failed: clients.default_base_folder_path" in error_msg:
+        elif "unique constraint failed: clients.default_base_folder_path" in error_msg_detail:
              user_message = doc_manager.tr("Un client avec un nom ou un chemin de dossier résultant similaire existe déjà. Veuillez modifier le nom du client ou l'ID de projet.")
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur de Données"), user_message)
+        doc_manager.notify(title=doc_manager.tr("Erreur Données Client"), message=user_message, type='ERROR')
     except OSError as e_os:
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
+        doc_manager.notify(title=doc_manager.tr("Erreur Création Dossier"), message=doc_manager.tr("Erreur de création du dossier pour le client '{0}'.").format(client_name_val), type='ERROR')
         if actual_new_client_id:
              delete_client(actual_new_client_id) # Attempt to rollback DB entry
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
+             doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Entrée client annulée suite à l'erreur de dossier."), type='INFO')
     except Exception as e_db:
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Inattendue"), doc_manager.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
+        doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue lors de la création du client ou des éléments associés."), type='ERROR')
         if new_project_id_central_db and get_project_by_id(new_project_id_central_db): # Check if project was created
             delete_project(new_project_id_central_db) # Attempt to rollback project
         if actual_new_client_id and get_client_by_id(actual_new_client_id): # Check if client was created
              delete_client(actual_new_client_id) # Attempt to rollback client
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
+             doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Client et projet associé annulés suite à une erreur grave."), type='INFO')
 
 def load_and_display_clients(doc_manager):
     doc_manager.clients_data_map.clear()
@@ -425,6 +457,9 @@ def handle_open_edit_client_dialog(doc_manager, client_id):
     current_client_data = doc_manager.clients_data_map.get(client_id)
     if not current_client_data:
         QMessageBox.warning(doc_manager, doc_manager.tr("Erreur"), doc_manager.tr("Client non trouvé."))
+        doc_manager.notify(title=doc_manager.tr("Client Introuvable"),
+                           message=doc_manager.tr("Les données du client (ID: {0}) n'ont pas pu être chargées pour modification.").format(client_id),
+                           type='ERROR')
         return
 
     dialog = EditClientDialog(current_client_data, doc_manager.config, doc_manager) # Pass doc_manager as parent
@@ -439,15 +474,19 @@ def handle_open_edit_client_dialog(doc_manager, client_id):
         }
         success = update_client(client_id, data_for_db_update)
         if success:
-            QMessageBox.information(doc_manager, doc_manager.tr("Succès"), doc_manager.tr("Client mis à jour avec succès."))
+            # QMessageBox.information(doc_manager, doc_manager.tr("Succès"), doc_manager.tr("Client mis à jour avec succès."))
             load_and_display_clients(doc_manager) # Refresh map and list widget
+            updated_client_data_for_tab = doc_manager.clients_data_map.get(client_id) # Get fresh data after load_and_display_clients
+            client_name_for_notify = updated_client_data_for_tab.get('client_name', str(client_id)) if updated_client_data_for_tab else str(client_id)
+            doc_manager.notify(title=doc_manager.tr("Client Mis à Jour"),
+                               message=doc_manager.tr("Les informations du client '{0}' ont été mises à jour.").format(client_name_for_notify),
+                               type='SUCCESS')
             tab_refreshed = False
             for i in range(doc_manager.client_tabs_widget.count()):
                 tab_widget = doc_manager.client_tabs_widget.widget(i)
                 if hasattr(tab_widget, 'client_info') and tab_widget.client_info.get("client_id") == client_id:
                     if hasattr(tab_widget, 'refresh_display'):
-                        updated_client_data_for_tab = doc_manager.clients_data_map.get(client_id)
-                        if updated_client_data_for_tab:
+                        if updated_client_data_for_tab: # Ensure it's not None
                             tab_widget.refresh_display(updated_client_data_for_tab)
                             doc_manager.client_tabs_widget.setTabText(i, updated_client_data_for_tab.get('client_name', 'Client'))
                             tab_refreshed = True
@@ -455,6 +494,9 @@ def handle_open_edit_client_dialog(doc_manager, client_id):
             doc_manager.stats_widget.update_stats()
         else:
             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur"), doc_manager.tr("Échec de la mise à jour du client."))
+            doc_manager.notify(title=doc_manager.tr("Erreur Mise à Jour Client"),
+                               message=doc_manager.tr("Impossible de mettre à jour les informations du client ID: {0}.").format(client_id),
+                               type='ERROR')
 
 def archive_client_status(doc_manager, client_id):
     if client_id not in doc_manager.clients_data_map: return
@@ -463,8 +505,12 @@ def archive_client_status(doc_manager, client_id):
         if not status_archived_obj:
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Configuration"),
                                  doc_manager.tr("Statut 'Archivé' non trouvé. Veuillez configurer les statuts."))
+            doc_manager.notify(title=doc_manager.tr("Erreur Configuration Statut"),
+                               message=doc_manager.tr("Statut 'Archivé' non trouvé. Impossible d'archiver."),
+                               type='ERROR')
             return
         archived_status_id = status_archived_obj['status_id']
+        client_name_for_notify = doc_manager.clients_data_map[client_id].get('client_name', str(client_id))
         updated = update_client(client_id, {'status_id': archived_status_id})
         if updated:
             doc_manager.clients_data_map[client_id]["status"] = "Archivé"
@@ -477,13 +523,22 @@ def archive_client_status(doc_manager, client_id):
                         tab_w.status_combo.setCurrentText("Archivé") # Update status combo in open tab
                     break
             doc_manager.stats_widget.update_stats()
-            QMessageBox.information(doc_manager, doc_manager.tr("Client Archivé"),
-                                    doc_manager.tr("Le client '{0}' a été archivé.").format(doc_manager.clients_data_map[client_id]['client_name']))
+            # QMessageBox.information(doc_manager, doc_manager.tr("Client Archivé"),
+            #                         doc_manager.tr("Le client '{0}' a été archivé.").format(client_name_for_notify))
+            doc_manager.notify(title=doc_manager.tr("Client Archivé"),
+                               message=doc_manager.tr("Le client '{0}' a été archivé.").format(client_name_for_notify),
+                               type='INFO')
         else:
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
                                  doc_manager.tr("Erreur d'archivage du client. Vérifiez les logs."))
+            doc_manager.notify(title=doc_manager.tr("Erreur Archivage"),
+                               message=doc_manager.tr("Erreur d'archivage du client '{0}'.").format(client_name_for_notify),
+                               type='ERROR')
     except Exception as e:
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Erreur d'archivage du client:\n{0}").format(str(e)))
+        doc_manager.notify(title=doc_manager.tr("Erreur Archivage Inattendue"),
+                           message=doc_manager.tr("Erreur inattendue lors de l'archivage du client '{0}'.").format(client_name_for_notify),
+                           type='ERROR')
 
 def permanently_delete_client(doc_manager, client_id):
     if client_id not in doc_manager.clients_data_map: return
@@ -508,14 +563,23 @@ def permanently_delete_client(doc_manager, client_id):
                        doc_manager.client_tabs_widget.widget(i).client_info["client_id"] == client_id:
                         doc_manager.close_client_tab(i); break # close_client_tab is a method of DocumentManager
                 doc_manager.stats_widget.update_stats()
-                QMessageBox.information(doc_manager, doc_manager.tr("Client Supprimé"),
-                                        doc_manager.tr("Client '{0}' supprimé avec succès.").format(client_name_val))
+                # QMessageBox.information(doc_manager, doc_manager.tr("Client Supprimé"),
+                #                         doc_manager.tr("Client '{0}' supprimé avec succès.").format(client_name_val))
+                doc_manager.notify(title=doc_manager.tr("Client Supprimé"),
+                                   message=doc_manager.tr("Client '{0}' supprimé avec succès.").format(client_name_val),
+                                   type='SUCCESS')
             else:
                 QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
                                      doc_manager.tr("Erreur lors de la suppression du client de la base de données. Le dossier n'a pas été supprimé."))
+                doc_manager.notify(title=doc_manager.tr("Erreur Suppression DB"),
+                                   message=doc_manager.tr("Erreur de suppression du client '{0}' de la DB.").format(client_name_val),
+                                   type='ERROR')
         except OSError as e_os:
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"),
                                  doc_manager.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier:\n{0}").format(str(e_os)))
+            doc_manager.notify(title=doc_manager.tr("Erreur Suppression Dossier"),
+                               message=doc_manager.tr("Client '{0}' supprimé de la DB, mais erreur de suppression du dossier.").format(client_name_val),
+                               type='WARNING') # Warning because part of it succeeded
             if client_id in doc_manager.clients_data_map: # Check if still in map before attempting del
                  del doc_manager.clients_data_map[client_id]
             filter_and_display_clients(doc_manager)
@@ -527,3 +591,6 @@ def permanently_delete_client(doc_manager, client_id):
         except Exception as e_db:
              QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
                                   doc_manager.tr("Erreur lors de la suppression du client:\n{0}").format(str(e_db)))
+             doc_manager.notify(title=doc_manager.tr("Erreur Suppression Inattendue"),
+                                message=doc_manager.tr("Erreur inattendue lors de la suppression du client '{0}'.").format(client_name_val),
+                                type='ERROR')

@@ -5,6 +5,8 @@ from datetime import datetime
 import json
 import os
 
+from auth.roles import SUPER_ADMIN
+
 # Import global constants from db_config.py (assuming it's in the parent directory)
 try:
     from .. import db_config # For package structure: db/schema.py importing from /app/db_config.py
@@ -160,6 +162,23 @@ def initialize_database():
     cursor.execute("CREATE TABLE IF NOT EXISTS Clients (client_id TEXT PRIMARY KEY, client_name TEXT NOT NULL, company_name TEXT, primary_need_description TEXT, project_identifier TEXT NOT NULL, country_id INTEGER, city_id INTEGER, default_base_folder_path TEXT UNIQUE, status_id INTEGER, selected_languages TEXT, price REAL DEFAULT 0, notes TEXT, category TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by_user_id TEXT, FOREIGN KEY (country_id) REFERENCES Countries (country_id), FOREIGN KEY (city_id) REFERENCES Cities (city_id), FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id), FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id))")
     # (Continue with all other CREATE TABLE statements from the existing schema.py)
     cursor.execute("CREATE TABLE IF NOT EXISTS Client_FreightForwarders (client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE, UNIQUE (client_id, forwarder_id))")
+
+    # --- Product Media Links Table ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ProductMediaLinks (
+            link_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Using INTEGER for simplicity with SQLite autoincrement
+            product_id INTEGER NOT NULL,
+            media_item_id TEXT NOT NULL, -- Matching MediaItems.media_item_id type
+            display_order INTEGER DEFAULT 0,
+            alt_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
+            FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+            UNIQUE (product_id, media_item_id), -- A media item can be linked to a product only once
+            UNIQUE (product_id, display_order) -- Ensures display_order is unique per product (optional, but can simplify reordering)
+        );
+    """)
+    # --- End Product Media Links Table ---
 
     # --- Updated Partner Tables ---
     # PartnerCategories table
@@ -322,6 +341,11 @@ def initialize_database():
     # ... (ALL OTHER CREATE INDEX STATEMENTS from existing schema.py)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
+    # --- Indexes for ProductMediaLinks Table ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
+    # --- End Indexes for ProductMediaLinks Table ---
+
     # --- Indexes for Partner Tables (adjusting PartnerCategoryLink index) ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
@@ -350,7 +374,7 @@ def initialize_database():
             # Use DEFAULT_ADMIN_PASSWORD and DEFAULT_ADMIN_USERNAME from db_config
             admin_pass_hash = hashlib.sha256(db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest()
             cursor.execute("INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', 'admin@example.com', 'admin'))
+                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', 'admin@example.com', SUPER_ADMIN))
 
         # Other seeding operations using the imported/placeholder CRUDs, passing `conn`
         admin_user = get_user_by_username(db_config.DEFAULT_ADMIN_USERNAME, conn=conn)

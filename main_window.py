@@ -54,6 +54,7 @@ from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
 from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
+from main import get_notification_manager # For notifications
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -316,7 +317,34 @@ class DocumentManager(QMainWindow):
         self.check_timer = QTimer(self)
         self.check_timer.timeout.connect(self.check_old_clients_routine_slot)
         self.check_timer.start(3600000)
-        
+
+    def notify(self, title, message, type='INFO', duration=5000, icon_path=None):
+        """
+        Convenience method to show a notification via the global NotificationManager.
+
+        This method provides an easy way for parts of the DocumentManager (or its children,
+        if they have a reference to it) to display notifications without needing to
+        directly import or manage the NotificationManager.
+
+        Args:
+            title (str): The title of the notification.
+            message (str): The main message content of the notification.
+            type (str, optional): Type of notification ('INFO', 'SUCCESS', 'WARNING', 'ERROR').
+                                  Defaults to 'INFO'.
+            duration (int, optional): Duration in milliseconds before the notification auto-closes.
+                                      Defaults to 5000ms.
+            icon_path (str, optional): Path to a custom icon. If None, a default icon based
+                                       on the 'type' will be used. Defaults to None.
+        """
+        manager = get_notification_manager()
+        if manager:
+            manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
+        else:
+            # Fallback or log an error if manager is not found
+            logging.warning(f"Notification Manager not found. Notification: {title} - {message}")
+            # As a basic fallback, show a QMessageBox - though this is modal and not ideal for notifications
+            # QMessageBox.information(self, title, message) # Consider if this fallback is desired
+
     def setup_ui_main(self): 
         central_widget = QWidget(); self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(10,10,10,10); main_layout.setSpacing(10)
@@ -593,6 +621,9 @@ class DocumentManager(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(client_info["base_folder_path"]))
         else:
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Chemin du dossier non trouvé pour ce client."))
+            self.notify(title=self.tr("Accès Dossier Échoué"),
+                        message=self.tr("Chemin du dossier non trouvé pour le client '{0}'.").format(client_info.get('client_name', 'N/A') if client_info else 'N/A'),
+                        type='WARNING')
             
     def open_settings_dialog(self): 
         dialog = SettingsDialog(self.config, self)
@@ -614,11 +645,18 @@ class DocumentManager(QMainWindow):
                     logging.info(f"User language preference '{new_language_code}' saved to database.")
                 except Exception as e:
                     logging.error(f"Error saving language preference to database: {e}", exc_info=True)
-                    QMessageBox.warning(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'enregistrer la préférence linguistique dans la base de données : {0}").format(str(e)))
+                    self.notify(title=self.tr("Erreur Sauvegarde Langue"),
+                                message=self.tr("Impossible d'enregistrer la préférence linguistique."),
+                                type='ERROR')
+                    # QMessageBox.warning(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'enregistrer la préférence linguistique dans la base de données : {0}").format(str(e)))
+
 
             os.makedirs(self.config["templates_dir"], exist_ok=True) 
             os.makedirs(self.config["clients_dir"], exist_ok=True)
-            QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés."))
+            # QMessageBox.information(self, self.tr("Paramètres Sauvegardés"), self.tr("Nouveaux paramètres enregistrés."))
+            self.notify(title=self.tr("Paramètres Sauvegardés"),
+                        message=self.tr("Les nouveaux paramètres de l'application ont été enregistrés avec succès."),
+                        type='SUCCESS')
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
         
@@ -717,8 +755,11 @@ class DocumentManager(QMainWindow):
                         popup_html += f"<li><a href='#' onclick='onClientClick(\"{client['client_id']}\", \"{js_safe_client_name}\")'>{client['client_name']}</a></li>"
                     popup_html += "</ul>"
 
-                popup_html += f"<br><button onclick='onCountryFeatureClick(\"{country_name.replace("'", "\\'")}\")'>{self.tr('Ajouter Client Ici')}</button>"
-                feature['properties']['popup_content'] = popup_html
+            country_name_js_escaped = country_name.replace("'", "\\'")
+            js_onclick_call = f'onCountryFeatureClick("{country_name_js_escaped}")'
+            button_text = self.tr('Ajouter Client Ici')
+            popup_html += f"<br><button onclick='{js_onclick_call}'>{button_text}</button>"
+            feature['properties']['popup_content'] = popup_html
 
             # Add popups using the 'popup_content' property
             popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content']))

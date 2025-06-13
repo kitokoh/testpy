@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (alrea
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
 # import db as db_manager # For db initialization - already imported above
 from main_window import DocumentManager # The main application window
+from notifications import NotificationManager # Added for notifications
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
@@ -400,6 +401,12 @@ def main():
 
     if proceed_to_main_app:
         main_window = DocumentManager(APP_ROOT_DIR)
+
+        # Setup Notification Manager
+        # Ensure 'app' is the QApplication instance, available in this scope
+        notification_manager = NotificationManager(parent_window=main_window)
+        QApplication.instance().notification_manager = notification_manager
+
         main_window.show()
         logging.info("Main window shown. Application is running.")
         sys.exit(app.exec_())
@@ -440,6 +447,19 @@ def main():
         logging.info("Login failed or cancelled. Exiting application.")
         sys.exit() # Exit if login is not successful
 
+def get_notification_manager():
+    """
+    Global accessor for the NotificationManager instance.
+
+    Returns:
+        NotificationManager or None: The global NotificationManager instance if it has been set
+                                     on the QApplication instance, otherwise None.
+    """
+    app_instance = QApplication.instance()
+    if hasattr(app_instance, 'notification_manager'):
+        return app_instance.notification_manager
+    logging.warning("NotificationManager not found on QApplication instance.")
+    return None
 
 if __name__ == "__main__":
     main()
