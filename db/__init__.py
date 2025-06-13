@@ -12,36 +12,30 @@ from .utils import get_db_connection, format_currency, get_document_context_data
 
 from .cruds.activity_logs_crud import (
     add_activity_log,
-    get_activity_logs_for_user,
-    get_activity_logs_for_client,
-    get_activity_logs_for_project,
-    get_all_activity_logs,
+    get_activity_logs,
+    get_activity_log_by_id,
 )
 from .cruds.application_settings_crud import (
-    get_application_setting,
-    set_application_setting,
-    get_all_application_settings,
-    initialize_default_settings,
+    get_setting,
+    set_setting,
 )
 from .cruds.client_assigned_personnel_crud import (
     assign_personnel_to_client,
     get_assigned_personnel_for_client,
     unassign_personnel_from_client,
-    update_client_personnel_assignment,
 )
 from .cruds.client_documents_crud import (
     add_client_document,
-    get_client_document_by_id,
-    get_client_documents_for_client,
-    get_client_documents_for_project,
+    get_document_by_id,
+    get_documents_for_client,
+    get_documents_for_project,
     update_client_document,
     delete_client_document,
 )
 from .cruds.client_freight_forwarders_crud import (
-    assign_freight_forwarder_to_client,
-    get_assigned_freight_forwarders_for_client,
-    unassign_freight_forwarder_from_client,
-    update_client_freight_forwarder_email_status,
+    assign_forwarder_to_client,
+    get_assigned_forwarders_for_client,
+    unassign_forwarder_from_client,
 )
 from .cruds.client_project_products_crud import (
     add_product_to_client_or_project,
@@ -259,14 +253,6 @@ from .cruds.kpis_crud import ( # Assuming a kpis_crud.py exists
     delete_kpi,
 )
 
-
-# Status Settings
-from .cruds.status_settings_crud import (
-    get_all_status_settings,
-    get_status_setting_by_id,
-    get_status_setting_by_name,
-)
-
 # Team Members
 from .cruds.team_members_crud import (
     add_team_member,
@@ -319,55 +305,6 @@ from .cruds.users_crud import (
     delete_user,
 )
 
-# SAV Tickets
-from .cruds.sav_tickets_crud import ( # Assuming sav_tickets_crud.py
-    add_sav_ticket,
-    get_sav_ticket_by_id,
-    get_sav_tickets_for_client,
-    update_sav_ticket,
-    delete_sav_ticket,
-)
-
-# Important Dates
-from .cruds.important_dates_crud import ( # Assuming important_dates_crud.py
-    add_important_date,
-    get_important_date_by_id,
-    get_all_important_dates,
-    update_important_date,
-    delete_important_date,
-)
-
-# Scheduled Emails & Reminders
-from .cruds.scheduled_emails_crud import ( # Assuming scheduled_emails_crud.py
-    add_scheduled_email,
-    get_scheduled_email_by_id,
-    get_pending_scheduled_emails,
-    update_scheduled_email_status,
-    delete_scheduled_email,
-    add_email_reminder,
-    get_pending_reminders,
-    update_reminder_status,
-    delete_email_reminder,
-)
-
-# Activity Log
-from .cruds.activity_log_crud import ( # Assuming activity_log_crud.py
-    add_activity_log,
-    get_activity_logs,
-)
-
-# SmtpConfigs
-from .cruds.smtp_configs_crud import ( # Assuming smtp_configs_crud.py
-    add_smtp_config,
-    get_smtp_config_by_id,
-    get_default_smtp_config,
-    get_all_smtp_configs,
-    update_smtp_config,
-    delete_smtp_config,
-    set_default_smtp_config,
-)
-
-
 # --- Transporters (Moved in previous step) ---
 from .cruds.transporters_crud import (
     add_transporter,
@@ -375,15 +312,6 @@ from .cruds.transporters_crud import (
     get_all_transporters,
     update_transporter,
     delete_transporter,
-)
-from .cruds.users_crud import (
-    add_user,
-    get_user_by_id,
-    get_user_by_username,
-    get_user_by_email,
-    update_user,
-    delete_user,
-    verify_user_password,
 )
 
 # List all functions to be made available through `from db import *`
@@ -395,20 +323,18 @@ __all__ = [
     "format_currency",
     "get_document_context_data",
     # from activity_logs_crud
-    "add_activity_log", "get_activity_logs_for_user", "get_activity_logs_for_client",
-    "get_activity_logs_for_project", "get_all_activity_logs",
+    "add_activity_log", "get_activity_logs", "get_activity_log_by_id",
     # from application_settings_crud
-    "get_application_setting", "set_application_setting", "get_all_application_settings",
-    "initialize_default_settings",
+    "get_setting", "set_setting",
     # from client_assigned_personnel_crud
     "assign_personnel_to_client", "get_assigned_personnel_for_client",
-    "unassign_personnel_from_client", "update_client_personnel_assignment",
+    "unassign_personnel_from_client",
     # from client_documents_crud
-    "add_client_document", "get_client_document_by_id", "get_client_documents_for_client",
-    "get_client_documents_for_project", "update_client_document", "delete_client_document",
+    "add_client_document", "get_document_by_id", "get_documents_for_client",
+    "get_documents_for_project", "update_client_document", "delete_client_document",
     # from client_freight_forwarders_crud
-    "assign_freight_forwarder_to_client", "get_assigned_freight_forwarders_for_client",
-    "unassign_freight_forwarder_from_client", "update_client_freight_forwarder_email_status",
+    "assign_forwarder_to_client", "get_assigned_forwarders_for_client",
+    "unassign_forwarder_from_client",
     # from client_project_products_crud
     "add_product_to_client_or_project", "update_client_project_product",
     "remove_product_from_client_or_project", "get_client_project_product_by_id",
@@ -483,8 +409,6 @@ __all__ = [
 
     # KPIs
     "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
-    # Status Settings
-    "get_all_status_settings", "get_status_setting_by_id", "get_status_setting_by_name",
     # Team Members
     "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member",
     # Template Categories
@@ -499,23 +423,8 @@ __all__ = [
     # Users
     "add_user", "get_user_by_id", "get_user_by_email", "get_user_by_username", "update_user",
     "verify_user_password", "delete_user",
-    # SAV Tickets
-    "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket",
-    # Important Dates
-    "add_important_date", "get_important_date_by_id", "get_all_important_dates", "update_important_date", "delete_important_date",
-    # Scheduled Emails & Reminders
-    "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email",
-    "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder",
-    # Activity Log
-    "add_activity_log", "get_activity_logs",
-    # SmtpConfigs
-    "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs",
-    "update_smtp_config", "delete_smtp_config", "set_default_smtp_config",
     # Transporters
     "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter",
-    # from users_crud
-    "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user",
-    "verify_user_password",
 ]
 
 # Note: financial_reports_crud.py and media_items_crud.py were not found and are thus not included.
