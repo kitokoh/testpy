@@ -27,7 +27,52 @@ def get_country_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
         return None
 
 @_manage_conn
-def get_or_add_country(country_name: str, conn: sqlite3.Connection = None) -> dict | None:
+def add_country(country_data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new country to the Countries table.
+    Expects country_data['country_name']. Optional: country_data['country_code'].
+    created_at and updated_at are handled by database defaults.
+    Returns the country_id of the newly added or existing country.
+    """
+    country_name = country_data.get('country_name')
+    country_code = country_data.get('country_code') # Optional
+
+    if not country_name:
+        logging.error("add_country: 'country_name' is required.")
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Check if country already exists
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+        row = cursor.fetchone()
+        if row:
+            logging.info(f"Country '{country_name}' already exists with ID {row['country_id']}. Returning existing ID.")
+            return row['country_id']
+
+        # If not exists, insert new country
+        # created_at and updated_at will use DEFAULT CURRENT_TIMESTAMP from schema
+        sql = "INSERT INTO Countries (country_name, country_code) VALUES (?, ?)"
+        cursor.execute(sql, (country_name, country_code))
+        # conn.commit() will be handled by @_manage_conn if it's the outermost call
+        new_id = cursor.lastrowid
+        logging.info(f"Added country '{country_name}' with ID {new_id}.")
+        return new_id
+    except sqlite3.IntegrityError: # Should be caught by the initial check, but as a safeguard
+        logging.warning(f"IntegrityError for country '{country_name}'. It might have been added concurrently. Fetching again.")
+        cursor.execute("SELECT country_id FROM Countries WHERE country_name = ?", (country_name,))
+        row = cursor.fetchone()
+        return row['country_id'] if row else None
+    except sqlite3.Error as e:
+        logging.error(f"Database error in add_country for '{country_name}': {e}", exc_info=True)
+        return None
+
+@_manage_conn
+def get_or_add_country(country_name: str, country_code: str = None, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves a country by name, or adds it if it doesn't exist.
+    Returns a dictionary representing the country row, or None on error.
+    """
     if not country_name:
         logging.warning("get_or_add_country: country_name is required.")
         return None
@@ -39,52 +84,18 @@ def get_or_add_country(country_name: str, conn: sqlite3.Connection = None) -> di
         if row:
             return dict(row)
         else:
-            now = datetime.utcnow().isoformat() + "Z"
-            sql = "INSERT INTO Countries (country_name, created_at, updated_at) VALUES (?, ?, ?)"
-            params = (country_name, now, now)
-            cursor.execute(sql, params)
-            new_country_id = cursor.lastrowid
+            # Country does not exist, add it using the refactored add_country logic
+            new_country_id = add_country({'country_name': country_name, 'country_code': country_code}, conn=conn)
             if new_country_id:
-                return {'country_id': new_country_id, 'country_name': country_name, 'created_at': now, 'updated_at': now}
-            else: # Should not happen if insert was successful
-                logging.error(f"Failed to get lastrowid after inserting country: {country_name}")
-                return None
-    except sqlite3.IntegrityError: # country_name likely has a UNIQUE constraint, race condition?
-        logging.warning(f"Integrity error adding country '{country_name}', trying to fetch again.")
-        cursor.execute("SELECT * FROM Countries WHERE country_name = ?", (country_name,))
-        row_after_error = cursor.fetchone()
-        return dict(row_after_error) if row_after_error else None
-    except sqlite3.Error as e_general:
-        logging.error(f"General SQLite error in get_or_add_country for '{country_name}': {e_general}")
-        return None
-
-@_manage_conn
-def add_country(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    """
-    Adds a new country. Expects data['country_name'].
-    This is a simplified version. Consider using get_or_add_country for more robust addition.
-    STUB FUNCTION - Original was a stub.
-    """
-    logging.warning(f"Called stub/simplified function add_country with data: {data}. Consider using get_or_add_country.")
-    if 'country_name' not in data:
-        logging.error("add_country: 'country_name' is required in data.")
-        return None
-
-    country_name = data['country_name']
-    existing_country = get_country_by_name(country_name, conn=conn) # Use passed connection
-    if existing_country:
-        return existing_country['country_id']
-
-    now = datetime.utcnow().isoformat() + "Z"
-    sql = "INSERT INTO Countries (country_name, created_at, updated_at) VALUES (?, ?, ?)"
-    params = (country_name, now, now)
-    cursor = conn.cursor()
-    try:
-        cursor.execute(sql, params)
-        return cursor.lastrowid
+                # Fetch the newly added country to return the full dict including defaults
+                cursor.execute("SELECT * FROM Countries WHERE country_id = ?", (new_country_id,))
+                new_row = cursor.fetchone()
+                return dict(new_row) if new_row else None
+            return None # Error during add_country
     except sqlite3.Error as e:
-        logging.error(f"Database error in add_country for '{country_name}': {e}")
+        logging.error(f"Database error in get_or_add_country for '{country_name}': {e}", exc_info=True)
         return None
+
 
 @_manage_conn
 def get_all_countries(conn: sqlite3.Connection = None) -> list[dict]:
@@ -92,7 +103,6 @@ def get_all_countries(conn: sqlite3.Connection = None) -> list[dict]:
     Retrieves all countries.
     STUB FUNCTION - Original was a stub.
     """
-    logging.warning("Called stub function get_all_countries. Providing basic implementation.")
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM Countries ORDER BY country_name")
@@ -128,32 +138,47 @@ def get_city_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
 def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
     Adds a new city to the Cities table.
-    STUB FUNCTION - Original was a stub. Consider get_or_add_city.
     Expects data['city_name'] and data['country_id'].
+    created_at and updated_at are handled by database defaults (if schema supports it).
+    Returns the city_id of the newly added or existing city.
     """
-    logging.warning(f"Called stub function add_city with data: {data}. Consider get_or_add_city.")
-    if not data.get('city_name') or not data.get('country_id'):
-        logging.error("add_city requires 'city_name' and 'country_id'.")
+    city_name = data.get('city_name')
+    country_id = data.get('country_id')
+
+    if not city_name or not country_id:
+        logging.error("add_city: 'city_name' and 'country_id' are required.")
         return None
 
-    # Simplified: direct insert without all fields from original schema example
-    now = datetime.utcnow().isoformat() + "Z"
-    sql = "INSERT INTO Cities (city_name, country_id, created_at, updated_at) VALUES (?, ?, ?, ?)"
-    params = (data['city_name'], data['country_id'], now, now)
     cursor = conn.cursor()
     try:
-        cursor.execute(sql, params)
-        return cursor.lastrowid
-    except sqlite3.IntegrityError:
-        logging.warning(f"City '{data['city_name']}' likely already exists for country_id {data['country_id']}.")
-        existing_city = get_city_by_name_and_country_id(data['city_name'], data['country_id'], conn=conn)
-        return existing_city['city_id'] if existing_city else None
+        # Check if city already exists for this country
+        cursor.execute("SELECT city_id FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+        row = cursor.fetchone()
+        if row:
+            logging.info(f"City '{city_name}' in country_id {country_id} already exists with ID {row['city_id']}.")
+            return row['city_id']
+
+        # If not exists, insert new city. Assuming Cities table also has created_at/updated_at defaults.
+        sql = "INSERT INTO Cities (city_name, country_id) VALUES (?, ?)"
+        cursor.execute(sql, (city_name, country_id))
+        new_id = cursor.lastrowid
+        logging.info(f"Added city '{city_name}' to country_id {country_id} with new ID {new_id}.")
+        return new_id
+    except sqlite3.IntegrityError: # Should be caught by the initial check
+        logging.warning(f"IntegrityError for city '{city_name}', country_id {country_id}. Fetching again.")
+        cursor.execute("SELECT city_id FROM Cities WHERE city_name = ? AND country_id = ?", (city_name, country_id))
+        row = cursor.fetchone()
+        return row['city_id'] if row else None
     except sqlite3.Error as e:
-        logging.error(f"Database error in add_city for '{data['city_name']}': {e}")
+        logging.error(f"Database error in add_city for '{city_name}', country_id {country_id}: {e}", exc_info=True)
         return None
 
 @_manage_conn
 def get_or_add_city(city_name: str, country_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves a city by name and country_id, or adds it if it doesn't exist.
+    Returns a dictionary representing the city row, or None on error.
+    """
     if not city_name or not country_id:
         logging.warning("get_or_add_city: city_name and country_id are required.")
         return None
@@ -165,23 +190,16 @@ def get_or_add_city(city_name: str, country_id: int, conn: sqlite3.Connection = 
         if row:
             return dict(row)
         else:
-            now = datetime.utcnow().isoformat() + "Z"
-            sql = "INSERT INTO Cities (city_name, country_id, created_at, updated_at) VALUES (?, ?, ?, ?)"
-            params = (city_name, country_id, now, now)
-            cursor.execute(sql, params)
-            new_city_id = cursor.lastrowid
+            # City does not exist, add it using the refactored add_city logic
+            new_city_id = add_city({'city_name': city_name, 'country_id': country_id}, conn=conn)
             if new_city_id:
-                return {'city_id': new_city_id, 'city_name': city_name, 'country_id': country_id,
-                        'latitude': None, 'longitude': None, 'population': None, # Match potential full dict
-                        'created_at': now, 'updated_at': now}
-            else:
-                logging.error(f"Failed to get lastrowid after inserting city: {city_name}")
-                return None
-    except sqlite3.IntegrityError as e:
-        logging.error(f"Integrity error adding city '{city_name}' for country_id {country_id}: {e}")
-        return None
-    except sqlite3.Error as e_general:
-        logging.error(f"General SQLite error adding city '{city_name}': {e_general}")
+                # Fetch the newly added city to return the full dict
+                cursor.execute("SELECT * FROM Cities WHERE city_id = ?", (new_city_id,))
+                new_row = cursor.fetchone()
+                return dict(new_row) if new_row else None
+            return None # Error during add_city
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_or_add_city for '{city_name}', country_id {country_id}: {e}", exc_info=True)
         return None
 
 @_manage_conn

@@ -715,8 +715,18 @@ class DocumentManager(QMainWindow):
                         popup_html += f"<li><a href='#' onclick='onClientClick(\"{client['client_id']}\", \"{js_safe_client_name}\")'>{client['client_name']}</a></li>"
                     popup_html += "</ul>"
 
-                popup_html += f"<br><button onclick='onCountryFeatureClick(\"{country_name.replace("'", "\\'")}\")'>{self.tr('Ajouter Client Ici')}</button>"
-                feature['properties']['popup_content'] = popup_html
+            # Fully decompose the problematic f-string construction
+            button_text_val = self.tr('Ajouter Client Ici')
+            processed_country_name_val = country_name.replace("'", "\\'")
+
+            # onclick_event_str will be like: onCountryFeatureClick("France") or onCountryFeatureClick("Cote d\'Ivoire")
+            onclick_event_str = f"onCountryFeatureClick(\"{processed_country_name_val}\")"
+
+            # Final assembly of the button HTML string
+            add_client_button_html = f"<br><button onclick='{onclick_event_str}'>{button_text_val}</button>"
+            popup_html += add_client_button_html
+
+            feature['properties']['popup_content'] = popup_html
 
             # Add popups using the 'popup_content' property
             popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content']))

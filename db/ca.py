@@ -92,15 +92,41 @@ def initialize_database():
     )
     """)
 
-    # Create Countries table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Countries (
-        country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_name TEXT NOT NULL UNIQUE
-    )
-    """)
+    # Create Countries table (using definition from db.schema)
+    from db.schema import TABLE_SCHEMAS # Import the schema definitions
+
+    countries_schema = TABLE_SCHEMAS.get('Countries')
+    if countries_schema:
+        # Create table if it doesn't exist using schema definition
+        columns_sql_parts = [f"{col_name} {col_type}" for col_name, col_type in countries_schema['columns']]
+        create_countries_sql = f"CREATE TABLE IF NOT EXISTS Countries ({', '.join(columns_sql_parts)})"
+        cursor.execute(create_countries_sql)
+        print("Ensured Countries table exists (using db.schema definition).")
+
+        # Check and add missing columns for Countries table
+        cursor.execute("PRAGMA table_info(Countries)")
+        existing_columns_info = {row['name'] for row in cursor.fetchall()}
+
+        # Desired columns from schema.py (name, type)
+        desired_columns_from_schema = countries_schema['columns']
+
+        for col_name, col_type in desired_columns_from_schema:
+            if col_name not in existing_columns_info:
+                try:
+                    # col_type from schema already includes constraints like DEFAULT
+                    cursor.execute(f"ALTER TABLE Countries ADD COLUMN {col_name} {col_type}")
+                    print(f"Added column '{col_name}' to 'Countries' table.")
+                except sqlite3.OperationalError as e:
+                    # This might happen if the col_type includes constraints not suitable for ADD COLUMN
+                    # e.g. NOT NULL without a DEFAULT for existing rows (though schema has DEFAULTs)
+                    print(f"Warning: Could not add column '{col_name}' with type '{col_type}' to 'Countries': {e}. Manual check might be needed if it's not a 'duplicate column' error.")
+        conn.commit() # Commit schema changes for Countries
+    else:
+        print("ERROR: 'Countries' table schema not found in db.schema.TABLE_SCHEMAS. Table not created/verified.")
 
     # Create Cities table
+    # Ideally, do the same for Cities and all other tables for consistency
+    # For now, keeping the original simple create for Cities, but it should be updated too.
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Cities (
         city_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1053,6 +1079,84 @@ def initialize_database():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+
+    # --- Partner Tables ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Partners (
+            partner_id TEXT PRIMARY KEY,
+            partner_name TEXT NOT NULL,
+            partner_category_id INTEGER,
+            contact_person_name TEXT,
+            email TEXT UNIQUE,
+            phone TEXT,
+            address TEXT,
+            website_url TEXT,
+            services_offered TEXT,
+            collaboration_start_date TEXT,
+            status TEXT DEFAULT 'Active',
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerContacts (
+            contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            role TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
+            partner_id TEXT NOT NULL,
+            partner_category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, partner_category_id),
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerDocuments (
+            document_id TEXT PRIMARY KEY,
+            partner_id TEXT NOT NULL,
+            document_name TEXT NOT NULL,
+            file_path_relative TEXT NOT NULL,
+            document_type TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+        )
+    """)
+    # --- End Partner Tables ---
+
+    # --- Indexes for Partner Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_partner_category_id ON PartnerCategoryLink(partner_category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
+    # --- End Indexes for Partner Tables ---
 
     # MediaItems Table
     cursor.execute('''

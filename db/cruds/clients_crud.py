@@ -299,3 +299,68 @@ def get_client_notes(client_id: str, conn: sqlite3.Connection = None) -> list[di
     except sqlite3.Error as e:
         logging.error(f"Failed to get client notes for client {client_id}: {e}")
         return []
+
+@_manage_conn
+def get_total_clients_count(conn: sqlite3.Connection = None) -> int:
+    """Retrieves the total count of clients."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(client_id) as total_count FROM Clients")
+        row = cursor.fetchone()
+        return row['total_count'] if row else 0
+    except sqlite3.Error as e:
+        logging.error(f"Database error in get_total_clients_count: {e}")
+        return 0
+
+@_manage_conn
+def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves clients based on their archival status.
+    Joins with StatusSettings, Countries, and Cities for detailed information.
+    """
+    cursor = conn.cursor()
+    params = []
+    try:
+        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND (is_archival_status = TRUE OR is_archival_status = 1)")
+        archival_ids_tuples = cursor.fetchall()
+        archival_ids = [row['status_id'] for row in archival_ids_tuples]
+
+        base_query = """
+            SELECT
+                c.client_id, c.client_name, c.company_name, c.primary_need_description,
+                c.project_identifier, c.default_base_folder_path, c.selected_languages,
+                c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
+                co.country_name AS country,
+                ci.city_name AS city,
+                s.status_name AS status,
+                s.color_hex AS status_color,
+                s.icon_name AS status_icon_name
+            FROM Clients c
+            LEFT JOIN Countries co ON c.country_id = co.country_id
+            LEFT JOIN Cities ci ON c.city_id = ci.city_id
+            LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+        """
+        conditions = []
+
+        if not archival_ids:
+            if is_archived: return []
+            # else: no specific status condition if no archival statuses are defined
+        else:
+            placeholders = ','.join('?' for _ in archival_ids)
+            if is_archived:
+                conditions.append(f"c.status_id IN ({placeholders})")
+                params.extend(archival_ids)
+            else:
+                not_in_cond = f"c.status_id NOT IN ({placeholders})"
+                if include_null_status_for_active:
+                    conditions.append(f"({not_in_cond} OR c.status_id IS NULL)")
+                else:
+                    conditions.append(not_in_cond)
+                params.extend(archival_ids)
+
+        sql_query = f"{base_query} {'WHERE ' + ' AND '.join(conditions) if conditions else ''} ORDER BY c.client_name;"
+        cursor.execute(sql_query, params)
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get clients by archival status (is_archived={is_archived}): {e}")
+        return []

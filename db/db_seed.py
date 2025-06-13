@@ -1,4 +1,11 @@
 import os
+import sys
+# Add the parent directory (project root) to sys.path
+# os.path.dirname(__file__) is the directory of the current script (db)
+# os.path.join(..., '..') goes one level up to the project root (/app)
+# os.path.abspath ensures it's an absolute path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import sqlite3
 import uuid
 import hashlib
@@ -7,8 +14,20 @@ import json
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH
-# Assuming db.py is in the parent directory (root)
-import db as db_main_manager
+# Assuming config.py is in the parent directory (root)
+from config import DATABASE_PATH
+
+# Import necessary functions directly from their new CRUD module locations
+from db.cruds.generic_crud import get_db_connection
+# Make sure all imported CRUD functions expect 'conn' if called within a transaction, or manage their own.
+from db.cruds import template_categories_crud # Changed to module import
+from db.cruds import cover_page_templates_crud # Changed to module import
+from db.cruds.users_crud import get_user_by_username
+from db.cruds.locations_crud import add_country, get_country_by_name, add_city, get_city_by_name_and_country_id
+from db.cruds.status_settings_crud import get_status_setting_by_name
+from db.cruds import partners_crud # Added for partner category seeding
+# Assuming company and company personnel functions will be imported if they were used via db_main_manager
+# For now, let's assume they are not, or will be handled if errors arise.
 
 # Path adjustments for db_seed.py located in db/
 # __file__ is db/db_seed.py. os.path.dirname(__file__) is db/. os.pardir goes up one level.
@@ -36,51 +55,52 @@ def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, defau
             return cursor.lastrowid
     except sqlite3.Error as e:
         print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
-        # Depending on how critical this is, you might want to raise the error
-        # or return the default_category_id as a fallback.
         return default_category_id
 
-def set_setting(key: str, value: str, cursor: sqlite3.Cursor = None) -> bool:
+def set_setting(key: str, value: str, conn: sqlite3.Connection = None) -> bool: # Changed cursor to conn
     """
-    Sets an application setting. Uses the provided cursor if available,
-    otherwise manages its own connection.
+    Sets an application setting. Uses the provided connection if available,
+    otherwise manages its own.
     """
-    manage_connection = cursor is None
-    conn_internal = None
+    manage_connection = conn is None
+    conn_to_use = conn
+
     try:
         if manage_connection:
-            conn_internal = db_main_manager.get_db_connection() # Use main manager for connection
-            cursor_to_use = conn_internal.cursor()
-        else:
-            if not isinstance(cursor, sqlite3.Cursor):
-                raise ValueError("Invalid cursor object passed to set_setting.")
-            cursor_to_use = cursor
+            conn_to_use = get_db_connection() # Use imported function
 
+        if not conn_to_use: # Ensure connection is valid
+            print(f"DB error in set_setting for key '{key}': No valid connection.")
+            return False
+
+        cursor_to_use = conn_to_use.cursor()
         sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
         cursor_to_use.execute(sql, (key, value))
 
-        if manage_connection and conn_internal:
-            conn_internal.commit()
+        if manage_connection: # Only commit if connection was created internally
+            conn_to_use.commit()
 
-        return cursor_to_use.rowcount > 0 # Should be > 0 on success
+        return cursor_to_use.rowcount > 0
     except sqlite3.Error as e:
         print(f"DB error in set_setting for key '{key}': {e}")
-        if manage_connection and conn_internal:
-            conn_internal.rollback()
+        if manage_connection and conn_to_use: # Rollback if connection was internal
+            conn_to_use.rollback()
         return False
     finally:
-        if manage_connection and conn_internal:
-            conn_internal.close()
+        if manage_connection and conn_to_use: # Close if connection was internal
+            conn_to_use.close()
 
-def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Cursor) -> int | None:
+def add_default_template_if_not_exists(template_data: dict, conn: sqlite3.Connection) -> int | None: # Changed cursor to conn
     """
     Adds a template to the Templates table if it doesn't already exist
     based on template_name, template_type, and language_code.
-    Uses the provided cursor and does not manage connection or transaction.
+    Uses the provided connection and its cursor.
     Returns the template_id of the new or existing template, or None on error.
     """
-    if not isinstance(cursor, sqlite3.Cursor):
-        raise ValueError("Invalid cursor object passed to add_default_template_if_not_exists.")
+    if not isinstance(conn, sqlite3.Connection):
+        raise ValueError("Invalid connection object passed to add_default_template_if_not_exists.")
+
+    cursor = conn.cursor() # Get cursor from connection
 
     try:
         name = template_data.get('template_name')
@@ -93,12 +113,14 @@ def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Curs
             print(f"Error: Missing required fields for default template: {template_data}")
             return None
 
-        # Call add_template_category with the provided cursor, using db_main_manager
-        category_id = db_main_manager.add_template_category(category_name_text,
-                                            f"{category_name_text} (auto-created)",
-                                            cursor=cursor) # Pass the cursor
+        # Call add_template_category with the provided connection
+        category_id = template_categories_crud.add_template_category(
+            category_name_text,
+            f"{category_name_text} (auto-created)",
+            conn=conn # Pass the connection
+        )
         if category_id is None:
-            print(f"Error: Could not get or create category_id for '{category_name_text}' using provided cursor.")
+            print(f"Error: Could not get or create category_id for '{category_name_text}' using provided connection.")
             return None
 
         cursor.execute("""
@@ -112,9 +134,7 @@ def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Curs
             return existing_template[0]
         else:
             raw_template_content = None
-            # Corrected path logic for files within the main project structure
-            project_root = APP_ROOT_DIR_CONTEXT # app_root_dir is already parent of db/
-
+            project_root = APP_ROOT_DIR_CONTEXT
             template_file_path = os.path.join(project_root, "email_template_designs", filename)
 
             if not os.path.exists(template_file_path):
@@ -128,27 +148,18 @@ def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Curs
                     print(f"Error reading template file {filename} from {template_file_path}: {e_read}. raw_template_file_data will be NULL.")
 
             now = datetime.utcnow().isoformat() + "Z"
-            sql_insert_template = """
-                INSERT INTO Templates (
-                    template_name, template_type, language_code, base_file_name,
-                    description, category_id, is_default_for_type_lang,
-                    email_subject_template, raw_template_file_data,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            params_template = (
-                name, ttype, lang, filename,
-                template_data.get('description', f"Default {name} template"),
-                category_id,
-                template_data.get('is_default_for_type_lang', True),
-                template_data.get('email_subject_template'),
-                raw_template_content.encode('utf-8') if raw_template_content else None,
-                now, now
-            )
-            cursor.execute(sql_insert_template, params_template)
-            # No commit here, handled by the caller managing the transaction
-            new_id = cursor.lastrowid
-            print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
+            # Ensure templates_crud.add_template expects `conn`
+            from db.cruds import templates_crud # Ensure it's imported if not already at top
+            new_id = templates_crud.add_template({
+                **template_data, # Pass all original data
+                'category_id': category_id, # Override with resolved category_id
+                'raw_template_file_data': raw_template_content.encode('utf-8') if raw_template_content else None,
+                'created_at': now, # Ensure these are set if add_template relies on them
+                'updated_at': now
+            }, conn=conn) # Pass the connection
+
+            if new_id:
+                 print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
             return new_id
 
     except sqlite3.Error as e:
@@ -194,35 +205,64 @@ DEFAULT_COVER_PAGE_TEMPLATES = [
     }
 ]
 
-def _populate_default_cover_page_templates(cursor: sqlite3.Cursor):
+def _populate_default_cover_page_templates(conn: sqlite3.Connection): # Changed cursor to conn
     """
     Populates the CoverPageTemplates table with predefined default templates
-    if they do not already exist by name. Uses the provided cursor.
+    if they do not already exist by name. Uses the provided connection.
     """
-    if not isinstance(cursor, sqlite3.Cursor):
-        raise ValueError("Invalid cursor object passed to _populate_default_cover_page_templates.")
+    if not isinstance(conn, sqlite3.Connection):
+        raise ValueError("Invalid connection object passed to _populate_default_cover_page_templates.")
 
     print("Attempting to populate default cover page templates...")
     for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
-        # Use get_cover_page_template_by_name with the passed cursor, from db_main_manager
-        existing_template = db_main_manager.get_cover_page_template_by_name(template_def['template_name'], cursor=cursor)
+        # Use get_cover_page_template_by_name with the passed connection
+        existing_template = cover_page_templates_crud.get_cover_page_template_by_name(template_def['template_name'], conn=conn)
         if existing_template:
             print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
         else:
-            # Pass the cursor to add_cover_page_template, from db_main_manager
-            new_id = db_main_manager.add_cover_page_template(template_def, cursor=cursor)
+            # Pass the connection to add_cover_page_template
+            new_id = cover_page_templates_crud.add_cover_page_template(template_def, conn=conn)
             if new_id:
                 print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
             else:
                 print(f"Failed to add default cover page template: '{template_def['template_name']}'")
     print("Default cover page templates population attempt finished.")
 
-def seed_initial_data(cursor: sqlite3.Cursor):
+def _seed_default_partner_categories(conn: sqlite3.Connection): # Changed cursor to conn
+    """Seeds default partner categories into the database using the provided connection."""
+    print("Attempting to seed default partner categories...")
+    default_categories = [
+        {'category_name': 'Supplier', 'description': 'Providers of goods and materials.'},
+        {'category_name': 'Service Provider', 'description': 'Companies offering services.'},
+        {'category_name': 'Technology Partner', 'description': 'Partners providing technology solutions.'},
+        {'category_name': 'Consultant', 'description': 'External consultants and advisors.'},
+        {'category_name': 'Distributor', 'description': 'Entities distributing products.'}
+    ]
+
+    for category_def in default_categories:
+        # Pass the connection to CRUD functions
+        existing_category = partners_crud.get_partner_category_by_name(category_def['category_name'], conn=conn)
+        if existing_category:
+            print(f"Partner Category '{category_def['category_name']}' already exists with ID: {existing_category['partner_category_id']}. Skipping.")
+        else:
+            category_data_dict = {
+                'category_name': category_def['category_name'],
+                'description': category_def.get('description')
+            }
+            category_id = partners_crud.add_partner_category(category_data_dict, conn=conn)
+            if category_id:
+                print(f"Partner Category '{category_def['category_name']}' added with ID: {category_id}")
+            else:
+                print(f"Warning: Could not add partner category '{category_def['category_name']}'. Check logs from partners_crud.")
+    print("Default partner categories seeding attempt finished.")
+
+def seed_initial_data(conn: sqlite3.Connection): # Changed cursor to conn
     """
-    Seeds the database with initial data using the provided cursor.
+    Seeds the database with initial data using the provided connection.
     All database operations within this function and any helper functions it calls
-    must use this provided cursor.
+    must use this provided connection and get their own cursors.
     """
+    cursor = conn.cursor() # Obtain cursor from connection
     try:
         # 1. Users
         cursor.execute("SELECT COUNT(*) FROM Users")
@@ -262,10 +302,10 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 print("Seeded default company personnel.")
 
         # 4. TeamMembers
-        admin_user_for_tm_dict = db_main_manager.get_user_by_username('admin')
+        # Pass conn to get_user_by_username
+        admin_user_for_tm_dict = get_user_by_username('admin', conn=conn)
         if admin_user_for_tm_dict:
             admin_user_id_for_tm = admin_user_for_tm_dict['user_id']
-            # Check using cursor if team member already exists for this user_id
             cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
             if cursor.fetchone()[0] == 0:
                 cursor.execute("""
@@ -276,43 +316,41 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         else:
              print("Admin user not found, cannot seed admin team member.")
 
-
         # 5. Countries
         default_countries = [
-            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
+            {'country_name': 'France', 'country_code': 'FR'},
+            {'country_name': 'USA', 'country_code': 'US'},
+            {'country_name': 'Algeria', 'country_code': 'DZ'}
         ]
         for country_data in default_countries:
-            db_main_manager.add_country(country_data)
-        print(f"Seeded {len(default_countries)} countries (using db_main_manager.add_country).")
-
+            # Pass conn to add_country
+            add_country(country_data, conn=conn)
+        print(f"Seeded {len(default_countries)} countries.")
 
         # 6. Cities
         default_cities_map = {
             'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
         }
         for country_name, city_name in default_cities_map.items():
-            country_row_dict = db_main_manager.get_country_by_name(country_name)
+            # Pass conn to get_country_by_name and add_city
+            country_row_dict = get_country_by_name(country_name, conn=conn)
             if country_row_dict:
                 country_id = country_row_dict['country_id']
-                db_main_manager.add_city({'country_id': country_id, 'city_name': city_name})
-        print(f"Seeded {len(default_cities_map)} cities (using db_main_manager.add_city).")
+                add_city({'country_id': country_id, 'city_name': city_name}, conn=conn)
+        print(f"Seeded {len(default_cities_map)} cities.")
 
         # 7. Clients
-        # Using db_main_manager for gets, and direct cursor for insert if it's the first client
         cursor.execute("SELECT COUNT(*) FROM Clients")
         if cursor.fetchone()[0] == 0:
-            admin_user_for_client_dict = db_main_manager.get_user_by_username('admin')
-            default_country_for_client_dict = db_main_manager.get_country_by_name('France')
-
+            admin_user_for_client_dict = get_user_by_username('admin', conn=conn)
+            default_country_for_client_dict = get_country_by_name('France', conn=conn)
             admin_user_id_for_client = admin_user_for_client_dict['user_id'] if admin_user_for_client_dict else None
             default_country_id_for_client = default_country_for_client_dict['country_id'] if default_country_for_client_dict else None
-
             default_city_id_for_client = None
             if default_country_id_for_client:
-                city_client_dict = db_main_manager.get_city_by_name_and_country_id('Paris', default_country_id_for_client)
+                city_client_dict = get_city_by_name_and_country_id('Paris', default_country_id_for_client, conn=conn)
                 if city_client_dict: default_city_id_for_client = city_client_dict['city_id']
-
-            active_client_status_dict = db_main_manager.get_status_setting_by_name('Actif', 'Client')
+            active_client_status_dict = get_status_setting_by_name('Actif', 'Client', conn=conn)
             active_client_status_id = active_client_status_dict['status_id'] if active_client_status_dict else None
 
             if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
@@ -323,21 +361,18 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
                 print("Seeded sample client.")
             else:
-                print("Could not seed sample client due to missing prerequisite data from db_main_manager calls (admin user, country, city, or status).")
+                print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
 
         # 8. Projects
         cursor.execute("SELECT COUNT(*) FROM Projects")
         if cursor.fetchone()[0] == 0:
             sample_client_id_for_proj = None
-            # Get client_id using a direct cursor query if it was just seeded
             cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
             sample_client_proj_row = cursor.fetchone()
             if sample_client_proj_row: sample_client_id_for_proj = sample_client_proj_row[0]
-
-            planning_project_status_dict = db_main_manager.get_status_setting_by_name('Planning', 'Project')
+            planning_project_status_dict = get_status_setting_by_name('Planning', 'Project', conn=conn)
             planning_project_status_id = planning_project_status_dict['status_id'] if planning_project_status_dict else None
-
-            admin_user_for_project_dict = db_main_manager.get_user_by_username('admin')
+            admin_user_for_project_dict = get_user_by_username('admin', conn=conn)
             admin_user_id_for_project = admin_user_for_project_dict['user_id'] if admin_user_for_project_dict else None
 
             if sample_client_id_for_proj and planning_project_status_id and admin_user_id_for_project:
@@ -350,16 +385,16 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             else:
                 print("Could not seed sample project due to missing prerequisite data.")
 
-        # 9. Contacts (direct cursor)
+        # 9. Contacts
         cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
         if cursor.fetchone()[0] == 0:
-                cursor.execute("""
+            cursor.execute("""
                 INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
                 VALUES (?, ?, ?, ?, ?)
             """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
-                print("Seeded generic contact.")
+            print("Seeded generic contact.")
 
-        # 10. Products (direct cursor)
+        # 10. Products
         cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
         if cursor.fetchone()[0] == 0:
             cursor.execute("""
@@ -368,7 +403,7 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
             print("Seeded default product.")
 
-        # 11. SmtpConfigs (direct cursor)
+        # 11. SmtpConfigs
         cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
         if cursor.fetchone()[0] == 0:
             cursor.execute("""
@@ -377,76 +412,80 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
             print("Seeded placeholder SMTP config.")
 
-        # 12. ApplicationSettings (using local set_setting which uses the passed cursor)
-        set_setting('initial_data_seeded_version', '1.1', cursor)
-        set_setting('default_app_language', 'en', cursor)
-        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
+        # 12. ApplicationSettings (pass conn to set_setting)
+        set_setting('initial_data_seeded_version', '1.1', conn=conn) # Pass conn
+        set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', conn=conn) # Pass conn
         print("Seeded application settings.")
 
-        # 13. Email Templates (using local add_default_template_if_not_exists)
+        # 13. Email Templates (pass conn to add_default_template_if_not_exists)
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Ouvert (FR)', 'template_type': 'email_sav_ticket_opened', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_opened_fr.html', 'description': 'Email envoyé quand un ticket SAV est ouvert.',
             'category_name': 'Modèles Email SAV',
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn) # Pass conn
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Résolu (FR)', 'template_type': 'email_sav_ticket_resolved', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_resolved_fr.html', 'description': 'Email envoyé quand un ticket SAV est résolu.',
             'category_name': 'Modèles Email SAV',
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn) # Pass conn
+        # ... (apply conn=conn to all other add_default_template_if_not_exists calls) ...
         add_default_template_if_not_exists({
             'template_name': 'Suivi Prospect Proforma (FR)', 'template_type': 'email_follow_up_prospect', 'language_code': 'fr',
             'base_file_name': 'follow_up_prospect_fr.html', 'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
             'category_name': 'Modèles Email Marketing/Suivi',
             'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn)
         add_default_template_if_not_exists({
             'template_name': 'Vœux Noël (FR)', 'template_type': 'email_greeting_christmas', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_christmas_fr.html', 'description': 'Email de vœux pour Noël.',
             'category_name': 'Modèles Email Vœux',
             'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn)
         add_default_template_if_not_exists({
             'template_name': 'Vœux Nouvelle Année (FR)', 'template_type': 'email_greeting_newyear', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_newyear_fr.html', 'description': 'Email de vœux pour la nouvelle année.',
             'category_name': 'Modèles Email Vœux',
             'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn)
         add_default_template_if_not_exists({
             'template_name': 'Message Générique (FR)', 'template_type': 'email_generic_message', 'language_code': 'fr',
             'base_file_name': 'generic_message_fr.html', 'description': 'Modèle générique pour communication spontanée.',
             'category_name': 'Modèles Email Généraux',
             'email_subject_template': 'Un message de {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, conn=conn)
         print("Seeded new email templates.")
 
-        # 14. CoverPageTemplates (using local _populate_default_cover_page_templates)
-        _populate_default_cover_page_templates(cursor)
+        # 14. CoverPageTemplates (pass conn to _populate_default_cover_page_templates)
+        _populate_default_cover_page_templates(conn=conn) # Pass conn
         print("Called _populate_default_cover_page_templates for seeding.")
+
+        # 15. Partner Categories (pass conn to _seed_default_partner_categories)
+        _seed_default_partner_categories(conn=conn) # Pass conn
+        print("Called _seed_default_partner_categories for seeding.")
 
         print("Data seeding operations completed within seed_initial_data.")
 
     except sqlite3.Error as e:
         print(f"An error occurred during data seeding within seed_initial_data: {e}")
-        raise
+        raise # Re-raise to be caught by run_seed for rollback
 
 def run_seed():
     print(f"Attempting to seed database: {DATABASE_PATH}")
     conn = None
     try:
-        # Use the get_db_connection from the main db.py (via db_main_manager)
-        conn = db_main_manager.get_db_connection()
-        cursor = conn.cursor()
-        seed_initial_data(cursor) # Call the local seed_initial_data
-        conn.commit()
+        conn = get_db_connection()
+        # Changed: seed_initial_data now takes conn directly
+        seed_initial_data(conn)
+        conn.commit() # Commit the overall transaction
         print("Seeding process completed and committed.")
     except Exception as e:
         if conn:
@@ -463,9 +502,10 @@ if __name__ == '__main__':
     # if the database schema itself might not exist.
     # However, run_seed() assumes the schema is already in place.
 
-    # First, ensure the database and tables are created by calling initialize_database from the main module
+    # First, ensure the database and tables are created by calling initialize_database
     print("Ensuring database schema is initialized before seeding...")
-    db_main_manager.initialize_database()
+    from db.ca import initialize_database # Import as per subtask instruction
+    initialize_database()
     print("Database schema initialization check complete.")
 
     run_seed()

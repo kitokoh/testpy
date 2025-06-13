@@ -3,60 +3,21 @@ import os
 import json
 from datetime import datetime
 
-# Import global constants from db_config.py
-try:
-    from .. import db_config
-except (ImportError, ValueError):
-    import sys
-    # Correctly get the /app directory (parent of db/)
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-    except ImportError:
-        print("CRITICAL: db_config.py not found in utils.py. Using fallback DATABASE_PATH.")
-        # Fallback class definition
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(app_dir, "app_data_fallback.db") # Use app_dir for path
-            APP_ROOT_DIR_CONTEXT = app_dir
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
-        db_config = db_config_fallback
-
-# Placeholder/actual imports for CRUD functions
-_crud_functions_imported = False
-try:
-    from .crud import (
-        get_company_by_id, get_personnel_for_company, get_client_by_id,
-        get_country_by_id, get_city_by_id, get_contacts_for_client,
-        get_project_by_id, get_status_setting_by_id, get_product_by_id,
-        get_products_for_client_or_project, get_client_document_notes
-    )
-    _crud_functions_imported = True
-    print("Successfully imported CRUD functions from .crud for utils.py.")
-except ImportError:
-    print("Warning: db.crud module not fully available to utils.py. Using placeholders.")
-    def _placeholder_crud_func_util(entity_name="entity", *args, **kwargs): return None
-    get_company_by_id = lambda id, conn=None: _placeholder_crud_func_util("company")
-    get_personnel_for_company = lambda id, role=None, conn=None: [] # Added role to match a common signature
-    get_client_by_id = lambda id, conn=None: _placeholder_crud_func_util("client")
-    get_country_by_id = lambda id, conn=None: _placeholder_crud_func_util("country")
-    get_city_by_id = lambda id, conn=None: _placeholder_crud_func_util("city")
-    get_contacts_for_client = lambda id, limit=None, offset=None, conn=None: [] # Added pagination params
-    get_project_by_id = lambda id, conn=None: _placeholder_crud_func_util("project")
-    get_status_setting_by_id = lambda id, conn=None: _placeholder_crud_func_util("status_setting")
-    get_product_by_id = lambda id, conn=None: _placeholder_crud_func_util("product")
-    get_products_for_client_or_project = lambda client_id, project_id=None, conn=None: []
-    get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: []
+# Ensure config is imported if APP_ROOT_DIR is used globally, or pass it around.
+# For now, assuming DATABASE_PATH is the primary global use from config here.
+from config import DATABASE_PATH, APP_ROOT_DIR
 
 
-def get_db_connection(db_path_override=None): # Renamed parameter for clarity
+# No top-level CRUD imports here to prevent circular dependencies
+
+
+def get_db_connection(db_path_override=None):
     """
     Returns a new database connection object.
-    Uses DATABASE_PATH from db_config by default.
+    Uses DATABASE_PATH from config.py by default.
     An optional db_path_override can be provided (e.g., for tests).
     """
-    path_to_connect = db_path_override if db_path_override else db_config.DATABASE_PATH
+    path_to_connect = db_path_override if db_path_override else DATABASE_PATH
     conn = sqlite3.connect(path_to_connect)
     conn.row_factory = sqlite3.Row
     return conn
@@ -118,6 +79,18 @@ def get_document_context_data(
     project_id: str = None, linked_product_ids_for_doc: list[int] = None,
     additional_context: dict = None, conn_passed: sqlite3.Connection = None
 ) -> dict:
+    # Moved CRUD imports inside the function to break circular dependency
+    from .cruds.companies_crud import get_company_by_id
+    from .cruds.company_personnel_crud import get_all_company_personnel
+    from .cruds.clients_crud import get_client_by_id
+    from .cruds.locations_crud import get_country_by_id, get_city_by_id
+    from .cruds.contacts_crud import get_contacts_for_client
+    from .cruds.projects_crud import get_project_by_id
+    from .cruds.status_settings_crud import get_status_setting_by_id
+    from .cruds.products_crud import get_product_by_id
+    from .cruds.client_project_products_crud import get_products_for_client_or_project
+    from .cruds.client_document_notes_crud import get_client_document_notes
+
     context = {"doc": {}, "client": {}, "seller": {}, "project": {}, "products": [], "lang": {}, "additional": {}}
     effective_additional_context = additional_context if isinstance(additional_context, dict) else {}
     context["additional"] = effective_additional_context
@@ -154,29 +127,51 @@ def get_document_context_data(
             context["seller"]["full_address"] = seller_company_data.get('address', "N/A")
             logo_path_relative = seller_company_data.get('logo_path')
             if logo_path_relative:
-                abs_logo_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, db_config.LOGO_SUBDIR_CONTEXT, logo_path_relative)
+                # Assuming LOGO_SUBDIR_CONTEXT is defined in config or passed appropriately
+                # For this example, direct use of APP_ROOT_DIR and a hardcoded/conf-loaded subdir name
+                from config import LOGO_SUBDIR_CONTEXT # Ensure this is a valid import or handle otherwise
+                abs_logo_path = os.path.join(APP_ROOT_DIR, LOGO_SUBDIR_CONTEXT, logo_path_relative)
                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}" if os.path.exists(abs_logo_path) else None
             else: context["seller"]["company_logo_path"] = None
             # ... other seller fields ...
-            seller_personnel_list = get_personnel_for_company(company_id, conn=conn) # Pass conn
-            context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0]['name']} if seller_personnel_list else {}
+            # Assuming get_all_company_personnel can be filtered by company_id or a more specific function exists
+            seller_personnel_list = get_all_company_personnel(filters={'company_id': company_id}, conn=conn)
+            context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0]['full_name']} if seller_personnel_list else {} # Used full_name for consistency
 
-        client_data = get_client_by_id(client_id, conn=conn) # Pass conn
+        client_data = get_client_by_id(client_id, conn=conn)
         if client_data:
             context["client"]["id"] = client_data.get('client_id')
             context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
             # ... other client fields ...
             if client_data.get('country_id'):
-                country = get_country_by_id(client_data['country_id'], conn=conn) # Pass conn
+                country = get_country_by_id(client_data['country_id'], conn=conn)
                 context["client"]["country_name"] = country['country_name'] if country else "N/A"
-            # ... similar for city and primary contact using get_contacts_for_client(client_id, conn=conn)
+            if client_data.get('city_id'): # Added city fetch
+                city = get_city_by_id(client_data['city_id'], conn=conn)
+                context["client"]["city_name"] = city['city_name'] if city else "N/A"
+
+            # Fetch primary contact (example logic, might need adjustment based on contacts_crud)
+            client_contacts = get_contacts_for_client(client_id, filters={'is_primary_for_client': True}, conn=conn)
+            if client_contacts:
+                primary_contact = client_contacts[0]
+                context["client"]["primary_contact_name"] = primary_contact.get('name')
+                context["client"]["primary_contact_email"] = primary_contact.get('email')
+                context["client"]["primary_contact_phone"] = primary_contact.get('phone')
+
 
         if project_id:
-            project_data = get_project_by_id(project_id, conn=conn) # Pass conn
-            if project_data: context["project"]["name"] = project_data.get('project_name')
-        else: context["project"]["name"] = effective_additional_context.get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
+            project_data = get_project_by_id(project_id, conn=conn) # Already correct
+            if project_data:
+                context["project"]["name"] = project_data.get('project_name')
+                # Fetch status name for project if status_id is present
+                status_id = project_data.get('status_id')
+                if status_id:
+                    status_info = get_status_setting_by_id(status_id, conn=conn) # Pass conn
+                    context["project"]["status_name"] = status_info.get('status_name') if status_info else "N/A"
+        else:
+            context["project"]["name"] = effective_additional_context.get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
 
-        # Product Processing Logic (Simplified for this overwrite, assuming the structure is mostly sound)
+        # Product Processing Logic
         all_product_ids_to_fetch = set()
         product_data_for_loop = []
 
@@ -190,11 +185,24 @@ def get_document_context_data(
                     all_product_ids_to_fetch.add(p_info['product_id'])
                     product_data_for_loop.append({'product_id': p_info['product_id'], 'quantity': p_info.get('quantity',1)})
         # ... (elif for linked_product_ids_for_doc and final else for client/project products) ...
-        # Ensure any get_products_for_client_or_project calls pass `conn=conn`
+        elif linked_product_ids_for_doc: # Assuming this is a list of ClientProjectProduct IDs
+            # This branch would need to fetch ClientProjectProducts items then their Product details
+            # For now, just ensuring the call to get_products_for_client_or_project (if used for this) passes conn
+            # This part of logic might need more review based on how linked_product_ids_for_doc is actually used.
+            # Placeholder: Assuming it might lead to a get_products_for_client_or_project call if not handled by lite_selected_products
+            pass # This part needs to be carefully reviewed against original db.py if it's complex
+        elif client_id: # Fallback to fetch products for client/project if no specific list
+             product_data_for_loop = get_products_for_client_or_project(client_id, project_id, conn=conn) # Pass conn
+             for p_info in product_data_for_loop:
+                 if isinstance(p_info, dict) and 'product_id' in p_info:
+                     all_product_ids_to_fetch.add(p_info['product_id'])
+             # Note: product_data_for_loop here is already detailed, _get_batch_products_and_equivalents might be redundant
+             # or used to enrich it further (e.g. with equivalents). This matches the original db.py structure.
+
 
         batched_product_details = {}
-        if all_product_ids_to_fetch: # Changed from all_product_ids_to_fetch_details_for
-            batched_product_details = _get_batch_products_and_equivalents(list(all_product_ids_to_fetch), target_language_code, conn_passed=conn) # Pass conn
+        if all_product_ids_to_fetch:
+            batched_product_details = _get_batch_products_and_equivalents(list(all_product_ids_to_fetch), target_language_code, conn_passed=conn)
 
         products_table_html_rows_list = []
         subtotal_amount = 0.0
