@@ -70,7 +70,7 @@ def create_proforma_invoice(db: Session, proforma_data: Dict[str, Any], items_da
 
 
 def get_proforma_invoice_by_id(db: Session, proforma_invoice_id: str) -> Optional[ProformaInvoice]:
-    """Fetches a Proforma Invoice by its ID, including its items and related entities.""""
+    """Fetches a Proforma Invoice by its ID, including related items and their products."""
     return db.query(ProformaInvoice).options(
         selectinload(ProformaInvoice.items).selectinload(ProformaInvoiceItem.product), # Load items and their products
         selectinload(ProformaInvoice.client),
@@ -81,7 +81,7 @@ def get_proforma_invoice_by_id(db: Session, proforma_invoice_id: str) -> Optiona
     ).filter(ProformaInvoice.id == proforma_invoice_id).first()
 
 def get_proforma_invoice_by_number(db: Session, proforma_invoice_number: str) -> Optional[ProformaInvoice]:
-    """Fetches a Proforma Invoice by its unique number, including items.""""
+    """Fetches a Proforma Invoice by its proforma_invoice_number, including related items."""
     return db.query(ProformaInvoice).options(
         selectinload(ProformaInvoice.items) # Adjust related data loading as needed
     ).filter(ProformaInvoice.proforma_invoice_number == proforma_invoice_number).first()
@@ -97,7 +97,7 @@ def list_proforma_invoices(
     skip: int = 0,
     limit: int = 100
 ) -> List[ProformaInvoice]:
-    """Lists Proforma Invoices with optional filters for client, project, company, and status.""""
+    
     query = db.query(ProformaInvoice).order_by(ProformaInvoice.created_date.desc())
 
     if client_id:
@@ -194,13 +194,13 @@ def create_proforma_invoice_item(db: Session, item_data: Dict[str, Any]) -> Prof
         raise e
 
 def get_proforma_invoice_item_by_id(db: Session, item_id: str) -> Optional[ProformaInvoiceItem]:
-    """Fetches a Proforma Invoice Item by its ID.""""
+    """Fetches a Proforma Invoice Item by its ID, including related product if needed."""
     return db.query(ProformaInvoiceItem).options(
         selectinload(ProformaInvoiceItem.product) # Load product if needed
     ).filter(ProformaInvoiceItem.id == item_id).first()
 
 def update_proforma_invoice_item(db: Session, item_id: str, update_data: Dict[str, Any]) -> Optional[ProformaInvoiceItem]:
-    """Updates a Proforma Invoice Item.""""
+
     db_item = get_proforma_invoice_item_by_id(db, item_id)
     if not db_item:
         return None
@@ -218,7 +218,7 @@ def update_proforma_invoice_item(db: Session, item_id: str, update_data: Dict[st
         raise e
 
 def delete_proforma_invoice_item(db: Session, item_id: str) -> bool:
-    """Deletes a Proforma Invoice Item.""""
+    """Deletes a Proforma Invoice Item by its ID."""
     db_item = get_proforma_invoice_item_by_id(db, item_id)
     if not db_item:
         return False
