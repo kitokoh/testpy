@@ -26,207 +26,18 @@ from db.cruds import partners_crud # Added for partner category seeding
 APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup
 
-def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, default_category_id: int | None) -> int | None:
-    """
-    Internal helper: Gets category_id for a name, creates if not exists.
-    Uses the provided cursor and does not manage connection or transaction.
-    Returns category_id or default_category_id if name is None/empty.
-    """
-    if not category_name:
-        return default_category_id
-    try:
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-        row = cursor.fetchone()
-        if row:
-            return row['category_id']
-        else:
-            # Category does not exist, create it
-            cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?, ?)",
-                           (category_name, f"{category_name} (auto-created during migration)"))
-            # No conn.commit() here as it's part of a larger transaction
-            return cursor.lastrowid
-    except sqlite3.Error as e:
-        print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
-        # Depending on how critical this is, you might want to raise the error
-        # or return the default_category_id as a fallback.
-        return default_category_id
+# Redundant local helper functions and data are removed.
+# _get_or_create_category_id, set_setting, add_default_template_if_not_exists,
+# DEFAULT_COVER_PAGE_TEMPLATES, and _populate_default_cover_page_templates
+# are now expected to be handled by init_schema.py or imported CRUD modules.
 
-def set_setting(key: str, value: str, cursor: sqlite3.Cursor = None) -> bool:
-    """
-    Sets an application setting. Uses the provided cursor if available,
-    otherwise manages its own connection.
-    """
-    manage_connection = cursor is None
-    conn_internal = None
-    try:
-        if manage_connection:
-            conn_internal = get_db_connection() # Use imported function
-            cursor_to_use = conn_internal.cursor()
-        else:
-            if not isinstance(cursor, sqlite3.Cursor):
-                raise ValueError("Invalid cursor object passed to set_setting.")
-            cursor_to_use = cursor
+# Ensure add_default_template_if_not_exists is imported if used by seed_initial_data directly
+# (It is used, so ensure it's available from db.cruds.templates_crud)
+from db.cruds.templates_crud import add_default_template_if_not_exists
+# Ensure set_setting is imported if used by seed_initial_data directly
+# (It is used, so ensure it's available from db.cruds.application_settings_crud)
+from db.cruds.application_settings_crud import set_setting
 
-        sql = "INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
-        cursor_to_use.execute(sql, (key, value))
-
-        if manage_connection and conn_internal:
-            conn_internal.commit()
-
-        return cursor_to_use.rowcount > 0 # Should be > 0 on success
-    except sqlite3.Error as e:
-        print(f"DB error in set_setting for key '{key}': {e}")
-        if manage_connection and conn_internal:
-            conn_internal.rollback()
-        return False
-    finally:
-        if manage_connection and conn_internal:
-            conn_internal.close()
-
-def add_default_template_if_not_exists(template_data: dict, cursor: sqlite3.Cursor) -> int | None:
-    """
-    Adds a template to the Templates table if it doesn't already exist
-    based on template_name, template_type, and language_code.
-    Uses the provided cursor and does not manage connection or transaction.
-    Returns the template_id of the new or existing template, or None on error.
-    """
-    if not isinstance(cursor, sqlite3.Cursor):
-        raise ValueError("Invalid cursor object passed to add_default_template_if_not_exists.")
-
-    try:
-        name = template_data.get('template_name')
-        ttype = template_data.get('template_type')
-        lang = template_data.get('language_code')
-        filename = template_data.get('base_file_name')
-        category_name_text = template_data.get('category_name', "General")
-
-        if not all([name, ttype, lang, filename]):
-            print(f"Error: Missing required fields for default template: {template_data}")
-            return None
-
-        # Call add_template_category with the provided cursor
-        category_id = add_template_category(category_name_text,
-                                            f"{category_name_text} (auto-created)",
-                                            cursor=cursor) # Pass the cursor
-        if category_id is None:
-            print(f"Error: Could not get or create category_id for '{category_name_text}' using provided cursor.")
-            return None
-
-        cursor.execute("""
-            SELECT template_id FROM Templates
-            WHERE template_name = ? AND template_type = ? AND language_code = ?
-        """, (name, ttype, lang))
-        existing_template = cursor.fetchone()
-
-        if existing_template:
-            print(f"Default template '{name}' ({ttype}, {lang}) already exists with ID: {existing_template[0]}.")
-            return existing_template[0]
-        else:
-            raw_template_content = None
-            # Corrected path logic for files within the main project structure
-            project_root = APP_ROOT_DIR_CONTEXT # app_root_dir is already parent of db/
-
-            template_file_path = os.path.join(project_root, "email_template_designs", filename)
-
-            if not os.path.exists(template_file_path):
-                print(f"Warning: HTML template file {filename} not found at {template_file_path}. raw_template_file_data will be NULL.")
-            else:
-                try:
-                    with open(template_file_path, 'r', encoding='utf-8') as f:
-                        raw_template_content = f.read()
-                    print(f"Successfully read content for {filename} from {template_file_path}")
-                except Exception as e_read:
-                    print(f"Error reading template file {filename} from {template_file_path}: {e_read}. raw_template_file_data will be NULL.")
-
-            now = datetime.utcnow().isoformat() + "Z"
-            sql_insert_template = """
-                INSERT INTO Templates (
-                    template_name, template_type, language_code, base_file_name,
-                    description, category_id, is_default_for_type_lang,
-                    email_subject_template, raw_template_file_data,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            params_template = (
-                name, ttype, lang, filename,
-                template_data.get('description', f"Default {name} template"),
-                category_id,
-                template_data.get('is_default_for_type_lang', True),
-                template_data.get('email_subject_template'),
-                raw_template_content.encode('utf-8') if raw_template_content else None,
-                now, now
-            )
-            cursor.execute(sql_insert_template, params_template)
-            # No commit here, handled by the caller managing the transaction
-            new_id = cursor.lastrowid
-            print(f"Added default template '{name}' ({ttype}, {lang}) with Category ID: {category_id}, new Template ID: {new_id}.")
-            return new_id
-
-    except sqlite3.Error as e:
-        print(f"Database error in add_default_template_if_not_exists for '{template_data.get('template_name')}': {e}")
-        return None
-
-DEFAULT_COVER_PAGE_TEMPLATES = [
-    {
-        'template_name': 'Standard Report Cover',
-        'description': 'A standard cover page for general reports.',
-        'default_title': 'Report Title',
-        'default_subtitle': 'Company Subdivision',
-        'default_author': 'Automated Report Generator',
-        'style_config_json': {'font': 'Helvetica', 'primary_color': '#2a2a2a', 'secondary_color': '#5cb85c'},
-        'is_default_template': 1
-    },
-    {
-        'template_name': 'Financial Statement Cover',
-        'description': 'Cover page for official financial statements.',
-        'default_title': 'Financial Statement',
-        'default_subtitle': 'Fiscal Year Ending YYYY',
-        'default_author': 'Finance Department',
-        'style_config_json': {'font': 'Times New Roman', 'primary_color': '#003366', 'secondary_color': '#e0a800'},
-        'is_default_template': 1
-    },
-    {
-        'template_name': 'Creative Project Brief',
-        'description': 'A vibrant cover for creative project briefs and proposals.',
-        'default_title': 'Creative Brief: [Project Name]',
-        'default_subtitle': 'Client: [Client Name]',
-        'default_author': 'Creative Team',
-        'style_config_json': {'font': 'Montserrat', 'primary_color': '#ff6347', 'secondary_color': '#4682b4', 'layout_hint': 'two-column'},
-        'is_default_template': 1
-    },
-    {
-        'template_name': 'Technical Document Cover',
-        'description': 'A clean and formal cover for technical documentation.',
-        'default_title': 'Technical Specification Document',
-        'default_subtitle': 'Version [VersionNumber]',
-        'default_author': 'Engineering Team',
-        'style_config_json': {'font': 'Roboto', 'primary_color': '#191970', 'secondary_color': '#cccccc'},
-        'is_default_template': 1
-    }
-]
-
-def _populate_default_cover_page_templates(cursor: sqlite3.Cursor):
-    """
-    Populates the CoverPageTemplates table with predefined default templates
-    if they do not already exist by name. Uses the provided cursor.
-    """
-    if not isinstance(cursor, sqlite3.Cursor):
-        raise ValueError("Invalid cursor object passed to _populate_default_cover_page_templates.")
-
-    print("Attempting to populate default cover page templates...")
-    for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
-        # Use get_cover_page_template_by_name with the passed cursor
-        existing_template = get_cover_page_template_by_name(template_def['template_name'], cursor=cursor)
-        if existing_template:
-            print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
-        else:
-            # Pass the cursor to add_cover_page_template
-            new_id = add_cover_page_template(template_def, cursor=cursor)
-            if new_id:
-                print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
-            else:
-                print(f"Failed to add default cover page template: '{template_def['template_name']}'")
-    print("Default cover page templates population attempt finished.")
 
 def _seed_default_partner_categories(cursor: sqlite3.Cursor):
     """Seeds default partner categories into the database."""
@@ -251,13 +62,15 @@ def _seed_default_partner_categories(cursor: sqlite3.Cursor):
         # A direct call to add_partner_category after a check might be cleaner if get_or_add isn't flexible.
 
         # Check if category exists using the cursor directly
-        existing_category = partners_crud.get_partner_category_by_name(category_def['category_name'], cursor=cursor) # Pass cursor
-        if existing_category:
-            print(f"Partner Category '{category_def['category_name']}' already exists with ID: {existing_category['partner_category_id']}. Skipping.")
-            category_id = existing_category['partner_category_id']
+        # Ensure partners_crud.get_partner_category_by_name can accept a cursor
+        existing_category_row = partners_crud.get_partner_category_by_name(category_def['category_name'], cursor=cursor)
+
+        if existing_category_row: # Check if it's not None
+            print(f"Partner Category '{category_def['category_name']}' already exists with ID: {existing_category_row['partner_category_id']}. Skipping.")
         else:
             # Add category using the cursor directly
-            category_id = partners_crud.add_partner_category(category_def, cursor=cursor) # Pass cursor
+            # Ensure partners_crud.add_partner_category can accept a cursor
+            category_id = partners_crud.add_partner_category(category_def, cursor=cursor)
             if category_id:
                 print(f"Partner Category '{category_def['category_name']}' added with ID: {category_id}")
             else:
@@ -424,60 +237,64 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
             print("Seeded placeholder SMTP config.")
 
-        # 12. ApplicationSettings (using local set_setting which uses the passed cursor)
-        set_setting('initial_data_seeded_version', '1.1', cursor)
-        set_setting('default_app_language', 'en', cursor)
-        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor)
+        # 12. ApplicationSettings (using imported set_setting, passing cursor)
+        set_setting('initial_data_seeded_version', '1.1_seed_refactor', cursor=cursor)
+        set_setting('default_app_language', 'en', cursor=cursor)
+        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor=cursor)
         print("Seeded application settings.")
 
-        # 13. Email Templates (using local add_default_template_if_not_exists)
+        # 13. Email Templates (using imported add_default_template_if_not_exists, passing cursor)
+        # Ensure add_template_category is correctly imported and used within add_default_template_if_not_exists
+        # (add_default_template_if_not_exists itself is now imported from cruds)
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Ouvert (FR)', 'template_type': 'email_sav_ticket_opened', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_opened_fr.html', 'description': 'Email envoyé quand un ticket SAV est ouvert.',
-            'category_name': 'Modèles Email SAV',
+            'category_name': 'Modèles Email SAV', # This will be used by add_template_category within add_default_template_if_not_exists
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Résolu (FR)', 'template_type': 'email_sav_ticket_resolved', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_resolved_fr.html', 'description': 'Email envoyé quand un ticket SAV est résolu.',
             'category_name': 'Modèles Email SAV',
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         add_default_template_if_not_exists({
             'template_name': 'Suivi Prospect Proforma (FR)', 'template_type': 'email_follow_up_prospect', 'language_code': 'fr',
             'base_file_name': 'follow_up_prospect_fr.html', 'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
             'category_name': 'Modèles Email Marketing/Suivi',
             'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         add_default_template_if_not_exists({
             'template_name': 'Vœux Noël (FR)', 'template_type': 'email_greeting_christmas', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_christmas_fr.html', 'description': 'Email de vœux pour Noël.',
             'category_name': 'Modèles Email Vœux',
             'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         add_default_template_if_not_exists({
             'template_name': 'Vœux Nouvelle Année (FR)', 'template_type': 'email_greeting_newyear', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_newyear_fr.html', 'description': 'Email de vœux pour la nouvelle année.',
             'category_name': 'Modèles Email Vœux',
             'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         add_default_template_if_not_exists({
             'template_name': 'Message Générique (FR)', 'template_type': 'email_generic_message', 'language_code': 'fr',
             'base_file_name': 'generic_message_fr.html', 'description': 'Modèle générique pour communication spontanée.',
             'category_name': 'Modèles Email Généraux',
             'email_subject_template': 'Un message de {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor)
+        }, cursor=cursor) # Pass cursor
         print("Seeded new email templates.")
 
-        # 14. CoverPageTemplates (using local _populate_default_cover_page_templates)
-        _populate_default_cover_page_templates(cursor)
-        print("Called _populate_default_cover_page_templates for seeding.")
+        # 14. CoverPageTemplates: This is now handled by initialize_database from init_schema.py
+        # The _populate_default_cover_page_templates call is removed from here.
+        # If initialize_database did not run or did not commit these, they might be missing.
+        # However, the subtask is to consolidate schema init, which includes this.
+        print("Cover page templates are expected to be populated by initialize_database.")
 
         # 15. Partner Categories
         _seed_default_partner_categories(cursor)
@@ -516,7 +333,7 @@ if __name__ == '__main__':
 
     # First, ensure the database and tables are created by calling initialize_database
     print("Ensuring database schema is initialized before seeding...")
-    from db.ca import initialize_database # Import as per subtask instruction
+    from db.init_schema import initialize_database # UPDATED IMPORT
     initialize_database()
     print("Database schema initialization check complete.")
 

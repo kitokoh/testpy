@@ -321,3 +321,15 @@ def remove_product_equivalence(equivalence_id: int, conn: sqlite3.Connection = N
     except sqlite3.Error as e:
         logging.error(f"Error removing product equivalence {equivalence_id}: {e}")
         return False
+
+# get_total_products_count (from crud.py, replaces any previous if different)
+@_manage_conn
+def get_total_products_count(conn: sqlite3.Connection = None) -> int:
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(product_id) as total_count FROM Products")
+        row = cursor.fetchone()
+        return row['total_count'] if row else 0
+    except sqlite3.Error as e:
+        logging.error(f"Error getting total products count: {e}")
+        return 0

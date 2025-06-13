@@ -2,12 +2,13 @@ import sqlite3
 import os
 import json
 from datetime import datetime
+import logging # Keep logging import
 
 # Import global constants from db_config.py
 try:
     from .. import db_config
     from .. import config # For MEDIA_FILES_BASE_PATH
-except (ImportError, ValueError):
+except (ImportError, ValueError): # pragma: no cover
     import sys
     # Correctly get the /app directory (parent of db/)
     app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,6 +28,7 @@ except (ImportError, ValueError):
         class config_fallback:
             MEDIA_FILES_BASE_PATH = os.path.join(app_dir, "media_files_fallback")
         config = config_fallback
+
 
 # CRUD function imports
 
@@ -88,7 +90,6 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
 def _get_batch_products_and_equivalents(product_ids: list[int], target_language_code: str, conn_passed=None) -> dict:
     if not product_ids: return {}
 
-    # Determine if we need to open a new connection or use the passed one
     conn_is_internal = False
     if conn_passed is None:
         conn = get_db_connection()
@@ -98,42 +99,43 @@ def _get_batch_products_and_equivalents(product_ids: list[int], target_language_
 
     results = {pid: {'original': None, 'equivalents': []} for pid in product_ids}
     try:
-        cursor = conn.cursor() # Keep cursor for equivalents
+        cursor = conn.cursor()
 
-        # Fetch original product details using the updated products_crud.get_product_by_id
         for pid_original in product_ids:
-            # Assuming products_crud.get_product_by_id is correctly imported and available
-            product_detail = products_crud.get_product_by_id(id=pid_original, conn=conn)
+            product_detail = products_get_product_by_id(id=pid_original, conn=conn) # Use aliased import
             if product_detail:
                 results[pid_original]['original'] = product_detail
-            # else: product not found, 'original' remains None
 
-        # The rest of the logic for fetching equivalents can remain similar,
-        # using the cursor for ProductEquivalencies and Products table for equivalent details.
         for pid_original in product_ids:
+            if not results[pid_original]['original']: # Skip if original product wasn't found
+                continue
+
             equivalent_ids_for_pid = set()
-            # Find B when A is known
             cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (pid_original,))
             for eq_row in cursor.fetchall():
-                if eq_row['product_id_b'] != pid_original: # Avoid self-reference
+                if eq_row['product_id_b'] != pid_original:
                     equivalent_ids_for_pid.add(eq_row['product_id_b'])
-            # Find A when B is known
             cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (pid_original,))
             for eq_row in cursor.fetchall():
-                if eq_row['product_id_a'] != pid_original: # Avoid self-reference
+                if eq_row['product_id_a'] != pid_original:
                     equivalent_ids_for_pid.add(eq_row['product_id_a'])
 
             if equivalent_ids_for_pid:
                 eq_placeholders = ','.join('?' for _ in equivalent_ids_for_pid)
+                # Fetch full details for equivalents
                 cursor.execute(f"SELECT * FROM Products WHERE product_id IN ({eq_placeholders})", tuple(equivalent_ids_for_pid))
-                for eq_detail_row_dict in (dict(r) for r in cursor.fetchall()): # Convert rows to dicts immediately
-                    results[pid_original]['equivalents'].append(eq_detail_row_dict)
+                for eq_detail_row in cursor.fetchall():
+                    eq_detail_dict = dict(eq_detail_row)
+                    # Optionally fetch media links for equivalents too, if needed in template
+                    # eq_media_links = products_get_media_links_for_product(eq_detail_dict['product_id'], conn=conn)
+                    # eq_detail_dict['media_links'] = eq_media_links
+                    results[pid_original]['equivalents'].append(eq_detail_dict)
         return results
     except sqlite3.Error as e:
-        print(f"DB error in _get_batch_products_and_equivalents: {e}")
-        return results # Return partial results
+        logging.error(f"DB error in _get_batch_products_and_equivalents: {e}")
+        return results
     finally:
-        if conn_is_internal and conn: # Only close if created internally
+        if conn_is_internal and conn:
             conn.close()
 
 def get_document_context_data(
@@ -154,7 +156,6 @@ def get_document_context_data(
 
     try:
         now_dt = datetime.now()
-        # Simplified translations, assuming full list is in original
         cover_page_translations = {
             'en': {'cover_page_title_suffix': "Cover Page", 'cover_logo_alt_text': "Company Logo", 'cover_footer_confidential': "Confidential"},
             'fr': {'cover_page_title_suffix': "Page de Garde", 'cover_logo_alt_text': "Logo", 'cover_footer_confidential': "Confidentiel"}
@@ -164,75 +165,118 @@ def get_document_context_data(
         context["doc"]["current_date"] = now_dt.strftime("%Y-%m-%d")
         context["doc"]["current_year"] = str(now_dt.year)
         context["doc"]["document_title"] = effective_additional_context.get("document_title", "Document")
-        # ... other context["doc"] fields ...
         context["doc"]["currency_symbol"] = effective_additional_context.get("currency_symbol", "€")
         context["doc"]["vat_rate_percentage"] = float(effective_additional_context.get("vat_rate_percentage", 20.0))
         context["doc"]["discount_rate_percentage"] = float(effective_additional_context.get("discount_rate_percentage", 0.0))
-
 
         seller_company_data = get_company_by_id(company_id, conn=conn)
         if seller_company_data:
             context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
             context["seller"]["address"] = seller_company_data.get('address', "N/A")
-            context["seller"]["full_address"] = seller_company_data.get('address', "N/A")
+            context["seller"]["full_address"] = seller_company_data.get('address', "N/A") # Redundant, consider removing
             logo_path_relative = seller_company_data.get('logo_path')
             if logo_path_relative:
+                # Ensure APP_ROOT_DIR_CONTEXT and LOGO_SUBDIR_CONTEXT are correctly defined in db_config
                 abs_logo_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, db_config.LOGO_SUBDIR_CONTEXT, logo_path_relative)
                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}" if os.path.exists(abs_logo_path) else None
-            else: context["seller"]["company_logo_path"] = None
-            # ... other seller fields ...
-            seller_personnel_list = get_personnel_for_company(company_id, conn=conn) # Pass conn
-            context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0]['name']} if seller_personnel_list else {}
+            else:
+                context["seller"]["company_logo_path"] = None
 
-        client_data = get_client_by_id(client_id, conn=conn) # Pass conn
+            seller_personnel_list = get_personnel_for_company(company_id, conn=conn)
+            if seller_personnel_list: # Check if list is not empty
+                 # Assuming the first person is the representative, or apply specific logic
+                context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0].get('name', "N/A")}
+            else:
+                context["seller"]["personnel"] = {"representative_name": "N/A"}
+
+
+        client_data = get_client_by_id(client_id, conn=conn)
         if client_data:
             context["client"]["id"] = client_data.get('client_id')
             context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
-            # ... other client fields ...
+            context["client"]["address"] = client_data.get('address', "N/A") # Assuming 'address' field exists
+
             if client_data.get('country_id'):
-                country = get_country_by_id(client_data['country_id'], conn=conn) # Pass conn
+                country = get_country_by_id(client_data['country_id'], conn=conn)
                 context["client"]["country_name"] = country['country_name'] if country else "N/A"
-            # ... similar for city and primary contact using get_contacts_for_client(client_id, conn=conn)
+            else:
+                context["client"]["country_name"] = "N/A"
+
+            if client_data.get('city_id'):
+                city = get_city_by_id(client_data['city_id'], conn=conn)
+                context["client"]["city_name"] = city['city_name'] if city else "N/A"
+            else:
+                context["client"]["city_name"] = "N/A"
+
+            client_contacts = get_contacts_for_client(client_id, conn=conn)
+            if client_contacts: # Assuming first contact is primary or representative
+                context["client"]["primary_contact_name"] = client_contacts[0].get('name', client_contacts[0].get('displayName', "N/A"))
+                context["client"]["primary_contact_email"] = client_contacts[0].get('email', "N/A")
+            else:
+                context["client"]["primary_contact_name"] = "N/A"
+                context["client"]["primary_contact_email"] = "N/A"
+
 
         if project_id:
-            project_data = get_project_by_id(project_id, conn=conn) # Pass conn
-            if project_data: context["project"]["name"] = project_data.get('project_name')
-        else: context["project"]["name"] = effective_additional_context.get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
+            project_data = get_project_by_id(project_id, conn=conn)
+            if project_data:
+                context["project"]["name"] = project_data.get('project_name')
+                # Potentially add more project details if needed
+        else:
+            context["project"]["name"] = effective_additional_context.get("project_name", client_data.get('project_identifier', "N/A") if client_data else "N/A")
 
-        # Product Processing Logic (Simplified for this overwrite, assuming the structure is mostly sound)
         all_product_ids_to_fetch = set()
         product_data_for_loop = []
 
-        # Determine source of products (lite, specific CPP IDs, or general client/project)
-        # ... (this complex logic is assumed from existing file, just ensure conn is passed to helpers) ...
-
-        # Example for lite products
         if effective_additional_context.get('lite_selected_products'):
-             for p_info in effective_additional_context['lite_selected_products']:
+            for p_info in effective_additional_context['lite_selected_products']:
                 if isinstance(p_info, dict) and 'product_id' in p_info:
                     all_product_ids_to_fetch.add(p_info['product_id'])
-                    product_data_for_loop.append({'product_id': p_info['product_id'], 'quantity': p_info.get('quantity',1)})
-        # ... (elif for linked_product_ids_for_doc and final else for client/project products) ...
-        # Ensure any get_products_for_client_or_project calls pass `conn=conn`
+                    # Store quantity and unit_price_override for later use
+                    product_data_for_loop.append({
+                        'product_id': p_info['product_id'],
+                        'quantity': p_info.get('quantity', 1),
+                        'unit_price_override': p_info.get('unit_price_override')
+                    })
+        elif linked_product_ids_for_doc: # Assuming this is a list of ClientProjectProduct IDs
+            for cpp_id in linked_product_ids_for_doc:
+                cpp_data = get_client_project_product_by_id(cpp_id, conn=conn)
+                if cpp_data and cpp_data.get('product_id'):
+                    all_product_ids_to_fetch.add(cpp_data['product_id'])
+                    product_data_for_loop.append({
+                        'product_id': cpp_data['product_id'],
+                        'quantity': cpp_data.get('quantity', 1),
+                        'unit_price_override': cpp_data.get('unit_price_override'),
+                        'serial_number': cpp_data.get('serial_number')
+                    })
+        else: # Default to client/project products if no specific list provided
+            client_project_products = get_products_for_client_or_project(client_id=client_id, project_id=project_id, conn=conn)
+            for cpp_data in client_project_products:
+                if cpp_data.get('product_id'):
+                    all_product_ids_to_fetch.add(cpp_data['product_id'])
+                    product_data_for_loop.append({
+                        'product_id': cpp_data['product_id'],
+                        'quantity': cpp_data.get('quantity', 1),
+                        'unit_price_override': cpp_data.get('unit_price_override'),
+                        'serial_number': cpp_data.get('serial_number')
+                    })
 
         batched_product_details = {}
-        if all_product_ids_to_fetch: # Changed from all_product_ids_to_fetch_details_for
-            batched_product_details = _get_batch_products_and_equivalents(list(all_product_ids_to_fetch), target_language_code, conn_passed=conn) # Pass conn
+        if all_product_ids_to_fetch:
+            batched_product_details = _get_batch_products_and_equivalents(list(all_product_ids_to_fetch), target_language_code, conn_passed=conn)
 
         products_table_html_rows_list = []
         subtotal_amount = 0.0
+
         for idx, item_data in enumerate(product_data_for_loop):
-            # ... (product processing loop from existing file, ensure format_currency uses context["doc"]["currency_symbol"]) ...
-            # This loop uses batched_product_details and item_data to build product context and HTML rows
-            # Key is to ensure all DB calls within this loop or its helpers use `conn`
             prod_id = item_data['product_id']
             batch_info = batched_product_details.get(prod_id, {'original': None, 'equivalents': []})
             original_prod_details = batch_info['original']
 
             if not original_prod_details: continue
 
-            prod_name = original_prod_details['product_name'] # Add language fallback if necessary
-            # Example: prod_name = original_prod_details.get(f'product_name_{target_language_code}', original_prod_details['product_name'])
+            prod_name = original_prod_details.get(f'product_name_{target_language_code}', original_prod_details.get('product_name', "N/A"))
+            description = original_prod_details.get(f'description_{target_language_code}', original_prod_details.get('description', ""))
 
             qty = item_data.get('quantity', 1)
             unit_price_override = item_data.get('unit_price_override')
@@ -244,50 +288,35 @@ def get_document_context_data(
             processed_media_links = []
             if original_prod_details.get('media_links'):
                 for link in original_prod_details['media_links']:
-                    image_url = None
-                    thumbnail_url = None
-
+                    image_url, thumbnail_url = None, None
                     if link.get('media_filepath'):
                         abs_image_path = os.path.join(config.MEDIA_FILES_BASE_PATH, link['media_filepath'])
-                        if os.path.exists(abs_image_path):
-                            image_url = f"file:///{abs_image_path.replace(os.sep, '/')}"
-
+                        image_url = f"file:///{abs_image_path.replace(os.sep, '/')}" if os.path.exists(abs_image_path) else None
                     if link.get('media_thumbnail_path'):
                         abs_thumbnail_path = os.path.join(config.MEDIA_FILES_BASE_PATH, link['media_thumbnail_path'])
-                        if os.path.exists(abs_thumbnail_path):
-                            thumbnail_url = f"file:///{abs_thumbnail_path.replace(os.sep, '/')}"
+                        thumbnail_url = f"file:///{abs_thumbnail_path.replace(os.sep, '/')}" if os.path.exists(abs_thumbnail_path) else image_url # Fallback to full image if no thumb
 
                     processed_media_links.append({
-                        'url': image_url,
-                        'thumbnail_url': thumbnail_url,
-                        'alt_text': link.get('alt_text'),
-                        'display_order': link.get('display_order'),
+                        'url': image_url, 'thumbnail_url': thumbnail_url,
+                        'alt_text': link.get('alt_text'), 'display_order': link.get('display_order'),
                         'title': link.get('media_title')
                     })
 
             product_context_item = {
-                "id": prod_id,
-                "name": prod_name,
-                "quantity": qty,
+                "id": prod_id, "name": prod_name, "quantity": qty,
                 "unit_price_formatted": format_currency(unit_price_f, context['doc']['currency_symbol']),
                 "total_price_formatted": format_currency(total_price_f, context['doc']['currency_symbol']),
-                "raw_unit_price": unit_price_f,
-                "raw_total_price": total_price_f,
-                "description": original_prod_details.get('description'),
-                "category": original_prod_details.get('category'),
+                "raw_unit_price": unit_price_f, "raw_total_price": total_price_f,
+                "description": description, "category": original_prod_details.get('category'),
                 "unit_of_measure": original_prod_details.get('unit_of_measure'),
-                "weight": original_prod_details.get('weight'),
-                "dimensions": original_prod_details.get('dimensions'),
-                "images": processed_media_links,
-                "equivalents": batch_info.get('equivalents', []) # Add equivalents if needed in templates
+                "weight": original_prod_details.get('weight'), "dimensions": original_prod_details.get('dimensions'),
+                "images": processed_media_links, "equivalents": batch_info.get('equivalents', [])
             }
             context["products"].append(product_context_item)
-
             products_table_html_rows_list.append(f"<tr><td>{idx+1}</td><td>{prod_name}</td><td>{qty}</td><td>{format_currency(unit_price_f, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price_f, context['doc']['currency_symbol'])}</td></tr>")
 
         context["doc"]["products_table_rows"] = "".join(products_table_html_rows_list)
         context["doc"]["subtotal_amount"] = format_currency(subtotal_amount, context["doc"]["currency_symbol"])
-
         discount_val = subtotal_amount * (context["doc"]["discount_rate_percentage"] / 100.0)
         context["doc"]["discount_amount"] = format_currency(discount_val, context["doc"]["currency_symbol"])
         subtotal_after_discount = subtotal_amount - discount_val
@@ -296,29 +325,32 @@ def get_document_context_data(
         context["doc"]["grand_total_amount"] = format_currency(subtotal_after_discount + vat_val, context["doc"]["currency_symbol"])
 
         doc_type_for_notes = effective_additional_context.get('current_document_type_for_notes')
-        if doc_type_for_notes and client_id and target_language_code: # Pass conn
-            notes = get_client_document_notes(client_id, doc_type_for_notes, target_language_code, True, conn=conn)
+        if doc_type_for_notes and client_id and target_language_code:
+            notes = get_client_document_notes(client_id=client_id, document_type=doc_type_for_notes, language_code=target_language_code, is_active=True, conn=conn)
             if notes: context['doc']['client_specific_footer_notes'] = notes[0]['note_content'].replace('\n','<br>')
 
-        # ... (mapping to buyer_*, seller_* placeholders) ...
+        # Mapping to buyer_*, seller_* placeholders (ensure these are consistent)
+        context["buyer_company_name"] = context["client"].get("company_name", "N/A")
+        context["buyer_contact_name"] = context["client"].get("primary_contact_name", "N/A")
+        context["buyer_address"] = context["client"].get("address", "N/A")
+        context["seller_company_name"] = context["seller"].get("name", "N/A")
+        context["seller_contact_name"] = context["seller"].get("personnel", {}).get("representative_name", "N/A")
 
     except Exception as e_doc_ctx:
-        print(f"Error in get_document_context_data: {e_doc_ctx}")
-        import traceback; traceback.print_exc();
+        logging.error(f"Error in get_document_context_data: {e_doc_ctx}")
+        import traceback; traceback.print_exc(); # For more detailed error logging during development
     finally:
-        if conn_is_internal and conn: # Only close if created internally
+        if conn_is_internal and conn:
             conn.close()
-
     return context
 
 __all__ = [
     "get_db_connection",
     "format_currency",
     "get_document_context_data",
-    # "_get_batch_products_and_equivalents", # Typically internal, not in __all__
 ]
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     print("db.utils module direct execution (for testing, may require DB setup)")
     # Example calls for testing
     # test_conn = get_db_connection()
