@@ -108,10 +108,13 @@ def initialize_database():
         user_id TEXT PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL, -- Added for password salting
         full_name TEXT,
         email TEXT NOT NULL UNIQUE,
         role TEXT NOT NULL, -- e.g., 'admin', 'manager', 'member'
         is_active BOOLEAN DEFAULT TRUE,
+        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+        deleted_at TEXT, -- Added for soft delete
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login_at TIMESTAMP
@@ -278,7 +281,9 @@ def initialize_database():
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+        deleted_at TEXT -- Added for soft delete
     )
     """)
     cursor.execute("PRAGMA table_info(Clients)")
@@ -409,6 +414,8 @@ def initialize_database():
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+        deleted_at TEXT, -- Added for soft delete
         UNIQUE (product_name, language_code)
     )
     """)
@@ -1104,10 +1111,19 @@ def initialize_database():
         cursor.execute("SELECT COUNT(*) FROM Users")
         if cursor.fetchone()['COUNT(*)'] == 0: # Use dict access due to row_factory
             admin_uid = str(uuid.uuid4())
-            admin_pass_hash = hashlib.sha256(db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest()
-            cursor.execute("INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', f'{db_config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN))
-            print(f"Admin user '{db_config.DEFAULT_ADMIN_USERNAME}' seeded.")
+            # Generate salt and hash for default admin - direct SQL insertion for bootstrap
+            admin_salt = os.urandom(16).hex()
+            admin_password_bytes = db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')
+            admin_salt_bytes = bytes.fromhex(admin_salt)
+            admin_pass_hash = hashlib.sha256(admin_salt_bytes + admin_password_bytes).hexdigest()
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO Users
+                    (user_id, username, password_hash, salt, full_name, email, role, is_deleted, deleted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
+                  'Default Admin', f'{db_config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
+            print(f"Admin user '{db_config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
 
         # Application Settings Seeding
         # Using the imported set_setting CRUD function, passing the connection

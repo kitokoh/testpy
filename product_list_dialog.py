@@ -2,55 +2,91 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QPushButton, QComboBox,
-    QHeaderView, QMessageBox, QFileDialog
+    QHeaderView, QMessageBox, QFileDialog, QCheckBox
 )
 from PyQt5.QtCore import Qt
-import db as db_manager # Import db and alias as db_manager
+# import db as db_manager # No longer needed for product functions
+from db.cruds.products_crud import products_crud_instance
 import html_to_pdf_util # Import the PDF utility
 
 class ProductListDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Product List Management"))
-        self.setGeometry(200, 200, 800, 600)
+        self.setGeometry(200, 200, 900, 700) # Increased size for more controls
+
+        self.current_offset = 0
+        self.limit_per_page = 50 # Example, can be configurable
 
         main_layout = QVBoxLayout(self)
 
         # Title Input
         title_layout = QHBoxLayout()
         title_label = QLabel(self.tr("Title:"))
-        self.title_edit = QLineEdit(self.tr("Product List 2025"))
+        self.title_edit = QLineEdit(self.tr("Product List")) # Simplified default title
         title_layout.addWidget(title_label)
         title_layout.addWidget(self.title_edit)
         main_layout.addLayout(title_layout)
 
-        # Language Filter
-        lang_layout = QHBoxLayout()
-        lang_label = QLabel(self.tr("Language:"))
+        # Filters (Language, Category, Search, Deleted)
+        filter_group_box = QGroupBox(self.tr("Filters"))
+        filter_form_layout = QFormLayout(filter_group_box)
+
         self.language_combo = QComboBox()
-        self.language_combo.addItems([self.tr("All Languages"), "English", "French", "Arabic"]) # Sample languages + All
-        self.language_combo.setCurrentIndex(0) # Default to "All Languages"
-        self.language_combo.currentIndexChanged.connect(self.language_filter_changed_placeholder)
-        lang_layout.addWidget(lang_label)
-        lang_layout.addWidget(self.language_combo)
-        lang_layout.addStretch()
-        main_layout.addLayout(lang_layout)
+        # Populate with actual languages from DB or a predefined list
+        # For now, placeholder. Real population would be dynamic.
+        self.language_combo.addItems([self.tr("All Languages"), "fr", "en", "ar", "tr", "pt"])
+        self.language_combo.setCurrentIndex(0)
+        self.language_combo.currentIndexChanged.connect(self.apply_filters_and_reload)
+        filter_form_layout.addRow(self.tr("Language:"), self.language_combo)
+
+        self.category_filter_input = QLineEdit()
+        self.category_filter_input.setPlaceholderText(self.tr("Filter by category..."))
+        self.category_filter_input.textChanged.connect(self.apply_filters_and_reload)
+        filter_form_layout.addRow(self.tr("Category:"), self.category_filter_input)
+
+        self.search_product_input = QLineEdit()
+        self.search_product_input.setPlaceholderText(self.tr("Search by product name..."))
+        self.search_product_input.textChanged.connect(self.apply_filters_and_reload)
+        filter_form_layout.addRow(self.tr("Search Name:"), self.search_product_input)
+
+        self.include_deleted_checkbox = QCheckBox(self.tr("Include Deleted Products"))
+        self.include_deleted_checkbox.stateChanged.connect(self.apply_filters_and_reload)
+        filter_form_layout.addRow(self.include_deleted_checkbox)
+
+        main_layout.addWidget(filter_group_box)
+
 
         # Product Table
         self.product_table = QTableWidget()
-        self.product_table.setColumnCount(3)
+        self.product_table.setColumnCount(4) # Added ID column (hidden)
         self.product_table.setHorizontalHeaderLabels([
-            self.tr("Product Name"), self.tr("Description"), self.tr("Price")
+            "ID", self.tr("Product Name"), self.tr("Description"), self.tr("Price")
         ])
-        self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        # Make price column editable - itemChanged signal will handle edits.
-        self.product_table.itemChanged.connect(self.handle_price_change) # Connect to the new handler
+        self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
+        self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
+        self.product_table.hideColumn(0) # Hide ID
+        self.product_table.itemChanged.connect(self.handle_price_change)
         main_layout.addWidget(self.product_table)
 
-        self.load_products_to_table() # Load initial products (replacing load_sample_data)
+        # Pagination controls
+        pagination_layout = QHBoxLayout()
+        self.prev_page_button = QPushButton(self.tr("Précédent"))
+        self.prev_page_button.clicked.connect(self.prev_page)
+        self.page_info_label = QLabel(self.tr("Page 1"))
+        self.next_page_button = QPushButton(self.tr("Suivant"))
+        self.next_page_button.clicked.connect(self.next_page)
+        pagination_layout.addWidget(self.prev_page_button)
+        pagination_layout.addWidget(self.page_info_label)
+        pagination_layout.addWidget(self.next_page_button)
+        main_layout.addLayout(pagination_layout)
+
+        self.load_products_to_table()
 
         # Action Buttons
         button_layout = QHBoxLayout()
+        # Add/Edit/Delete buttons can be added here if direct product management is desired from this dialog
+        # For now, keeping it as a list display and export tool.
         self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
         self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder)
         button_layout.addStretch()
@@ -59,134 +95,146 @@ class ProductListDialog(QDialog):
 
         self.setLayout(main_layout)
 
-    def load_products_to_table(self, language_code=None):
-        self.product_table.blockSignals(True) # Block signals during table population
-        self.product_table.setRowCount(0) # Clear table
+    def apply_filters_and_reload(self):
+        self.current_offset = 0 # Reset to first page when filters change
+        self.load_products_to_table()
+
+    def load_products_to_table(self):
+        self.product_table.blockSignals(True)
+        self.product_table.setRowCount(0)
+
+        lang_text = self.language_combo.currentText()
+        language_code = None
+        if lang_text != self.tr("All Languages"):
+            # This mapping should be more robust or dynamic if languages change
+            lang_map = {"English": "en", "French": "fr", "Arabic": "ar", "Turkish": "tr", "Portuguese": "pt"}
+            language_code = lang_map.get(lang_text)
+
+        category_filter = self.category_filter_input.text().strip()
+        search_name_filter = self.search_product_input.text().strip()
+        include_deleted = self.include_deleted_checkbox.isChecked()
+
+        filters = {}
+        if language_code:
+            filters['language_code'] = language_code
+        if category_filter:
+            filters['category'] = category_filter # Assuming exact match for category for now
+        if search_name_filter:
+            filters['product_name'] = f"%{search_name_filter}%" # For LIKE search
+
         try:
-            products = db_manager.get_products(language_code=language_code)
+            products = products_crud_instance.get_all_products(
+                filters=filters,
+                limit=self.limit_per_page,
+                offset=self.current_offset,
+                include_deleted=include_deleted
+            )
+            # products is already a list of dicts
             if products:
                 self.product_table.setRowCount(len(products))
                 for row, product_data in enumerate(products):
+                for row, product_data in enumerate(products):
+                    id_item = QTableWidgetItem(str(product_data.get("product_id")))
+                    id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, 0, id_item) # Hidden ID col
+
                     name_item = QTableWidgetItem(product_data.get("product_name"))
                     name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-                    name_item.setData(Qt.UserRole, product_data.get("product_id")) # Store product_id
+                    name_item.setData(Qt.UserRole, product_data.get("product_id"))
+                    self.product_table.setItem(row, 1, name_item) # Name col (index 1)
 
                     desc_item = QTableWidgetItem(product_data.get("description"))
                     desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, 2, desc_item) # Description col (index 2)
 
                     price_val = product_data.get("base_unit_price")
                     price_str = f"{price_val:.2f}" if isinstance(price_val, (float, int)) else str(price_val)
                     price_item = QTableWidgetItem(price_str)
-                    # Price column is editable by default
+                    # Price column is editable by default, flags are fine
+                    self.product_table.setItem(row, 3, price_item) # Price col (index 3)
 
-                    self.product_table.setItem(row, 0, name_item)
-                    self.product_table.setItem(row, 1, desc_item)
-                    self.product_table.setItem(row, 2, price_item)
-            # else: # Optional: handle case of no products
-            #    pass
+            self.update_pagination_controls(len(products))
+
         except Exception as e:
             print(f"Error loading products to table: {e}")
             QMessageBox.critical(self, self.tr("Load Error"), self.tr(f"Failed to load products: {e}"))
         finally:
-            self.product_table.blockSignals(False) # Unblock signals
+            self.product_table.blockSignals(False)
 
-    def language_filter_changed_placeholder(self, index):
-        language_full_name = self.language_combo.itemText(index)
-        language_code = None
-        if language_full_name != self.tr("All Languages"):
-            lang_code_map = {"English": "en", "French": "fr", "Arabic": "ar"}
-            language_code = lang_code_map.get(language_full_name)
+    def update_pagination_controls(self, current_page_item_count: int):
+        self.prev_page_button.setEnabled(self.current_offset > 0)
+        self.next_page_button.setEnabled(current_page_item_count == self.limit_per_page)
+        self.page_info_label.setText(self.tr("Page {0}").format((self.current_offset // self.limit_per_page) + 1))
 
-        print(f"Language filter changed to: {language_full_name} (code: {language_code})")
-        self.load_products_to_table(language_code)
+    def prev_page(self):
+        if self.current_offset > 0:
+            self.current_offset -= self.limit_per_page
+            self.load_products_to_table()
+
+    def next_page(self):
+        # Check if current page was full to enable next
+        # This is a basic check; a more robust check involves total item count.
+        if self.product_table.rowCount() == self.limit_per_page:
+            self.current_offset += self.limit_per_page
+            self.load_products_to_table()
+
 
     def handle_price_change(self, item):
-        if item.column() == 2:  # Price column
+        if item.column() == 3:  # Price column is now index 3
             row = item.row()
-
-            # Retrieve product_id from UserRole data of the item in column 0
-            product_name_item = self.product_table.item(row, 0)
-            if not product_name_item:
-                print(f"Error: Product name item not found at row {row}, cannot get product_id.")
+            id_item = self.product_table.item(row, 0) # ID is in hidden column 0
+            if not id_item:
+                print(f"Error: Product ID item not found at row {row}.")
                 return
-
-            product_id = product_name_item.data(Qt.UserRole)
+            product_id = id_item.data(Qt.UserRole) # Product ID from UserRole of hidden ID item
             if product_id is None:
                 print(f"Error: product_id not found in UserRole for row {row}.")
-                # This might happen if the row is a placeholder (e.g., "No products found")
                 return
 
             new_price_str = item.text()
             try:
                 new_price_float = float(new_price_str)
-                if new_price_float < 0:
-                    raise ValueError(self.tr("Price cannot be negative."))
-
-                # Block signals before potential programmatic changes to the table item
+                if new_price_float < 0: raise ValueError(self.tr("Price cannot be negative."))
                 self.product_table.blockSignals(True)
 
-                success = db_manager.update_product_price(product_id, new_price_float)
+                update_result = products_crud_instance.update_product_price(product_id, new_price_float)
 
-                if success:
+                if update_result['success']:
                     print(f"Price for product_id {product_id} updated to {new_price_float:.2f}")
-                    # Optional: Re-format the cell to ensure it has 2 decimal places.
-                    # This is a programmatic change, so signals should be blocked.
-                    item.setText(f"{new_price_float:.2f}")
+                    item.setText(f"{new_price_float:.2f}") # Reformat
                 else:
                     QMessageBox.warning(self, self.tr("Update Failed"),
-                                        self.tr(f"Failed to update price for product ID {product_id} in the database."))
-                    # Attempt to revert the cell text to the old price.
-                    # This requires fetching the current price again.
-                    # For simplicity, we could just reload the data for that row or the whole table.
-                    # However, to avoid losing context or scroll position, fetching old value is better.
-                    # This part can be complex, for now, we just warn.
-                    # A simple revert might be to re-run load_products_to_table, but that's heavy.
-                    # A more robust solution would be to store the original value before edit or re-fetch.
-                    # For now, if DB update fails, the UI might show the user's new text, but DB has old. This is not ideal.
-                    # Let's try to reload the table to reflect actual DB state.
-                    current_lang_full = self.language_combo.currentText()
-                    lang_code_map_revert = {"English": "en", "French": "fr", "Arabic": "ar", self.tr("All Languages"): None}
-                    current_lang_code_revert = lang_code_map_revert.get(current_lang_full)
-                    self.load_products_to_table(current_lang_code_revert)
-
-
+                                        update_result.get('error', self.tr(f"Failed to update price for product ID {product_id}.")))
+                    self.apply_filters_and_reload() # Reload to show actual DB state
             except ValueError as ve:
-                QMessageBox.warning(self, self.tr("Invalid Price"),
-                                    self.tr(f"The entered price '{new_price_str}' is not valid: {ve}"))
-                # Revert to old state by reloading current view if validation fails
-                # This is important because the item in the table already reflects the invalid user input.
-                current_lang_full = self.language_combo.currentText()
-                lang_code_map_revert_val = {"English": "en", "French": "fr", "Arabic": "ar", self.tr("All Languages"): None}
-                current_lang_code_revert_val = lang_code_map_revert_val.get(current_lang_full)
-                self.load_products_to_table(current_lang_code_revert_val) # Reload to discard invalid entry
-
+                QMessageBox.warning(self, self.tr("Invalid Price"), self.tr(f"The entered price '{new_price_str}' is not valid: {ve}"))
+                self.apply_filters_and_reload() # Reload to discard invalid entry
             finally:
-                # Always unblock signals
                 self.product_table.blockSignals(False)
 
     def export_to_pdf_placeholder(self):
         dialog_title = self.title_edit.text()
-        selected_language_full_name = self.language_combo.currentText()
+        # For PDF export, we might want all products matching filters, not just current page
+        # Or make it an option. For now, using current filters but without pagination.
+        lang_text = self.language_combo.currentText()
+        language_code = None
+        if lang_text != self.tr("All Languages"):
+            lang_map = {"English": "en", "French": "fr", "Arabic": "ar", "Turkish": "tr", "Portuguese": "pt"}
+            language_code = lang_map.get(lang_text)
 
-        # Map full language name to code
-        lang_code_map = {
-            "English": "en",
-            "French": "fr",
-            "Arabic": "ar"
-            # Add other mappings if necessary
-        }
-        language_code = lang_code_map.get(selected_language_full_name)
+        category_filter = self.category_filter_input.text().strip()
+        search_name_filter = self.search_product_input.text().strip()
+        include_deleted = self.include_deleted_checkbox.isChecked()
 
-        if not language_code:
-            QMessageBox.warning(self, self.tr("Language Not Supported"),
-                                self.tr(f"PDF export for '{selected_language_full_name}' is not yet supported or code mapping is missing."))
-            return
+        filters = {}
+        if language_code: filters['language_code'] = language_code
+        if category_filter: filters['category'] = category_filter
+        if search_name_filter: filters['product_name'] = f"%{search_name_filter}%"
 
         try:
-            product_list = db_manager.get_products(language_code=language_code)
+            product_list = products_crud_instance.get_all_products(filters=filters, include_deleted=include_deleted)
             if not product_list:
-                QMessageBox.information(self, self.tr("No Products"),
-                                        self.tr(f"No products found for the selected language: {selected_language_full_name}."))
+                QMessageBox.information(self, self.tr("No Products"), self.tr("No products found for the selected criteria."))
                 return
 
             # Basic HTML structure for the PDF
