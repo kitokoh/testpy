@@ -51,23 +51,25 @@ from .cruds.client_transporters_crud import (
     unassign_transporter_from_client,
     update_client_transporter_email_status,
 )
-from .cruds.clients_crud import (
-    add_client,
-    get_client_by_id,
-    get_all_clients,
-    update_client,
-    delete_client,
-    get_all_clients_with_details,
-    get_active_clients_count,
-    get_client_counts_by_country,
-    get_client_segmentation_by_city,
-    get_client_segmentation_by_status,
-    get_client_segmentation_by_category,
-    get_clients_by_archival_status,
-    get_active_clients_per_country,
-    add_client_note,
-    get_client_notes,
-)
+from .cruds.clients_crud import clients_crud_instance
+
+# Alias functions from clients_crud_instance
+add_client = clients_crud_instance.add_client
+get_client_by_id = clients_crud_instance.get_client_by_id
+get_all_clients = clients_crud_instance.get_all_clients
+update_client = clients_crud_instance.update_client
+delete_client = clients_crud_instance.delete_client
+get_all_clients_with_details = clients_crud_instance.get_all_clients_with_details
+get_active_clients_count = clients_crud_instance.get_active_clients_count
+get_client_counts_by_country = clients_crud_instance.get_client_counts_by_country
+get_client_segmentation_by_city = clients_crud_instance.get_client_segmentation_by_city
+get_client_segmentation_by_status = clients_crud_instance.get_client_segmentation_by_status
+get_client_segmentation_by_category = clients_crud_instance.get_client_segmentation_by_category
+get_clients_by_archival_status = clients_crud_instance.get_clients_by_archival_status
+get_active_clients_per_country = clients_crud_instance.get_active_clients_per_country
+add_client_note = clients_crud_instance.add_client_note
+get_client_notes = clients_crud_instance.get_client_notes
+
 from .cruds.companies_crud import (
     add_company,
     get_company_by_id,
@@ -417,7 +419,7 @@ __all__ = [
     "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country",
     "get_client_segmentation_by_city", "get_client_segmentation_by_status",
     "get_client_segmentation_by_category", "get_clients_by_archival_status",
-    "get_active_clients_per_country",
+    "get_active_clients_per_country", "add_client_note", "get_client_notes",
     # from companies_crud
     "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company",
     "set_default_company", "get_default_company",
