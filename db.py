@@ -27,153 +27,127 @@ LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup in the test 
 
 # --- Document Context Data Function has been removed, it's now in db.utils ---
 
+# Functions related to Clients, Products, Users that were refactored into specific
+# CRUD classes (e.g., clients_crud.ClientsCRUD, products_crud.ProductsCRUD, users_crud.UsersCRUD)
+# should now be imported directly from their respective modules using the class instances
+# (e.g., from db.cruds.clients_crud import clients_crud_instance).
+# This db.py file will serve as a facade for unrefactored CRUD modules or general DB utilities.
+
+# Example: get_total_clients_count is now available via clients_crud_instance.get_total_clients_count()
+# Example: get_total_products_count is now available via products_crud_instance.get_total_products_count()
+# Example: get_clients_by_archival_status is now available via clients_crud_instance.get_clients_by_archival_status()
+
+# get_total_projects_count is now available via projects_crud_instance.get_total_projects_count()
+# def get_total_projects_count() -> int:
+#     conn = None
+#     try:
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT COUNT(project_id) as total_count FROM Projects")
+#         row = cursor.fetchone()
+#         return row['total_count'] if row else 0
+#     except sqlite3.Error as e:
+#         print(f"Database error in get_total_projects_count: {e}")
+#         return 0
+#     finally:
+#         if conn:
+#             conn.close()
+
+# get_active_projects_count is now available via projects_crud_instance.get_active_projects_count()
+# def get_active_projects_count() -> int:
+#     conn = None
+#     try:
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+#         # Select projects whose status_id is not in the set of completion or archival statuses,
+#         # or projects who have no status_id (considered active by default).
+#         sql = """
+#             SELECT COUNT(p.project_id) as active_count
+#             FROM Projects p
+#             LEFT JOIN StatusSettings ss ON p.status_id = ss.status_id
+#             WHERE (ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE) OR p.status_id IS NULL
+#         """
+#         cursor.execute(sql)
+#         row = cursor.fetchone()
+#         return row['active_count'] if row else 0
+#     except sqlite3.Error as e:
+#         print(f"Database error in get_active_projects_count: {e}")
+#         return 0
+#     finally:
+#         if conn:
+#             conn.close()
+
+# get_clients_by_archival_status is now available via clients_crud_instance.get_clients_by_archival_status()
+# def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True) -> list[dict]:
+#     conn = None
+#     try:
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+
+#         cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
+#         archival_status_rows = cursor.fetchall()
+#         archival_status_ids = [row['status_id'] for row in archival_status_rows]
+
+#         base_query = """
+#             SELECT
+#                 c.client_id, c.client_name, c.company_name, c.primary_need_description,
+#                 c.project_identifier, c.default_base_folder_path, c.selected_languages,
+#                 c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
+#                 co.country_name AS country,
+#                 ci.city_name AS city,
+#                 s.status_name AS status,
+#                 s.color_hex AS status_color,
+#                 s.icon_name AS status_icon_name
+#             FROM Clients c
+#             LEFT JOIN Countries co ON c.country_id = co.country_id
+#             LEFT JOIN Cities ci ON c.city_id = ci.city_id
+#             LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+#         """
+
+#         params = []
+#         where_conditions = []
+
+#         if not archival_status_ids: # No statuses are defined as archival
+#             if is_archived: # If we are looking for archived clients but no status is archival type
+#                 return []
+#             else: # If we are looking for active clients and no status is archival type, all clients (with or without status) are considered active
+#                   # This case will fall through to the 'else' for where_conditions, fetching all.
+#                   pass # No specific condition needed here if all are considered active
+#         else: # Archival statuses exist
+#             placeholders = ','.join('?' for _ in archival_status_ids)
+#             if is_archived:
+#                 where_conditions.append(f"c.status_id IN ({placeholders})")
+#                 params.extend(archival_status_ids)
+#             else: # Active clients
+#                 not_in_condition = f"c.status_id NOT IN ({placeholders})"
+#                 if include_null_status_for_active:
+#                     where_conditions.append(f"({not_in_condition} OR c.status_id IS NULL)")
+#                 else:
+#                     where_conditions.append(not_in_condition)
+#                 params.extend(archival_status_ids) # These params are for the NOT IN part
+
+#         if where_conditions:
+#             sql = f"{base_query} WHERE {' AND '.join(where_conditions)} ORDER BY c.client_name;"
+#         else:
+#             # If is_archived=False and no archival_status_ids, this means all clients are non-archived.
+#             # If include_null_status_for_active is True, it includes clients with NULL status.
+#             # If include_null_status_for_active is False, it implies only clients with a non-archival status.
+#             # This default (no WHERE clause) correctly handles the "all active when no archival statuses defined"
+#             # and "show all" if no specific archival filtering is applied.
+#             sql = f"{base_query} ORDER BY c.client_name;"
 
 
+#         cursor.execute(sql, params)
+#         rows = cursor.fetchall()
+#         return [dict(row) for row in rows]
+#     except sqlite3.Error as e:
+#         print(f"Database error in get_clients_by_archival_status: {e}")
+#         return []
+#     finally:
+#         if conn:
+#             conn.close()
 
-
-
-
-
-def get_total_clients_count() -> int:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(client_id) as total_count FROM Clients")
-        row = cursor.fetchone()
-        return row['total_count'] if row else 0
-    except sqlite3.Error as e:
-        print(f"Database error in get_total_clients_count: {e}")
-        return 0
-    finally:
-        if conn:
-            conn.close()
-
-def get_total_projects_count() -> int:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(project_id) as total_count FROM Projects")
-        row = cursor.fetchone()
-        return row['total_count'] if row else 0
-    except sqlite3.Error as e:
-        print(f"Database error in get_total_projects_count: {e}")
-        return 0
-    finally:
-        if conn:
-            conn.close()
-
-def get_active_projects_count() -> int:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Select projects whose status_id is not in the set of completion or archival statuses,
-        # or projects who have no status_id (considered active by default).
-        sql = """
-            SELECT COUNT(p.project_id) as active_count
-            FROM Projects p
-            LEFT JOIN StatusSettings ss ON p.status_id = ss.status_id
-            WHERE (ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE) OR p.status_id IS NULL
-        """
-        cursor.execute(sql)
-        row = cursor.fetchone()
-        return row['active_count'] if row else 0
-    except sqlite3.Error as e:
-        print(f"Database error in get_active_projects_count: {e}")
-        return 0
-    finally:
-        if conn:
-            conn.close()
-
-def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True) -> list[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
-        archival_status_rows = cursor.fetchall()
-        archival_status_ids = [row['status_id'] for row in archival_status_rows]
-
-        base_query = """
-            SELECT
-                c.client_id, c.client_name, c.company_name, c.primary_need_description,
-                c.project_identifier, c.default_base_folder_path, c.selected_languages,
-                c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-                co.country_name AS country,
-                ci.city_name AS city,
-                s.status_name AS status,
-                s.color_hex AS status_color,
-                s.icon_name AS status_icon_name
-            FROM Clients c
-            LEFT JOIN Countries co ON c.country_id = co.country_id
-            LEFT JOIN Cities ci ON c.city_id = ci.city_id
-            LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
-        """
-
-        params = []
-        where_conditions = []
-
-        if not archival_status_ids: # No statuses are defined as archival
-            if is_archived: # If we are looking for archived clients but no status is archival type
-                return []
-            else: # If we are looking for active clients and no status is archival type, all clients (with or without status) are considered active
-                  # This case will fall through to the 'else' for where_conditions, fetching all.
-                  pass # No specific condition needed here if all are considered active
-        else: # Archival statuses exist
-            placeholders = ','.join('?' for _ in archival_status_ids)
-            if is_archived:
-                where_conditions.append(f"c.status_id IN ({placeholders})")
-                params.extend(archival_status_ids)
-            else: # Active clients
-                not_in_condition = f"c.status_id NOT IN ({placeholders})"
-                if include_null_status_for_active:
-                    where_conditions.append(f"({not_in_condition} OR c.status_id IS NULL)")
-                else:
-                    where_conditions.append(not_in_condition)
-                params.extend(archival_status_ids) # These params are for the NOT IN part
-
-        if where_conditions:
-            sql = f"{base_query} WHERE {' AND '.join(where_conditions)} ORDER BY c.client_name;"
-        else:
-            # If is_archived=False and no archival_status_ids, this means all clients are non-archived.
-            # If include_null_status_for_active is True, it includes clients with NULL status.
-            # If include_null_status_for_active is False, it implies only clients with a non-archival status.
-            # This default (no WHERE clause) correctly handles the "all active when no archival statuses defined"
-            # and "show all" if no specific archival filtering is applied.
-            sql = f"{base_query} ORDER BY c.client_name;"
-
-
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except sqlite3.Error as e:
-        print(f"Database error in get_clients_by_archival_status: {e}")
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-def get_total_products_count() -> int:
-    conn = None
-    row = None  # Initialize row here
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Counts distinct product_name and language_code pairs as a proxy for unique products
-        # Or, more simply, just count rows in Products table if each row is a distinct product offering
-        cursor.execute("SELECT COUNT(product_id) as total_count FROM Products")
-        row = cursor.fetchone()
-        # Original return removed from here
-    except sqlite3.Error as e:
-        print(f"Database error in get_total_products_count: {e}")
-        return 0  # Return 0 on error
-    finally:
-        if conn:
-            conn.close()
-    return row['total_count'] if row else 0  # Corrected indentation for this return
+# get_total_products_count is now handled by products_crud_instance.get_total_products_count()
 
 
 # --- CRUD functions for FreightForwarders ---
@@ -3488,57 +3462,8 @@ def get_setting(key: str) -> str | None: # Will need similar refactoring if used
 #         if conn:
 #             conn.close()
 
-# def add_client_note(client_id: str, note_text: str, user_id: str = None) -> int | None:
-#     """
-#     Adds a new note for a client.
-#     Returns the note_id if successful, otherwise None.
-#     """
-#     conn = None
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         sql = """
-#             INSERT INTO ClientNotes (client_id, note_text, user_id)
-#             VALUES (?, ?, ?)
-#         """
-#         # timestamp is handled by DEFAULT CURRENT_TIMESTAMP
-#         params = (client_id, note_text, user_id)
-#         cursor.execute(sql, params)
-#         conn.commit()
-#         return cursor.lastrowid  # Returns the note_id of the inserted row
-#     except sqlite3.Error as e:
-#         print(f"Database error in add_client_note: {e}")
-#         if conn:
-#             conn.rollback() # Rollback any changes if an error occurred
-#         return None
-#     finally:
-#         if conn:
-#             conn.close()
+# Client notes functions are now in clients_crud.py
 
-# def get_client_notes(client_id: str) -> list[dict]:
-#     """
-#     Retrieves all notes for a given client_id, ordered by timestamp (oldest first).
-#     Returns a list of dictionaries, where each dictionary represents a note.
-#     """
-#     conn = None
-#     try:
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         sql = """
-#             SELECT note_id, client_id, timestamp, note_text, user_id
-#             FROM ClientNotes
-#             WHERE client_id = ?
-#             ORDER BY timestamp ASC
-#         """
-#         cursor.execute(sql, (client_id,))
-#         rows = cursor.fetchall()
-#         return [dict(row) for row in rows]
-#     except sqlite3.Error as e:
-#         print(f"Database error in get_client_notes: {e}")
-#         return [] # Return an empty list in case of error
-#     finally:
-#         if conn:
-#             conn.close()
 
 # # CRUD functions for Companies
 # def add_company(company_data: dict) -> str | None:

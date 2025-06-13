@@ -12,12 +12,19 @@ from config import DATABASE_PATH
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
-from db.cruds.template_categories_crud import add_template_category # Corrected import
-from db.cruds.cover_page_templates_crud import get_cover_page_template_by_name, add_cover_page_template # Corrected import
-from db.cruds.users_crud import get_user_by_username
+
+# Import CRUD instances for refactored modules
+from db.cruds.users_crud import users_crud_instance
+from db.cruds.clients_crud import clients_crud_instance
+from db.cruds.products_crud import products_crud_instance
+
+# Imports for non-refactored or utility functions used in seeding
+from db.cruds.template_categories_crud import add_template_category
+from db.cruds.cover_page_templates_crud import get_cover_page_template_by_name, add_cover_page_template
+# get_user_by_username will be called via users_crud_instance if needed for seeding logic outside Users table itself
 from db.cruds.locations_crud import add_country, get_country_by_name, add_city, get_city_by_name_and_country_id
 from db.cruds.status_settings_crud import get_status_setting_by_name
-from db.cruds import partners_crud # Added for partner category seeding
+from db.cruds import partners_crud
 # Assuming company and company personnel functions will be imported if they were used via db_main_manager
 # For now, let's assume they are not, or will be handled if errors arise.
 
@@ -85,15 +92,37 @@ def seed_initial_data(cursor: sqlite3.Cursor):
     """
     try:
         # 1. Users
+        # Use users_crud_instance.add_user for seeding users
+        # Connection will be passed to the instance method from run_seed()
+        conn = cursor.connection # Get connection from cursor for instance methods
+
         cursor.execute("SELECT COUNT(*) FROM Users")
         if cursor.fetchone()[0] == 0:
-            admin_user_id = str(uuid.uuid4())
-            admin_password_hash = hashlib.sha256('adminpassword'.encode('utf-8')).hexdigest()
-            cursor.execute("""
-                INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (admin_user_id, 'admin', admin_password_hash, 'Default Admin', 'admin@example.com', 'admin', True))
-            print("Seeded admin user.")
+            admin_user_data = {
+                'username': 'admin',
+                'password': 'adminpassword', # Plain text, add_user will hash it
+                'full_name': 'Default Admin',
+                'email': 'admin@example.com',
+                'role': 'admin', # Assuming SUPER_ADMIN or similar role defined elsewhere
+                'is_active': True
+            }
+            add_user_result = users_crud_instance.add_user(admin_user_data, conn=conn)
+            if add_user_result['success']:
+                admin_user_id = add_user_result['id']
+                print(f"Seeded admin user with ID: {admin_user_id}")
+            else:
+                print(f"Failed to seed admin user: {add_user_result.get('error')}")
+                admin_user_id = None # Ensure it's None if seeding failed
+        else:
+            # If admin user might already exist from init_schema, try to get its ID
+            # This assumes init_schema.py seeds the admin user if Users table is empty.
+            admin_user_dict = users_crud_instance.get_user_by_username('admin', conn=conn, internal_use=False) # Don't need hash/salt here
+            admin_user_id = admin_user_dict['user_id'] if admin_user_dict else None
+            if admin_user_id:
+                 print(f"Admin user 'admin' already exists with ID: {admin_user_id}.")
+            else:
+                 print("Warning: Admin user not found and Users table was not empty. Seeding might rely on this user.")
+
 
         # 2. Companies
         default_company_id = None
@@ -122,19 +151,22 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 print("Seeded default company personnel.")
 
         # 4. TeamMembers
-        admin_user_for_tm_dict = get_user_by_username('admin') # Use imported function
-        if admin_user_for_tm_dict:
-            admin_user_id_for_tm = admin_user_for_tm_dict['user_id']
-            # Check using cursor if team member already exists for this user_id
-            cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id_for_tm,))
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
-                    VALUES (?, ?, ?, ?)
-                """, (admin_user_id_for_tm, admin_user_for_tm_dict['full_name'], admin_user_for_tm_dict['email'], admin_user_for_tm_dict['role']))
-                print("Seeded admin team member.")
+        # admin_user_id obtained from user seeding step above
+        if admin_user_id: # Check if admin_user_id was successfully obtained
+            admin_user_for_tm_dict = users_crud_instance.get_user_by_id(admin_user_id, conn=conn) # Fetch details if needed
+            if admin_user_for_tm_dict:
+                 # Check using cursor if team member already exists for this user_id
+                cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id,))
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
+                        VALUES (?, ?, ?, ?)
+                    """, (admin_user_id, admin_user_for_tm_dict['full_name'], admin_user_for_tm_dict['email'], admin_user_for_tm_dict['role']))
+                    print("Seeded admin team member linked to user.")
+            else:
+                print(f"Could not retrieve admin user details for ID {admin_user_id}, cannot seed admin team member accurately.")
         else:
-             print("Admin user not found, cannot seed admin team member.")
+            print("Admin user ID not available, cannot seed admin team member.")
 
 
         # 5. Countries
@@ -158,59 +190,74 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         print(f"Seeded {len(default_cities_map)} cities.")
 
         # 7. Clients
-        # Using imported functions for gets, and direct cursor for insert if it's the first client
+        # Using clients_crud_instance for client seeding
         cursor.execute("SELECT COUNT(*) FROM Clients")
         if cursor.fetchone()[0] == 0:
-            admin_user_for_client_dict = get_user_by_username('admin') # Use imported function
-            default_country_for_client_dict = get_country_by_name('France') # Use imported function
-
-            admin_user_id_for_client = admin_user_for_client_dict['user_id'] if admin_user_for_client_dict else None
+            # admin_user_id obtained from user seeding step
+            default_country_for_client_dict = get_country_by_name('France') # location_crud
             default_country_id_for_client = default_country_for_client_dict['country_id'] if default_country_for_client_dict else None
 
             default_city_id_for_client = None
             if default_country_id_for_client:
-                city_client_dict = get_city_by_name_and_country_id('Paris', default_country_id_for_client) # Use imported function
+                city_client_dict = get_city_by_name_and_country_id('Paris', default_country_id_for_client) # location_crud
                 if city_client_dict: default_city_id_for_client = city_client_dict['city_id']
 
-            active_client_status_dict = get_status_setting_by_name('Actif', 'Client') # Use imported function
+            active_client_status_dict = get_status_setting_by_name('Actif', 'Client') # status_settings_crud
             active_client_status_id = active_client_status_dict['status_id'] if active_client_status_dict else None
 
-            if admin_user_id_for_client and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
-                client_uuid = str(uuid.uuid4())
-                cursor.execute("""
-                    INSERT OR IGNORE INTO Clients (client_id, client_name, company_name, project_identifier, country_id, city_id, status_id, created_by_user_id, default_base_folder_path, primary_need_description, selected_languages)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (client_uuid, "Sample Client SARL", "Sample Client Company", "SC-PROJ-001", default_country_id_for_client, default_city_id_for_client, active_client_status_id, admin_user_id_for_client, f"clients/{client_uuid}", "General business services", "en,fr"))
-                print("Seeded sample client.")
+            if admin_user_id and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
+                client_data_seed = {
+                    'client_name': "Sample Client SARL",
+                    'company_name': "Sample Client Company",
+                    'project_identifier': "SC-PROJ-001", # Ensure this is handled or schema allows nullable
+                    'country_id': default_country_id_for_client,
+                    'city_id': default_city_id_for_client,
+                    'status_id': active_client_status_id,
+                    'created_by_user_id': admin_user_id,
+                    'default_base_folder_path': f"clients/{str(uuid.uuid4())}", # Ensure unique path
+                    'primary_need_description': "General business services",
+                    'selected_languages': "en,fr"
+                }
+                add_client_result = clients_crud_instance.add_client(client_data_seed, conn=conn)
+                if add_client_result['success']:
+                    sample_client_id_for_proj = add_client_result['client_id']
+                    print(f"Seeded sample client with ID: {sample_client_id_for_proj}")
+                else:
+                    print(f"Failed to seed sample client: {add_client_result.get('error')}")
+                    sample_client_id_for_proj = None
             else:
                 print("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
+                sample_client_id_for_proj = None
+        else:
+            # If client exists, try to get its ID for project seeding
+            # This assumes only one "Sample Client SARL" for simplicity in seeding
+            existing_clients = clients_crud_instance.get_all_clients(filters={'client_name': "Sample Client SARL"}, conn=conn)
+            sample_client_id_for_proj = existing_clients[0]['client_id'] if existing_clients else None
+
 
         # 8. Projects
         cursor.execute("SELECT COUNT(*) FROM Projects")
         if cursor.fetchone()[0] == 0:
-            sample_client_id_for_proj = None
-            # Get client_id using a direct cursor query if it was just seeded
-            cursor.execute("SELECT client_id FROM Clients WHERE client_name = 'Sample Client SARL'")
-            sample_client_proj_row = cursor.fetchone()
-            if sample_client_proj_row: sample_client_id_for_proj = sample_client_proj_row[0]
-
-            planning_project_status_dict = get_status_setting_by_name('Planning', 'Project') # Use imported function
+            planning_project_status_dict = get_status_setting_by_name('Planning', 'Project') # status_settings_crud
             planning_project_status_id = planning_project_status_dict['status_id'] if planning_project_status_dict else None
 
-            admin_user_for_project_dict = get_user_by_username('admin') # Use imported function
-            admin_user_id_for_project = admin_user_for_project_dict['user_id'] if admin_user_for_project_dict else None
+            # admin_user_id from user seeding
+            # sample_client_id_for_proj from client seeding
 
-            if sample_client_id_for_proj and planning_project_status_id and admin_user_id_for_project:
-                project_uuid = str(uuid.uuid4())
+            if sample_client_id_for_proj and planning_project_status_id and admin_user_id:
+                project_uuid = str(uuid.uuid4()) # Projects table uses TEXT project_id
+                # Assuming add_project is not yet refactored to a class instance
+                # If it were, it would be projects_crud_instance.add_project(...)
+                # For now, direct insert if no add_project function is available from imports
                 cursor.execute("""
                     INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (project_uuid, sample_client_id_for_proj, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id_for_project))
+                """, (project_uuid, sample_client_id_for_proj, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id))
                 print("Seeded sample project.")
             else:
-                print("Could not seed sample project due to missing prerequisite data.")
+                print("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
 
-        # 9. Contacts (direct cursor)
+        # 9. Contacts (direct cursor - assuming contacts_crud not yet refactored or no add_contact available)
         cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
         if cursor.fetchone()[0] == 0:
                 cursor.execute("""
@@ -220,15 +267,25 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 print("Seeded generic contact.")
 
         # 10. Products (direct cursor)
+        # Using products_crud_instance for product seeding
         cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
         if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, ("Default Product", "This is a default product for testing and demonstration.", "General", "en", 10.00, "unit", True))
-            print("Seeded default product.")
+            product_data_seed = {
+                "product_name": "Default Product",
+                "description": "This is a default product for testing and demonstration.",
+                "category": "General",
+                "language_code": "en",
+                "base_unit_price": 10.00,
+                "unit_of_measure": "unit",
+                "is_active": True
+            }
+            add_product_result = products_crud_instance.add_product(product_data_seed, conn=conn)
+            if add_product_result['success']:
+                print(f"Seeded default product with ID: {add_product_result['id']}")
+            else:
+                print(f"Failed to seed default product: {add_product_result.get('error')}")
 
-        # 11. SmtpConfigs (direct cursor)
+        # 11. SmtpConfigs (direct cursor - assuming smtp_configs_crud not yet refactored)
         cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
         if cursor.fetchone()[0] == 0:
             cursor.execute("""
