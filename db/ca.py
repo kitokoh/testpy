@@ -1054,12 +1054,6 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-    # --- Indexes for New Partner Tables ---
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
-    # --- End Indexes for New Partner Tables ---
 
     # --- New Partner Tables ---
     cursor.execute("""
@@ -1122,6 +1116,14 @@ def initialize_database():
         )
     """)
     # --- End New Partner Tables ---
+
+    # --- Indexes for New Partner Tables ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
+    # --- End Indexes for New Partner Tables ---
+
 
     # MediaItems Table
     cursor.execute('''
