@@ -18,9 +18,9 @@ from utils import is_first_launch, mark_initial_setup_complete
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
-import db as db_manager
 from db.db_seed import run_seed
 from db.cruds.companies_crud import get_all_companies, add_company # Specific imports for company check
+from db.cruds.application_settings_crud import get_setting # New import
 from db.ca import initialize_database # <<<< Initialize function moved to db/ca.py
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
@@ -171,8 +171,8 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    language_code_from_db = db_manager.get_setting('user_selected_language')
-
+    language_code_from_db = get_setting('user_selected_language') # Use new import
+    # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
         logging.info(f"Language '{language_code}' loaded from database setting.")

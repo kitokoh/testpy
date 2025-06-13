@@ -2,8 +2,10 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
                              QMessageBox, QDialogButtonBox, QGroupBox, QTableWidget,
                              QTableWidgetItem, QHBoxLayout, QTextEdit, QListWidget, QListWidgetItem,
-                             QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QDesktopServices, QInputDialog, QWidget) # Added QTabWidget and other necessary widgets
+                             QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QInputDialog, QWidget) # Added QTabWidget and other necessary widgets
 from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
+
 import db.crud as db_manager
 import os
 import shutil

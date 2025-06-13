@@ -1443,9 +1443,9 @@ class CreateDocumentDialog(QDialog):
                     else:
                         # For non-packing lists, pass relevant parts of client_info
                         # or a more generic context.
-                    additional_context.update(self.client_info.copy()) # This might overwrite order_identifier if client_info has it
+                        additional_context.update(self.client_info.copy()) # This might overwrite order_identifier if client_info has it
                         additional_context['document_type'] = template_type
-                    additional_context['order_identifier'] = selected_order_identifier # Re-assert after copy
+                        additional_context['order_identifier'] = selected_order_identifier # Re-assert after copy
 
                         # Ensure current_document_type_for_notes is set if notes are used for other HTML docs
                         if template_type.startswith("HTML_"):

@@ -663,7 +663,7 @@ class ClientWidget(QWidget):
            QMessageBox.critical(self, self.tr("Error Fetching Contacts"), self.tr("Could not retrieve contact information: {0}").format(str(e)))
 
         # Accordion logic connections
-        if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
+       if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
             self.notes_group_box.toggled.connect(self._handle_notes_toggled)
             self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
 
