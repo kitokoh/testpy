@@ -158,7 +158,7 @@ from .cruds.products_crud import (
     get_products, # often a more filtered version of get_all_products
     update_product_price,
     get_products_by_name_pattern,
-    get_all_products_for_selection, # or get_all_products_for_selection_filtered
+    get_all_products_for_selection_filtered, # or get_all_products_for_selection_filtered
     add_product_equivalence,
     get_equivalent_products,
     get_all_product_equivalencies,
@@ -397,7 +397,7 @@ __all__ = [
     "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category_id",
     # Products
     "add_product", "get_product_by_id", "get_product_by_name", "get_all_products", "update_product", "delete_product",
-    "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection",
+    "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection_filtered",
     "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence",
     "add_or_update_product_dimension", "get_product_dimension", "delete_product_dimension",
     # Projects
