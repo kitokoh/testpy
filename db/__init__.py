@@ -95,7 +95,6 @@ from .cruds.client_project_products_crud import (
     update_client_project_product,
     remove_product_from_client_or_project,
     get_client_project_product_by_id,
-    get_distinct_purchase_confirmed_at_for_client,
 )
 
 # Cover Page Templates
@@ -392,7 +391,7 @@ __all__ = [
     "delete_client_document_note", "get_client_document_note_by_id",
     # Client Project Products
     "add_product_to_client_or_project", "get_products_for_client_or_project", "update_client_project_product",
-    "remove_product_from_client_or_project", "get_client_project_product_by_id", "get_distinct_purchase_confirmed_at_for_client",
+    "remove_product_from_client_or_project", "get_client_project_product_by_id",
     # Cover Page Templates
     "add_cover_page_template", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
     "get_all_cover_page_templates", "update_cover_page_template", "delete_cover_page_template",
