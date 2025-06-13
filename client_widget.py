@@ -1720,16 +1720,16 @@ class ClientWidget(QWidget):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
-                                                message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
-                                                type='SUCCESS')
+                    get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
+                                                    message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
+                                                    type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
-                # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
-                get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+                    # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
+                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
             # This 'elif status_text:' should handle other statuses not 'Vendu'
             elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
-                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
