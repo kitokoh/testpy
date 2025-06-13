@@ -31,16 +31,16 @@ except (ImportError, ValueError):
 # CRUD function imports
 
     # Updated imports to point to specific CRUD files
-    from .cruds.companies_crud import get_company_by_id, get_personnel_for_company # Assuming get_personnel_for_company is in companies_crud or a new company_personnel_crud
+    from .cruds.companies_crud import get_company_by_id
+    from .cruds.company_personnel_crud import get_personnel_for_company
     from .cruds.clients_crud import get_client_by_id
-    from .cruds.countries_crud import get_country_by_id
-    from .cruds.cities_crud import get_city_by_id
+    from .cruds.locations_crud import get_country_by_id, get_city_by_id
     from .cruds.contacts_crud import get_contacts_for_client # Assuming this is in contacts_crud
     from .cruds.projects_crud import get_project_by_id
     from .cruds.status_settings_crud import get_status_setting_by_id
     from .cruds.products_crud import get_product_by_id
     from .cruds.client_project_products_crud import get_products_for_client_or_project # Assuming this is in a dedicated file
-    from .cruds.client_document_notes_crud import get_client_document_notes # Assuming this is in a dedicated file
+    from .cruds.client_documents_crud import get_client_document_notes
 
     _crud_functions_imported = True
     print("Successfully imported CRUD functions from db.cruds for utils.py.")
