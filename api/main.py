@@ -1,7 +1,8 @@
 from fastapi import FastAPI
-from . import templates # New import for the templates router
-from . import documents # New import for the documents router
-from . import auth as auth_router_module # Renamed to avoid conflict
+from . import templates
+from . import documents
+from . import auth as auth_router_module
+from . import products # New import for the products router
 
 app = FastAPI(
     title="ClientDocManager API",
@@ -20,6 +21,7 @@ async def read_root():
 # Register the templates router
 app.include_router(templates.router)
 app.include_router(documents.router)
-app.include_router(auth_router_module.router) # Auth router
+app.include_router(auth_router_module.router)
+app.include_router(products.router) # Register the new products router
 
 # Further routers will be added here (for documents, auth, etc.)

@@ -2,15 +2,33 @@ import sqlite3
 from datetime import datetime
 from .generic_crud import _manage_conn, get_db_connection
 import logging
+from typing import Dict, Any, Optional
+from . import product_media_links_crud
+import os
 
 # --- Products CRUD ---
 @_manage_conn
-def get_product_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor()
+def get_product_by_id(id: int, conn: sqlite3.Connection = None) -> Optional[Dict[str, Any]]:
+    cursor = conn.cursor()
     try:
-        cursor.execute("SELECT * FROM Products WHERE product_id = ?",(id,))
-        row=cursor.fetchone()
-        return dict(row) if row else None
+        cursor.execute("SELECT * FROM Products WHERE product_id = ?", (id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        product_dict = dict(row)
+
+        # Fetch associated media links
+        # The get_media_links_for_product function already returns detailed media info
+        media_links = product_media_links_crud.get_media_links_for_product(product_id=id, conn=conn)
+
+        # Process media_links to potentially create full URLs if needed, or pass them as is.
+        # For now, we'll pass them as returned by get_media_links_for_product.
+        # The structure includes 'media_filepath' and 'media_thumbnail_path'.
+        # Consumers (like an API) can then decide how to form full URLs based on a base path.
+        product_dict['media_links'] = media_links
+
+        return product_dict
     except sqlite3.Error as e:
         logging.error(f"Error getting product by ID {id}: {e}")
         return None
@@ -41,12 +59,24 @@ def add_product(product_data: dict, conn: sqlite3.Connection = None) -> int | No
         return None
 
 @_manage_conn
-def get_product_by_name(product_name: str, conn: sqlite3.Connection = None) -> dict | None:
+def get_product_by_name(product_name: str, conn: sqlite3.Connection = None) -> Optional[Dict[str, Any]]:
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+
+        product_dict = dict(row)
+        product_id = product_dict.get('product_id')
+
+        if product_id is not None:
+            media_links = product_media_links_crud.get_media_links_for_product(product_id=product_id, conn=conn)
+            product_dict['media_links'] = media_links
+        else:
+            product_dict['media_links'] = [] # Should not happen if product_id is PK
+
+        return product_dict
     except sqlite3.Error as e:
         logging.error(f"Error getting product by name '{product_name}': {e}")
         return None
