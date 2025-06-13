@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QInputDialog # Add QInputDialog
 )
 from PyQt5.QtCore import Qt, QSize
+
 from PyQt5.QtGui import QPixmap, QIcon
 
 # Assuming db.cruds is accessible. Adjust import path if necessary.
@@ -82,6 +83,7 @@ class ProductEditDialog(QDialog):
         image_buttons_layout.addSpacing(20) # Add some space before move buttons
         image_buttons_layout.addWidget(self.move_image_up_button)
         image_buttons_layout.addWidget(self.move_image_down_button)
+
         image_buttons_layout.addStretch()
         main_layout.addLayout(image_buttons_layout)
 
@@ -283,6 +285,29 @@ class ProductEditDialog(QDialog):
                 print(f"Error adding new product: {e}")
                 QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred while adding product: {e}"))
 
+
+        # Placeholder for now. Actual save logic will update product and media links.
+        updated_data = {
+            'product_name': self.name_edit.text(),
+            'description': self.description_edit.toPlainText(),
+            'category': self.category_edit.text(),
+            'language_code': self.language_code_edit.text(),
+            'base_unit_price': float(self.price_edit.text()) if self.price_edit.text() else None,
+            'unit_of_measure': self.unit_edit.text(),
+            'weight': float(self.weight_edit.text()) if self.weight_edit.text() else None,
+            'dimensions': self.dimensions_edit.text(),
+            'is_active': self.is_active_check.isChecked()
+        }
+        print(f"Attempting to save product ID {self.product_id} with data: {updated_data}")
+
+        # Call products_crud.update_product(self.product_id, updated_data)
+        # Handle media links changes (additions, removals, reordering, alt text updates)
+        # This will involve product_media_links_crud functions.
+
+        # QMessageBox.information(self, self.tr("Save"), self.tr("Changes would be saved here."))
+        # self.accept() # If save is successful
+
+    # Placeholder for _add_image, _remove_image, _edit_image_details
     def _get_placeholder_uploader_id(self):
         # Attempt to get 'admin' user_id as a placeholder
         # This assumes an 'admin' user exists as per db_config or schema seeding.
@@ -522,6 +547,7 @@ class ProductEditDialog(QDialog):
             QMessageBox.critical(self, self.tr("Error"),
                                  self.tr(f"An unexpected error occurred while saving image order: {e}"))
             # self.load_product_data() # Revert to last known good state from DB
+
 
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication

@@ -5,6 +5,8 @@ from datetime import datetime
 import json
 import os
 
+from auth.roles import SUPER_ADMIN
+
 # Import global constants from db_config.py (assuming it's in the parent directory)
 try:
     from .. import db_config # For package structure: db/schema.py importing from /app/db_config.py
@@ -28,55 +30,67 @@ except (ImportError, ValueError):
 
 # Placeholder imports for CRUD functions that will be in db/crud.py
 # These are called by initialize_database during seeding.
-try:
-    # Attempt to import actual functions first
-    from .crud import (
-        get_user_by_username, get_country_by_name, get_city_by_name_and_country_id,
-        get_status_setting_by_name, set_setting, add_default_template_if_not_exists,
-        add_cover_page_template, get_cover_page_template_by_name, add_template_category
-    )
-    print("Successfully imported CRUD functions from .crud for schema initialization.")
-except ImportError:
-    print("Warning: db.crud module not found or some functions missing. Using placeholders for seeding in schema.py.")
-    # Define placeholders if actual import fails
-    get_user_by_username = lambda username, conn=None: {'user_id': str(uuid.uuid4()), 'username': username, 'full_name': 'Admin Fallback'} if username == db_config.DEFAULT_ADMIN_USERNAME else None
-    get_country_by_name = lambda name, conn=None: {'country_id': 1, 'country_name': name} if name else None
-    get_city_by_name_and_country_id = lambda name, country_id, conn=None: {'city_id': 1, 'city_name': name} if name and country_id else None
-    get_status_setting_by_name = lambda name, type, conn=None: {'status_id': 1, 'status_name': name} if name and type else None
-    set_setting = lambda key, value, conn=None: True
+# try:
+    # # Attempt to import actual functions first
+    # from .crud import (
+        # get_user_by_username, get_country_by_name, get_city_by_name_and_country_id,
+        # get_status_setting_by_name, set_setting, add_default_template_if_not_exists,
+        # add_cover_page_template, get_cover_page_template_by_name, add_template_category
+    # )
+    # print("Successfully imported CRUD functions from .crud for schema initialization.")
+# except ImportError:
+    # print("Warning: db.crud module not found or some functions missing. Using placeholders for seeding in schema.py.")
+    # # Define placeholders if actual import fails
+    # get_user_by_username = lambda username, conn=None: {'user_id': str(uuid.uuid4()), 'username': username, 'full_name': 'Admin Fallback'} if username == db_config.DEFAULT_ADMIN_USERNAME else None
+    # get_country_by_name = lambda name, conn=None: {'country_id': 1, 'country_name': name} if name else None
+from .cruds.users_crud import get_user_by_username
+from .cruds.locations_crud import get_country_by_name, get_city_by_name_and_country_id
+from .cruds.status_settings_crud import get_status_setting_by_name
+from .cruds.application_settings_crud import set_setting
+from .cruds.templates_crud import add_default_template_if_not_exists
+from .cruds.cover_page_templates_crud import add_cover_page_template, get_cover_page_template_by_name
+from .cruds.template_categories_crud import add_template_category
+print("Successfully imported specific CRUD functions for schema initialization.")
 
-    def add_template_category(category_name: str, description: str = None, conn=None):
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-            row = cursor.fetchone()
-            if row: return row['category_id']
-            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", (category_name, description))
-            return cursor.lastrowid
-        return None
+# Define placeholders if actual import fails (these should ideally not be hit for the above)
+get_user_by_username_placeholder = lambda username, conn=None: {'user_id': str(uuid.uuid4()), 'username': username, 'full_name': 'Admin Fallback'} if username == db_config.DEFAULT_ADMIN_USERNAME else None
+get_country_by_name_placeholder = lambda name, conn=None: {'country_id': 1, 'country_name': name} if name else None
+get_city_by_name_and_country_id_placeholder = lambda name, country_id, conn=None: {'city_id': 1, 'city_name': name} if name and country_id else None
+get_status_setting_by_name_placeholder = lambda name, type, conn=None: {'status_id': 1, 'status_name': name} if name and type else None
+set_setting_placeholder = lambda key, value, conn=None: True
 
-    def add_default_template_if_not_exists(data, conn=None): # Simplified placeholder
-        print(f"[SCHEMA_PLACEHOLDER] add_default_template_if_not_exists for: {data.get('template_name')}")
-        if not conn: return None
-        # Minimal insert for placeholder to allow seeding to proceed without full functionality
-        category_id = add_template_category(data.get('category_name', 'General'), conn=conn)
-        if not category_id: return None
+def add_template_category_placeholder(category_name: str, description: str = None, conn=None):
+    if conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT OR IGNORE INTO Templates (template_name, template_type, language_code, base_file_name, category_id, email_subject_template) VALUES (?,?,?,?,?,?)",
-                       (data.get('template_name'), data.get('template_type'), data.get('language_code'), data.get('base_file_name'), category_id, data.get('email_subject_template')))
+        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
+        row = cursor.fetchone()
+        if row: return row['category_id']
+        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", (category_name, description))
         return cursor.lastrowid
+    return None
 
-    def add_cover_page_template(data, conn=None): # Simplified placeholder
-        print(f"[SCHEMA_PLACEHOLDER] add_cover_page_template for: {data.get('template_name')}")
-        if not conn: return None
-        # Minimal insert
-        cursor = conn.cursor()
-        new_id = str(uuid.uuid4())
-        cursor.execute("INSERT OR IGNORE INTO CoverPageTemplates (template_id, template_name, is_default_template) VALUES (?,?,?)",
-                       (new_id, data.get('template_name'), data.get('is_default_template',0)))
-        return new_id
+def add_default_template_if_not_exists_placeholder(data, conn=None): # Simplified placeholder
+    print(f"[SCHEMA_PLACEHOLDER] add_default_template_if_not_exists for: {data.get('template_name')}")
+    if not conn: return None
+    # Minimal insert for placeholder to allow seeding to proceed without full functionality
+    category_id = add_template_category_placeholder(data.get('category_name', 'General'), conn=conn)
+    if not category_id: return None
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO Templates (template_name, template_type, language_code, base_file_name, category_id, email_subject_template) VALUES (?,?,?,?,?,?)",
+                   (data.get('template_name'), data.get('template_type'), data.get('language_code'), data.get('base_file_name'), category_id, data.get('email_subject_template')))
+    return cursor.lastrowid
 
-    get_cover_page_template_by_name = lambda name, conn=None: None
+def add_cover_page_template_placeholder(data, conn=None): # Simplified placeholder
+    print(f"[SCHEMA_PLACEHOLDER] add_cover_page_template for: {data.get('template_name')}")
+    if not conn: return None
+    # Minimal insert
+    cursor = conn.cursor()
+    new_id = str(uuid.uuid4())
+    cursor.execute("INSERT OR IGNORE INTO CoverPageTemplates (template_id, template_name, is_default_template) VALUES (?,?,?)",
+                   (new_id, data.get('template_name'), data.get('is_default_template',0)))
+    return new_id
+
+get_cover_page_template_by_name_placeholder = lambda name, conn=None: None
 
 
 DEFAULT_COVER_PAGE_TEMPLATES = [
@@ -372,7 +386,7 @@ def initialize_database():
             # Use DEFAULT_ADMIN_PASSWORD and DEFAULT_ADMIN_USERNAME from db_config
             admin_pass_hash = hashlib.sha256(db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest()
             cursor.execute("INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', 'admin@example.com', 'admin'))
+                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', 'admin@example.com', SUPER_ADMIN))
 
         # Other seeding operations using the imported/placeholder CRUDs, passing `conn`
         admin_user = get_user_by_username(db_config.DEFAULT_ADMIN_USERNAME, conn=conn)

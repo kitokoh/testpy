@@ -8,6 +8,16 @@ import logging
 
 # Imports for the new CRUD structure
 from .cruds.generic_crud import _manage_conn, get_db_connection
+from .cruds.companies_crud import get_company_by_id
+from .cruds.company_personnel_crud import get_personnel_for_company
+from .cruds.clients_crud import get_client_by_id
+from .cruds.locations_crud import get_country_by_id, get_city_by_id
+from .cruds.contacts_crud import get_contacts_for_client
+from .cruds.projects_crud import get_project_by_id # NOTE: Function missing in projects_crud.py
+from .cruds.status_settings_crud import get_status_setting_by_id
+from .cruds.products_crud import get_product_by_id
+from .cruds.client_project_products_crud import get_products_for_client_or_project # NOTE: Function missing in client_project_products_crud.py
+from .cruds.client_documents_crud import get_client_document_notes
 # Specific CRUD modules will be imported as needed by other files, or listed here if universally used.
 # For now, this file will contain CRUD functions not yet refactored.
 

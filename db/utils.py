@@ -29,38 +29,42 @@ except (ImportError, ValueError):
         config = config_fallback
 
 # CRUD function imports
-try:
-    from .cruds import products_crud
-    from .cruds.companies_crud import get_company_by_id, get_personnel_for_company # Example specific imports
-    from .cruds.clients_crud import get_client_by_id, get_contacts_for_client # Example
-    from .cruds.locations_crud import get_country_by_id, get_city_by_id # Example
-    from .cruds.projects_crud import get_project_by_id # Example
-    from .cruds.status_settings_crud import get_status_setting_by_id # Example
-    from .cruds.products_crud import get_products_for_client_or_project # Keep this if distinct
-    from .cruds.client_documents_crud import get_client_document_notes # Example specific
-    _crud_functions_imported = True
-    print("Successfully imported CRUD functions from .cruds for utils.py.")
-except ImportError as e:
-    print(f"Warning: db.cruds modules not fully available to utils.py: {e}. Using placeholders for some.")
-    # Define placeholders for functions not successfully imported or if the whole block fails
-    def _placeholder_crud_func_util(entity_name="entity", *args, **kwargs): return None
-    # Fallback for products_crud if its specific import failed
-    if 'products_crud' not in globals():
-        class products_crud_placeholder:
-            get_product_by_id = lambda id, conn=None: _placeholder_crud_func_util("product")
-            get_products_for_client_or_project = lambda client_id, project_id=None, conn=None: []
-        products_crud = products_crud_placeholder()
 
-    # Fallbacks for other specific imports if they failed
+    # Updated imports to point to specific CRUD files
+    from .cruds.companies_crud import get_company_by_id, get_personnel_for_company # Assuming get_personnel_for_company is in companies_crud or a new company_personnel_crud
+    from .cruds.clients_crud import get_client_by_id
+    from .cruds.countries_crud import get_country_by_id
+    from .cruds.cities_crud import get_city_by_id
+    from .cruds.contacts_crud import get_contacts_for_client # Assuming this is in contacts_crud
+    from .cruds.projects_crud import get_project_by_id
+    from .cruds.status_settings_crud import get_status_setting_by_id
+    from .cruds.products_crud import get_product_by_id
+    from .cruds.client_project_products_crud import get_products_for_client_or_project # Assuming this is in a dedicated file
+    from .cruds.client_document_notes_crud import get_client_document_notes # Assuming this is in a dedicated file
+
+    _crud_functions_imported = True
+    print("Successfully imported CRUD functions from db.cruds for utils.py.")
+except ImportError as e:
+    print(f"Warning: Not all CRUD functions available to utils.py from db.cruds. Error: {e}. Using placeholders for some.")
+    # Define placeholders for functions that might fail to import
+    # This helps the application run even if some CRUD modules are not yet created/populated.
+    def _placeholder_crud_func_util(entity_name="entity", *args, **kwargs):
+        # print(f"Placeholder for {entity_name} called with {args}, {kwargs}")
+        return None if not "list" in entity_name else []
+
+    # Fallback definitions for functions that might not be imported
     if 'get_company_by_id' not in globals(): get_company_by_id = lambda id, conn=None: _placeholder_crud_func_util("company")
-    if 'get_personnel_for_company' not in globals(): get_personnel_for_company = lambda id, role=None, conn=None: []
+    if 'get_personnel_for_company' not in globals(): get_personnel_for_company = lambda id, role=None, conn=None: _placeholder_crud_func_util("company_personnel_list")
     if 'get_client_by_id' not in globals(): get_client_by_id = lambda id, conn=None: _placeholder_crud_func_util("client")
     if 'get_country_by_id' not in globals(): get_country_by_id = lambda id, conn=None: _placeholder_crud_func_util("country")
     if 'get_city_by_id' not in globals(): get_city_by_id = lambda id, conn=None: _placeholder_crud_func_util("city")
-    if 'get_contacts_for_client' not in globals(): get_contacts_for_client = lambda id, limit=None, offset=None, conn=None: []
+    if 'get_contacts_for_client' not in globals(): get_contacts_for_client = lambda id, limit=None, offset=None, conn=None: _placeholder_crud_func_util("contacts_list")
     if 'get_project_by_id' not in globals(): get_project_by_id = lambda id, conn=None: _placeholder_crud_func_util("project")
     if 'get_status_setting_by_id' not in globals(): get_status_setting_by_id = lambda id, conn=None: _placeholder_crud_func_util("status_setting")
-    if 'get_client_document_notes' not in globals(): get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: []
+    if 'get_product_by_id' not in globals(): get_product_by_id = lambda id, conn=None: _placeholder_crud_func_util("product")
+    if 'get_products_for_client_or_project' not in globals(): get_products_for_client_or_project = lambda client_id, project_id=None, conn=None: _placeholder_crud_func_util("products_list")
+    if 'get_client_document_notes' not in globals(): get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: _placeholder_crud_func_util("notes_list")
+
 
 
 def get_db_connection(db_path_override=None): # Renamed parameter for clarity
