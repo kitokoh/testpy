@@ -23,8 +23,22 @@ from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
-import db as db_manager # Standardized to db_manager
-from db.cruds.status_settings_crud import get_status_setting_by_id, get_all_status_settings # For NotificationManager status checks
+
+# Import necessary functions directly from their new CRUD module locations
+from db.cruds.status_settings_crud import get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name
+from db.cruds.projects_crud import get_all_projects, get_project_by_id, add_project, update_project, delete_project
+from db.cruds.tasks_crud import (get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
+                                 get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency)
+from db.cruds.kpis_crud import get_kpis_for_project # add_kpi_to_project, update_kpi, delete_kpi (if needed later)
+from db.cruds.activity_logs_crud import add_activity_log, get_activity_logs
+from db.cruds.users_crud import get_user_by_id, get_all_users, update_user, verify_user_password
+from db.cruds.team_members_crud import get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member
+from db.cruds.clients_crud import get_all_clients
+from db.cruds.cover_pages_crud import get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id
+from db.cruds.cover_page_templates_crud import get_all_cover_page_templates, get_cover_page_template_by_id
+from db.cruds.milestones_crud import get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone
+from db.ca import initialize_database # For main block
+
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
 import json # For CoverPageEditorDialog style_config_json
@@ -107,13 +121,13 @@ class NotificationManager:
         all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
 
         try:
-            all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
-            if all_projects is None: all_projects = []
+            all_projects_list = get_all_projects() # Use direct import
+            if all_projects_list is None: all_projects_list = []
 
             today_str = datetime.now().strftime('%Y-%m-%d')
             three_days_later = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
 
-            for p in all_projects:
+            for p in all_projects_list: # Iterate over the fetched list
                 project_status_id = p.get('status_id')
                 project_status_info = all_project_statuses.get(project_status_id, {})
                 is_completed_or_archived = project_status_info.get('is_completion_status', False) or \
@@ -137,10 +151,10 @@ class NotificationManager:
                     })
 
                 # Tasks for this project
-                tasks_for_project = db_manager.get_tasks_by_project_id(p.get('project_id')) # Changed main_db_manager
-                if tasks_for_project is None: tasks_for_project = []
+                tasks_for_project_list = get_tasks_by_project_id(p.get('project_id')) # Use direct import
+                if tasks_for_project_list is None: tasks_for_project_list = []
 
-                for t in tasks_for_project:
+                for t in tasks_for_project_list: # Iterate over the fetched list
                     task_status_id = t.get('status_id')
                     task_status_info = all_task_statuses.get(task_status_id, {})
                     is_task_completed = task_status_info.get('is_completion_status', False)
@@ -1071,8 +1085,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def handle_login(self, username, password, dialog):
         # hashed_pwd = hashlib.sha256(password.encode()).hexdigest() # Old method
 
-        # Use db_manager for verification (changed from main_db_manager)
-        user_data_from_db = db_manager.verify_user_password(username, password)
+        # Use direct import for verification
+        user_data_from_db = verify_user_password(username, password)
 
         if user_data_from_db: # This is a dict from db.py's row_factory
             # Directly use the dictionary returned by verify_user_password as self.current_user
@@ -1117,7 +1131,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         if self.current_user and self.current_user.get('user_id'):
             user_id_for_log = self.current_user.get('user_id')
 
-        db_manager.add_activity_log({ # Changed main_db_manager to db_manager
+        add_activity_log({ # Use direct import
             'user_id': user_id_for_log,
             'action_type': action,
             'details': details
@@ -1148,14 +1162,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         kpis_to_display = []
         # Attempt to load KPIs for the first project found
         # In a more advanced dashboard, this would come from a selected project context
-        all_projects = db_manager.get_all_projects() # Changed main_db_manager to db_manager
-        if all_projects and len(all_projects) > 0:
+        all_projects_list_kpi = get_all_projects() # Use direct import
+        if all_projects_list_kpi and len(all_projects_list_kpi) > 0:
             # For simplicity, let's try to find the first project that is not archived or completed
             first_active_project_id = None
-            for proj in all_projects:
+            for proj in all_projects_list_kpi: # Iterate over fetched list
                 status_id = proj.get('status_id')
                 if status_id:
-                    status_setting = db_manager.get_status_setting_by_id(status_id)
+                    status_setting = get_status_setting_by_id(status_id) # Use direct import
                     if status_setting and not status_setting.get('is_completion_status') and not status_setting.get('is_archival_status'):
                         first_active_project_id = proj.get('project_id')
                         break
@@ -1164,7 +1178,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     break
 
             if first_active_project_id:
-                kpis_to_display = db_manager.get_kpis_for_project(first_active_project_id) # Changed main_db_manager
+                kpis_to_display = get_kpis_for_project(first_active_project_id) # Use direct import
                 if kpis_to_display:
                      print(f"Displaying KPIs for project ID: {first_active_project_id}")
                 else:
@@ -1231,16 +1245,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
     def load_team_members(self):
-        # Uses db_manager.get_all_team_members() (changed from main_db_manager)
+        # Uses get_all_team_members()
         # db.py fields: team_member_id, user_id, full_name, email, role_or_title, department,
         # phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills
 
-        members_data = db_manager.get_all_team_members() # Changed main_db_manager
-        if members_data is None: members_data = []
+        members_data_list = get_all_team_members() # Use direct import
+        if members_data_list is None: members_data_list = []
 
-        self.team_table.setRowCount(len(members_data))
+        self.team_table.setRowCount(len(members_data_list))
 
-        for row_idx, member in enumerate(members_data): # member is a dict
+        for row_idx, member in enumerate(members_data_list): # member is a dict
             self.team_table.setItem(row_idx, 0, QTableWidgetItem(member.get('full_name', 'N/A')))
             self.team_table.setItem(row_idx, 1, QTableWidgetItem(member.get('email', 'N/A')))
             self.team_table.setItem(row_idx, 2, QTableWidgetItem(member.get('role_or_title', 'N/A')))
@@ -1270,9 +1284,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             member_id_for_tasks = member.get('team_member_id')
             if member_id_for_tasks is not None:
                 # Use the new helper function, fetching only active tasks
-                tasks_for_member = db_manager.get_tasks_by_assignee_id(member_id_for_tasks, active_only=True)
-                if tasks_for_member:
-                    task_count = len(tasks_for_member)
+                tasks_for_member_list = get_tasks_by_assignee_id(member_id_for_tasks, active_only=True) # Use direct import
+                if tasks_for_member_list:
+                    task_count = len(tasks_for_member_list)
             self.team_table.setItem(row_idx, 8, QTableWidgetItem(str(task_count)))
 
             action_widget = QWidget()
@@ -1307,13 +1321,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # budget, status_id (FK to StatusSettings), progress_percentage, manager_team_member_id (FK to Users.user_id),
         # priority (INTEGER), created_at, updated_at
 
-        projects_data = db_manager.get_all_projects() # Changed main_db_manager
-        if projects_data is None:
-            projects_data = []
+        projects_data_list = get_all_projects() # Use direct import
+        if projects_data_list is None:
+            projects_data_list = []
 
-        self.projects_table.setRowCount(len(projects_data))
+        self.projects_table.setRowCount(len(projects_data_list))
 
-        for row_idx, project_dict in enumerate(projects_data): # project_dict is a dict
+        for row_idx, project_dict in enumerate(projects_data_list): # project_dict is a dict
             project_id_str = project_dict.get('project_id')
             name_item = QTableWidgetItem(project_dict.get('project_name', 'N/A'))
             name_item.setData(Qt.UserRole, project_id_str) # Store project_id in UserRole
@@ -1324,7 +1338,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name_display = "Unknown"
             status_color_hex = "#7f8c8d" # Default color
             if status_id is not None:
-                status_setting = db_manager.get_status_setting_by_id(status_id) # Changed main_db_manager
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting:
                     status_name_display = status_setting.get('status_name', 'Unknown')
                     color_from_db = status_setting.get('color_hex')
@@ -1376,12 +1390,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             manager_display_name = "Unassigned"
             if manager_user_id:
                 # First, try to find a TeamMember linked to this user_id
-                team_members_list = db_manager.get_all_team_members(filters={'user_id': manager_user_id})
-                if team_members_list and len(team_members_list) > 0:
-                    manager_display_name = team_members_list[0].get('full_name', manager_user_id)
+                team_members_list_mgr = get_all_team_members(filters={'user_id': manager_user_id}) # Use direct import
+                if team_members_list_mgr and len(team_members_list_mgr) > 0:
+                    manager_display_name = team_members_list_mgr[0].get('full_name', manager_user_id)
                 else:
                     # If no direct TeamMember link, fall back to User's full_name
-                    user_as_manager = db_manager.get_user_by_id(manager_user_id) # Changed main_db_manager
+                    user_as_manager = get_user_by_id(manager_user_id) # Use direct import
                     if user_as_manager:
                         manager_display_name = user_as_manager.get('full_name', manager_user_id) # Use user_id as last resort
             self.projects_table.setItem(row_idx, 6, QTableWidgetItem(manager_display_name))
@@ -1417,12 +1431,12 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table.resizeColumnsToContents()
 
     def load_access_table(self):
-        users_data = db_manager.get_all_users() # Already changed to db_manager, this is just a confirmation
-        if users_data is None: users_data = []
+        users_data_list = get_all_users() # Use direct import
+        if users_data_list is None: users_data_list = []
 
-        self.access_table.setRowCount(len(users_data))
+        self.access_table.setRowCount(len(users_data_list))
 
-        for row_idx, user_dict in enumerate(users_data): # user_dict is a dict
+        for row_idx, user_dict in enumerate(users_data_list): # user_dict is a dict
             user_id_str = user_dict.get('user_id')
             full_name = user_dict.get('full_name', 'N/A')
             role = user_dict.get('role', 'member')
@@ -1469,19 +1483,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         if not self.current_user or not self.current_user.get('user_id'): # check for user_id specifically
             return
 
-        user_data = db_manager.get_user_by_id(self.current_user['user_id']) # use user_id
+        user_data_pref = get_user_by_id(self.current_user['user_id']) # use user_id, direct import
 
-        if user_data: # user_data is a dict
-            self.name_edit.setText(user_data.get('full_name', ''))
-            self.email_edit.setText(user_data.get('email', ''))
+        if user_data_pref: # user_data_pref is a dict
+            self.name_edit.setText(user_data_pref.get('full_name', ''))
+            self.email_edit.setText(user_data_pref.get('email', ''))
             # 'phone' is not a standard field in Users table in db.py, it's in TeamMembers.
             # If phone is needed here, logic to fetch from TeamMembers based on user_id would be required.
-            # For now, remove direct phone access from user_data for Users table.
-            # self.phone_edit.setText(user_data.get('phone', ''))
+            # For now, remove direct phone access from user_data_pref for Users table.
+            # self.phone_edit.setText(user_data_pref.get('phone', ''))
 
     def update_project_filter(self):
-        # Confirmed: Uses db_manager.get_all_projects()
-        projects = db_manager.get_all_projects()
+        projects_list_filter = get_all_projects()# Use direct import
 
         current_selection_text = self.task_project_filter.currentText()
         current_selection_data = self.task_project_filter.currentData()
@@ -1489,9 +1502,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.task_project_filter.clear()
         self.task_project_filter.addItem("All Projects", None) # UserData for "All Projects" is None
 
-        if projects:
-            for project in projects:
-                self.task_project_filter.addItem(project['project_name'], project['project_id'])
+        if projects_list_filter: # Iterate over fetched list
+            for project_item_filter in projects_list_filter:
+                self.task_project_filter.addItem(project_item_filter['project_name'], project_item_filter['project_id'])
 
         # Try to restore previous selection
         if current_selection_data is not None:
@@ -1578,14 +1591,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def update_charts(self):
         # Team performance
         self.performance_graph.clear()
-        active_members = db_manager.get_all_team_members({'is_active': True})
-        if active_members is None: active_members = []
+        active_members_list_chart = get_all_team_members({'is_active': True}) # Use direct import
+        if active_members_list_chart is None: active_members_list_chart = []
 
         # Sort by performance for chart
-        active_members.sort(key=lambda x: x.get('performance', 0), reverse=True)
+        active_members_list_chart.sort(key=lambda x: x.get('performance', 0), reverse=True)
 
-        member_names = [m.get('full_name', 'N/A') for m in active_members]
-        member_performance = [m.get('performance', 0) for m in active_members]
+        member_names = [m.get('full_name', 'N/A') for m in active_members_list_chart] # Iterate over fetched list
+        member_performance = [m.get('performance', 0) for m in active_members_list_chart] # Iterate over fetched list
 
         if member_names:
             bg1 = pg.BarGraphItem(x=range(len(member_names)), height=member_performance, width=0.6, brush='#3498db')
@@ -1600,14 +1613,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Project progress
         self.project_progress_graph.clear()
-        all_projects = db_manager.get_all_projects()
-        if all_projects is None: all_projects = []
+        all_projects_list_chart = get_all_projects() # Use direct import
+        if all_projects_list_chart is None: all_projects_list_chart = []
 
         projects_for_chart = []
-        for p_dict in all_projects:
+        for p_dict in all_projects_list_chart: # Iterate over fetched list
             status_id = p_dict.get('status_id')
             if status_id:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting and \
                    not status_setting.get('is_completion_status', False) and \
                    not status_setting.get('is_archival_status', False):
@@ -1617,8 +1630,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         projects_for_chart.sort(key=lambda x: x.get('progress_percentage', 0), reverse=True)
 
-        project_names = [p.get('project_name', 'N/A') for p in projects_for_chart]
-        project_progress = [p.get('progress_percentage', 0) for p in projects_for_chart]
+        project_names = [p.get('project_name', 'N/A') for p in projects_for_chart] # Iterate over filtered list
+        project_progress = [p.get('progress_percentage', 0) for p in projects_for_chart] # Iterate over filtered list
 
         if project_names:
             bg2 = pg.BarGraphItem(x=range(len(project_names)), height=project_progress, width=0.6, brush='#2ecc71')
@@ -1633,15 +1646,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
     def load_activities(self):
         try:
-            logs = db_manager.get_activity_logs(limit=20) # Fetch recent logs
-            if logs is None:
-                logs = []
+            logs_list = get_activity_logs(limit=20) # Use direct import
+            if logs_list is None:
+                logs_list = []
 
             self.activities_table.setSortingEnabled(False) # Disable sorting before clearing/repopulating
             self.activities_table.setRowCount(0) # Clear existing rows
-            self.activities_table.setRowCount(len(logs))
+            self.activities_table.setRowCount(len(logs_list))
 
-            for row_idx, log_entry in enumerate(logs):
+            for row_idx, log_entry in enumerate(logs_list): # Iterate over fetched list
                 # Date (Column 0)
                 created_at_str = log_entry.get('created_at', '')
                 display_date = 'N/A'
@@ -1671,9 +1684,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 user_id = log_entry.get('user_id')
                 member_name = "System/Unknown"
                 if user_id:
-                    user = db_manager.get_user_by_id(user_id)
-                    if user:
-                        member_name = user.get('full_name', user.get('username', 'User ' + str(user_id)))
+                    user_data_log = get_user_by_id(user_id) # Use direct import
+                    if user_data_log:
+                        member_name = user_data_log.get('full_name', user_data_log.get('username', 'User ' + str(user_id)))
                 self.activities_table.setItem(row_idx, 1, QTableWidgetItem(member_name))
 
                 # Action (Column 2)
@@ -1729,15 +1742,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        # Fetch data using db_manager
-        active_members_data = db_manager.get_all_team_members({'is_active': True})
-        if active_members_data is None: active_members_data = []
+        # Fetch data using direct import
+        active_members_data_list_report = get_all_team_members({'is_active': True}) # Use direct import
+        if active_members_data_list_report is None: active_members_data_list_report = []
 
         # Sort by performance for consistent chart display (optional, but good for reports)
-        active_members_data.sort(key=lambda x: x.get('performance', 0), reverse=True)
+        active_members_data_list_report.sort(key=lambda x: x.get('performance', 0), reverse=True)
 
-        names = [member.get('full_name', 'N/A') for member in active_members_data]
-        performance = [member.get('performance', 0) for member in active_members_data]
+        names = [member.get('full_name', 'N/A') for member in active_members_data_list_report] # Iterate over fetched list
+        performance = [member.get('performance', 0) for member in active_members_data_list_report] # Iterate over fetched list
 
         bars = ax.bar(names, performance, color='#3498db')
         ax.set_title("Team Performance (Active Members)")
@@ -1757,9 +1770,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # Data for the table view
         self.report_data_table.setColumnCount(2)
         self.report_data_table.setHorizontalHeaderLabels(["Member", "Performance (%)"])
-        self.report_data_table.setRowCount(len(active_members_data))
+        self.report_data_table.setRowCount(len(active_members_data_list_report))
 
-        for row_idx, member_dict in enumerate(active_members_data):
+        for row_idx, member_dict in enumerate(active_members_data_list_report): # Iterate over fetched list
             self.report_data_table.setItem(row_idx, 0, QTableWidgetItem(member_dict.get('full_name', 'N/A')))
             self.report_data_table.setItem(row_idx, 1, QTableWidgetItem(str(member_dict.get('performance', 0))))
 
@@ -1771,16 +1784,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        projects_data = db_manager.get_all_projects()
-        if projects_data is None: projects_data = []
+        projects_data_list_report = get_all_projects() # Use direct import
+        if projects_data_list_report is None: projects_data_list_report = []
 
         # Filter out projects that might be considered "deleted" or "archived" based on status type
         # This assumes StatusSettings has 'is_archival_status'
         valid_projects_for_report = []
-        for p_dict in projects_data:
+        for p_dict in projects_data_list_report: # Iterate over fetched list
             status_id = p_dict.get('status_id')
             if status_id:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting and not status_setting.get('is_archival_status'): # Only include non-archival
                     valid_projects_for_report.append(p_dict)
             else: # Include projects with no status_id for now, or decide to filter them
@@ -1800,7 +1813,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_name = "Unknown"
             color = '#3498db' # Default blue
             if status_id:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting:
                     status_name = status_setting.get('status_name', 'Unknown')
                     hex_color = status_setting.get('color_hex')
@@ -1849,29 +1862,29 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        active_team_members = db_manager.get_all_team_members({'is_active': True})
-        if not active_team_members: active_team_members = []
+        active_team_members_list_workload = get_all_team_members({'is_active': True}) # Use direct import
+        if not active_team_members_list_workload: active_team_members_list_workload = []
 
         member_task_counts = {} # Store as team_member_id: count
 
         # Aggregate tasks: Iterate through projects, then tasks
-        all_projects = db_manager.get_all_projects()
-        if all_projects:
-            for project in all_projects:
-                tasks_in_project = db_manager.get_tasks_by_project_id(project['project_id'])
-                if tasks_in_project:
-                    for task in tasks_in_project:
-                        assignee_id = task.get('assignee_team_member_id')
-                        status_id = task.get('status_id')
+        all_projects_list_workload = get_all_projects() # Use direct import
+        if all_projects_list_workload:
+            for project_item_workload in all_projects_list_workload: # Iterate over fetched list
+                tasks_in_project_list = get_tasks_by_project_id(project_item_workload['project_id']) # Use direct import
+                if tasks_in_project_list:
+                    for task_item_workload in tasks_in_project_list: # Iterate over fetched list
+                        assignee_id = task_item_workload.get('assignee_team_member_id')
+                        status_id = task_item_workload.get('status_id')
                         if assignee_id is not None and status_id is not None:
-                            status_setting = db_manager.get_status_setting_by_id(status_id)
+                            status_setting = get_status_setting_by_id(status_id) # Use direct import
                             if status_setting and \
                                not status_setting.get('is_completion_status') and \
                                not status_setting.get('is_archival_status'):
                                 member_task_counts[assignee_id] = member_task_counts.get(assignee_id, 0) + 1
 
         report_data_list = []
-        for member in active_team_members:
+        for member in active_team_members_list_workload: # Iterate over fetched list
             tm_id = member['team_member_id']
             report_data_list.append({
                 'name': member.get('full_name', 'N/A'),
@@ -1925,11 +1938,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         kpis_data = []
         # Fetch KPIs for the first project, similar to load_kpis logic
-        all_projects = db_manager.get_all_projects()
-        if all_projects and len(all_projects) > 0:
-            first_project_id = all_projects[0].get('project_id')
+        all_projects_list_kpi_report = get_all_projects() # Use direct import
+        if all_projects_list_kpi_report and len(all_projects_list_kpi_report) > 0:
+            first_project_id = all_projects_list_kpi_report[0].get('project_id')
             if first_project_id:
-                kpis_data = db_manager.get_kpis_for_project(first_project_id)
+                kpis_data = get_kpis_for_project(first_project_id) # Use direct import
         if not kpis_data: kpis_data = []
 
 
@@ -2000,19 +2013,19 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
 
-        projects_data = db_manager.get_all_projects()
-        if projects_data is None: projects_data = []
+        projects_data_list_budget = get_all_projects() # Use direct import
+        if projects_data_list_budget is None: projects_data_list_budget = []
 
         # Filter out projects that are archived for budget report
         reportable_projects = []
         status_names_for_budget_table = []
 
-        for p_dict in projects_data:
+        for p_dict in projects_data_list_budget: # Iterate over fetched list
             status_id = p_dict.get('status_id')
             status_name = "Unknown"
             is_archival = False
             if status_id:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting:
                     status_name = status_setting.get('status_name', 'Unknown')
                     if status_setting.get('is_archival_status'):
@@ -2024,8 +2037,8 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         reportable_projects.sort(key=lambda x: x.get('budget', 0), reverse=True)
 
-        names = [p.get('project_name', 'N/A') for p in reportable_projects]
-        budgets = [p.get('budget', 0.0) for p in reportable_projects]
+        names = [p.get('project_name', 'N/A') for p in reportable_projects] # Iterate over filtered list
+        budgets = [p.get('budget', 0.0) for p in reportable_projects] # Iterate over filtered list
 
         if not names:
              ax.text(0.5, 0.5, "No project budget data available.",
@@ -2157,7 +2170,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             }
 
             if member_data['full_name'] and member_data['email']:
-                new_member_id = db_manager.add_team_member(member_data) # Changed main_db_manager
+                new_member_id = add_team_member(member_data) # Use direct import
                 if new_member_id:
                     self.load_team_members()
                     self.log_activity(f"Added team member: {member_data['full_name']}")
@@ -2169,7 +2182,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QMessageBox.warning(self, "Error", "Full name and email are required.")
 
     def edit_member(self, member_id_int): # member_id is int from db.py (team_member_id)
-        member_data_from_db = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
+        member_data_from_db = get_team_member_by_id(member_id_int) # Use direct import
 
         if member_data_from_db: # This is a dict
             dialog = QDialog(self)
@@ -2236,7 +2249,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 }
 
                 if updated_member_data['full_name'] and updated_member_data['email']:
-                    success = db_manager.update_team_member(member_id_int, updated_member_data) # Changed main_db_manager
+                    success = update_team_member(member_id_int, updated_member_data) # Use direct import
                     if success:
                         self.load_team_members()
                         self.log_activity(f"Updated team member: {updated_member_data['full_name']}")
@@ -2250,7 +2263,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", f"Could not find team member with ID {member_id_int} to edit.")
 
     def delete_member(self, member_id_int): # member_id is int
-        member_to_delete = db_manager.get_team_member_by_id(member_id_int) # Changed main_db_manager
+        member_to_delete = get_team_member_by_id(member_id_int) # Use direct import
 
         if not member_to_delete:
             QMessageBox.warning(self, "Error", f"Team member with ID {member_id_int} not found.")
@@ -2266,7 +2279,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            success = db_manager.delete_team_member(member_id_int) # Changed main_db_manager
+            success = delete_team_member(member_id_int) # Use direct import
             if success:
                 self.load_team_members()
                 self.log_activity(f"Deleted team member: {member_name} (ID: {member_id_int})")
@@ -2301,9 +2314,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
-        if project_statuses:
-            for ps in project_statuses:
+        project_statuses_list = get_all_status_settings(status_type='Project') # Use direct import
+        if project_statuses_list:
+            for ps in project_statuses_list: # Iterate over fetched list
                 status_combo.addItem(ps['status_name'], ps['status_id'])
         else:
             status_combo.addItem("Default Project Status", None)
@@ -2314,15 +2327,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         manager_combo = QComboBox()
         manager_combo.addItem("Unassigned", None)
-        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
-        if active_team_members:
-            for tm in active_team_members:
+        active_team_members_list_proj = get_all_team_members({'is_active': True}) # Use direct import
+        if active_team_members_list_proj:
+            for tm in active_team_members_list_proj: # Iterate over fetched list
                 manager_combo.addItem(tm['full_name'], tm['team_member_id'])
 
         client_combo = QComboBox()
-        all_clients = db_manager.get_all_clients() # Changed main_db_manager
-        if all_clients:
-            for client_item in all_clients:
+        all_clients_list_proj = get_all_clients() # Use direct import
+        if all_clients_list_proj:
+            for client_item in all_clients_list_proj: # Iterate over fetched list
                 client_combo.addItem(client_item['client_name'], client_item['client_id'])
         else:
             client_combo.addItem("No Clients Available - Add one first!", None)
@@ -2371,7 +2384,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             selected_manager_tm_id = manager_combo.currentData()
             manager_user_id_for_db = None
             if selected_manager_tm_id is not None:
-                team_member_manager = db_manager.get_team_member_by_id(selected_manager_tm_id) # Changed main_db_manager
+                team_member_manager = get_team_member_by_id(selected_manager_tm_id) # Use direct import
                 if team_member_manager:
                     manager_user_id_for_db = team_member_manager.get('user_id')
 
@@ -2393,7 +2406,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 'priority': priority_for_db
             }
 
-            new_project_id = db_manager.add_project(project_data_to_save) # Changed main_db_manager
+            new_project_id = add_project(project_data_to_save) # Use direct import
 
             if new_project_id:
                 self.load_projects()
@@ -2407,7 +2420,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 if selected_template_name:
                     template = self.template_manager.get_template_by_name(selected_template_name)
                     if template:
-                        task_status_todo_obj = db_manager.get_status_setting_by_name("To Do", "Task")
+                        task_status_todo_obj = get_status_setting_by_name("To Do", "Task") # Use direct import
                         default_task_status_id = task_status_todo_obj['status_id'] if task_status_todo_obj else None
                         if not default_task_status_id:
                             QMessageBox.warning(self, self.tr("Configuration Error"), self.tr("Default 'To Do' status for tasks not found. Template tasks will not have a status."))
@@ -2421,18 +2434,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                                 'priority': task_def.get('priority', 0),
                             }
                             if self.current_user and self.current_user.get('user_id'):
-                                current_user_as_tm_list = db_manager.get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                                current_user_as_tm_list = get_all_team_members(filters={'user_id': self.current_user.get('user_id')}) # Use direct import
                                 if current_user_as_tm_list:
                                     task_data_for_db['reporter_team_member_id'] = current_user_as_tm_list[0].get('team_member_id')
 
-                            db_manager.add_task(task_data_for_db)
+                            add_task(task_data_for_db) # Use direct import
                         print(f"Added {len(template.tasks)} tasks from template '{template.name}' to project {new_project_id}")
                         self.load_tasks() # Refresh task list if it's visible or might become visible
             else:
                 QMessageBox.warning(self, "Error", "Failed to add project. Check logs.")
 
     def edit_project(self, project_id_str):
-        project_data_dict = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
+        project_data_dict = get_project_by_id(project_id_str) # Use direct import
 
         if project_data_dict:
             dialog = QDialog(self)
@@ -2460,16 +2473,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             budget_spin.setValue(project_data_dict.get('budget', 0.0))
 
             status_combo = QComboBox()
-            project_statuses = db_manager.get_all_status_settings(status_type='Project') # Changed main_db_manager
+            project_statuses_list_edit = get_all_status_settings(status_type='Project') # Use direct import
             current_status_id = project_data_dict.get('status_id')
-            if project_statuses:
-                for idx, ps in enumerate(project_statuses):
+            if project_statuses_list_edit:
+                for idx, ps in enumerate(project_statuses_list_edit): # Iterate over fetched list
                     status_combo.addItem(ps['status_name'], ps['status_id'])
                     if ps['status_id'] == current_status_id:
                         status_combo.setCurrentIndex(idx)
             else:
                 status_combo.addItem("No Statuses Defined", None)
-                status_setting = db_manager.get_status_setting_by_id(current_status_id) # Changed main_db_manager
+                status_setting = get_status_setting_by_id(current_status_id) # Use direct import
                 if status_setting : status_combo.addItem(status_setting['status_name'], current_status_id)
 
 
@@ -2483,27 +2496,27 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             manager_combo = QComboBox()
             manager_combo.addItem("Unassigned", None)
-            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+            active_team_members_list_edit = get_all_team_members({'is_active': True}) # Use direct import
             project_manager_user_id = project_data_dict.get('manager_team_member_id')
             current_manager_tm_id_to_select = None
 
-            if project_manager_user_id and active_team_members:
-                for tm in active_team_members:
+            if project_manager_user_id and active_team_members_list_edit:
+                for tm in active_team_members_list_edit: # Iterate over fetched list
                     if tm['user_id'] == project_manager_user_id:
                         current_manager_tm_id_to_select = tm['team_member_id']
                         break
 
-            if active_team_members:
-                for idx, tm in enumerate(active_team_members):
+            if active_team_members_list_edit:
+                for idx, tm in enumerate(active_team_members_list_edit): # Iterate over fetched list
                     manager_combo.addItem(tm['full_name'], tm['team_member_id'])
                     if tm['team_member_id'] == current_manager_tm_id_to_select:
                         manager_combo.setCurrentIndex(idx + 1)
 
             client_combo = QComboBox()
-            all_clients = db_manager.get_all_clients() # Changed main_db_manager
+            all_clients_list_edit = get_all_clients() # Use direct import
             current_client_id = project_data_dict.get('client_id')
-            if all_clients:
-                for idx, client_item in enumerate(all_clients):
+            if all_clients_list_edit:
+                for idx, client_item in enumerate(all_clients_list_edit): # Iterate over fetched list
                     client_combo.addItem(client_item['client_name'], client_item['client_id'])
                     if client_item['client_id'] == current_client_id:
                         client_combo.setCurrentIndex(idx)
@@ -2541,7 +2554,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 selected_manager_tm_id_updated = manager_combo.currentData()
                 manager_user_id_for_db_updated = None
                 if selected_manager_tm_id_updated is not None:
-                    tm_manager_updated = db_manager.get_team_member_by_id(selected_manager_tm_id_updated) # Changed main_db_manager
+                    tm_manager_updated = get_team_member_by_id(selected_manager_tm_id_updated) # Use direct import
                     if tm_manager_updated:
                         manager_user_id_for_db_updated = tm_manager_updated.get('user_id')
 
@@ -2563,7 +2576,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                     'priority': priority_for_db_updated
                 }
 
-                success = db_manager.update_project(project_id_str, updated_project_data_to_save) # Changed main_db_manager
+                success = update_project(project_id_str, updated_project_data_to_save) # Use direct import
 
                 if success:
                     self.load_projects()
@@ -2577,7 +2590,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", f"Could not find project with ID {project_id_str} to edit.")
 
     def show_project_details(self, project_id_str):
-        project_dict = db_manager.get_project_by_id(project_id_str)
+        project_dict = get_project_by_id(project_id_str) # Use direct import
 
         if project_dict:
             dialog = QDialog(self)
@@ -2605,7 +2618,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             status_id = project_dict.get('status_id')
             status_name_display = "Unknown"; status_color_hex = "#7f8c8d"
             if status_id is not None:
-                status_setting = db_manager.get_status_setting_by_id(status_id)
+                status_setting = get_status_setting_by_id(status_id) # Use direct import
                 if status_setting:
                     status_name_display = status_setting.get('status_name', 'Unknown')
                     color_from_db = status_setting.get('color_hex')
@@ -2618,11 +2631,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             manager_user_id = project_dict.get('manager_team_member_id')
             manager_display_name = "Unassigned"
             if manager_user_id:
-                tm_list = db_manager.get_all_team_members({'user_id': manager_user_id})
+                tm_list = get_all_team_members({'user_id': manager_user_id}) # Use direct import
                 if tm_list: manager_display_name = tm_list[0].get('full_name', manager_user_id)
                 else:
-                    user = db_manager.get_user_by_id(manager_user_id)
-                    if user: manager_display_name = user.get('full_name', manager_user_id)
+                    user_data_details = get_user_by_id(manager_user_id) # Use direct import
+                    if user_data_details: manager_display_name = user_data_details.get('full_name', manager_user_id)
             manager_label = QLabel(manager_display_name)
 
             info_layout.addRow(self.tr("Name:"), name_label)
@@ -2641,21 +2654,21 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             tasks_table_details = QTableWidget() # Renamed to avoid conflict
             tasks_table_details.setColumnCount(4)
             tasks_table_details.setHorizontalHeaderLabels([self.tr("Task Name"), self.tr("Assigned To"), self.tr("Status"), self.tr("Deadline")])
-            project_tasks = db_manager.get_tasks_by_project_id(project_id_str)
-            if project_tasks:
-                tasks_table_details.setRowCount(len(project_tasks))
-                for r_idx, task_item in enumerate(project_tasks):
+            project_tasks_list = get_tasks_by_project_id(project_id_str) # Use direct import
+            if project_tasks_list:
+                tasks_table_details.setRowCount(len(project_tasks_list))
+                for r_idx, task_item in enumerate(project_tasks_list): # Iterate over fetched list
                     tasks_table_details.setItem(r_idx, 0, QTableWidgetItem(task_item.get('task_name')))
                     assignee_tm_id_detail = task_item.get('assignee_team_member_id')
                     assignee_name_detail = "Unassigned"
                     if assignee_tm_id_detail:
-                        assignee_tm = db_manager.get_team_member_by_id(assignee_tm_id_detail)
+                        assignee_tm = get_team_member_by_id(assignee_tm_id_detail) # Use direct import
                         if assignee_tm: assignee_name_detail = assignee_tm.get('full_name')
                     tasks_table_details.setItem(r_idx, 1, QTableWidgetItem(assignee_name_detail))
                     status_id_detail = task_item.get('status_id')
                     status_name_detail = "N/A"
                     if status_id_detail:
-                        status_obj_detail = db_manager.get_status_setting_by_id(status_id_detail)
+                        status_obj_detail = get_status_setting_by_id(status_id_detail) # Use direct import
                         if status_obj_detail: status_name_detail = status_obj_detail.get('status_name')
                     tasks_table_details.setItem(r_idx, 2, QTableWidgetItem(status_name_detail))
                     tasks_table_details.setItem(r_idx, 3, QTableWidgetItem(task_item.get('due_date')))
@@ -2713,7 +2726,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", f"Could not retrieve details for project ID {project_id_str}.")
 
     def delete_project(self, project_id_str): # project_id is TEXT
-        project_to_delete = db_manager.get_project_by_id(project_id_str) # Changed main_db_manager
+        project_to_delete = get_project_by_id(project_id_str) # Use direct import
 
         if not project_to_delete:
             QMessageBox.warning(self, "Error", f"Project with ID {project_id_str} not found.")
@@ -2729,7 +2742,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            success = db_manager.delete_project(project_id_str) # Changed main_db_manager
+            success = delete_project(project_id_str) # Use direct import
             if success:
                 self.load_projects()
                 self.update_project_filter()
@@ -2750,14 +2763,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         name_edit.setPlaceholderText("Enter task name...")
 
         project_combo = QComboBox()
-        all_projects = db_manager.get_all_projects() # Changed main_db_manager
-        if all_projects:
-            for p in all_projects:
+        all_projects_list_task_add = get_all_projects() # Use direct import
+        if all_projects_list_task_add:
+            for p in all_projects_list_task_add: # Iterate over fetched list
                 status_of_project_id = p.get('status_id')
                 is_completion = False
                 is_archival = False
                 if status_of_project_id:
-                    status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                    status_of_project = get_status_setting_by_id(status_of_project_id) # Use direct import
                     is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
                     is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
 
@@ -2773,9 +2786,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         desc_edit.setMinimumHeight(80)
 
         status_combo = QComboBox()
-        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
-        if task_statuses:
-            for ts in task_statuses:
+        task_statuses_list = get_all_status_settings(status_type='Task') # Use direct import
+        if task_statuses_list:
+            for ts in task_statuses_list: # Iterate over fetched list
                 if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
                     status_combo.addItem(ts['status_name'], ts['status_id'])
         if status_combo.count() == 0:
@@ -2789,9 +2802,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         assignee_combo = QComboBox()
         assignee_combo.addItem("Unassigned", None)
-        active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
-        if active_team_members:
-            for tm in active_team_members:
+        active_team_members_list_task_add = get_all_team_members({'is_active': True}) # Use direct import
+        if active_team_members_list_task_add:
+            for tm in active_team_members_list_task_add: # Iterate over fetched list
                 assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
 
         # Predecessor Task ComboBox
@@ -2810,9 +2823,9 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             predecessor_task_combo.addItem("None", None)
             selected_project_id_for_pred = project_combo.currentData()
             if selected_project_id_for_pred:
-                project_tasks = db_manager.get_tasks_by_project_id(selected_project_id_for_pred)
-                if project_tasks:
-                    for pt in project_tasks:
+                project_tasks_list_pred = get_tasks_by_project_id(selected_project_id_for_pred) # Use direct import
+                if project_tasks_list_pred:
+                    for pt in project_tasks_list_pred: # Iterate over fetched list
                         predecessor_task_combo.addItem(pt['task_name'], pt['task_id'])
 
         project_combo.currentIndexChanged.connect(populate_predecessors_for_add_dialog)
@@ -2872,16 +2885,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             # Set reporter_team_member_id if current_user is a team member
             if self.current_user and self.current_user.get('user_id'):
                 # Find team_member_id for the current user_id
-                current_user_as_tm_list = db_manager.get_all_team_members(filters={'user_id': self.current_user.get('user_id')})
+                current_user_as_tm_list = get_all_team_members(filters={'user_id': self.current_user.get('user_id')}) # Use direct import
                 if current_user_as_tm_list:
                     task_data_to_save['reporter_team_member_id'] = current_user_as_tm_list[0].get('team_member_id')
 
 
-            new_task_id = db_manager.add_task(task_data_to_save) # Changed main_db_manager
+            new_task_id = add_task(task_data_to_save) # Use direct import
 
             if new_task_id:
                 if selected_predecessor_id:
-                    db_manager.add_task_dependency({'task_id': new_task_id, 'predecessor_task_id': selected_predecessor_id})
+                    add_task_dependency({'task_id': new_task_id, 'predecessor_task_id': selected_predecessor_id}) # Use direct import
                 self.load_tasks()
                 self.log_activity(f"Added task: {task_name} (Project ID: {selected_project_id})")
                 # self.statusBar().showMessage(f"Task '{task_name}' added successfully (ID: {new_task_id})", 3000)
@@ -2890,7 +2903,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QMessageBox.warning(self, "Database Error", "Failed to add task. Check logs.")
 
     def edit_task(self, task_id_int):
-        task_data_dict = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+        task_data_dict = get_task_by_id(task_id_int) # Use direct import
 
         if task_data_dict:
             dialog = QDialog(self)
@@ -2902,15 +2915,15 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             name_edit = QLineEdit(task_data_dict.get('task_name', ''))
 
             project_combo = QComboBox()
-            all_projects = db_manager.get_all_projects() # Changed main_db_manager
+            all_projects_list_task_edit = get_all_projects() # Use direct import
             current_project_id_for_task = task_data_dict.get('project_id')
-            if all_projects:
-                for idx, p in enumerate(all_projects):
+            if all_projects_list_task_edit:
+                for idx, p in enumerate(all_projects_list_task_edit): # Iterate over fetched list
                     status_of_project_id = p.get('status_id')
                     is_completion = False
                     is_archival = False
                     if status_of_project_id:
-                        status_of_project = db_manager.get_status_setting_by_id(status_of_project_id) # Changed main_db_manager
+                        status_of_project = get_status_setting_by_id(status_of_project_id) # Use direct import
                         is_completion = status_of_project.get('is_completion_status', False) if status_of_project else False
                         is_archival = status_of_project.get('is_archival_status', False) if status_of_project else False
                     if (not is_completion and not is_archival) or p['project_id'] == current_project_id_for_task:
@@ -2918,7 +2931,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                         if p['project_id'] == current_project_id_for_task:
                             project_combo.setCurrentIndex(project_combo.count() -1)
             if project_combo.count() == 0:
-                 project_info = db_manager.get_project_by_id(current_project_id_for_task) # Changed main_db_manager
+                 project_info = get_project_by_id(current_project_id_for_task) # Use direct import
                  if project_info : project_combo.addItem(project_info['project_name'], project_info['project_id'])
                  project_combo.setEnabled(False)
 
@@ -2928,10 +2941,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             desc_edit.setMinimumHeight(80)
 
             status_combo = QComboBox()
-            task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
+            task_statuses_list_edit = get_all_status_settings(status_type='Task') # Use direct import
             current_status_id_for_task = task_data_dict.get('status_id')
-            if task_statuses:
-                for idx, ts in enumerate(task_statuses):
+            if task_statuses_list_edit:
+                for idx, ts in enumerate(task_statuses_list_edit): # Iterate over fetched list
                     status_combo.addItem(ts['status_name'], ts['status_id'])
                     if ts['status_id'] == current_status_id_for_task:
                         status_combo.setCurrentIndex(idx)
@@ -2947,10 +2960,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
             assignee_combo = QComboBox()
             assignee_combo.addItem("Unassigned", None)
-            active_team_members = db_manager.get_all_team_members({'is_active': True}) # Changed main_db_manager
+            active_team_members_list_task_edit = get_all_team_members({'is_active': True}) # Use direct import
             current_assignee_tm_id = task_data_dict.get('assignee_team_member_id')
-            if active_team_members:
-                for idx, tm in enumerate(active_team_members):
+            if active_team_members_list_task_edit:
+                for idx, tm in enumerate(active_team_members_list_task_edit): # Iterate over fetched list
                     assignee_combo.addItem(tm['full_name'], tm['team_member_id'])
                     if tm['team_member_id'] == current_assignee_tm_id:
                         assignee_combo.setCurrentIndex(idx + 1)
@@ -2960,16 +2973,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             predecessor_task_combo_edit.addItem("None", None)
             current_project_id_for_task_edit = task_data_dict.get('project_id')
             if current_project_id_for_task_edit:
-                project_tasks_edit = db_manager.get_tasks_by_project_id(current_project_id_for_task_edit)
-                if project_tasks_edit:
-                    for pt_edit in project_tasks_edit:
+                project_tasks_list_pred_edit = get_tasks_by_project_id(current_project_id_for_task_edit) # Use direct import
+                if project_tasks_list_pred_edit:
+                    for pt_edit in project_tasks_list_pred_edit: # Iterate over fetched list
                         if pt_edit['task_id'] != task_id_int: # Exclude self
                             predecessor_task_combo_edit.addItem(pt_edit['task_name'], pt_edit['task_id'])
 
             # Load existing dependency for edit
-            predecessors_edit = db_manager.get_predecessor_tasks(task_id_int) # Conceptual
-            if predecessors_edit: # Assuming returns a list, take the first for Phase 1
-                index_edit = predecessor_task_combo_edit.findData(predecessors_edit[0]['task_id'])
+            predecessors_edit_list = get_predecessor_tasks(task_id_int) # Use direct import
+            if predecessors_edit_list: # Assuming returns a list, take the first for Phase 1
+                index_edit = predecessor_task_combo_edit.findData(predecessors_edit_list[0]['task_id'])
                 if index_edit != -1:
                     predecessor_task_combo_edit.setCurrentIndex(index_edit)
 
@@ -3024,24 +3037,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 }
                 selected_status_id = status_combo.currentData()
                 if selected_status_id:
-                    status_details = db_manager.get_status_setting_by_id(selected_status_id) # Changed main_db_manager
+                    status_details = get_status_setting_by_id(selected_status_id) # Use direct import
                     if status_details and status_details.get('is_completion_status'):
                         task_data_to_update['completed_at'] = datetime.utcnow().isoformat() + "Z"
                     else:
                         task_data_to_update['completed_at'] = None
 
 
-                success = db_manager.update_task(task_id_int, task_data_to_update) # Changed main_db_manager
+                success = update_task(task_id_int, task_data_to_update) # Use direct import
 
                 if success:
                     # Update dependencies: Remove old (if any, for Phase 1 simplicity) and add new
-                    existing_predecessors = db_manager.get_predecessor_tasks(task_id_int) # Conceptual
-                    if existing_predecessors:
-                        for pred in existing_predecessors: # Remove all old ones
-                            db_manager.remove_task_dependency(task_id_int, pred['task_id']) # Conceptual
+                    existing_predecessors_list_edit = get_predecessor_tasks(task_id_int) # Use direct import
+                    if existing_predecessors_list_edit:
+                        for pred in existing_predecessors_list_edit: # Remove all old ones
+                            remove_task_dependency(task_id_int, pred['task_id']) # Use direct import
 
                     if selected_predecessor_id_edit:
-                        db_manager.add_task_dependency({'task_id': task_id_int, 'predecessor_task_id': selected_predecessor_id_edit}) # Conceptual
+                        add_task_dependency({'task_id': task_id_int, 'predecessor_task_id': selected_predecessor_id_edit}) # Use direct import
 
                     self.load_tasks() # Refresh to show changes and dependency states
                     self.log_activity(f"Updated task: {updated_task_name} (ID: {task_id_int})")
@@ -3053,7 +3066,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", f"Could not find task with ID {task_id_int} to edit.")
 
     def complete_task(self, task_id_int): # task_id is INT
-        task_to_complete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+        task_to_complete = get_task_by_id(task_id_int) # Use direct import
         if not task_to_complete:
             QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
             return
@@ -3061,16 +3074,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         task_name = task_to_complete.get('task_name', 'Unknown Task')
 
         completed_status_id = None
-        task_statuses = db_manager.get_all_status_settings(status_type='Task') # Changed main_db_manager
-        if task_statuses:
-            for ts in task_statuses:
+        task_statuses_list_comp = get_all_status_settings(status_type='Task') # Use direct import
+        if task_statuses_list_comp:
+            for ts in task_statuses_list_comp: # Iterate over fetched list
                 if ts.get('is_completion_status'):
                     completed_status_id = ts['status_id']
                     break
 
         if completed_status_id is None:
             for common_completion_name in ["Completed", "Done"]:
-                status_obj = db_manager.get_status_setting_by_name(common_completion_name, 'Task') # Changed main_db_manager
+                status_obj = get_status_setting_by_name(common_completion_name, 'Task') # Use direct import
                 if status_obj:
                     completed_status_id = status_obj['status_id']
                     break
@@ -3082,7 +3095,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             'status_id': completed_status_id,
             'completed_at': datetime.utcnow().isoformat() + "Z"
         }
-        success = db_manager.update_task(task_id_int, update_data) # Changed main_db_manager
+        success = update_task(task_id_int, update_data) # Use direct import
 
         if success:
             self.load_tasks() # Refresh to update UI of dependent tasks
@@ -3094,7 +3107,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
 
     def delete_task(self, task_id_int): # task_id is INT
-        task_to_delete = db_manager.get_task_by_id(task_id_int) # Changed main_db_manager
+        task_to_delete = get_task_by_id(task_id_int) # Use direct import
         if not task_to_delete:
             QMessageBox.warning(self, "Error", f"Task with ID {task_id_int} not found.")
             return
@@ -3109,7 +3122,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         )
 
         if reply == QMessageBox.Yes:
-            success = db_manager.delete_task(task_id_int) # Changed main_db_manager
+            success = delete_task(task_id_int) # Use direct import
             if success:
                 self.load_tasks()
                 self.log_activity(f"Deleted task: {task_name} (ID: {task_id_int})")
@@ -3119,17 +3132,17 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QMessageBox.warning(self, "Database Error", f"Failed to delete task '{task_name}'. Check logs.")
 
     def edit_user_access(self, user_id_str): # user_id is now a string (UUID) from db.py
-        user_data = db_manager.get_user_by_id(user_id_str) # Changed main_db_manager
+        user_data_edit_access = get_user_by_id(user_id_str) # Use direct import
 
-        if user_data: # user_data is a dict
+        if user_data_edit_access: # user_data_edit_access is a dict
             dialog = QDialog(self)
-            dialog.setWindowTitle(f"Edit Access for {user_data.get('full_name', 'N/A')}")
-            dialog.setFixedSize(300, 200) # Indentation fixed
+            dialog.setWindowTitle(f"Edit Access for {user_data_edit_access.get('full_name', 'N/A')}")
+            dialog.setFixedSize(300, 200)
 
             layout = QFormLayout(dialog)
 
-            username_label = QLabel(user_data.get('username', 'N/A'))
-            name_label = QLabel(user_data.get('full_name', 'N/A'))
+            username_label = QLabel(user_data_edit_access.get('username', 'N/A'))
+            name_label = QLabel(user_data_edit_access.get('full_name', 'N/A'))
 
             role_combo = QComboBox()
             role_combo.addItems(["Administrator", "Manager", "User"]) # These should match roles in db.py
@@ -3142,7 +3155,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             }
             # db.py stores roles like 'admin', 'manager', 'member'
             # Need to map them to display names if different, or use db.py roles directly in combo
-            current_role_in_db = user_data.get('role', 'member') # Default to 'member' or a base role
+            current_role_in_db = user_data_edit_access.get('role', 'member') # Default to 'member' or a base role
 
             # Find the display name for the current role from db
             display_role = "User" # Default display
@@ -3171,14 +3184,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                             new_role_for_db = db_r
                             break
 
-                    update_success = db_manager.update_user(user_id_str, {'role': new_role_for_db}) # Changed main_db_manager
+                    update_success = update_user(user_id_str, {'role': new_role_for_db})
 
                     if update_success:
-                        self.load_access_table() # This will also need refactoring
-                        self.log_activity(f"Updated role of {user_data.get('full_name')} to {new_role_for_db}")
-                        self.statusBar().showMessage(f"Role of {user_data.get('full_name')} updated", 3000)
+                        self.load_access_table()
+                        self.log_activity(f"Updated role of {user_data_edit_access.get('full_name')} to {new_role_for_db}")
+                        self.statusBar().showMessage(f"Role of {user_data_edit_access.get('full_name')} updated", 3000)
                     else:
-                        QMessageBox.warning(self, "Error", f"Failed to update role for {user_data.get('full_name')}")
+                        QMessageBox.warning(self, "Error", f"Failed to update role for {user_data_edit_access.get('full_name')}")
 
 
     def save_account_settings(self):
@@ -3204,10 +3217,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", "New passwords do not match.")
             return
 
-        update_data = {
+        update_data = { # Reverted rename as it's local to this function.
             'full_name': full_name,
             'email': email,
-            'phone': phone if phone else None # Pass None if empty, db.py should handle it
+            'phone': phone if phone else None
         }
 
         # Verify current password if a new one is provided
@@ -3216,16 +3229,13 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                 QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
                 return
 
-            verified_user = db_manager.verify_user_password(current_username, current_pwd)
+            verified_user = verify_user_password(current_username, current_pwd)
             if not verified_user or verified_user['user_id'] != user_id_to_update:
                 QMessageBox.warning(self, "Error", "Current password is incorrect.")
                 return
-            # If password is correct, add new password to update_data.
-            # db_manager.update_user will handle hashing.
             update_data['password'] = new_pwd
 
-        # Update user information via db_manager
-        success = db_manager.update_user(user_id_to_update, update_data)
+        success = update_user(user_id_to_update, update_data)
 
         if success:
             # Update current user information in the session
@@ -3497,10 +3507,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         current_client_id = self.cp_client_combo.currentData()
         self.cp_client_combo.clear()
         self.cp_client_combo.addItem("Select a Client...", None)
-        clients = db_manager.get_all_clients()
-        if clients:
-            for client in clients:
-                self.cp_client_combo.addItem(f"{client['client_name']} ({client['client_id']})", client['client_id'])
+        clients_list_cp = get_all_clients() # Use direct import
+        if clients_list_cp:
+            for client_item_cp in clients_list_cp: # Iterate over fetched list
+                self.cp_client_combo.addItem(f"{client_item_cp['client_name']} ({client_item_cp['client_id']})", client_item_cp['client_id'])
 
         if current_client_id:
             index = self.cp_client_combo.findData(current_client_id)
@@ -3516,10 +3526,10 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.update_cover_page_action_buttons_state() # Disable buttons if no client
 
         if client_id:
-            cover_pages = db_manager.get_cover_pages_for_client(client_id)
-            if cover_pages:
-                self.cp_table.setRowCount(len(cover_pages))
-                for row, cp_data in enumerate(cover_pages):
+            cover_pages_list = get_cover_pages_for_client(client_id) # Use direct import
+            if cover_pages_list:
+                self.cp_table.setRowCount(len(cover_pages_list))
+                for row, cp_data in enumerate(cover_pages_list): # Iterate over fetched list
                     self.cp_table.setItem(row, 0, QTableWidgetItem(cp_data.get('cover_page_name', 'N/A')))
                     self.cp_table.setItem(row, 1, QTableWidgetItem(cp_data.get('title', 'N/A')))
                     self.cp_table.setItem(row, 2, QTableWidgetItem(cp_data.get('updated_at', 'N/A')))
@@ -3585,7 +3595,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.warning(self, "Error", "Could not determine cover page ID for editing.")
             return
 
-        cover_page_full_data = db_manager.get_cover_page_by_id(cover_page_id)
+        cover_page_full_data = get_cover_page_by_id(cover_page_id) # Use direct import
         if not cover_page_full_data:
             QMessageBox.critical(self, "Error", f"Could not retrieve cover page data for ID: {cover_page_id}")
             return
@@ -3598,11 +3608,11 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     # --- Milestone Management Helper Methods ---
     def _load_milestones_into_table(self, project_id, table_widget):
         table_widget.setRowCount(0)
-        milestones = db_manager.get_milestones_for_project(project_id)
-        if not milestones:
+        milestones_list = get_milestones_for_project(project_id) # Use direct import
+        if not milestones_list:
             return
 
-        for row_idx, milestone in enumerate(milestones):
+        for row_idx, milestone in enumerate(milestones_list): # Iterate over fetched list
             table_widget.insertRow(row_idx)
             table_widget.setItem(row_idx, 0, QTableWidgetItem(milestone.get('milestone_name', 'N/A')))
 
@@ -3644,7 +3654,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
             if data:
-                milestone_id = db_manager.add_milestone(data)
+                milestone_id = add_milestone(data) # Use direct import
                 if milestone_id:
                     self.log_activity(f"Added milestone '{data['milestone_name']}' to project {project_id}")
                     self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
@@ -3667,7 +3677,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve milestone ID for editing."))
             return
 
-        milestone_data_to_edit = db_manager.get_milestone_by_id(milestone_id_to_edit)
+        milestone_data_to_edit = get_milestone_by_id(milestone_id_to_edit) # Use direct import
         if not milestone_data_to_edit:
             QMessageBox.critical(self, self.tr("Error"), self.tr("Could not fetch milestone data for editing."))
             return
@@ -3676,7 +3686,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
             if data:
-                success = db_manager.update_milestone(milestone_id_to_edit, data)
+                success = update_milestone(milestone_id_to_edit, data) # Use direct import
                 if success:
                     self.log_activity(f"Updated milestone ID {milestone_id_to_edit} for project {project_id}")
                     self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
@@ -3705,7 +3715,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                                      self.tr("Are you sure you want to delete milestone '{0}'?").format(milestone_name_to_delete),
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
-            success = db_manager.delete_milestone(milestone_id_to_delete)
+            success = delete_milestone(milestone_id_to_delete) # Use direct import
             if success:
                 self.log_activity(f"Deleted milestone ID {milestone_id_to_delete} from project {project_id}")
                 self._load_milestones_into_table(project_id, self.milestones_table_details_dialog)
@@ -3732,7 +3742,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
                                      f"Are you sure you want to delete the cover page '{cover_page_name}'?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
-            if db_manager.delete_cover_page(cover_page_id):
+            if delete_cover_page(cover_page_id): # Use direct import
                 self.load_cover_pages_for_selected_client()
                 self.log_activity(f"Deleted cover page ID: {cover_page_id}")
                 QMessageBox.information(self, "Success", f"Cover page '{cover_page_name}' deleted.")
@@ -3885,9 +3895,9 @@ class CoverPageEditorDialog(QDialog):
 
     def populate_templates_combo(self):
         self.cp_template_combo.addItem("None (Custom)", None)
-        templates = db_manager.get_all_cover_page_templates()
-        if templates:
-            for tpl in templates:
+        templates_list = get_all_cover_page_templates() # Use direct import
+        if templates_list:
+            for tpl in templates_list: # Iterate over fetched list
                 self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])
                 if tpl.get('is_default_template'):
                     # Mark this item specially if needed, e.g. by setting a special UserRole
@@ -3915,7 +3925,7 @@ class CoverPageEditorDialog(QDialog):
                 self.update_logo_preview()
             return
 
-        template_data = db_manager.get_cover_page_template_by_id(template_id)
+        template_data = get_cover_page_template_by_id(template_id) # Use direct import
         if template_data:
             self.title_edit.setText(template_data.get('default_title', ''))
             self.subtitle_edit.setText(template_data.get('default_subtitle', ''))
@@ -4013,7 +4023,7 @@ class CoverPageEditorDialog(QDialog):
                 QMessageBox.critical(self, "Error", "User ID for creation is missing.")
                 return
 
-            new_id = db_manager.add_cover_page(data_to_save)
+            new_id = add_cover_page(data_to_save) # Use direct import
             if new_id:
                 self.cover_page_data['cover_page_id'] = new_id
                 QMessageBox.information(self, "Success", "Cover page created successfully.")
@@ -4021,7 +4031,7 @@ class CoverPageEditorDialog(QDialog):
             else:
                 QMessageBox.critical(self, "Error", "Failed to create cover page.")
         elif self.mode == 'edit':
-            if db_manager.update_cover_page(self.cover_page_data['cover_page_id'], data_to_save):
+            if update_cover_page(self.cover_page_data['cover_page_id'], data_to_save): # Use direct import
                 QMessageBox.information(self, "Success", "Cover page updated successfully.")
                 self.accept()
             else:
@@ -4055,7 +4065,7 @@ if __name__ == "__main__":
         'role': 'admin'
     }
     # Initialize db (important for standalone test if db.py relies on it being called)
-    db_manager.initialize_database()
+    initialize_database() # Use direct import
 
     # Create a dummy QMainWindow to host the QWidget for testing
     test_host_window = QMainWindow()
