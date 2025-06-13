@@ -11,7 +11,7 @@ try:
     from . import google_auth
     from . import google_people_api
     from ..db import crud as db_manager # Access to database CRUD operations
-    from ..db import db_config # For any config values if needed
+    import db_config # Changed to direct import
 except (ImportError, ValueError) as e:
     # Fallback for potential execution context issues
     import sys
@@ -21,10 +21,11 @@ except (ImportError, ValueError) as e:
     if app_root_dir not in sys.path:
         sys.path.append(app_root_dir)
     try:
-        import google_auth # from contact_manager.google_auth
-        import google_people_api # from contact_manager.google_people_api
+        # Corrected fallback imports to be absolute from app root
+        from contact_manager import google_auth
+        from contact_manager import google_people_api
         from db import crud as db_manager
-        from db import db_config
+        import db_config # Changed to direct import
     except ImportError as final_e:
         google_auth = None
         google_people_api = None

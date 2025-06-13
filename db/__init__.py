@@ -4,8 +4,9 @@
 # This also makes the initialize_database function available for import.
 from .init_schema import initialize_database
 
-# Import key utilities from db.utils to be available at the db level
-from .utils import get_db_connection, format_currency, get_document_context_data
+# Import key utilities
+from .connection import get_db_connection # Moved from utils
+from .utils import format_currency, get_document_context_data
 
 # Import all CRUD functions from their respective modules
 # This makes them available via db.function_name()
@@ -142,6 +143,8 @@ from .cruds.kpis_crud import ( # Stubs
     add_kpi_to_project,
     update_kpi,
     delete_kpi,
+    add_kpi,
+    get_kpi_by_id,
 )
 from .cruds.locations_crud import (
     get_country_by_name,
@@ -243,8 +246,10 @@ from .cruds.projects_crud import ( # Placeholders
     add_project,
     get_project_by_id,
     delete_project,
-    get_projects_for_client,
+    get_projects_by_client_id,
     update_project,
+    get_all_projects,
+    get_total_projects_count, # Already correctly added in previous step
 )
 from .cruds.status_settings_crud import (
     get_status_setting_by_name,
@@ -254,9 +259,13 @@ from .cruds.status_settings_crud import (
 from .cruds.tasks_crud import ( # Placeholders
     add_task,
     get_task_by_id,
-    get_tasks_for_project,
+    get_tasks_by_project_id,
     update_task,
     delete_task,
+    get_tasks_by_assignee_id, # Already correctly added in previous step
+    get_all_tasks,
+    add_task_dependency,
+    remove_task_dependency,
 )
 
 
@@ -318,6 +327,7 @@ from .cruds.users_crud import (
     update_user,
     verify_user_password,
     delete_user,
+    get_all_users,
 )
 
 # SAV Tickets
@@ -377,8 +387,9 @@ from .cruds.transporters_crud import (
 __all__ = [
     # from init_schema
     "initialize_database",
-    # from utils
+    # from connection
     "get_db_connection",
+    # from utils
     "format_currency",
     "get_document_context_data",
     # from activity_logs_crud
@@ -432,7 +443,7 @@ __all__ = [
     "get_contact_sync_log_by_google_contact_id", "get_contact_sync_log_by_id", "update_contact_sync_log",
     "delete_contact_sync_log", "get_contacts_pending_sync", "get_all_sync_logs_for_account",
     # from kpis_crud (stubs)
-    "get_kpis_for_project", "add_kpi_to_project", "update_kpi", "delete_kpi",
+    "get_kpis_for_project", "add_kpi_to_project", "update_kpi", "delete_kpi", "add_kpi", "get_kpi_by_id",
     # from locations_crud
     "get_country_by_name", "get_country_by_id", "get_or_add_country", "add_country", "get_all_countries",
     "get_city_by_name_and_country_id", "get_city_by_id", "add_city", "get_or_add_city", "get_all_cities",
@@ -459,15 +470,15 @@ __all__ = [
     "get_total_products_count", "add_or_update_product_dimension", "get_product_dimension",
     "delete_product_dimension", "add_product_equivalence", "get_equivalent_products",
     "get_all_product_equivalencies", "remove_product_equivalence",
-    # from projects_crud (placeholders)
-    "add_project", "get_project_by_id", "delete_project", "get_projects_for_client", "update_project",
+    # from projects_crud
+    "add_project", "get_project_by_id", "delete_project", "get_projects_by_client_id", "update_project", "get_all_projects", "get_total_projects_count", # Already correct
     # from status_settings_crud
     "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
     # from tasks_crud (placeholders)
-    "add_task", "get_task_by_id", "get_tasks_for_project", "update_task", "delete_task",
+    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_tasks_by_assignee_id", "get_all_tasks", "add_task_dependency", "remove_task_dependency",
 
     # KPIs
-    "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
+    "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi", "add_kpi", "get_kpi_by_id", # Added get_kpi_by_id here too
     # Team Members
     "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member",
     # Template Categories
@@ -481,7 +492,7 @@ __all__ = [
     "get_templates_by_category_id", "add_default_template_if_not_exists",
     # Users
     "add_user", "get_user_by_id", "get_user_by_email", "get_user_by_username", "update_user",
-    "verify_user_password", "delete_user",
+    "verify_user_password", "delete_user", "get_all_users",
     # SAV Tickets
     "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket",
     # Important Dates

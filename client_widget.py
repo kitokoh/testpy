@@ -25,7 +25,7 @@ from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 from dialogs import ClientProductDimensionDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
-from main import get_notification_manager # Added for notifications
+# Removed: from main import get_notification_manager
 
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
@@ -73,9 +73,10 @@ def _import_main_elements():
 class ClientWidget(QWidget):
     CONTACT_PAGE_LIMIT = 15 # Class attribute for page limit
 
-    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
+    def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
         self.client_info = client_info
+        self.notification_manager = notification_manager # Store notification_manager
         # self.config = config # Original config passed
 
         # Dynamically import main elements to avoid circular import at module load time
@@ -1720,34 +1721,42 @@ class ClientWidget(QWidget):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                    get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
+                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
                                                     message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
                                                     type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
-
-                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
             # This 'elif status_text:' should handle other statuses not 'Vendu'
             elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
+                # Ensure client_id_to_update and status_id_to_set are defined in this path
+                client_id_to_update = self.client_info.get("client_id")
+                status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+                if not client_id_to_update or not status_setting or status_setting.get('status_id') is None:
+                    QMessageBox.warning(self, self.tr("Erreur Critique"), self.tr("Données client ou statut manquantes pour la mise à jour."))
+                    return # or handle error appropriately
+
+                status_id_to_set = status_setting['status_id']
+
                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
-                    get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
+                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
                                                     message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
                                                     type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
-                 else:
+                else:
                     # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client pour '{0}'.").format(status_text))
-                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
+                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
 
             elif status_text: # Fallback for empty status_text or other unhandled cases
                 QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
-                get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
+                self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
 
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-            get_notification_manager().show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
+            self.notification_manager.show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
 
     def save_client_notes(self):
         notes = self.notes_edit.toPlainText()
@@ -1761,13 +1770,13 @@ class ClientWidget(QWidget):
             if db_manager.update_client(client_id_to_update, {'notes': notes}):
                 self.client_info["notes"] = notes # Update local copy
                 # Optionally, notify on successful save, though it might be too frequent if auto-saving.
-                # get_notification_manager().show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
+                # self.notification_manager.show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
             else:
                 # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des notes dans la DB."))
-                get_notification_manager().show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
+                self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
         except Exception as e:
             # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
-            get_notification_manager().show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
+            self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
 
     def populate_doc_table(self):
         self.doc_table.setRowCount(0) # Clear table first

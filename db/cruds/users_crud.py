@@ -82,3 +82,13 @@ def verify_user_password(username: str, password: str, conn: sqlite3.Connection 
             update_user(user['user_id'], {'last_login_at': datetime.utcnow().isoformat() + "Z"}, conn=conn)
             return user
     return None
+
+@_manage_conn
+def get_all_users(conn: sqlite3.Connection = None, skip: int = 0, limit: int = 100) -> list[dict]:
+    print(f"Placeholder: get_all_users called with session (conn parameter), skip={skip}, limit={limit}")
+    # Example for a real implementation:
+    # cursor = conn.cursor()
+    # cursor.execute("SELECT * FROM Users ORDER BY username LIMIT ? OFFSET ?", (limit, skip))
+    # rows = cursor.fetchall()
+    # return [dict(row) for row in rows]
+    return []

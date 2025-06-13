@@ -9,8 +9,8 @@ import logging
 # Configuration and Utilities
 try:
     from ... import db_config # For db_config.py in app/
-    from ... import config    # For config.py in app/
-    from ..utils import get_db_connection
+    # from ... import config    # config.py might not be needed directly by generic_crud's connection logic
+    from ..connection import get_db_connection # Changed to import from db.connection
 except (ImportError, ValueError) as e_import_primary:
     import sys
     # Determine the /app directory path relative to this file (db/cruds/generic_crud.py)
@@ -25,10 +25,10 @@ except (ImportError, ValueError) as e_import_primary:
          sys.path.append(db_dir_path)
 
     try:
-        import db_config
-        from utils import get_db_connection # utils is in db/
+        import db_config # Assumes db_config.py is at app_root_dir (added to sys.path)
+        from connection import get_db_connection # Assumes connection.py is in db/ (db_dir_path added to sys.path)
     except ImportError as e:
-        print(f"CRITICAL: db_config.py or utils.py (for get_db_connection) not found in generic_crud.py. Using fallbacks. Error: {e}")
+        print(f"CRITICAL: db_config.py or connection.py (for get_db_connection) not found in generic_crud.py fallback. Error: {e}")
         class db_config: # Minimal fallback for db_config
             DATABASE_NAME = "app_data_fallback_generic.db"
             APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # app/
