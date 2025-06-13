@@ -36,7 +36,7 @@ from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
-# from main import get_notification_manager # Removed for local import
+# from main import get_notification_manager # Line removed
 
 # The global import from main is removed.
 
