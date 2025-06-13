@@ -14,8 +14,7 @@ from config import DATABASE_PATH
 # from .db_main import _get_or_create_category_id, _populate_default_cover_page_templates
 # Or by ensuring db.py is structured to allow these imports.
 
-# Import the original db.py as a module to access its helper functions
-from . import db as db_helpers
+from .schema import _get_or_create_category_id, _populate_default_cover_page_templates
 
 def initialize_database():
     """
@@ -599,7 +598,7 @@ def initialize_database():
                 category_name_text = old_template_dict.get('category')
                 # Use the internal helper _get_or_create_category_id
                 # Pass the main cursor, not creating a new one for this helper
-                new_cat_id = db_helpers._get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
+                new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
 
 
                 # Prepare values for insert, ensuring order and handling missing keys
