@@ -54,11 +54,7 @@ from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
 from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
-<<<<<<< fix/PYL-937-import-errors
-# from main import get_notification_manager # Ensuring this line is removed or stays removed
-=======
-# from main import get_notification_manager # For notifications - Removed global import
->>>>>>> main
+
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -340,11 +336,8 @@ class DocumentManager(QMainWindow):
             icon_path (str, optional): Path to a custom icon. If None, a default icon based
                                        on the 'type' will be used. Defaults to None.
         """
-<<<<<<< fix/PYL-937-import-errors
         from main import get_notification_manager # Local import
-=======
-        from main import get_notification_manager # For notifications - Moved import here
->>>>>>> main
+
         manager = get_notification_manager()
         if manager:
             manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
