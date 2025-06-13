@@ -16,7 +16,6 @@ from .ca import initialize_database
 from .cruds.application_settings_crud import (
     get_setting,
     set_setting,
-    get_all_settings,
 )
 
 # Clients
@@ -54,7 +53,6 @@ from .cruds.company_personnel_crud import (
     get_personnel_for_company,
     update_company_personnel,
     delete_company_personnel,
-    get_company_personnel_by_id, # Assuming this exists
 )
 
 # Contacts
@@ -82,10 +80,6 @@ from .cruds.client_documents_crud import (
     get_documents_for_project,
     update_client_document,
     delete_client_document,
-)
-
-# Client Document Notes (assuming it might be separate or part of client_documents_crud)
-from .cruds.client_document_notes_crud import (
     add_client_document_note,
     get_client_document_notes,
     update_client_document_note,
@@ -101,7 +95,6 @@ from .cruds.client_project_products_crud import (
     update_client_project_product,
     remove_product_from_client_or_project,
     get_client_project_product_by_id,
-    get_distinct_purchase_confirmed_at_for_client,
 )
 
 # Cover Page Templates
@@ -128,15 +121,6 @@ from .cruds.cover_pages_crud import (
 # Generic (if any public functions)
 # from .cruds.generic_crud import ...
 
-# Google Sync (if any public functions beyond specific token/log handling)
-from .cruds.google_sync_crud import (
-    store_google_sync_token,
-    get_google_sync_token,
-    delete_google_sync_token,
-    add_google_sync_log,
-    get_google_sync_logs,
-)
-
 
 # Locations (Countries, Cities)
 from .cruds.locations_crud import (
@@ -159,7 +143,7 @@ from .cruds.partners_crud import (
     get_all_partners,
     update_partner,
     delete_partner,
-    get_partners_by_category,
+    get_partners_by_category_id,
 )
 
 
@@ -375,7 +359,7 @@ __all__ = [
     # CA
     "initialize_database",
     # Application Settings
-    "get_setting", "set_setting", "get_all_settings",
+    "get_setting", "set_setting",
     # Clients
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client",
     "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country",
@@ -387,7 +371,6 @@ __all__ = [
     "set_default_company", "get_default_company",
     # Company Personnel
     "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
-    "get_company_personnel_by_id",
     # Contacts
     "add_contact", "get_contact_by_id", "get_contact_by_email", "get_all_contacts", "update_contact", "delete_contact",
     "link_contact_to_client", "unlink_contact_from_client", "get_contacts_for_client", "get_clients_for_contact",
@@ -395,26 +378,23 @@ __all__ = [
     # Client Documents
     "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project",
     "update_client_document", "delete_client_document",
-    # Client Document Notes
     "add_client_document_note", "get_client_document_notes", "update_client_document_note",
     "delete_client_document_note", "get_client_document_note_by_id",
     # Client Project Products
     "add_product_to_client_or_project", "get_products_for_client_or_project", "update_client_project_product",
-    "remove_product_from_client_or_project", "get_client_project_product_by_id", "get_distinct_purchase_confirmed_at_for_client",
+    "remove_product_from_client_or_project", "get_client_project_product_by_id",
     # Cover Page Templates
     "add_cover_page_template", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
     "get_all_cover_page_templates", "update_cover_page_template", "delete_cover_page_template",
     # Cover Pages
     "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project",
     "update_cover_page", "delete_cover_page", "get_cover_pages_for_user",
-    # Google Sync
-    "store_google_sync_token", "get_google_sync_token", "delete_google_sync_token", "add_google_sync_log", "get_google_sync_logs",
     # Locations
     "get_all_countries", "get_country_by_id", "get_country_by_name", "add_country", "get_all_cities",
     "get_city_by_id", "get_city_by_name_and_country_id", "add_city",
     # Partners
     "add_partner_category", "get_all_partner_categories", "add_partner", "get_partner_by_id",
-    "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category",
+    "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category_id",
     # Products
     "add_product", "get_product_by_id", "get_product_by_name", "get_all_products", "update_product", "delete_product",
     "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection",
