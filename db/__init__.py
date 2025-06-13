@@ -80,10 +80,6 @@ from .cruds.client_documents_crud import (
     get_documents_for_project,
     update_client_document,
     delete_client_document,
-)
-
-# Client Document Notes (assuming it might be separate or part of client_documents_crud)
-from .cruds.client_document_notes_crud import (
     add_client_document_note,
     get_client_document_notes,
     update_client_document_note,
@@ -392,7 +388,6 @@ __all__ = [
     # Client Documents
     "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project",
     "update_client_document", "delete_client_document",
-    # Client Document Notes
     "add_client_document_note", "get_client_document_notes", "update_client_document_note",
     "delete_client_document_note", "get_client_document_note_by_id",
     # Client Project Products
