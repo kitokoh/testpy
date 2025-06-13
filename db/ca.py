@@ -1054,6 +1054,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
+
     # --- New Partner Tables ---
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Partners (
@@ -1122,6 +1123,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
     # --- End Indexes for New Partner Tables ---
+
 
     # MediaItems Table
     cursor.execute('''

@@ -390,10 +390,12 @@ class DocumentManager(QMainWindow):
         right_pane_splitter.addWidget(self.client_tabs_widget)
 
         # Replace placeholder with CollapsibleStatisticsWidget
-        self.collapsible_stats_widget = CollapsibleStatisticsWidget(self)
-        right_pane_splitter.addWidget(self.collapsible_stats_widget)
+        # self.collapsible_stats_widget = CollapsibleStatisticsWidget(self)
+        # right_pane_splitter.addWidget(self.collapsible_stats_widget)
 
-        right_pane_splitter.setSizes([int(self.height() * 0.7), int(self.height() * 0.3)]) # Initial sizes for tabs/stats
+        # right_pane_splitter.setSizes([int(self.height() * 0.7), int(self.height() * 0.3)]) # Initial sizes for tabs/stats
+        # With only one widget, setSizes might not be necessary or could be adjusted.
+        # For now, let's remove it. The splitter should give all space to the single widget.
 
         main_splitter.addWidget(right_pane_splitter)
         main_splitter.setSizes([int(self.width() * 0.35), int(self.width() * 0.65)]) # Initial sizes for left/right panes
@@ -436,9 +438,9 @@ class DocumentManager(QMainWindow):
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self)
         self.documents_view_action.triggered.connect(self.show_documents_view)
         
-        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
-        # self.statistics_action.triggered.connect(self.show_statistics_view) # Old connection
-        self.statistics_action.triggered.connect(self.toggle_collapsible_statistics_panel) # New connection
+        # self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques Détaillées"), self)
+        # # self.statistics_action.triggered.connect(self.show_statistics_view) # Old connection
+        # self.statistics_action.triggered.connect(self.toggle_collapsible_statistics_panel) # New connection
 
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self)
         self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
@@ -459,7 +461,7 @@ class DocumentManager(QMainWindow):
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
         modules_menu.addAction(self.documents_view_action)
         modules_menu.addAction(self.project_management_action)
-        modules_menu.addAction(self.statistics_action)
+        # modules_menu.addAction(self.statistics_action)
         modules_menu.addAction(self.product_list_action) # Add new action here
         modules_menu.addAction(self.partner_management_action) # Add Partner Management action
         help_menu = menu_bar.addMenu(self.tr("Aide"))
@@ -472,29 +474,29 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self):
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
-    def toggle_collapsible_statistics_panel(self):
-        if hasattr(self, 'collapsible_stats_widget'):
-            # Ensure the documents page is visible first, as the stats panel is part of it
-            self.show_documents_view()
-
-            # Toggle the button's checked state which in turn calls show_and_expand or hides
-            current_state = self.collapsible_stats_widget.toggle_button.isChecked()
-            self.collapsible_stats_widget.toggle_button.setChecked(not current_state)
-            # If we want to ensure it always expands when menu is clicked:
-            # self.collapsible_stats_widget.show_and_expand()
-        else:
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Le panneau de statistiques n'est pas initialisé."))
+    # def toggle_collapsible_statistics_panel(self):
+    #     if hasattr(self, 'collapsible_stats_widget'):
+    #         # Ensure the documents page is visible first, as the stats panel is part of it
+    #         self.show_documents_view()
+    #
+    #         # Toggle the button's checked state which in turn calls show_and_expand or hides
+    #         current_state = self.collapsible_stats_widget.toggle_button.isChecked()
+    #         self.collapsible_stats_widget.toggle_button.setChecked(not current_state)
+    #         # If we want to ensure it always expands when menu is clicked:
+    #         # self.collapsible_stats_widget.show_and_expand()
+    #     else:
+    #         QMessageBox.warning(self, self.tr("Erreur"), self.tr("Le panneau de statistiques n'est pas initialisé."))
         
-    def show_statistics_view(self):
-        # This method might become obsolete or repurposed.
-        # For now, ensure it doesn't try to show the old StatisticsDashboard in the stack
-        # if that instance is being dismantled.
-        # Option 1: Do nothing / Log deprecation
-        # print("show_statistics_view is being phased out. Use toggle_collapsible_statistics_panel.")
-        # Option 2: Redirect to the new toggle functionality
-        self.toggle_collapsible_statistics_panel()
-        # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
-        # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+    # def show_statistics_view(self):
+    #     # This method might become obsolete or repurposed.
+    #     # For now, ensure it doesn't try to show the old StatisticsDashboard in the stack
+    #     # if that instance is being dismantled.
+    #     # Option 1: Do nothing / Log deprecation
+    #     # print("show_statistics_view is being phased out. Use toggle_collapsible_statistics_panel.")
+    #     # Option 2: Redirect to the new toggle functionality
+    #     self.toggle_collapsible_statistics_panel()
+    #     # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
+    #     # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
 
 
     def show_partner_management_view(self):
