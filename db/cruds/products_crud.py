@@ -772,3 +772,23 @@ class ProductsCRUD(GenericCRUD):
 
 # Instantiate the CRUD class for easy import and use elsewhere
 products_crud_instance = ProductsCRUD()
+
+# Expose methods as module-level functions
+get_product_by_id = products_crud_instance.get_product_by_id
+add_product = products_crud_instance.add_product
+get_product_by_name = products_crud_instance.get_product_by_name
+get_all_products = products_crud_instance.get_all_products
+update_product = products_crud_instance.update_product
+delete_product = products_crud_instance.delete_product
+get_products = products_crud_instance.get_products
+update_product_price = products_crud_instance.update_product_price
+get_products_by_name_pattern = products_crud_instance.get_products_by_name_pattern
+get_all_products_for_selection_filtered = products_crud_instance.get_all_products_for_selection_filtered
+get_total_products_count = products_crud_instance.get_total_products_count
+add_or_update_product_dimension = products_crud_instance.add_or_update_product_dimension
+get_product_dimension = products_crud_instance.get_product_dimension
+delete_product_dimension = products_crud_instance.delete_product_dimension
+add_product_equivalence = products_crud_instance.add_product_equivalence
+get_equivalent_products = products_crud_instance.get_equivalent_products
+get_all_product_equivalencies = products_crud_instance.get_all_product_equivalencies
+remove_product_equivalence = products_crud_instance.remove_product_equivalence
