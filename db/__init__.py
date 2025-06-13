@@ -188,8 +188,7 @@ from .cruds.tasks_crud import (
 
 # KPIs (often linked to projects or other entities)
 from .cruds.kpis_crud import ( # Assuming a kpis_crud.py exists
-    add_kpi,
-    get_kpi_by_id,
+    add_kpi_to_project,
     get_kpis_for_project,
     update_kpi,
     delete_kpi,
@@ -400,7 +399,7 @@ __all__ = [
     # Tasks
     "add_task", "get_task_by_id", "get_tasks_for_project", "update_task", "delete_task",
     # KPIs
-    "add_kpi", "get_kpi_by_id", "get_kpis_for_project", "update_kpi", "delete_kpi",
+    "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
     # Status Settings
     "get_all_status_settings", "get_status_setting_by_id", "get_status_setting_by_name",
     "add_status_setting", "update_status_setting", "delete_status_setting",
