@@ -1,2731 +1,362 @@
 import sqlite3
 import uuid
-import hashlib
+import hashlib # Keep if any remaining stubs might imply its use, or if imported functions need it re-exported.
 from datetime import datetime
 import json
 import os
 import logging
 
-# Imports for the new CRUD structure
+# Import from generic_crud
 from .cruds.generic_crud import _manage_conn, get_db_connection
-from .cruds.companies_crud import get_company_by_id
-from .cruds.company_personnel_crud import get_personnel_for_company
-from .cruds.clients_crud import get_client_by_id
-from .cruds.locations_crud import get_country_by_id, get_city_by_id
-from .cruds.contacts_crud import get_contacts_for_client
-from .cruds.projects_crud import get_project_by_id # NOTE: Function missing in projects_crud.py
-from .cruds.status_settings_crud import get_status_setting_by_id
-from .cruds.products_crud import get_product_by_id
-from .cruds.client_project_products_crud import get_products_for_client_or_project # NOTE: Function missing in client_project_products_crud.py
-from .cruds.client_documents_crud import get_client_document_notes
-# Specific CRUD modules will be imported as needed by other files, or listed here if universally used.
-# For now, this file will contain CRUD functions not yet refactored.
 
-# --- Users CRUD ---
-# This section has been moved to db/cruds/users_crud.py
-# Example of how it would be imported if needed here (though it's not directly used by other funcs in *this* file yet):
-# from .cruds.users_crud import add_user, get_user_by_id, get_user_by_username, get_user_by_email, update_user, delete_user, verify_user_password
-# --- Companies CRUD ---
-# This section has been moved to db/cruds/companies_crud.py
+# Import from entity-specific CRUD files
+# These imports should cover all functions previously implemented or stubbed in crud.py
+# and now residing in their respective cruds/ files.
 
-# --- CompanyPersonnel CRUD ---
-# This section has been moved to db/cruds/company_personnel_crud.py
+from .cruds.users_crud import (
+    add_user, get_user_by_id, get_user_by_username, get_user_by_email,
+    update_user, delete_user, verify_user_password
+)
+from .cruds.companies_crud import (
+    add_company, get_company_by_id, get_all_companies, update_company,
+    delete_company, set_default_company, get_default_company
+)
+from .cruds.company_personnel_crud import (
+    add_company_personnel, get_personnel_for_company,
+    update_company_personnel, delete_company_personnel
+)
+from .cruds.application_settings_crud import (
+    get_setting, set_setting
+)
+from .cruds.template_categories_crud import (
+    add_template_category, get_template_category_by_id, get_template_category_by_name,
+    get_all_template_categories, update_template_category, delete_template_category,
+    get_template_category_details
+)
+from .cruds.templates_crud import (
+    add_template, add_default_template_if_not_exists, get_template_by_id,
+    get_templates_by_type, get_templates_by_category_id, update_template, delete_template,
+    get_distinct_template_languages, get_distinct_template_types,
+    get_filtered_templates, get_template_details_for_preview,
+    get_template_path_info, delete_template_and_get_file_info,
+    set_default_template_by_id, get_template_by_type_lang_default,
+    get_all_templates, get_distinct_languages_for_template_type,
+    get_all_file_based_templates
+)
+from .cruds.cover_page_templates_crud import (
+    add_cover_page_template, get_cover_page_template_by_id,
+    get_cover_page_template_by_name, get_all_cover_page_templates,
+    update_cover_page_template, delete_cover_page_template
+)
+from .cruds.locations_crud import (
+    get_country_by_name, get_country_by_id, get_or_add_country,
+    get_city_by_name_and_country_id, get_city_by_id, get_or_add_city,
+    get_all_countries, get_all_cities # Added get_all_*
+)
+from .cruds.status_settings_crud import (
+    get_status_setting_by_name, get_status_setting_by_id, get_all_status_settings # Added get_all_*
+)
+from .cruds.clients_crud import (
+    add_client, get_client_by_id, get_all_clients, update_client, delete_client,
+    get_all_clients_with_details, get_active_clients_count,
+    get_client_counts_by_country, get_client_segmentation_by_city,
+    get_client_segmentation_by_status, get_client_segmentation_by_category,
+    get_clients_by_archival_status,
+    add_client_note, get_client_notes # ClientNotes moved here
+)
+from .cruds.products_crud import (
+    add_product, get_product_by_id, get_product_by_name, get_all_products,
+    update_product, delete_product, get_products, update_product_price,
+    get_products_by_name_pattern, get_all_products_for_selection,
+    get_all_products_for_selection_filtered, get_total_products_count,
+    add_or_update_product_dimension, get_product_dimension, delete_product_dimension,
+    add_product_equivalence, get_equivalent_products, get_all_product_equivalencies,
+    remove_product_equivalence
+)
+from .cruds.client_project_products_crud import (
+    add_product_to_client_or_project, get_products_for_client_or_project,
+    update_client_project_product, remove_product_from_client_or_project,
+    get_client_project_product_by_id
+)
+from .cruds.projects_crud import (
+    add_project, get_project_by_id, get_projects_by_client_id, get_all_projects,
+    update_project, delete_project, get_total_projects_count, get_active_projects_count
+)
+from .cruds.contacts_crud import (
+    add_contact, get_contact_by_id, get_contact_by_email, get_all_contacts,
+    update_contact, delete_contact,
+    link_contact_to_client, unlink_contact_from_client, get_contacts_for_client,
+    get_contacts_for_client_count, get_clients_for_contact,
+    get_specific_client_contact_link_details, update_client_contact_link
+    # Stubs for ContactList related functions will be added below
+)
+from .cruds.client_documents_crud import (
+    add_client_document, get_document_by_id, get_documents_for_client,
+    get_documents_for_project, update_client_document, delete_client_document,
+    add_client_document_note, get_client_document_note_by_id,
+    get_client_document_notes, update_client_document_note, delete_client_document_note
+)
+from .cruds.cover_pages_crud import (
+    add_cover_page, get_cover_page_by_id, get_cover_pages_for_client,
+    get_cover_pages_for_project, update_cover_page, delete_cover_page,
+    get_cover_pages_for_user
+)
+from .cruds.tasks_crud import (
+    add_task, get_task_by_id, get_tasks_by_project_id, update_task,
+    delete_task, get_all_tasks, get_tasks_by_assignee_id
+)
+from .cruds.team_members_crud import (
+    add_team_member, get_team_member_by_id, get_all_team_members,
+    update_team_member, delete_team_member
+)
+from .cruds.sav_tickets_crud import (
+    add_sav_ticket, get_sav_ticket_by_id, get_sav_tickets_for_client,
+    update_sav_ticket, delete_sav_ticket
+)
+from .cruds.important_dates_crud import (
+    add_important_date, get_important_date_by_id, get_all_important_dates,
+    update_important_date, delete_important_date
+)
+from .cruds.transporters_crud import (
+    add_transporter, get_transporter_by_id, get_all_transporters,
+    update_transporter, delete_transporter
+)
+from .cruds.freight_forwarders_crud import (
+    add_freight_forwarder, get_freight_forwarder_by_id, get_all_freight_forwarders,
+    update_freight_forwarder, delete_freight_forwarder
+)
+from .cruds.client_assigned_personnel_crud import (
+    assign_personnel_to_client, get_assigned_personnel_for_client,
+    unassign_personnel_from_client
+)
+from .cruds.client_transporters_crud import (
+    assign_transporter_to_client, get_assigned_transporters_for_client,
+    unassign_transporter_from_client
+)
+from .cruds.client_freight_forwarders_crud import (
+    assign_forwarder_to_client, get_assigned_forwarders_for_client,
+    unassign_forwarder_from_client
+)
+from .cruds.kpis_crud import (
+    add_kpi, get_kpi_by_id, get_kpis_for_project, update_kpi, delete_kpi
+)
+from .cruds.google_sync_crud import (
+    add_user_google_account, get_user_google_account_by_user_id,
+    get_user_google_account_by_google_account_id, get_user_google_account_by_id,
+    update_user_google_account, delete_user_google_account, get_all_user_google_accounts,
+    add_contact_sync_log, get_contact_sync_log_by_local_contact,
+    get_contact_sync_log_by_google_contact_id, get_contact_sync_log_by_id,
+    update_contact_sync_log, delete_contact_sync_log,
+    get_contacts_pending_sync, get_all_sync_logs_for_account
+)
+from .cruds.partners_crud import (
+    add_partner_category, get_partner_category_by_id, get_partner_category_by_name,
+    get_all_partner_categories, update_partner_category, delete_partner_category,
+    # get_or_add_partner_category, # This was a helper in partners_crud, not usually exposed
+    add_partner, get_partner_by_id, get_all_partners, update_partner, delete_partner,
+    get_partners_by_category_id, get_partner_by_email,
+    add_partner_contact, get_partner_contact_by_id, get_contacts_for_partner,
+    update_partner_contact, delete_partner_contact, delete_contacts_for_partner,
+    link_partner_to_category, unlink_partner_from_category,
+    get_categories_for_partner, # Already have get_partners_by_category_id (same as get_partners_in_category)
+    # get_partners_in_category, # Renamed/covered by get_partners_by_category_id
+    add_partner_document, get_documents_for_partner, get_partner_document_by_id,
+    update_partner_document, delete_partner_document
+)
+from .cruds.activity_logs_crud import ( # Assuming this file exists for the stub
+    add_activity_log, get_activity_logs
+)
 
-# --- ApplicationSettings CRUD ---
-# This section has been moved to db/cruds/application_settings_crud.py
+# STUB Functions that remain (implement or remove these in future tasks)
+# These were the ones listed with "logging.warning" in the original crud.py
+# and not explicitly moved to a specific cruds file yet.
 
-# --- TemplateCategories CRUD ---
-# This section has been moved to db/cruds/template_categories_crud.py
-
-# --- Templates CRUD ---
-# This section has been moved to db/cruds/templates_crud.py
-
-# --- CoverPageTemplates CRUD ---
-# This section has been moved to db/cruds/cover_page_templates_crud.py
-
-# --- Countries, Cities, StatusSettings (getters) ---
-# This section has been moved to db/cruds/locations_crud.py and db/cruds/status_settings_crud.py
-
-# --- Clients CRUD ---
-# This section has been moved to db/cruds/clients_crud.py
-
-# --- Products CRUD ---
-# This section has been moved to db/cruds/products_crud.py
-
-# --- ProductDimensions CRUD ---
-# This section has been moved to db/cruds/products_crud.py
-
-# --- ProductEquivalencies CRUD ---
-# This section has been moved to db/cruds/products_crud.py
-
-# --- ClientProjectProducts CRUD ---
-# This section has been moved to db/cruds/client_project_products_crud.py
-
-# --- Projects CRUD ---
-# This section has been moved to db/cruds/projects_crud.py
-
-# --- Contacts CRUD ---
-# This section has been moved to db/cruds/contacts_crud.py
-
-# --- ClientDocuments Stubs (includes add_client_document) ---
-# This section has been moved to db/cruds/client_documents_crud.py
-
-# --- ClientDocumentNotes CRUD ---
-# This section has been moved to db/cruds/client_documents_crud.py
-
-# --- TemplateCategories (Continued) ---
-# This section has been moved to db/cruds/template_categories_crud.py
-
-# --- Templates (Continued) ---
-# This section has been moved to db/cruds/templates_crud.py
-
-# --- CoverPageTemplates (Continued) ---
-# This section has been moved to db/cruds/cover_page_templates_crud.py
-
-# --- CoverPages CRUD (Continued) ---
-# This section has been moved to db/cruds/cover_pages_crud.py (assuming it will be moved there)
-# For now, keeping it here until explicitly moved.
-@_manage_conn
-def add_cover_page(data: dict, conn: sqlite3.Connection = None) -> str | None:
-    cursor=conn.cursor(); new_id=str(uuid.uuid4()); now=datetime.utcnow().isoformat()+"Z"
-    custom_style=data.get('custom_style_config_json'); custom_style_str=json.dumps(custom_style) if isinstance(custom_style,dict) else custom_style
-    sql="INSERT INTO CoverPages (cover_page_id, cover_page_name, client_id, project_id, template_id, title, subtitle, author_text, institution_text, department_text, document_type_text, document_version, creation_date, logo_name, logo_data, custom_style_config_json, created_at, updated_at, created_by_user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(new_id, data.get('cover_page_name'), data.get('client_id'), data.get('project_id'), data.get('template_id'), data['title'], data.get('subtitle'), data.get('author_text'), data.get('institution_text'), data.get('department_text'), data.get('document_type_text'), data.get('document_version'), data.get('creation_date'), data.get('logo_name'), data.get('logo_data'), custom_style_str, now, now, data.get('created_by_user_id'))
-    try: cursor.execute(sql,params); return new_id
-    except: return None
-
-@_manage_conn
-def get_cover_page_by_id(id: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE cover_page_id = ?",(id,)); row=cursor.fetchone()
-    if row: data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; return data
-    return None
-
-@_manage_conn
-def get_cover_pages_for_client(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE client_id = ? ORDER BY created_at DESC",(client_id,)); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-@_manage_conn
-def get_cover_pages_for_project(project_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE project_id = ? ORDER BY created_at DESC",(project_id,)); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-@_manage_conn
-def update_cover_page(id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); data['updated_at']=datetime.utcnow().isoformat()+"Z"
-    if 'custom_style_config_json' in data and isinstance(data['custom_style_config_json'],dict): data['custom_style_config_json'] = json.dumps(data['custom_style_config_json'])
-    valid_cols = ['cover_page_name','client_id','project_id','template_id','title','subtitle','author_text','institution_text','department_text','document_type_text','document_version','creation_date','logo_name','logo_data','custom_style_config_json','updated_at','created_by_user_id']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(id)
-    sql=f"UPDATE CoverPages SET {', '.join(set_c)} WHERE cover_page_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_cover_page(id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM CoverPages WHERE cover_page_id = ?",(id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_cover_pages_for_user(user_id: str, limit: int = 50, offset: int = 0, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM CoverPages WHERE created_by_user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"; params=(user_id,limit,offset)
-    cursor.execute(sql,params); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-# --- Clients (Continued) ---
-# This section has been moved to db/cruds/clients_crud.py
-
-# --- ClientNotes CRUD ---
-# This section has been moved to db/cruds/clients_crud.py
-
-# --- Projects CRUD ---
-# This section has been moved to db/cruds/projects_crud.py
-
-# --- Tasks CRUD ---
-# This section has been moved to db/cruds/tasks_crud.py
-
-# --- TeamMembers CRUD ---
-# This section has been moved to db/cruds/team_members_crud.py (assuming it will be moved there)
-# For now, keeping it here until explicitly moved.
-# (add_team_member, get_team_member_by_id, get_all_team_members, update_team_member, delete_team_member are already present)
-
-
-# --- Products (Continued from get_product_by_id) ---
-@_manage_conn
-def add_product(product_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    if not product_data.get('product_name') or product_data.get('base_unit_price') is None:
-        print("Error: product_name and base_unit_price are required for add_product.")
-        return None
-    sql = "INSERT INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    params = (product_data['product_name'], product_data.get('description'), product_data.get('category'), product_data.get('language_code', 'fr'), product_data['base_unit_price'], product_data.get('unit_of_measure'), product_data.get('weight'), product_data.get('dimensions'), product_data.get('is_active', True), now, now)
-    try: cursor.execute(sql, params); return cursor.lastrowid
-    except sqlite3.IntegrityError as e: print(f"IntegrityError in add_product: {e}"); return None
-    except sqlite3.Error as e_gen: print(f"SQLite error in add_product: {e_gen}"); return None
-
-@_manage_conn
-def get_product_by_name(product_name: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,)); row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_products(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Products"; q_params = []
-    if filters:
-        clauses = []
-        if 'category' in filters: clauses.append("category = ?"); q_params.append(filters['category'])
-        if 'product_name' in filters: clauses.append("product_name LIKE ?"); q_params.append(f"%{filters['product_name']}%")
-        if clauses: sql += " WHERE " + " AND ".join(clauses)
-    cursor.execute(sql, q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_product(product_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"; data['updated_at'] = now
-    valid_cols = ['product_name', 'description', 'category', 'language_code', 'base_unit_price', 'unit_of_measure', 'weight', 'dimensions', 'is_active', 'updated_at']
-    to_set = {k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c = [f"{k}=?" for k in to_set.keys()]; params = list(to_set.values()); params.append(product_id)
-    sql = f"UPDATE Products SET {', '.join(set_c)} WHERE product_id = ?"; cursor.execute(sql, params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_product(product_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM Products WHERE product_id = ?", (product_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_products(language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Products"; params = []; conditions = ["is_active = TRUE"]
-    if language_code: conditions.append("language_code = ?"); params.append(language_code)
-    sql += " WHERE " + " AND ".join(conditions) + " ORDER BY product_name"; cursor.execute(sql, params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_product_price(product_id: int, new_price: float, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    sql = "UPDATE Products SET base_unit_price = ?, updated_at = ? WHERE product_id = ?"
-    cursor.execute(sql, (new_price, now, product_id))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_products_by_name_pattern(pattern: str, conn: sqlite3.Connection = None) -> list[dict] | None:
-    cursor = conn.cursor(); search_pattern = f"%{pattern}%"
-    sql = "SELECT * FROM Products WHERE product_name LIKE ? ORDER BY product_name LIMIT 10"
-    cursor.execute(sql, (search_pattern,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_products_for_selection_filtered(language_code: str = None, name_pattern: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); params = []; conditions = ["is_active = TRUE"]
-    if language_code: conditions.append("language_code = ?"); params.append(language_code)
-    if name_pattern: conditions.append("(product_name LIKE ? OR description LIKE ?)"); params.extend([f"%{name_pattern}%", f"%{name_pattern}%"])
-    sql = f"SELECT product_id, product_name, description, base_unit_price, language_code FROM Products WHERE {' AND '.join(conditions)} ORDER BY product_name"
-    cursor.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_total_products_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor(); cursor.execute("SELECT COUNT(product_id) as total_count FROM Products"); row = cursor.fetchone()
-    return row['total_count'] if row else 0
-
-# --- ProductDimensions CRUD ---
-@_manage_conn
-def add_or_update_product_dimension(product_id: int, dimension_data: dict, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    cursor.execute("SELECT product_id FROM ProductDimensions WHERE product_id = ?", (product_id,))
-    exists = cursor.fetchone()
-    dim_cols = ['dim_A','dim_B','dim_C','dim_D','dim_E','dim_F','dim_G','dim_H','dim_I','dim_J','technical_image_path']
-    if exists:
-        data_to_set = {k:v for k,v in dimension_data.items() if k in dim_cols}; data_to_set['updated_at'] = now
-        if not any(k in dim_cols for k in dimension_data.keys()):
-             cursor.execute("UPDATE ProductDimensions SET updated_at = ? WHERE product_id = ?", (now, product_id)); return True
-        set_c = [f"{k}=?" for k in data_to_set.keys()]; params_list = list(data_to_set.values()); params_list.append(product_id)
-        sql = f"UPDATE ProductDimensions SET {', '.join(set_c)} WHERE product_id = ?"
-        cursor.execute(sql, params_list)
-    else:
-        cols = ['product_id','created_at','updated_at'] + dim_cols
-        vals = [product_id, now, now] + [dimension_data.get(c) for c in dim_cols]
-        placeholders = ','.join(['?']*len(cols))
-        sql = f"INSERT INTO ProductDimensions ({','.join(cols)}) VALUES ({placeholders})"
-        cursor.execute(sql, tuple(vals))
-    return cursor.rowcount > 0 or (not exists and cursor.lastrowid is not None)
-
-@_manage_conn
-def get_product_dimension(product_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM ProductDimensions WHERE product_id = ?", (product_id,)); row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def delete_product_dimension(product_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ProductDimensions WHERE product_id = ?", (product_id,)); return cursor.rowcount > 0
-
-# --- ProductEquivalencies CRUD ---
-@_manage_conn
-def add_product_equivalence(product_id_a: int, product_id_b: int, conn: sqlite3.Connection = None) -> int | None:
-    if product_id_a == product_id_b: return None
-    p_a, p_b = min(product_id_a, product_id_b), max(product_id_a, product_id_b)
-    cursor = conn.cursor()
-    try: cursor.execute("INSERT INTO ProductEquivalencies (product_id_a, product_id_b) VALUES (?,?)", (p_a,p_b)); return cursor.lastrowid
-    except sqlite3.IntegrityError:
-        cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a,p_b)); row=cursor.fetchone()
-        return row['equivalence_id'] if row else None
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_equivalent_products(product_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); ids = set()
-    cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
-    for row in cursor.fetchall(): ids.add(row['product_id_b'])
-    cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
-    for row in cursor.fetchall(): ids.add(row['product_id_a'])
-    ids.discard(product_id)
-    if not ids: return []
-    placeholders = ','.join('?'*len(ids))
-    cursor.execute(f"SELECT * FROM Products WHERE product_id IN ({placeholders})", tuple(ids))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_product_equivalencies(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT pe.*, pA.product_name AS product_name_a, pA.language_code AS language_code_a, pA.weight AS weight_a, pA.dimensions AS dimensions_a, pB.product_name AS product_name_b, pB.language_code AS language_code_b, pB.weight AS weight_b, pB.dimensions AS dimensions_b FROM ProductEquivalencies pe JOIN Products pA ON pe.product_id_a = pA.product_id JOIN Products pB ON pe.product_id_b = pB.product_id ORDER BY pA.product_name, pB.product_name"
-    cursor.execute(sql); return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def remove_product_equivalence(equivalence_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ProductEquivalencies WHERE equivalence_id = ?", (equivalence_id,)); return cursor.rowcount > 0
-
-# --- ClientProjectProducts (Continued) ---
-@_manage_conn
-def add_product_to_client_or_project(link_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor(); product_id = link_data['product_id']
-    prod_info = get_product_by_id(product_id, conn=conn)
-    if not prod_info: return None
-    qty = link_data.get('quantity',1); override_price = link_data.get('unit_price_override')
-    eff_price = override_price if override_price is not None else prod_info.get('base_unit_price')
-    if eff_price is None: eff_price = 0.0
-    total_price = qty * float(eff_price)
-    sql="INSERT INTO ClientProjectProducts (client_id, project_id, product_id, quantity, unit_price_override, total_price_calculated, serial_number, purchase_confirmed_at, added_at) VALUES (?,?,?,?,?,?,?,?,?)"
-    params=(link_data['client_id'],link_data.get('project_id'),product_id,qty,override_price,total_price,link_data.get('serial_number'),link_data.get('purchase_confirmed_at'),datetime.utcnow().isoformat()+"Z")
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error as e: print(f"DB error in add_product_to_client_or_project: {e}"); return None
-
-@_manage_conn
-def update_client_project_product(link_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor = conn.cursor()
-    current_link = get_client_project_product_by_id(link_id, conn=conn)
-    if not current_link: return False
-    qty = data.get('quantity', current_link['quantity'])
-    override_price = data.get('unit_price_override', current_link['unit_price_override'])
-    base_price = current_link['base_unit_price']
-    eff_price = override_price if override_price is not None else base_price
-    if eff_price is None: eff_price = 0.0
-    data['total_price_calculated'] = qty * float(eff_price)
-    valid_cols = ['quantity','unit_price_override','total_price_calculated','serial_number','purchase_confirmed_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c = [f"{k}=?" for k in to_set.keys()]; params_list = list(to_set.values()); params_list.append(link_id)
-    sql = f"UPDATE ClientProjectProducts SET {', '.join(set_c)} WHERE client_project_product_id = ?"; cursor.execute(sql,tuple(params_list))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def remove_product_from_client_or_project(link_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ClientProjectProducts WHERE client_project_product_id = ?", (link_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_client_project_product_by_id(link_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    sql="SELECT cpp.*, p.product_name, p.description as product_description, p.category as product_category, p.base_unit_price, p.unit_of_measure, p.weight, p.dimensions, p.language_code FROM ClientProjectProducts cpp JOIN Products p ON cpp.product_id = p.product_id WHERE cpp.client_project_product_id = ?"
-    cursor.execute(sql,(link_id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-# --- Contacts (Continued) ---
-@_manage_conn
-def add_contact(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    name=data.get('displayName', data.get('name'))
-    sql="INSERT INTO Contacts (name, email, phone, position, company_name, notes, givenName, familyName, displayName, phone_type, email_type, address_formattedValue, address_streetAddress, address_city, address_region, address_postalCode, address_country, organization_name, organization_title, birthday_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(name, data.get('email'), data.get('phone'), data.get('position'), data.get('company_name'), data.get('notes'), data.get('givenName'), data.get('familyName'), data.get('displayName'), data.get('phone_type'), data.get('email_type'), data.get('address_formattedValue'), data.get('address_streetAddress'), data.get('address_city'), data.get('address_region'), data.get('address_postalCode'), data.get('address_country'), data.get('organization_name'), data.get('organization_title'), data.get('birthday_date'), now, now)
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_contact_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM Contacts WHERE contact_id = ?",(id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_contact_by_email(email: str, conn: sqlite3.Connection = None) -> dict | None:
-    if not email: return None; cursor=conn.cursor(); cursor.execute("SELECT * FROM Contacts WHERE email = ?",(email,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_contacts(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Contacts"; params=[]; clauses=[]
-    if filters:
-        if 'company_name' in filters: clauses.append("company_name=?"); params.append(filters['company_name'])
-        if 'name' in filters: clauses.append("(name LIKE ? OR displayName LIKE ?)"); params.extend([f"%{filters['name']}%", f"%{filters['name']}%"])
-        if clauses: sql+=" WHERE "+" AND ".join(clauses)
-    cursor.execute(sql,params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_contact(id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    if 'displayName' in data and 'name' not in data: data['name'] = data['displayName']
-    valid_cols=['name','email','phone','position','company_name','notes','givenName','familyName','displayName','phone_type','email_type','address_formattedValue','address_streetAddress','address_city','address_region','address_postalCode','address_country','organization_name','organization_title','birthday_date','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params_list=list(to_set.values()); params_list.append(id)
-    sql=f"UPDATE Contacts SET {', '.join(set_c)} WHERE contact_id = ?"; cursor.execute(sql,params_list)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_contact(id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Contacts WHERE contact_id = ?",(id,)); return cursor.rowcount > 0
-
+# ContactLists stubs (related to contacts_crud.py but kept as stubs here for now if not implemented there)
 @_manage_conn
 def add_contact_list(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    """
-    Adds a new contact list.
-    STUB FUNCTION - Full implementation pending.
-    Expected data keys: 'list_name'. Optional: 'description', 'created_by_user_id'.
-    """
-    # Example structure:
-    # cursor = conn.cursor()
-    # sql = """INSERT INTO ContactLists (
-    #             list_name, description, created_at, updated_at, created_by_user_id
-    #         ) VALUES (?, ?, ?, ?, ?)"""
-    # now = datetime.utcnow().isoformat() + "Z"
-    # params = (
-    #     data.get('list_name'), data.get('description'), now, now, data.get('created_by_user_id')
-    # )
-    # try:
-    #     cursor.execute(sql, params)
-    #     return cursor.lastrowid
-    # except sqlite3.IntegrityError: # E.g., list_name not unique
-    #     logging.error(f"Integrity error adding contact list: {data.get('list_name')}")
-    #     return None
-    # except sqlite3.Error as e:
-    #     logging.error(f"Database error in add_contact_list: {e}")
-    #     return None
     logging.warning(f"Called stub function add_contact_list with data: {data}. Full implementation is missing.")
     return None
 
-# --- ClientContacts (Continued) ---
-@_manage_conn
-def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = False, can_receive_documents: bool = True, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); sql="INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents) VALUES (?,?,?,?)"
-    try: cursor.execute(sql,(client_id,contact_id,is_primary,can_receive_documents)); return cursor.lastrowid
-    except sqlite3.Error: return None # Handles UNIQUE constraint
-
-@_manage_conn
-def unlink_contact_from_client(client_id: str, contact_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); sql="DELETE FROM ClientContacts WHERE client_id = ? AND contact_id = ?"; cursor.execute(sql,(client_id,contact_id))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_contacts_for_client_count(client_id: str, conn: sqlite3.Connection = None) -> int:
-    cursor=conn.cursor(); cursor.execute("SELECT COUNT(contact_id) FROM ClientContacts WHERE client_id = ?",(client_id,)); row=cursor.fetchone()
-    return row[0] if row else 0
-
-@_manage_conn
-def get_clients_for_contact(contact_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT cl.*, cc.is_primary_for_client, cc.can_receive_documents, cc.client_contact_id FROM Clients cl JOIN ClientContacts cc ON cl.client_id = cc.client_id WHERE cc.contact_id = ?" # Added client_contact_id
-    cursor.execute(sql,(contact_id,)); return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_specific_client_contact_link_details(client_id: str, contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); sql="SELECT client_contact_id, is_primary_for_client, can_receive_documents FROM ClientContacts WHERE client_id = ? AND contact_id = ?"
-    cursor.execute(sql,(client_id,contact_id)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def update_client_contact_link(client_contact_id: int, details: dict, conn: sqlite3.Connection = None) -> bool:
-    if not details or not any(k in details for k in ['is_primary_for_client','can_receive_documents']): return False
-    cursor=conn.cursor(); set_c=[]; params=[]
-    if 'is_primary_for_client' in details: set_c.append("is_primary_for_client=?"); params.append(details['is_primary_for_client'])
-    if 'can_receive_documents' in details: set_c.append("can_receive_documents=?"); params.append(details['can_receive_documents'])
-    if not set_c: return False
-    params.append(client_contact_id); sql=f"UPDATE ClientContacts SET {', '.join(set_c)} WHERE client_contact_id = ?"
-    cursor.execute(sql,params); return cursor.rowcount > 0
-
-# (Ensure all other CRUD functions from original db.py are added here, refactored with @_manage_conn and `conn` parameter)
-# For brevity, I will assume the rest of the functions are added in a similar fashion.
-
 @_manage_conn
 def add_contact_to_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_contact_to_list with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_country(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_country with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_email_reminder(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_email_reminder with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_freight_forwarder with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_important_date with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_kpi with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_sav_ticket with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_scheduled_email(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_scheduled_email with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_smtp_config with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def add_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function add_transporter with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def assign_forwarder_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function assign_forwarder_to_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def assign_personnel_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function assign_personnel_to_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def assign_transporter_to_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function assign_transporter_to_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_client_document(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_client_document with data: {{data}}. Full implementation is missing.")
+    logging.warning(f"Called stub function add_contact_to_list with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
 def delete_contact_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_contact_list with data: {{data}}. Full implementation is missing.")
+    logging.warning(f"Called stub function delete_contact_list with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
-def delete_email_reminder(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_email_reminder with data: {{data}}. Full implementation is missing.")
+def get_all_contact_lists(data: dict = None, conn: sqlite3.Connection = None) -> object | None: # data dict often not used in "get_all" stubs
+    logging.warning(f"Called stub function get_all_contact_lists with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
-def delete_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_freight_forwarder with data: {{data}}. Full implementation is missing.")
+def get_contact_list_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None: # data dict for ID
+    logging.warning(f"Called stub function get_contact_list_by_id with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
-def delete_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_important_date with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_kpi with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_sav_ticket with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_scheduled_email(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_scheduled_email with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_smtp_config with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def delete_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function delete_transporter with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_activity_logs(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_activity_logs with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_cities(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_cities with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_contact_lists(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_contact_lists with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_countries(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_countries with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_freight_forwarders(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_freight_forwarders with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_important_dates(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_important_dates with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_smtp_configs(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_smtp_configs with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_status_settings(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_status_settings with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_all_transporters(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_all_transporters with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_assigned_forwarders_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_assigned_forwarders_for_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_assigned_personnel_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_assigned_personnel_for_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_assigned_transporters_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_assigned_transporters_for_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_contact_list_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_contact_list_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_contacts_in_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_contacts_in_list with data: {{data}}. Full implementation is missing.")
-    return None
-
-
-# def _ensure_single_default_smtp(cursor: sqlite3.Cursor, exclude_id: int | None = None):
-#     """Internal helper to ensure only one SMTP config is default."""
-#     sql = "UPDATE SmtpConfigs SET is_default = FALSE WHERE is_default = TRUE"
-#     if exclude_id is not None:
-#         sql += " AND smtp_config_id != ?"
-#         cursor.execute(sql, (exclude_id,))
-#     else:
-#         cursor.execute(sql)
-
-@_manage_conn
-def get_default_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_default_smtp_config with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_document_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_document_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_documents_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_documents_for_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_documents_for_project(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_documents_for_project with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_freight_forwarder_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_freight_forwarder_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_important_date_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_important_date_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_kpi_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_kpi_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_kpis_for_project(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_kpis_for_project with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_pending_reminders(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_pending_reminders with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_pending_scheduled_emails(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_pending_scheduled_emails with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_sav_ticket_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_sav_ticket_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_sav_tickets_for_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_sav_tickets_for_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_scheduled_email_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_scheduled_email_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_smtp_config_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_smtp_config_by_id with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def get_transporter_by_id(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function get_transporter_by_id with data: {{data}}. Full implementation is missing.")
+def get_contacts_in_list(data: dict, conn: sqlite3.Connection = None) -> object | None: # data dict for list_id
+    logging.warning(f"Called stub function get_contacts_in_list with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
 def remove_contact_from_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function remove_contact_from_list with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def set_default_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function set_default_smtp_config with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def unassign_forwarder_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function unassign_forwarder_from_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def unassign_personnel_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function unassign_personnel_from_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def unassign_transporter_from_client(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function unassign_transporter_from_client with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_client_document(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_client_document with data: {{data}}. Full implementation is missing.")
+    logging.warning(f"Called stub function remove_contact_from_list with data: {data}. Full implementation is missing.")
     return None
 
 @_manage_conn
 def update_contact_list(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_contact_list with data: {{data}}. Full implementation is missing.")
+    logging.warning(f"Called stub function update_contact_list with data: {data}. Full implementation is missing.")
     return None
 
-@_manage_conn
-def update_freight_forwarder(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_freight_forwarder with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_important_date(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_important_date with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_kpi(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_kpi with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_reminder_status(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_reminder_status with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_sav_ticket(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_sav_ticket with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_scheduled_email_status(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_scheduled_email_status with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_smtp_config(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_smtp_config with data: {{data}}. Full implementation is missing.")
-    return None
-
-@_manage_conn
-def update_transporter(data: dict, conn: sqlite3.Connection = None) -> object | None:
-    logging.warning(f"Called stub function update_transporter with data: {{data}}. Full implementation is missing.")
-    return None
-
-
-# --- PartnerCategories CRUD ---
-@_manage_conn
-def add_partner_category(name: str, description: str = None, conn: sqlite3.Connection = None) -> int | None:
-    """Adds a new partner category."""
-    cursor = conn.cursor()
-    sql = "INSERT INTO PartnerCategories (name, description) VALUES (?, ?)"
-    try:
-        cursor.execute(sql, (name, description))
-        return cursor.lastrowid
-    except sqlite3.IntegrityError:  # Unique constraint on name
-        logging.warning(f"Partner category '{name}' already exists.")
-        # Optionally, retrieve and return the ID of the existing category
-        existing_category = get_partner_category_by_name(name, conn=conn)
-        return existing_category['category_id'] if existing_category else None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_partner_category: {e}")
-        return None
-
-@_manage_conn
-def get_partner_category_by_id(category_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a partner category by its ID."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerCategories WHERE category_id = ?", (category_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a partner category by its name."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerCategories WHERE name = ?", (name,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_partner_categories(conn: sqlite3.Connection = None) -> list[dict]:
-    """Retrieves all partner categories."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerCategories ORDER BY name")
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_partner_category(category_id: int, name: str = None, description: str = None, conn: sqlite3.Connection = None) -> bool:
-    """Updates a partner category."""
-    if name is None and description is None:
-        return False # Nothing to update
-
-    cursor = conn.cursor()
-    fields_to_update = []
-    params = []
-
-    if name is not None:
-        fields_to_update.append("name = ?")
-        params.append(name)
-    if description is not None:
-        fields_to_update.append("description = ?")
-        params.append(description)
-
-    if not fields_to_update: return False # Should not happen if initial check passed
-
-    sql = f"UPDATE PartnerCategories SET {', '.join(fields_to_update)} WHERE category_id = ?"
-    params.append(category_id)
-
-    try:
-        cursor.execute(sql, tuple(params))
-        return cursor.rowcount > 0
-    except sqlite3.IntegrityError: # Potential unique constraint violation on name
-        logging.warning(f"Failed to update partner category {category_id} due to name conflict.")
-        return False
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_partner_category: {e}")
-        return False
-
-@_manage_conn
-def delete_partner_category(category_id: int, conn: sqlite3.Connection = None) -> bool:
-    """
-    Deletes a partner category.
-    Note: If the category is in use by PartnerCategoryLink, this might fail
-    if ON DELETE RESTRICT is set (default is NO ACTION, which allows delete but breaks FK).
-    The schema uses ON DELETE CASCADE for PartnerCategoryLink, so links will be removed.
-    """
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM PartnerCategories WHERE category_id = ?", (category_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_partner_category: {e}")
-        return False
-# --- End PartnerCategories CRUD ---
-
-
-# --- Partners CRUD ---
-@_manage_conn
-def add_partner(partner_data: dict, conn: sqlite3.Connection = None) -> str | None:
-    """
-    Adds a new partner. partner_id is generated as UUID.
-    partner_data keys: name (required), address, phone, location, email, notes.
-    """
-    cursor = conn.cursor()
-    new_partner_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat() + "Z"
-    sql = """
-        INSERT INTO Partners (partner_id, name, address, phone, location, email, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        new_partner_id,
-        partner_data.get('name'),
-        partner_data.get('address'),
-        partner_data.get('phone'),
-        partner_data.get('location'),
-        partner_data.get('email'),
-        partner_data.get('notes'),
-        now,
-        now
-    )
-    try:
-        if not partner_data.get('name'): # Name is NOT NULL
-            logging.error("Partner name is required.")
-            return None
-        cursor.execute(sql, params)
-        return new_partner_id
-    except sqlite3.IntegrityError as e: # Handles email UNIQUE constraint
-        logging.warning(f"Failed to add partner, possibly due to duplicate email: {partner_data.get('email')}. Error: {e}")
-        return None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_partner: {e}")
-        return None
-
-@_manage_conn
-def get_partner_by_id(partner_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a partner by their ID."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Partners WHERE partner_id = ?", (partner_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_partner_by_email(email: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a partner by their email address."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Partners WHERE email = ?", (email,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_partners(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    """
-    Retrieves all partners, optionally filtered.
-    Initial filter: filters={'name': 'search_term'} (case-insensitive search)
-    """
-    cursor = conn.cursor()
-    sql = "SELECT * FROM Partners"
-    query_params = []
-
-    if filters:
-        conditions = []
-        if 'name' in filters and filters['name']:
-            conditions.append("name LIKE ?")
-            query_params.append(f"%{filters['name']}%")
-        # Add more filters here as needed, e.g., location
-        if 'location' in filters and filters['location']:
-            conditions.append("location LIKE ?")
-            query_params.append(f"%{filters['location']}%")
-        if 'email' in filters and filters['email']: # Exact match for email
-            conditions.append("email = ?")
-            query_params.append(filters['email'])
-
-        if conditions:
-            sql += " WHERE " + " AND ".join(conditions)
-
-    sql += " ORDER BY name"
-    cursor.execute(sql, tuple(query_params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_partner(partner_id: str, partner_data: dict, conn: sqlite3.Connection = None) -> bool:
-    """
-    Updates partner details.
-    partner_data can contain: name, address, phone, location, email, notes.
-    """
-    if not partner_data:
-        return False
-
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat() + "Z"
-    partner_data['updated_at'] = now
-
-    valid_columns = ['name', 'address', 'phone', 'location', 'email', 'notes', 'updated_at']
-    fields_to_update = []
-    params = []
-
-    for col in valid_columns:
-        if col in partner_data:
-            fields_to_update.append(f"{col} = ?")
-            params.append(partner_data[col])
-
-    if not fields_to_update:
-        return False # Nothing valid to update
-
-    sql = f"UPDATE Partners SET {', '.join(fields_to_update)} WHERE partner_id = ?"
-    params.append(partner_id)
-
-    try:
-        cursor.execute(sql, tuple(params))
-        return cursor.rowcount > 0
-    except sqlite3.IntegrityError as e: # Handles email UNIQUE constraint
-        logging.warning(f"Failed to update partner {partner_id} due to integrity constraint (e.g. duplicate email). Error: {e}")
-        return False
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_partner for {partner_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_partner(partner_id: str, conn: sqlite3.Connection = None) -> bool:
-    """
-    Deletes a partner. ON DELETE CASCADE in schema handles linked PartnerContacts and PartnerCategoryLink.
-    """
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM Partners WHERE partner_id = ?", (partner_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_partner for {partner_id}: {e}")
-        return False
-# --- End Partners CRUD ---
-
-
-# --- PartnerContacts CRUD ---
-@_manage_conn
-def add_partner_contact(contact_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    """
-    Adds a new contact for a partner.
-    contact_data keys: partner_id (required), name (required), email, phone, role.
-    """
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat() + "Z"
-    sql = """
-        INSERT INTO PartnerContacts (partner_id, name, email, phone, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        contact_data.get('partner_id'),
-        contact_data.get('name'),
-        contact_data.get('email'),
-        contact_data.get('phone'),
-        contact_data.get('role'),
-        now,
-        now
-    )
-    try:
-        if not contact_data.get('partner_id') or not contact_data.get('name'):
-            logging.error("partner_id and name are required for adding a partner contact.")
-            return None
-        cursor.execute(sql, params)
-        return cursor.lastrowid
-    except sqlite3.IntegrityError as e: # Foreign key constraint on partner_id
-        logging.warning(f"Failed to add partner contact, likely invalid partner_id: {contact_data.get('partner_id')}. Error: {e}")
-        return None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_partner_contact: {e}")
-        return None
-
-@_manage_conn
-def get_partner_contact_by_id(contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a specific partner contact by their contact_id."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    """Retrieves all contacts for a given partner_id."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerContacts WHERE partner_id = ? ORDER BY name", (partner_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_partner_contact(contact_id: int, contact_data: dict, conn: sqlite3.Connection = None) -> bool:
-    """
-    Updates details for a partner contact.
-    contact_data can contain: name, email, phone, role. partner_id is not updatable here.
-    """
-    if not contact_data:
-        return False
-
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat() + "Z"
-    contact_data['updated_at'] = now
-
-    valid_columns = ['name', 'email', 'phone', 'role', 'updated_at']
-    fields_to_update = []
-    params = []
-
-    for col in valid_columns:
-        if col in contact_data:
-            fields_to_update.append(f"{col} = ?")
-            params.append(contact_data[col])
-
-    if not fields_to_update: # Only updated_at might be there, but usually we expect other fields.
-        # If only updated_at is present, it means no actual data field was provided for update.
-        # Depending on requirements, one might allow just touching the record.
-        # For now, let's assume at least one other field should be changing.
-        # However, if only 'updated_at' is in fields_to_update because other valid_columns were not in contact_data,
-        # it's still a valid update to just change the timestamp.
-        # The check `if not contact_data:` already handles empty input.
-        # This check `if not fields_to_update:` is for when contact_data might have irrelevant keys.
-         if 'updated_at' in contact_data and len(contact_data) == 1 : # only updated_at was passed
-            logging.info(f"update_partner_contact called for {contact_id} with no data fields to update other than timestamp.")
-            # decide if this is an error or not, for now, proceed to update timestamp
-         elif not fields_to_update : # No valid fields were found.
-            return False
-
-
-    sql = f"UPDATE PartnerContacts SET {', '.join(fields_to_update)} WHERE contact_id = ?"
-    params.append(contact_id)
-
-    try:
-        cursor.execute(sql, tuple(params))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_partner_contact for {contact_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_partner_contact(contact_id: int, conn: sqlite3.Connection = None) -> bool:
-    """Deletes a specific partner contact by their contact_id."""
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_partner_contact for {contact_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> bool:
-    """
-    Deletes all contacts associated with a given partner_id.
-    This is also handled by ON DELETE CASCADE when a Partner is deleted,
-    but this function provides a more direct way if needed.
-    """
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM PartnerContacts WHERE partner_id = ?", (partner_id,))
-        # cursor.rowcount might be 0 if partner had no contacts, still a success.
-        # To be more precise, one might return number of rows deleted.
-        # For a boolean success, this is fine.
-        return True # Assuming success if statement executes without error
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_contacts_for_partner for partner {partner_id}: {e}")
-        return False
-# --- End PartnerContacts CRUD ---
-
-
-# --- PartnerCategoryLink CRUD ---
-@_manage_conn
-def link_partner_to_category(partner_id: str, category_id: int, conn: sqlite3.Connection = None) -> bool:
-    """Links a partner to a category."""
-    cursor = conn.cursor()
-    sql = "INSERT INTO PartnerCategoryLink (partner_id, category_id) VALUES (?, ?)"
-    try:
-        cursor.execute(sql, (partner_id, category_id))
-        return cursor.rowcount > 0
-    except sqlite3.IntegrityError: # Primary key violation (already linked) or Foreign key violation
-        logging.warning(f"Failed to link partner {partner_id} to category {category_id}. Already linked or invalid ID.")
-        # Check if already linked, if so, consider it a success for idempotency
-        cursor.execute("SELECT 1 FROM PartnerCategoryLink WHERE partner_id = ? AND category_id = ?", (partner_id, category_id))
-        return cursor.fetchone() is not None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in link_partner_to_category: {e}")
-        return False
-
-@_manage_conn
-def unlink_partner_from_category(partner_id: str, category_id: int, conn: sqlite3.Connection = None) -> bool:
-    """Unlinks a partner from a category."""
-    cursor = conn.cursor()
-    sql = "DELETE FROM PartnerCategoryLink WHERE partner_id = ? AND category_id = ?"
-    try:
-        cursor.execute(sql, (partner_id, category_id))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in unlink_partner_from_category: {e}")
-        return False
-
-@_manage_conn
-def get_categories_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    """
-    Retrieves all categories for a given partner.
-    Joins with PartnerCategories to get category names and descriptions.
-    """
-    cursor = conn.cursor()
-    sql = """
-        SELECT pc.category_id, pc.name, pc.description
-        FROM PartnerCategories pc
-        JOIN PartnerCategoryLink pcl ON pc.category_id = pcl.category_id
-        WHERE pcl.partner_id = ?
-        ORDER BY pc.name
-    """
-    cursor.execute(sql, (partner_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_partners_in_category(category_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    """
-    Retrieves all partners in a given category.
-    Joins with Partners to get partner details.
-    """
-    cursor = conn.cursor()
-    # Selecting all columns from Partners. Adjust if only specific details are needed.
-    sql = """
-        SELECT p.*
-        FROM Partners p
-        JOIN PartnerCategoryLink pcl ON p.partner_id = pcl.partner_id
-        WHERE pcl.category_id = ?
-        ORDER BY p.name
-    """
-    cursor.execute(sql, (category_id,))
-    return [dict(row) for row in cursor.fetchall()]
-# --- End PartnerCategoryLink CRUD ---
-
-# --- UserGoogleAccounts CRUD ---
-@_manage_conn
-def add_user_google_account(data: dict, conn: sqlite3.Connection = None) -> str | None:
-    """Adds a new UserGoogleAccount record."""
-    cursor = conn.cursor()
-    new_id = str(uuid.uuid4())
-    now_utc_iso = datetime.utcnow().isoformat() + "Z"
-    sql = """
-        INSERT INTO UserGoogleAccounts (
-            user_google_account_id, user_id, google_account_id, email,
-            refresh_token, access_token, token_expiry, scopes,
-            last_sync_initiated_at, last_sync_successful_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        new_id, data['user_id'], data['google_account_id'], data['email'],
-        data.get('refresh_token'), data.get('access_token'), data.get('token_expiry'),
-        data.get('scopes'), data.get('last_sync_initiated_at'),
-        data.get('last_sync_successful_at'), now_utc_iso, now_utc_iso
-    )
-    try:
-        cursor.execute(sql, params)
-        return new_id
-    except sqlite3.IntegrityError: # Handles UNIQUE constraint on google_account_id or FK violation
-        logging.error(f"Integrity error adding UserGoogleAccount for user_id {data.get('user_id')} and google_account_id {data.get('google_account_id')}")
-        return None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_user_google_account: {e}")
-        return None
-
-@_manage_conn
-def get_user_google_account_by_user_id(user_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a UserGoogleAccount by user_id. Returns the first one if multiple (should not happen with proper logic)."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM UserGoogleAccounts WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_user_google_account_by_google_account_id(google_account_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a UserGoogleAccount by google_account_id."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM UserGoogleAccounts WHERE google_account_id = ?", (google_account_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_user_google_account_by_id(user_google_account_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a UserGoogleAccount by its primary key."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM UserGoogleAccounts WHERE user_google_account_id = ?", (user_google_account_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def update_user_google_account(user_google_account_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    """Updates specified fields for a UserGoogleAccount."""
-    if not data: return False
-    cursor = conn.cursor()
-    now_utc_iso = datetime.utcnow().isoformat() + "Z"
-
-    valid_fields = ['refresh_token', 'access_token', 'token_expiry', 'scopes', 'last_sync_initiated_at', 'last_sync_successful_at', 'email']
-    fields_to_update = {k: v for k, v in data.items() if k in valid_fields}
-
-    if not fields_to_update: return False # No valid fields to update
-
-    fields_to_update['updated_at'] = now_utc_iso
-
-    set_clauses = [f"{key} = ?" for key in fields_to_update.keys()]
-    params = list(fields_to_update.values())
-    params.append(user_google_account_id)
-
-    sql = f"UPDATE UserGoogleAccounts SET {', '.join(set_clauses)} WHERE user_google_account_id = ?"
-    try:
-        cursor.execute(sql, params)
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_user_google_account for {user_google_account_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_user_google_account(user_google_account_id: str, conn: sqlite3.Connection = None) -> bool:
-    """Deletes a UserGoogleAccount by its primary key."""
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM UserGoogleAccounts WHERE user_google_account_id = ?", (user_google_account_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_user_google_account for {user_google_account_id}: {e}")
-        return False
-
-@_manage_conn
-def get_all_user_google_accounts(conn: sqlite3.Connection = None) -> list[dict]:
-    """Fetches all UserGoogleAccount records."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM UserGoogleAccounts ORDER BY email")
-    return [dict(row) for row in cursor.fetchall()]
-# --- End UserGoogleAccounts CRUD ---
-
-# --- ContactSyncLog CRUD ---
-@_manage_conn
-def add_contact_sync_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    """Adds a new ContactSyncLog record."""
-    cursor = conn.cursor()
-    now_utc_iso = datetime.utcnow().isoformat() + "Z"
-    sql = """
-        INSERT INTO ContactSyncLog (
-            user_google_account_id, local_contact_id, local_contact_type, google_contact_id,
-            platform_etag, google_etag, last_sync_timestamp, sync_status, sync_direction, error_message,
-            created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        data['user_google_account_id'], data['local_contact_id'], data['local_contact_type'],
-        data['google_contact_id'], data.get('platform_etag'), data.get('google_etag'),
-        data.get('last_sync_timestamp', now_utc_iso), data['sync_status'], data.get('sync_direction'),
-        data.get('error_message'), now_utc_iso, now_utc_iso
-    )
-    try:
-        cursor.execute(sql, params)
-        return cursor.lastrowid
-    except sqlite3.IntegrityError: # Handles UNIQUE constraints or FK violation
-        logging.error(f"Integrity error adding ContactSyncLog for user_google_account_id {data.get('user_google_account_id')}, local_contact_id {data.get('local_contact_id')}, google_contact_id {data.get('google_contact_id')}")
-        return None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_contact_sync_log: {e}")
-        return None
-
-@_manage_conn
-def get_contact_sync_log_by_local_contact(user_google_account_id: str, local_contact_id: str, local_contact_type: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a ContactSyncLog by local contact identifiers."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? AND local_contact_id = ? AND local_contact_type = ?"
-    cursor.execute(sql, (user_google_account_id, local_contact_id, local_contact_type))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_contact_sync_log_by_google_contact_id(user_google_account_id: str, google_contact_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a ContactSyncLog by Google Contact ID."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? AND google_contact_id = ?"
-    cursor.execute(sql, (user_google_account_id, google_contact_id))
-
-# --- PartnerDocuments CRUD ---
-@_manage_conn
-def add_partner_document(data: dict, conn: sqlite3.Connection = None) -> str | None:
-    """
-    Adds a new document for a partner.
-    data keys: partner_id, document_name, file_path_relative (all required),
-               document_type, description (optional).
-    Generates a new UUID for document_id.
-    """
-    cursor = conn.cursor()
-    new_document_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat() + "Z"
-    sql = """
-        INSERT INTO PartnerDocuments (document_id, partner_id, document_name, file_path_relative,
-                                      document_type, description, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """
-    params = (
-        new_document_id,
-        data.get('partner_id'),
-        data.get('document_name'),
-        data.get('file_path_relative'),
-        data.get('document_type'),
-        data.get('description'),
-        now,
-        now
-    )
-    try:
-        if not all(data.get(k) for k in ['partner_id', 'document_name', 'file_path_relative']):
-            logging.error("partner_id, document_name, and file_path_relative are required for adding a partner document.")
-            return None
-        cursor.execute(sql, params)
-        return new_document_id
-    except sqlite3.IntegrityError as e: # Handles FK constraint on partner_id
-        logging.warning(f"Failed to add partner document, possibly invalid partner_id: {data.get('partner_id')}. Error: {e}")
-        return None
-    except sqlite3.Error as e:
-        logging.error(f"Database error in add_partner_document: {e}")
-        return None
-
-@_manage_conn
-def get_documents_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    """Retrieves all documents for a given partner_id, ordered by creation date."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM PartnerDocuments WHERE partner_id = ? ORDER BY created_at DESC"
-    cursor.execute(sql, (partner_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_partner_document_by_id(document_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    """Retrieves a specific partner document by its document_id."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM PartnerDocuments WHERE document_id = ?"
-    cursor.execute(sql, (document_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_contact_sync_log_by_id(sync_log_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    """Fetches a ContactSyncLog by its primary key."""
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM ContactSyncLog WHERE sync_log_id = ?", (sync_log_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def update_contact_sync_log(sync_log_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    """Updates specified fields for a ContactSyncLog."""
-    if not data: return False
-    cursor = conn.cursor()
-    now_utc_iso = datetime.utcnow().isoformat() + "Z"
-
-    valid_fields = [
-        'local_contact_id', 'local_contact_type', 'google_contact_id',
-        'platform_etag', 'google_etag', 'last_sync_timestamp',
-        'sync_status', 'sync_direction', 'error_message'
-    ]
-    fields_to_update = {k: v for k, v in data.items() if k in valid_fields}
-
-    if not fields_to_update: return False
-
-    fields_to_update['updated_at'] = now_utc_iso
-    if 'last_sync_timestamp' not in fields_to_update: # Also update last_sync_timestamp if not explicitly set
-        fields_to_update['last_sync_timestamp'] = now_utc_iso
-
-    set_clauses = [f"{key} = ?" for key in fields_to_update.keys()]
-    params = list(fields_to_update.values())
-    params.append(sync_log_id)
-
-    sql = f"UPDATE ContactSyncLog SET {', '.join(set_clauses)} WHERE sync_log_id = ?"
-    try:
-        cursor.execute(sql, params)
-        return cursor.rowcount > 0
-    except sqlite3.IntegrityError: # Handles UNIQUE constraints
-        logging.error(f"Integrity error updating ContactSyncLog for sync_log_id {sync_log_id}")
-        return False
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_contact_sync_log for {sync_log_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_contact_sync_log(sync_log_id: int, conn: sqlite3.Connection = None) -> bool:
-    """Deletes a ContactSyncLog by its primary key."""
-    cursor = conn.cursor()
-    try:
-        cursor.execute("DELETE FROM ContactSyncLog WHERE sync_log_id = ?", (sync_log_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_contact_sync_log for {sync_log_id}: {e}")
-        return False
-
-@_manage_conn
-def get_contacts_pending_sync(user_google_account_id: str, status_filter: str = 'pending_google_update', limit: int = 100, conn: sqlite3.Connection = None) -> list[dict]:
-    """Fetches ContactSyncLog records pending sync for a user."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? AND sync_status = ? ORDER BY last_sync_timestamp ASC LIMIT ?"
-    cursor.execute(sql, (user_google_account_id, status_filter, limit))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_sync_logs_for_account(user_google_account_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    """Fetches all ContactSyncLog records for a given UserGoogleAccount."""
-    cursor = conn.cursor()
-    sql = "SELECT * FROM ContactSyncLog WHERE user_google_account_id = ? ORDER BY last_sync_timestamp DESC"
-    cursor.execute(sql, (user_google_account_id,))
-    return [dict(row) for row in cursor.fetchall()]
-# --- End ContactSyncLog CRUD ---
-
-def update_partner_document(document_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    """
-    Updates a partner document.
-    data can contain: document_name, document_type, description.
-    """
-    if not data or not any(k in data for k in ['document_name', 'document_type', 'description']):
-        logging.info("No updatable fields provided for update_partner_document.")
-        return False # Nothing to update or only irrelevant fields
-
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat() + "Z"
-
-    update_fields = {}
-    if 'document_name' in data:
-        update_fields['document_name'] = data['document_name']
-    if 'document_type' in data:
-        update_fields['document_type'] = data['document_type']
-    if 'description' in data:
-        update_fields['description'] = data['description']
-
-    if not update_fields: # Should be caught by the initial check, but as a safeguard
-        return False
-
-    update_fields['updated_at'] = now
-
-    set_clauses = [f"{key} = ?" for key in update_fields.keys()]
-    params = list(update_fields.values())
-    params.append(document_id)
-
-    sql = f"UPDATE PartnerDocuments SET {', '.join(set_clauses)} WHERE document_id = ?"
-    try:
-        cursor.execute(sql, tuple(params))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in update_partner_document for {document_id}: {e}")
-        return False
-
-@_manage_conn
-def delete_partner_document(document_id: str, conn: sqlite3.Connection = None) -> bool:
-    """Deletes a partner document by its document_id."""
-    cursor = conn.cursor()
-    sql = "DELETE FROM PartnerDocuments WHERE document_id = ?"
-    try:
-        cursor.execute(sql, (document_id,))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logging.error(f"Database error in delete_partner_document for {document_id}: {e}")
-        return False
-# --- End PartnerDocuments CRUD ---
-
-@_manage_conn
-def add_activity_log(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    """
-    Logs an activity in the ActivityLog table.
-    STUB FUNCTION - Full implementation pending.
-    """
-    # Example: cursor = conn.cursor()
-    # sql = "INSERT INTO ActivityLog (user_id, action, target_type, target_id, details_json, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
-    # now = datetime.utcnow().isoformat() + "Z"
-    # params = (data.get('user_id'), data.get('action'), data.get('target_type'), data.get('target_id'), json.dumps(data.get('details')), now)
-    # try:
-    #     cursor.execute(sql, params)
-    #     return cursor.lastrowid
-    # except sqlite3.Error as e:
-    #     logging.error(f"Database error in add_activity_log: {e}")
-    #     return None
-    logging.warning(f"Called stub function add_activity_log with data: {data}. Full implementation is missing.")
-    return None
-
-# The __all__ list needs to be fully comprehensive.
-
-__all__ = [
-    "add_activity_log", "add_city", "add_client", "add_client_document", "add_client_document_note",
-    "add_client_note", "add_company", "add_company_personnel", "add_contact", "add_contact_list",
-    "add_contact_to_list", "add_country", "add_cover_page", "add_cover_page_template", "add_default_template_if_not_exists",
-    "add_email_reminder", "add_freight_forwarder", "add_important_date", "add_kpi", "add_or_update_product_dimension",
-    "add_product", "add_product_equivalence", "add_product_to_client_or_project", "add_project", "add_sav_ticket",
-    "add_scheduled_email", "add_smtp_config", "add_task", "add_team_member", "add_template",
-    "add_template_category", "add_transporter", "add_user", "assign_forwarder_to_client", "assign_personnel_to_client",
-    "assign_transporter_to_client", "delete_client", "delete_client_document", "delete_client_document_note", "delete_company",
-    "delete_company_personnel", "delete_contact", "delete_contact_list", "delete_cover_page", "delete_cover_page_template",
-    "delete_email_reminder", "delete_freight_forwarder", "delete_important_date", "delete_kpi", "delete_product",
-    "delete_product_dimension", "delete_project", "delete_sav_ticket", "delete_scheduled_email", "delete_smtp_config",
-    "delete_task", "delete_team_member", "delete_template", "delete_template_and_get_file_info", "delete_template_category",
-    "delete_transporter", "delete_user", "get_active_clients_count", "get_active_clients_per_country", "get_active_projects_count", "get_activity_logs",
-    "get_all_cities", "get_all_clients", "get_all_clients_with_details", "get_all_companies", "get_all_contact_lists",
-    "get_all_contacts", "get_all_countries", "get_all_cover_page_templates", "get_all_file_based_templates", "get_all_freight_forwarders",
-    "get_all_important_dates", "get_all_product_equivalencies", "get_all_products", "get_all_products_for_selection", "get_all_products_for_selection_filtered",
-    "get_all_projects", "get_all_smtp_configs", "get_all_status_settings", "get_all_tasks", "get_all_team_members",
-    "get_all_templates", "get_all_transporters", "get_assigned_forwarders_for_client", "get_assigned_personnel_for_client", "get_assigned_transporters_for_client",
-    "get_city_by_id", "get_city_by_name_and_country_id", "get_or_add_city", "get_client_by_id", "get_client_counts_by_country", "get_client_document_note_by_id",
-    "get_client_document_notes", "get_client_notes", "get_client_project_product_by_id", "get_client_segmentation_by_category", "get_client_segmentation_by_city",
-    "get_client_segmentation_by_status", "get_clients_by_archival_status", "get_clients_for_contact", "get_company_by_id", "get_contact_by_email",
-    "get_contact_by_id", "get_contact_list_by_id", "get_contacts_for_client", "get_contacts_for_client_count", "get_contacts_in_list",
-    "get_country_by_id", "get_country_by_name", "get_or_add_country", "get_cover_page_by_id", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
-    "get_cover_pages_for_client", "get_cover_pages_for_project", "get_cover_pages_for_user", "get_default_company", "get_default_smtp_config",
-    "get_distinct_languages_for_template_type", "get_distinct_template_languages", "get_distinct_template_types", "get_document_by_id", "get_documents_for_client",
-    "get_documents_for_project", "get_equivalent_products", "get_filtered_templates", "get_freight_forwarder_by_id", "get_important_date_by_id",
-    "get_kpi_by_id", "get_kpis_for_project", "get_pending_reminders", "get_pending_scheduled_emails", "get_personnel_for_company",
-    "get_product_by_id", "get_product_by_name", "get_product_dimension", "get_products", "get_products_by_name_pattern",
-    "get_products_for_client_or_project", "get_project_by_id", "get_projects_by_client_id", "get_sav_ticket_by_id", "get_sav_tickets_for_client",
-    "get_scheduled_email_by_id", "get_setting", "get_smtp_config_by_id", "get_specific_client_contact_link_details", "get_status_setting_by_id",
-    "get_status_setting_by_name", "get_task_by_id", "get_tasks_by_assignee_id", "get_tasks_by_project_id", "get_team_member_by_id",
-    "get_template_by_id", "get_template_by_type_lang_default", "get_template_category_by_id", "get_template_category_by_name", "get_template_category_details",
-    "get_template_details_for_preview", "get_template_path_info", "get_templates_by_category_id", "get_templates_by_type", "get_total_products_count",
-    "get_total_projects_count", "get_transporter_by_id", "get_user_by_email", "get_user_by_id", "get_user_by_username",
-    "link_contact_to_client", "remove_contact_from_list", "remove_product_equivalence", "remove_product_from_client_or_project", "set_default_company",
-    "set_default_smtp_config", "set_default_template_by_id", "set_setting", "unassign_forwarder_from_client", "unassign_personnel_from_client",
-    "unassign_transporter_from_client", "unlink_contact_from_client", "update_client", "update_client_contact_link", "update_client_document",
-    "update_client_document_note", "update_company", "update_company_personnel", "update_contact", "update_contact_list",
-    "update_cover_page", "update_cover_page_template", "update_freight_forwarder", "update_important_date", "update_kpi",
-    "update_product", "update_product_price", "update_project", "update_reminder_status", "update_sav_ticket",
-    "update_scheduled_email_status", "update_smtp_config", "update_task", "update_team_member", "update_template",
-    "update_template_category", "update_transporter", "update_user", "verify_user_password",
-    "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user", "verify_user_password",
-    "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company", "set_default_company", "get_default_company",
-    "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
-    "get_setting", "set_setting",
-    "add_template_category",
-    "add_template", "add_default_template_if_not_exists",
-    "add_cover_page_template", "get_cover_page_template_by_name",
-    "get_country_by_name", "get_country_by_id", "get_city_by_name_and_country_id", "get_city_by_id",
-    "get_status_setting_by_name", "get_status_setting_by_id", # Keep existing
-    "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client", "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country", "get_client_segmentation_by_city", "get_client_segmentation_by_status", "get_client_segmentation_by_category", "get_clients_by_archival_status", # Client related
-    "add_client_note", "get_client_notes", # ClientNotes
-    "get_product_by_id", "add_product", "get_product_by_name", "get_all_products", "update_product", "delete_product", "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection", "get_all_products_for_selection_filtered", "get_total_products_count", # Products
-    "get_product_dimension", "delete_product_dimension", "add_or_update_product_dimension", # ProductDimensions (add_or_update combines add and update)
-    "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence", # ProductEquivalencies
-    "get_products_for_client_or_project", "add_product_to_client_or_project", "update_client_project_product", "remove_product_from_client_or_project", "get_client_project_product_by_id", # ClientProjectProducts
-    "get_project_by_id", "add_project", "get_projects_by_client_id", "get_all_projects", "update_project", "delete_project", "get_total_projects_count", "get_active_projects_count", # Projects
-    "get_contacts_for_client", "add_contact", "get_contact_by_id", "get_contact_by_email", "get_all_contacts", "update_contact", "delete_contact", # Contacts
-    "link_contact_to_client", "unlink_contact_from_client", "get_contacts_for_client_count", "get_clients_for_contact", "get_specific_client_contact_link_details", "update_client_contact_link", # ClientContacts
-    "get_client_document_notes", "add_client_document_note", "update_client_document_note", "delete_client_document_note", "get_client_document_note_by_id", # ClientDocumentNotes
-    "get_template_category_by_id", "get_template_category_by_name", "get_all_template_categories", "update_template_category", "delete_template_category", "get_template_category_details", # TemplateCategories (add is already there)
-    "get_template_by_id", "get_templates_by_type", "update_template", "delete_template", "get_distinct_template_languages", "get_distinct_template_types", "get_filtered_templates", "get_template_details_for_preview", "get_template_path_info", "delete_template_and_get_file_info", "set_default_template_by_id", "get_template_by_type_lang_default", "get_all_templates", "get_distinct_languages_for_template_type", "get_all_file_based_templates", "get_templates_by_category_id", # Templates (add & add_default already there)
-    "get_cover_page_template_by_id", "get_all_cover_page_templates", "update_cover_page_template", "delete_cover_page_template", # CoverPageTemplates (add & get_by_name already there)
-    "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project", "update_cover_page", "delete_cover_page", "get_cover_pages_for_user", # CoverPages
-    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_all_tasks", "get_tasks_by_assignee_id", # Tasks
-    "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member", # TeamMembers
-    "add_sav_ticket", "get_sav_ticket_by_id", "get_sav_tickets_for_client", "update_sav_ticket", "delete_sav_ticket", # SAVTickets
-    "add_important_date", "get_important_date_by_id", "get_all_important_dates", "update_important_date", "delete_important_date", # ImportantDates
-    "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter", # Transporters
-    "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders", "update_freight_forwarder", "delete_freight_forwarder", # FreightForwarders
-    "assign_personnel_to_client", "get_assigned_personnel_for_client", "unassign_personnel_from_client", # Client_AssignedPersonnel
-    "assign_transporter_to_client", "get_assigned_transporters_for_client", "unassign_transporter_from_client", # Client_Transporters
-    "assign_forwarder_to_client", "get_assigned_forwarders_for_client", "unassign_forwarder_from_client", # Client_FreightForwarders
-    "add_kpi", "get_kpi_by_id", "get_kpis_for_project", "update_kpi", "delete_kpi", # KPIs
-    "add_smtp_config", "get_smtp_config_by_id", "get_default_smtp_config", "get_all_smtp_configs", "update_smtp_config", "delete_smtp_config", "set_default_smtp_config", # SmtpConfigs
-    "add_scheduled_email", "get_scheduled_email_by_id", "get_pending_scheduled_emails", "update_scheduled_email_status", "delete_scheduled_email", # ScheduledEmails
-    "add_email_reminder", "get_pending_reminders", "update_reminder_status", "delete_email_reminder", # EmailReminders
-    "add_contact_list", "get_contact_list_by_id", "get_all_contact_lists", "update_contact_list", "delete_contact_list", # ContactLists
-    "add_contact_to_list", "remove_contact_from_list", "get_contacts_in_list", # ContactListMembers
-    "add_activity_log", "get_activity_logs", # ActivityLog
-    "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project", "update_client_document", "delete_client_document", # ClientDocuments
-    "add_country", "get_all_countries", "add_city", "get_all_cities", # Countries, Cities (get_by_id/name already listed)
-    "get_all_status_settings", # StatusSettings (get_by_id/name already listed)
-
-    # Partner Categories
-    "add_partner_category", "get_partner_category_by_id", "get_partner_category_by_name",
-    "get_all_partner_categories", "update_partner_category", "delete_partner_category",
-
+# SmtpConfigs and ScheduledEmails related stubs (assuming these cruds files exist or will be made)
+from .cruds.smtp_configs_crud import (
+    add_smtp_config, get_smtp_config_by_id, get_default_smtp_config, get_all_smtp_configs,
+    update_smtp_config, delete_smtp_config, set_default_smtp_config
+)
+from .cruds.scheduled_emails_crud import (
+    add_scheduled_email, get_scheduled_email_by_id, get_pending_scheduled_emails,
+    update_scheduled_email_status, delete_scheduled_email,
+    add_email_reminder, get_pending_reminders, update_reminder_status, delete_email_reminder
+)
+
+
+# Define __all__ based on imported and remaining stub functions
+# Start with a list of all imported function names, then add stubs.
+imported_function_names = [
+    # Users
+    'add_user', 'get_user_by_id', 'get_user_by_username', 'get_user_by_email',
+    'update_user', 'delete_user', 'verify_user_password',
+    # Companies
+    'add_company', 'get_company_by_id', 'get_all_companies', 'update_company',
+    'delete_company', 'set_default_company', 'get_default_company',
+    # CompanyPersonnel
+    'add_company_personnel', 'get_personnel_for_company',
+    'update_company_personnel', 'delete_company_personnel',
+    # ApplicationSettings
+    'get_setting', 'set_setting',
+    # TemplateCategories
+    'add_template_category', 'get_template_category_by_id', 'get_template_category_by_name',
+    'get_all_template_categories', 'update_template_category', 'delete_template_category',
+    'get_template_category_details',
+    # Templates
+    'add_template', 'add_default_template_if_not_exists', 'get_template_by_id',
+    'get_templates_by_type', 'get_templates_by_category_id', 'update_template', 'delete_template',
+    'get_distinct_template_languages', 'get_distinct_template_types',
+    'get_filtered_templates', 'get_template_details_for_preview',
+    'get_template_path_info', 'delete_template_and_get_file_info',
+    'set_default_template_by_id', 'get_template_by_type_lang_default',
+    'get_all_templates', 'get_distinct_languages_for_template_type',
+    'get_all_file_based_templates',
+    # CoverPageTemplates
+    'add_cover_page_template', 'get_cover_page_template_by_id',
+    'get_cover_page_template_by_name', 'get_all_cover_page_templates',
+    'update_cover_page_template', 'delete_cover_page_template',
+    # Locations
+    'get_country_by_name', 'get_country_by_id', 'get_or_add_country', 'get_all_countries',
+    'get_city_by_name_and_country_id', 'get_city_by_id', 'get_or_add_city', 'get_all_cities',
+    # StatusSettings
+    'get_status_setting_by_name', 'get_status_setting_by_id', 'get_all_status_settings',
+    # Clients & ClientNotes
+    'add_client', 'get_client_by_id', 'get_all_clients', 'update_client', 'delete_client',
+    'get_all_clients_with_details', 'get_active_clients_count',
+    'get_client_counts_by_country', 'get_client_segmentation_by_city',
+    'get_client_segmentation_by_status', 'get_client_segmentation_by_category',
+    'get_clients_by_archival_status', 'add_client_note', 'get_client_notes',
+    # Products & related
+    'add_product', 'get_product_by_id', 'get_product_by_name', 'get_all_products',
+    'update_product', 'delete_product', 'get_products', 'update_product_price',
+    'get_products_by_name_pattern', 'get_all_products_for_selection',
+    'get_all_products_for_selection_filtered', 'get_total_products_count',
+    'add_or_update_product_dimension', 'get_product_dimension', 'delete_product_dimension',
+    'add_product_equivalence', 'get_equivalent_products', 'get_all_product_equivalencies',
+    'remove_product_equivalence',
+    # ClientProjectProducts
+    'add_product_to_client_or_project', 'get_products_for_client_or_project',
+    'update_client_project_product', 'remove_product_from_client_or_project',
+    'get_client_project_product_by_id',
+    # Projects
+    'add_project', 'get_project_by_id', 'get_projects_by_client_id', 'get_all_projects',
+    'update_project', 'delete_project', 'get_total_projects_count', 'get_active_projects_count',
+    # Contacts & ClientContacts
+    'add_contact', 'get_contact_by_id', 'get_contact_by_email', 'get_all_contacts',
+    'update_contact', 'delete_contact', 'link_contact_to_client', 'unlink_contact_from_client',
+    'get_contacts_for_client', 'get_contacts_for_client_count', 'get_clients_for_contact',
+    'get_specific_client_contact_link_details', 'update_client_contact_link',
+    # ClientDocuments & ClientDocumentNotes
+    'add_client_document', 'get_document_by_id', 'get_documents_for_client',
+    'get_documents_for_project', 'update_client_document', 'delete_client_document',
+    'add_client_document_note', 'get_client_document_note_by_id',
+    'get_client_document_notes', 'update_client_document_note', 'delete_client_document_note',
+    # CoverPages
+    'add_cover_page', 'get_cover_page_by_id', 'get_cover_pages_for_client',
+    'get_cover_pages_for_project', 'update_cover_page', 'delete_cover_page',
+    'get_cover_pages_for_user',
+    # Tasks
+    'add_task', 'get_task_by_id', 'get_tasks_by_project_id', 'update_task',
+    'delete_task', 'get_all_tasks', 'get_tasks_by_assignee_id',
+    # TeamMembers
+    'add_team_member', 'get_team_member_by_id', 'get_all_team_members',
+    'update_team_member', 'delete_team_member',
+    # SAVTickets
+    'add_sav_ticket', 'get_sav_ticket_by_id', 'get_sav_tickets_for_client',
+    'update_sav_ticket', 'delete_sav_ticket',
+    # ImportantDates
+    'add_important_date', 'get_important_date_by_id', 'get_all_important_dates',
+    'update_important_date', 'delete_important_date',
+    # Transporters
+    'add_transporter', 'get_transporter_by_id', 'get_all_transporters',
+    'update_transporter', 'delete_transporter',
+    # FreightForwarders
+    'add_freight_forwarder', 'get_freight_forwarder_by_id', 'get_all_freight_forwarders',
+    'update_freight_forwarder', 'delete_freight_forwarder',
+    # Client_AssignedPersonnel
+    'assign_personnel_to_client', 'get_assigned_personnel_for_client',
+    'unassign_personnel_from_client',
+    # Client_Transporters
+    'assign_transporter_to_client', 'get_assigned_transporters_for_client',
+    'unassign_transporter_from_client',
+    # Client_FreightForwarders
+    'assign_forwarder_to_client', 'get_assigned_forwarders_for_client',
+    'unassign_forwarder_from_client',
+    # KPIs
+    'add_kpi', 'get_kpi_by_id', 'get_kpis_for_project', 'update_kpi', 'delete_kpi',
+    # GoogleSync
+    'add_user_google_account', 'get_user_google_account_by_user_id',
+    'get_user_google_account_by_google_account_id', 'get_user_google_account_by_id',
+    'update_user_google_account', 'delete_user_google_account', 'get_all_user_google_accounts',
+    'add_contact_sync_log', 'get_contact_sync_log_by_local_contact',
+    'get_contact_sync_log_by_google_contact_id', 'get_contact_sync_log_by_id',
+    'update_contact_sync_log', 'delete_contact_sync_log',
+    'get_contacts_pending_sync', 'get_all_sync_logs_for_account',
     # Partners
-    "add_partner", "get_partner_by_id", "get_partner_by_email", "get_all_partners",
-    "update_partner", "delete_partner",
-
-    # Partner Contacts
-    "add_partner_contact", "get_partner_contact_by_id", "get_contacts_for_partner",
-    "update_partner_contact", "delete_partner_contact", "delete_contacts_for_partner",
-
-    # PartnerCategoryLink
-    "link_partner_to_category", "unlink_partner_from_category",
-    "get_categories_for_partner", "get_partners_in_category",
-
-    # UserGoogleAccounts
-    "add_user_google_account", "get_user_google_account_by_user_id", "get_user_google_account_by_google_account_id",
-    "get_user_google_account_by_id", "update_user_google_account", "delete_user_google_account", "get_all_user_google_accounts",
-
-    # ContactSyncLog
-    "add_contact_sync_log", "get_contact_sync_log_by_local_contact", "get_contact_sync_log_by_google_contact_id",
-    "get_contact_sync_log_by_id", "update_contact_sync_log", "delete_contact_sync_log",
-    "get_contacts_pending_sync", "get_all_sync_logs_for_account",
-
-    # Partner Documents
-    "add_partner_document", "get_documents_for_partner", "get_partner_document_by_id",
-    "update_partner_document", "delete_partner_document",
-
-
-    # _get_or_create_category_id is internal to schema.py, not exposed via crud
-    # _populate_default_cover_page_templates is internal to schema.py
+    'add_partner_category', 'get_partner_category_by_id', 'get_partner_category_by_name',
+    'get_all_partner_categories', 'update_partner_category', 'delete_partner_category',
+    'add_partner', 'get_partner_by_id', 'get_all_partners', 'update_partner', 'delete_partner',
+    'get_partners_by_category_id', 'get_partner_by_email',
+    'add_partner_contact', 'get_partner_contact_by_id', 'get_contacts_for_partner',
+    'update_partner_contact', 'delete_partner_contact', 'delete_contacts_for_partner',
+    'link_partner_to_category', 'unlink_partner_from_category', 'get_categories_for_partner',
+    'add_partner_document', 'get_documents_for_partner', 'get_partner_document_by_id',
+    'update_partner_document', 'delete_partner_document',
+    # ActivityLog
+    'add_activity_log', 'get_activity_logs',
+    # SmtpConfigs
+    'add_smtp_config', 'get_smtp_config_by_id', 'get_default_smtp_config', 'get_all_smtp_configs',
+    'update_smtp_config', 'delete_smtp_config', 'set_default_smtp_config',
+    # ScheduledEmails & EmailReminders
+    'add_scheduled_email', 'get_scheduled_email_by_id', 'get_pending_scheduled_emails',
+    'update_scheduled_email_status', 'delete_scheduled_email',
+    'add_email_reminder', 'get_pending_reminders', 'update_reminder_status', 'delete_email_reminder',
 ]
-# Ensure all previously added functions are here.
 
-# --- Clients (Continued) ---
-@_manage_conn
-def update_client(client_id: str, client_data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not client_data: return False
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"; client_data['updated_at'] = now
-    valid_cols = ['client_name', 'company_name', 'primary_need_description', 'project_identifier', 'country_id', 'city_id', 'default_base_folder_path', 'status_id', 'selected_languages', 'price', 'notes', 'category', 'updated_at', 'created_by_user_id']
-    data_to_set = {k:v for k,v in client_data.items() if k in valid_cols}
-    if not data_to_set: return False
-    set_clauses = [f"{key} = ?" for key in data_to_set.keys()]
-    params = list(data_to_set.values()); params.append(client_id)
-    sql = f"UPDATE Clients SET {', '.join(set_clauses)} WHERE client_id = ?"
-    cursor.execute(sql, params)
-    return cursor.rowcount > 0
+stub_function_names = [
+    'add_contact_list', 'add_contact_to_list', 'delete_contact_list',
+    'get_all_contact_lists', 'get_contact_list_by_id', 'get_contacts_in_list',
+    'remove_contact_from_list', 'update_contact_list',
+]
 
-@_manage_conn
-def delete_client(client_id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_all_clients_with_details(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    query = """
-    SELECT c.client_id, c.client_name, c.company_name, c.primary_need_description, c.project_identifier, c.default_base_folder_path, c.selected_languages, c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-           co.country_name AS country, ci.city_name AS city, s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name
-    FROM clients c
-    LEFT JOIN countries co ON c.country_id = co.country_id LEFT JOIN cities ci ON c.city_id = ci.city_id
-    LEFT JOIN status_settings s ON c.status_id = s.status_id AND s.status_type = 'Client'
-    ORDER BY c.client_name;
-    """
-    cursor.execute(query)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_active_clients_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor()
-    sql = "SELECT COUNT(c.client_id) as active_count FROM Clients c LEFT JOIN StatusSettings ss ON c.status_id = ss.status_id WHERE ss.is_archival_status IS NOT TRUE OR c.status_id IS NULL"
-    cursor.execute(sql); row = cursor.fetchone()
-    return row['active_count'] if row else 0
-
-@_manage_conn
-def get_client_counts_by_country(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT co.country_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN Countries co ON cl.country_id = co.country_id GROUP BY co.country_name HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_city(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT co.country_name, ci.city_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN Cities ci ON cl.city_id = ci.city_id JOIN Countries co ON ci.country_id = co.country_id GROUP BY co.country_name, ci.city_name HAVING COUNT(cl.client_id) > 0 ORDER BY co.country_name, client_count DESC, ci.city_name"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_status(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT ss.status_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN StatusSettings ss ON cl.status_id = ss.status_id GROUP BY ss.status_name HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC, ss.status_name"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_category(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT cl.category, COUNT(cl.client_id) as client_count FROM Clients cl WHERE cl.category IS NOT NULL AND cl.category != '' GROUP BY cl.category HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC, cl.category"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); params = []
-    cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
-    archival_ids = [row['status_id'] for row in cursor.fetchall()]
-    base_query = "SELECT c.*, co.country_name AS country, ci.city_name AS city, s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name FROM Clients c LEFT JOIN Countries co ON c.country_id = co.country_id LEFT JOIN Cities ci ON c.city_id = ci.city_id LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'"
-    conditions = []
-    if not archival_ids:
-        if is_archived: return [] # No archival statuses defined, so no archived clients
-        # else: fetch all (no condition needed if all are active)
-    else:
-        placeholders = ','.join('?' for _ in archival_ids)
-        if is_archived: conditions.append(f"c.status_id IN ({placeholders})"); params.extend(archival_ids)
-        else:
-            not_in_cond = f"c.status_id NOT IN ({placeholders})"
-            if include_null_status_for_active: conditions.append(f"({not_in_cond} OR c.status_id IS NULL)")
-            else: conditions.append(not_in_cond)
-            params.extend(archival_ids)
-    sql = f"{base_query} {'WHERE ' + ' AND '.join(conditions) if conditions else ''} ORDER BY c.client_name;"
-    cursor.execute(sql, params)
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- ClientNotes CRUD ---
-@_manage_conn
-def add_client_note(client_id: str, note_text: str, user_id: str = None, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor()
-    sql = "INSERT INTO ClientNotes (client_id, note_text, user_id) VALUES (?, ?, ?)"
-    try: cursor.execute(sql, (client_id, note_text, user_id)); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_client_notes(client_id: str, conn: sqlite3.Connection = None) -> list[dict]: # Already in __all__, ensure body is here.
-    cursor = conn.cursor()
-    sql = "SELECT note_id, client_id, timestamp, note_text, user_id FROM ClientNotes WHERE client_id = ? ORDER BY timestamp ASC"
-    cursor.execute(sql, (client_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- Projects (Continued) ---
-@_manage_conn
-def add_project(project_data: dict, conn: sqlite3.Connection = None) -> str | None:
-    cursor=conn.cursor(); new_id=str(uuid.uuid4()); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO Projects (project_id, client_id, project_name, description, start_date, deadline_date, budget, status_id, progress_percentage, manager_team_member_id, priority, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(new_id, project_data['client_id'], project_data['project_name'], project_data.get('description'), project_data.get('start_date'), project_data.get('deadline_date'), project_data.get('budget'), project_data.get('status_id'), project_data.get('progress_percentage',0), project_data.get('manager_team_member_id'), project_data.get('priority',0), now, now)
-    try: cursor.execute(sql,params); return new_id
-    except: return None
-
-@_manage_conn
-def get_projects_by_client_id(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM Projects WHERE client_id = ?", (client_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_projects(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Projects"; q_params=[]
-    if filters:
-        cls=[]; valid=['client_id','status_id','manager_team_member_id','priority']
-        for k,v in filters.items():
-            if k in valid: cls.append(f"{k}=?"); q_params.append(v)
-        if cls: sql+=" WHERE "+" AND ".join(cls)
-    cursor.execute(sql,q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_project(project_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['client_id','project_name','description','start_date','deadline_date','budget','status_id','progress_percentage','manager_team_member_id','priority','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(project_id)
-    sql=f"UPDATE Projects SET {', '.join(set_c)} WHERE project_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_project(project_id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Projects WHERE project_id = ?",(project_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_total_projects_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor(); cursor.execute("SELECT COUNT(project_id) as total_count FROM Projects"); row = cursor.fetchone()
-    return row['total_count'] if row else 0
-
-@_manage_conn
-def get_active_projects_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor()
-    sql = "SELECT COUNT(p.project_id) as active_count FROM Projects p LEFT JOIN StatusSettings ss ON p.status_id = ss.status_id WHERE (ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE) OR p.status_id IS NULL"
-    cursor.execute(sql); row = cursor.fetchone()
-    return row['active_count'] if row else 0
-
-# --- Tasks (Continued) ---
-@_manage_conn
-def add_task(task_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO Tasks (project_id, task_name, description, status_id, assignee_team_member_id, reporter_team_member_id, due_date, priority, estimated_hours, actual_hours_spent, parent_task_id, created_at, updated_at, completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(task_data['project_id'], task_data['task_name'], task_data.get('description'), task_data.get('status_id'), task_data.get('assignee_team_member_id'), task_data.get('reporter_team_member_id'), task_data.get('due_date'), task_data.get('priority',0), task_data.get('estimated_hours'), task_data.get('actual_hours_spent'), task_data.get('parent_task_id'), now, now, task_data.get('completed_at'))
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except: return None
-
-@_manage_conn
-def get_task_by_id(task_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM Tasks WHERE task_id = ?",(task_id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_tasks_by_project_id(project_id: str, filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Tasks WHERE project_id = ?"; params=[project_id]
-    if filters:
-        cls=[]; valid=['assignee_team_member_id','status_id','priority']
-        for k,v in filters.items():
-            if k in valid: cls.append(f"{k}=?"); params.append(v)
-        if cls: sql+=" AND "+" AND ".join(cls)
-    cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_task(task_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['project_id','task_name','description','status_id','assignee_team_member_id','reporter_team_member_id','due_date','priority','estimated_hours','actual_hours_spent','parent_task_id','updated_at','completed_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(task_id)
-    sql=f"UPDATE Tasks SET {', '.join(set_c)} WHERE task_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_task(task_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Tasks WHERE task_id = ?",(task_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_all_tasks(active_only: bool = False, project_id_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT t.* FROM Tasks t"; params=[]; conditions=[]
-    if active_only: sql+=" LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id"; conditions.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-    if project_id_filter: conditions.append("t.project_id = ?"); params.append(project_id_filter)
-    if conditions: sql+=" WHERE "+" AND ".join(conditions)
-    sql+=" ORDER BY t.created_at DESC"; cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_tasks_by_assignee_id(assignee_id: int, active_only: bool = False, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT t.* FROM Tasks t"; params=[]; conditions=["t.assignee_team_member_id = ?"]; params.append(assignee_id)
-    if active_only: sql+=" LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id"; conditions.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-    sql+=" WHERE "+" AND ".join(conditions)+" ORDER BY t.due_date ASC, t.priority DESC"; cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- TeamMembers (Continued) ---
-@_manage_conn
-def add_team_member(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO TeamMembers (user_id, full_name, email, role_or_title, department, phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(data.get('user_id'), data['full_name'], data['email'], data.get('role_or_title'), data.get('department'), data.get('phone_number'), data.get('profile_picture_url'), data.get('is_active',True), data.get('notes'), data.get('hire_date'), data.get('performance',0), data.get('skills'), now, now)
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except: return None
-
-@_manage_conn
-def get_team_member_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM TeamMembers WHERE team_member_id = ?",(id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_team_members(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM TeamMembers"; q_params=[]
-    if filters:
-        cls=[]; valid=['is_active','department','user_id']
-        for k,v in filters.items():
-            if k in valid:
-                if k=='is_active' and isinstance(v,bool): cls.append(f"{k}=?"); q_params.append(1 if v else 0)
-                else: cls.append(f"{k}=?"); q_params.append(v)
-        if cls: sql+=" WHERE "+" AND ".join(cls)
-    cursor.execute(sql,q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_team_member(id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['user_id','full_name','email','role_or_title','department','phone_number','profile_picture_url','is_active','notes','hire_date','performance','skills','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(id)
-    sql=f"UPDATE TeamMembers SET {', '.join(set_c)} WHERE team_member_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_team_member(id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM TeamMembers WHERE team_member_id = ?",(id,)); return cursor.rowcount > 0
-
-# --- Products (Continued from get_product_by_id) ---
-@_manage_conn
-def add_product(product_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    sql = "INSERT INTO Products (product_name, description, category, language_code, base_unit_price, unit_of_measure, weight, dimensions, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    params = (product_data['product_name'], product_data.get('description'), product_data.get('category'), product_data.get('language_code', 'fr'), product_data['base_unit_price'], product_data.get('unit_of_measure'), product_data.get('weight'), product_data.get('dimensions'), product_data.get('is_active', True), now, now)
-    try: cursor.execute(sql, params); return cursor.lastrowid
-    except sqlite3.IntegrityError: return None
-
-@_manage_conn
-def get_product_by_name(product_name: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM Products WHERE product_name = ?", (product_name,)); row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_products(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Products"; q_params = []
-    if filters:
-        clauses = []
-        if 'category' in filters: clauses.append("category = ?"); q_params.append(filters['category'])
-        if 'product_name' in filters: clauses.append("product_name LIKE ?"); q_params.append(f"%{filters['product_name']}%")
-        if clauses: sql += " WHERE " + " AND ".join(clauses)
-    cursor.execute(sql, q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_product(product_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"; data['updated_at'] = now
-    valid_cols = ['product_name', 'description', 'category', 'language_code', 'base_unit_price', 'unit_of_measure', 'weight', 'dimensions', 'is_active', 'updated_at']
-    to_set = {k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c = [f"{k}=?" for k in to_set.keys()]; params = list(to_set.values()); params.append(product_id)
-    sql = f"UPDATE Products SET {', '.join(set_c)} WHERE product_id = ?"; cursor.execute(sql, params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_product(product_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM Products WHERE product_id = ?", (product_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_products(language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Products"; params = []; conditions = ["is_active = TRUE"]
-    if language_code: conditions.append("language_code = ?"); params.append(language_code)
-    sql += " WHERE " + " AND ".join(conditions) + " ORDER BY product_name"; cursor.execute(sql, params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_product_price(product_id: int, new_price: float, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    sql = "UPDATE Products SET base_unit_price = ?, updated_at = ? WHERE product_id = ?"
-    cursor.execute(sql, (new_price, now, product_id))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_products_by_name_pattern(pattern: str, conn: sqlite3.Connection = None) -> list[dict] | None:
-    cursor = conn.cursor(); search_pattern = f"%{pattern}%"
-    sql = "SELECT * FROM Products WHERE product_name LIKE ? ORDER BY product_name LIMIT 10"
-    cursor.execute(sql, (search_pattern,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_products_for_selection(language_code: str = None, name_pattern: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); params = []; conditions = ["is_active = TRUE"]
-    if language_code: conditions.append("language_code = ?"); params.append(language_code)
-    if name_pattern: conditions.append("(product_name LIKE ? OR description LIKE ?)"); params.extend([f"%{name_pattern}%", f"%{name_pattern}%"]) # Corrected to f-string for pattern
-    sql = f"SELECT * FROM Products WHERE {' AND '.join(conditions)} ORDER BY product_name"
-    cursor.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_total_products_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor(); cursor.execute("SELECT COUNT(product_id) as total_count FROM Products"); row = cursor.fetchone()
-    return row['total_count'] if row else 0
-
-# --- ProductDimensions CRUD ---
-@_manage_conn
-def add_or_update_product_dimension(product_id: int, dimension_data: dict, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"
-    cursor.execute("SELECT product_id FROM ProductDimensions WHERE product_id = ?", (product_id,))
-    exists = cursor.fetchone()
-    dim_cols = ['dim_A','dim_B','dim_C','dim_D','dim_E','dim_F','dim_G','dim_H','dim_I','dim_J','technical_image_path']
-    if exists:
-        data_to_set = {k:v for k,v in dimension_data.items() if k in dim_cols}; data_to_set['updated_at'] = now
-        if not any(k in dim_cols for k in dimension_data.keys()): # Check if any actual dim_col is being updated
-             cursor.execute("UPDATE ProductDimensions SET updated_at = ? WHERE product_id = ?", (now, product_id)); return True
-        set_c = [f"{k}=?" for k in data_to_set.keys()]; params = list(data_to_set.values()); params.append(product_id)
-        sql = f"UPDATE ProductDimensions SET {', '.join(set_c)} WHERE product_id = ?"
-        cursor.execute(sql, params)
-    else:
-        cols = ['product_id','created_at','updated_at'] + dim_cols
-        vals = [product_id, now, now] + [dimension_data.get(c) for c in dim_cols]
-        placeholders = ','.join(['?']*len(cols))
-        sql = f"INSERT INTO ProductDimensions ({','.join(cols)}) VALUES ({placeholders})"
-        cursor.execute(sql, tuple(vals))
-    return cursor.rowcount > 0 or (not exists and cursor.lastrowid is not None)
-
-@_manage_conn
-def get_product_dimension(product_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM ProductDimensions WHERE product_id = ?", (product_id,)); row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def delete_product_dimension(product_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ProductDimensions WHERE product_id = ?", (product_id,)); return cursor.rowcount > 0
-
-# --- ProductEquivalencies CRUD ---
-@_manage_conn
-def add_product_equivalence(product_id_a: int, product_id_b: int, conn: sqlite3.Connection = None) -> int | None:
-    if product_id_a == product_id_b: return None
-    p_a, p_b = min(product_id_a, product_id_b), max(product_id_a, product_id_b)
-    cursor = conn.cursor()
-    try: cursor.execute("INSERT INTO ProductEquivalencies (product_id_a, product_id_b) VALUES (?,?)", (p_a,p_b)); return cursor.lastrowid
-    except sqlite3.IntegrityError:
-        cursor.execute("SELECT equivalence_id FROM ProductEquivalencies WHERE product_id_a = ? AND product_id_b = ?", (p_a,p_b)); row=cursor.fetchone()
-        return row['equivalence_id'] if row else None
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_equivalent_products(product_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); ids = set()
-    cursor.execute("SELECT product_id_b FROM ProductEquivalencies WHERE product_id_a = ?", (product_id,))
-    for row in cursor.fetchall(): ids.add(row['product_id_b'])
-    cursor.execute("SELECT product_id_a FROM ProductEquivalencies WHERE product_id_b = ?", (product_id,))
-    for row in cursor.fetchall(): ids.add(row['product_id_a'])
-    ids.discard(product_id)
-    if not ids: return []
-    placeholders = ','.join('?'*len(ids))
-    cursor.execute(f"SELECT * FROM Products WHERE product_id IN ({placeholders})", tuple(ids))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_product_equivalencies(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT pe.*, pA.product_name AS product_name_a, pB.product_name AS product_name_b FROM ProductEquivalencies pe JOIN Products pA ON pe.product_id_a = pA.product_id JOIN Products pB ON pe.product_id_b = pB.product_id ORDER BY pA.product_name, pB.product_name"
-    cursor.execute(sql); return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def remove_product_equivalence(equivalence_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ProductEquivalencies WHERE equivalence_id = ?", (equivalence_id,)); return cursor.rowcount > 0
-
-# --- ClientProjectProducts (Continued) ---
-@_manage_conn
-def add_product_to_client_or_project(link_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor(); product_id = link_data['product_id']
-    prod_info = get_product_by_id(product_id, conn=conn)
-    if not prod_info: return None
-    qty = link_data.get('quantity',1); override_price = link_data.get('unit_price_override')
-    eff_price = override_price if override_price is not None else prod_info.get('base_unit_price')
-    if eff_price is None: eff_price = 0.0
-    total_price = qty * float(eff_price)
-    sql="INSERT INTO ClientProjectProducts (client_id, project_id, product_id, quantity, unit_price_override, total_price_calculated, serial_number, purchase_confirmed_at, added_at) VALUES (?,?,?,?,?,?,?,?,?)"
-    params=(link_data['client_id'],link_data.get('project_id'),product_id,qty,override_price,total_price,link_data.get('serial_number'),link_data.get('purchase_confirmed_at'),datetime.utcnow().isoformat()+"Z")
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def update_client_project_product(link_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor = conn.cursor()
-    current_link = get_client_project_product_by_id(link_id, conn=conn)
-    if not current_link: return False
-    qty = data.get('quantity', current_link['quantity'])
-    override_price = data.get('unit_price_override', current_link['unit_price_override'])
-    prod_info = get_product_by_id(current_link['product_id'], conn=conn)
-    if not prod_info: return False
-    eff_price = override_price if override_price is not None else prod_info['base_unit_price']
-    data['total_price_calculated'] = qty * float(eff_price or 0)
-    valid_cols = ['quantity','unit_price_override','total_price_calculated','serial_number','purchase_confirmed_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c = [f"{k}=?" for k in to_set.keys()]; params_list = list(to_set.values()); params_list.append(link_id)
-    sql = f"UPDATE ClientProjectProducts SET {', '.join(set_c)} WHERE client_project_product_id = ?"; cursor.execute(sql,tuple(params_list))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def remove_product_from_client_or_project(link_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM ClientProjectProducts WHERE client_project_product_id = ?", (link_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_client_project_product_by_id(link_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    sql="SELECT cpp.*, p.product_name, p.description as product_description, p.category as product_category, p.base_unit_price, p.unit_of_measure, p.weight, p.dimensions, p.language_code FROM ClientProjectProducts cpp JOIN Products p ON cpp.product_id = p.product_id WHERE cpp.client_project_product_id = ?" # Added more fields from Products
-    cursor.execute(sql,(link_id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-# --- Contacts (Continued) ---
-@_manage_conn
-def add_contact(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    name=data.get('displayName', data.get('name'))
-    sql="INSERT INTO Contacts (name, email, phone, position, company_name, notes, givenName, familyName, displayName, phone_type, email_type, address_formattedValue, address_streetAddress, address_city, address_region, address_postalCode, address_country, organization_name, organization_title, birthday_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(name, data.get('email'), data.get('phone'), data.get('position'), data.get('company_name'), data.get('notes'), data.get('givenName'), data.get('familyName'), data.get('displayName'), data.get('phone_type'), data.get('email_type'), data.get('address_formattedValue'), data.get('address_streetAddress'), data.get('address_city'), data.get('address_region'), data.get('address_postalCode'), data.get('address_country'), data.get('organization_name'), data.get('organization_title'), data.get('birthday_date'), now, now)
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_contact_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM Contacts WHERE contact_id = ?",(id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_contact_by_email(email: str, conn: sqlite3.Connection = None) -> dict | None:
-    if not email: return None; cursor=conn.cursor(); cursor.execute("SELECT * FROM Contacts WHERE email = ?",(email,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_contacts(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Contacts"; params=[]; clauses=[]
-    if filters:
-        if 'company_name' in filters: clauses.append("company_name=?"); params.append(filters['company_name'])
-        if 'name' in filters: clauses.append("(name LIKE ? OR displayName LIKE ?)"); params.extend([f"%{filters['name']}%", f"%{filters['name']}%"])
-        if clauses: sql+=" WHERE "+" AND ".join(clauses)
-    cursor.execute(sql,params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_contact(id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    if 'displayName' in data and 'name' not in data: data['name'] = data['displayName']
-    valid_cols=['name','email','phone','position','company_name','notes','givenName','familyName','displayName','phone_type','email_type','address_formattedValue','address_streetAddress','address_city','address_region','address_postalCode','address_country','organization_name','organization_title','birthday_date','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params_list=list(to_set.values()); params_list.append(id)
-    sql=f"UPDATE Contacts SET {', '.join(set_c)} WHERE contact_id = ?"; cursor.execute(sql,params_list)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_contact(id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Contacts WHERE contact_id = ?",(id,)); return cursor.rowcount > 0
-
-# --- ClientContacts (Continued) ---
-@_manage_conn
-def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = False, can_receive_documents: bool = True, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); sql="INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents) VALUES (?,?,?,?)"
-    try: cursor.execute(sql,(client_id,contact_id,is_primary,can_receive_documents)); return cursor.lastrowid
-    except sqlite3.Error: return None # Handles UNIQUE constraint
-
-@_manage_conn
-def unlink_contact_from_client(client_id: str, contact_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); sql="DELETE FROM ClientContacts WHERE client_id = ? AND contact_id = ?"; cursor.execute(sql,(client_id,contact_id))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_contacts_for_client_count(client_id: str, conn: sqlite3.Connection = None) -> int:
-    cursor=conn.cursor(); cursor.execute("SELECT COUNT(contact_id) FROM ClientContacts WHERE client_id = ?",(client_id,)); row=cursor.fetchone()
-    return row[0] if row else 0
-
-@_manage_conn
-def get_clients_for_contact(contact_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT cl.*, cc.is_primary_for_client, cc.can_receive_documents, cc.client_contact_id FROM Clients cl JOIN ClientContacts cc ON cl.client_id = cc.client_id WHERE cc.contact_id = ?" # Added client_contact_id
-    cursor.execute(sql,(contact_id,)); return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_specific_client_contact_link_details(client_id: str, contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); sql="SELECT client_contact_id, is_primary_for_client, can_receive_documents FROM ClientContacts WHERE client_id = ? AND contact_id = ?"
-    cursor.execute(sql,(client_id,contact_id)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def update_client_contact_link(client_contact_id: int, details: dict, conn: sqlite3.Connection = None) -> bool:
-    if not details or not any(k in details for k in ['is_primary_for_client','can_receive_documents']): return False
-    cursor=conn.cursor(); set_c=[]; params=[]
-    if 'is_primary_for_client' in details: set_c.append("is_primary_for_client=?"); params.append(details['is_primary_for_client'])
-    if 'can_receive_documents' in details: set_c.append("can_receive_documents=?"); params.append(details['can_receive_documents'])
-    if not set_c: return False
-    params.append(client_contact_id); sql=f"UPDATE ClientContacts SET {', '.join(set_c)} WHERE client_contact_id = ?"
-    cursor.execute(sql,params); return cursor.rowcount > 0
-
-# --- TemplateCategories (Continued) ---
-@_manage_conn
-def get_template_category_by_id(category_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM TemplateCategories WHERE category_id = ?", (category_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_template_category_by_name(category_name: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM TemplateCategories WHERE category_name = ?", (category_name,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_template_categories(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM TemplateCategories ORDER BY category_name")
-    rows = cursor.fetchall()
-    return [dict(row) for row in rows]
-
-@_manage_conn
-def update_template_category(category_id: int, new_name: str = None, new_description: str = None, conn: sqlite3.Connection = None) -> bool:
-    if not new_name and new_description is None: return False
-    cursor = conn.cursor()
-    set_clauses = []
-    params = []
-    if new_name: set_clauses.append("category_name = ?"); params.append(new_name)
-    if new_description is not None: set_clauses.append("description = ?"); params.append(new_description)
-    if not set_clauses: return False
-    sql = f"UPDATE TemplateCategories SET {', '.join(set_clauses)} WHERE category_id = ?"
-    params.append(category_id)
-    cursor.execute(sql, tuple(params))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_template_category(category_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM TemplateCategories WHERE category_id = ?", (category_id,))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_template_category_details(category_id: int, conn: sqlite3.Connection = None) -> dict | None: # Same as get_template_category_by_id
-    return get_template_category_by_id(category_id, conn=conn)
-
-
-# --- Templates (Continued) ---
-@_manage_conn
-def get_template_by_id(template_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Templates WHERE template_id = ?", (template_id,))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_templates_by_type(template_type: str, language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT * FROM Templates WHERE template_type = ?"
-    params = [template_type]
-    if language_code: sql += " AND language_code = ?"; params.append(language_code)
-    cursor.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_template(template_id: int, template_data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not template_data: return False
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat() + "Z"
-    template_data['updated_at'] = now
-
-    # Resolve category_id if category_name is passed
-    if 'category_name' in template_data and 'category_id' not in template_data:
-        category_id = add_template_category(template_data.pop('category_name'), conn=conn) # Pass conn
-        if category_id: template_data['category_id'] = category_id
-
-    if 'raw_template_file_data' in template_data and isinstance(template_data['raw_template_file_data'], str):
-        template_data['raw_template_file_data'] = template_data['raw_template_file_data'].encode('utf-8')
-
-    valid_cols = ['template_name', 'template_type', 'description', 'base_file_name', 'language_code', 'is_default_for_type_lang', 'category_id', 'content_definition', 'email_subject_template', 'email_variables_info', 'cover_page_config_json', 'document_mapping_config_json', 'raw_template_file_data', 'version', 'updated_at', 'created_by_user_id']
-    data_to_set = {k:v for k,v in template_data.items() if k in valid_cols}
-    if not data_to_set: return False
-
-    set_clauses = [f"{key} = ?" for key in data_to_set.keys()]
-    params_list = list(data_to_set.values())
-    params_list.append(template_id)
-    sql = f"UPDATE Templates SET {', '.join(set_clauses)} WHERE template_id = ?"
-    cursor.execute(sql, params_list)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_template(template_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM Templates WHERE template_id = ?", (template_id,))
-    return cursor.rowcount > 0
-
-@_manage_conn
-def get_distinct_template_languages(conn: sqlite3.Connection = None) -> list[tuple[str]]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT language_code FROM Templates WHERE language_code IS NOT NULL AND language_code != '' ORDER BY language_code")
-    return cursor.fetchall()
-
-@_manage_conn
-def get_distinct_template_types(conn: sqlite3.Connection = None) -> list[tuple[str]]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT template_type FROM Templates WHERE template_type IS NOT NULL AND template_type != '' ORDER BY template_type")
-    return cursor.fetchall()
-
-@_manage_conn
-def get_filtered_templates(category_id: int = None, language_code: str = None, template_type: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT * FROM Templates"
-    where_clauses = []
-    params = []
-    if category_id is not None: where_clauses.append("category_id = ?"); params.append(category_id)
-    if language_code is not None: where_clauses.append("language_code = ?"); params.append(language_code)
-    if template_type is not None: where_clauses.append("template_type = ?"); params.append(template_type)
-    if where_clauses: sql += " WHERE " + " AND ".join(where_clauses)
-    sql += " ORDER BY category_id, template_name"
-    cursor.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_template_details_for_preview(template_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT base_file_name, language_code FROM Templates WHERE template_id = ?", (template_id,))
-    row = cursor.fetchone()
-    return {'base_file_name': row['base_file_name'], 'language_code': row['language_code']} if row else None
-
-@_manage_conn
-def get_template_path_info(template_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT base_file_name, language_code FROM Templates WHERE template_id = ?", (template_id,))
-    row = cursor.fetchone()
-    return {'file_name': row['base_file_name'], 'language': row['language_code']} if row else None
-
-@_manage_conn
-def delete_template_and_get_file_info(template_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    # Transaction should be handled by _manage_conn if it's a single unit of work.
-    # However, this function does two things: SELECT then DELETE. _manage_conn might commit after SELECT.
-    # For safety, this specific function might need explicit transaction start if not already handled.
-    # For now, assume _manage_conn handles it as one operation at the end.
-    file_info = get_template_path_info(template_id, conn=conn) # Pass conn
-    if not file_info: return None
-    deleted = delete_template(template_id, conn=conn) # Pass conn
-    return file_info if deleted else None
-
-@_manage_conn
-def set_default_template_by_id(template_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor()
-    # Similar to set_default_company, this needs careful transaction handling.
-    template_info = get_template_by_id(template_id, conn=conn) # Pass conn
-    if not template_info: return False
-    cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_type = ? AND language_code = ?", (template_info['template_type'], template_info['language_code']))
-    cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,))
-    return True
-
-@_manage_conn
-def get_template_by_type_lang_default(template_type: str, language_code: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Templates WHERE template_type = ? AND language_code = ? AND is_default_for_type_lang = TRUE LIMIT 1", (template_type, language_code))
-    row = cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_templates(template_type_filter: str = None, language_code_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Templates"; params = []; clauses = []
-    if template_type_filter: clauses.append("template_type = ?"); params.append(template_type_filter)
-    if language_code_filter: clauses.append("language_code = ?"); params.append(language_code_filter)
-    if clauses: sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY template_name, language_code"; cursor.execute(sql, tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_distinct_languages_for_template_type(template_type: str, conn: sqlite3.Connection = None) -> list[str]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT language_code FROM Templates WHERE template_type = ? ORDER BY language_code ASC", (template_type,))
-    return [row['language_code'] for row in cursor.fetchall() if row['language_code']]
-
-@_manage_conn
-def get_all_file_based_templates(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT template_id, template_name, language_code, base_file_name, description, category_id FROM Templates WHERE base_file_name IS NOT NULL AND base_file_name != '' ORDER BY template_name, language_code"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_templates_by_category_id(category_id: int, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Templates WHERE category_id = ? ORDER BY template_name, language_code", (category_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- CoverPageTemplates (Continued) ---
-@_manage_conn
-def get_cover_page_template_by_id(template_id: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM CoverPageTemplates WHERE template_id = ?", (template_id,)); row = cursor.fetchone()
-    if row: data = dict(row); data['style_config_json'] = json.loads(data['style_config_json']) if data.get('style_config_json') else None; return data
-    return None
-
-@_manage_conn
-def get_all_cover_page_templates(is_default: bool = None, limit: int = 100, offset: int = 0, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM CoverPageTemplates"; params = []
-    if is_default is not None: sql += " WHERE is_default_template = ?"; params.append(1 if is_default else 0)
-    sql += " ORDER BY template_name LIMIT ? OFFSET ?"; params.extend([limit, offset])
-    cursor.execute(sql, params); templates = []
-    for row in cursor.fetchall():
-        data = dict(row); data['style_config_json'] = json.loads(data['style_config_json']) if data.get('style_config_json') else None; templates.append(data)
-    return templates
-
-@_manage_conn
-def update_cover_page_template(template_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor = conn.cursor(); data['updated_at'] = datetime.utcnow().isoformat() + "Z"
-    if 'style_config_json' in data and isinstance(data['style_config_json'], dict): data['style_config_json'] = json.dumps(data['style_config_json'])
-    if 'is_default_template' in data: data['is_default_template'] = 1 if data['is_default_template'] else 0
-    valid_cols = ['template_name', 'description', 'default_title', 'default_subtitle', 'default_author', 'style_config_json', 'is_default_template', 'updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols};
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; sql_params=list(to_set.values()); sql_params.append(template_id)
-    sql=f"UPDATE CoverPageTemplates SET {', '.join(set_c)} WHERE template_id = ?"; cursor.execute(sql,sql_params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_cover_page_template(template_id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM CoverPageTemplates WHERE template_id = ?", (template_id,)); return cursor.rowcount > 0
-
-# --- CoverPages CRUD ---
-@_manage_conn
-def add_cover_page(data: dict, conn: sqlite3.Connection = None) -> str | None:
-    cursor=conn.cursor(); new_id=str(uuid.uuid4()); now=datetime.utcnow().isoformat()+"Z"
-    custom_style=data.get('custom_style_config_json'); custom_style_str=json.dumps(custom_style) if isinstance(custom_style,dict) else custom_style
-    sql="INSERT INTO CoverPages (cover_page_id, cover_page_name, client_id, project_id, template_id, title, subtitle, author_text, institution_text, department_text, document_type_text, document_version, creation_date, logo_name, logo_data, custom_style_config_json, created_at, updated_at, created_by_user_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(new_id, data.get('cover_page_name'), data.get('client_id'), data.get('project_id'), data.get('template_id'), data['title'], data.get('subtitle'), data.get('author_text'), data.get('institution_text'), data.get('department_text'), data.get('document_type_text'), data.get('document_version'), data.get('creation_date'), data.get('logo_name'), data.get('logo_data'), custom_style_str, now, now, data.get('created_by_user_id'))
-    try: cursor.execute(sql,params); return new_id
-    except: return None
-
-@_manage_conn
-def get_cover_page_by_id(id: str, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE cover_page_id = ?",(id,)); row=cursor.fetchone()
-    if row: data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; return data
-    return None
-
-@_manage_conn
-def get_cover_pages_for_client(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE client_id = ? ORDER BY created_at DESC",(client_id,)); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-@_manage_conn
-def get_cover_pages_for_project(project_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM CoverPages WHERE project_id = ? ORDER BY created_at DESC",(project_id,)); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-@_manage_conn
-def update_cover_page(id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); data['updated_at']=datetime.utcnow().isoformat()+"Z"
-    if 'custom_style_config_json' in data and isinstance(data['custom_style_config_json'],dict): data['custom_style_config_json'] = json.dumps(data['custom_style_config_json'])
-    valid_cols = ['cover_page_name','client_id','project_id','template_id','title','subtitle','author_text','institution_text','department_text','document_type_text','document_version','creation_date','logo_name','logo_data','custom_style_config_json','updated_at','created_by_user_id']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(id)
-    sql=f"UPDATE CoverPages SET {', '.join(set_c)} WHERE cover_page_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_cover_page(id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM CoverPages WHERE cover_page_id = ?",(id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_cover_pages_for_user(user_id: str, limit: int = 50, offset: int = 0, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM CoverPages WHERE created_by_user_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?"; params=(user_id,limit,offset)
-    cursor.execute(sql,params); covers=[]
-    for row in cursor.fetchall(): data=dict(row); data['custom_style_config_json'] = json.loads(data['custom_style_config_json']) if data.get('custom_style_config_json') else None; covers.append(data)
-    return covers
-
-# --- Clients (Continued) ---
-@_manage_conn
-def update_client(client_id: str, client_data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not client_data: return False
-    cursor = conn.cursor(); now = datetime.utcnow().isoformat() + "Z"; client_data['updated_at'] = now
-    valid_cols = ['client_name', 'company_name', 'primary_need_description', 'project_identifier', 'country_id', 'city_id', 'default_base_folder_path', 'status_id', 'selected_languages', 'price', 'notes', 'category', 'updated_at', 'created_by_user_id']
-    data_to_set = {k:v for k,v in client_data.items() if k in valid_cols}
-    if not data_to_set: return False
-    set_clauses = [f"{key} = ?" for key in data_to_set.keys()]
-    params = list(data_to_set.values()); params.append(client_id)
-    sql = f"UPDATE Clients SET {', '.join(set_clauses)} WHERE client_id = ?"
-    cursor.execute(sql, params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_client(client_id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor = conn.cursor(); cursor.execute("DELETE FROM Clients WHERE client_id = ?", (client_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_all_clients_with_details(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    query = """
-    SELECT c.client_id, c.client_name, c.company_name, c.primary_need_description, c.project_identifier, c.default_base_folder_path, c.selected_languages, c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-           co.country_name AS country, ci.city_name AS city, s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name
-    FROM clients c
-    LEFT JOIN countries co ON c.country_id = co.country_id LEFT JOIN cities ci ON c.city_id = ci.city_id
-    LEFT JOIN status_settings s ON c.status_id = s.status_id AND s.status_type = 'Client'
-    ORDER BY c.client_name;
-    """
-    cursor.execute(query)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_active_clients_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor()
-    sql = "SELECT COUNT(c.client_id) as active_count FROM Clients c LEFT JOIN StatusSettings ss ON c.status_id = ss.status_id WHERE ss.is_archival_status IS NOT TRUE OR c.status_id IS NULL"
-    cursor.execute(sql); row = cursor.fetchone()
-    return row['active_count'] if row else 0
-
-@_manage_conn
-def get_client_counts_by_country(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT co.country_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN Countries co ON cl.country_id = co.country_id GROUP BY co.country_name HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_city(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT co.country_name, ci.city_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN Cities ci ON cl.city_id = ci.city_id JOIN Countries co ON ci.country_id = co.country_id GROUP BY co.country_name, ci.city_name HAVING COUNT(cl.client_id) > 0 ORDER BY co.country_name, client_count DESC, ci.city_name"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_status(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT ss.status_name, COUNT(cl.client_id) as client_count FROM Clients cl JOIN StatusSettings ss ON cl.status_id = ss.status_id GROUP BY ss.status_name HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC, ss.status_name"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_client_segmentation_by_category(conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor()
-    sql = "SELECT cl.category, COUNT(cl.client_id) as client_count FROM Clients cl WHERE cl.category IS NOT NULL AND cl.category != '' GROUP BY cl.category HAVING COUNT(cl.client_id) > 0 ORDER BY client_count DESC, cl.category"
-    cursor.execute(sql)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_clients_by_archival_status(is_archived: bool, include_null_status_for_active: bool = True, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); params = []
-    cursor.execute("SELECT status_id FROM StatusSettings WHERE status_type = 'Client' AND is_archival_status = TRUE")
-    archival_ids = [row['status_id'] for row in cursor.fetchall()]
-    base_query = "SELECT c.*, co.country_name AS country, ci.city_name AS city, s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name FROM Clients c LEFT JOIN Countries co ON c.country_id = co.country_id LEFT JOIN Cities ci ON c.city_id = ci.city_id LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'"
-    conditions = []
-    if not archival_ids:
-        if is_archived: return []
-    else:
-        placeholders = ','.join('?' for _ in archival_ids)
-        if is_archived: conditions.append(f"c.status_id IN ({placeholders})"); params.extend(archival_ids)
-        else:
-            not_in_cond = f"c.status_id NOT IN ({placeholders})"
-            if include_null_status_for_active: conditions.append(f"({not_in_cond} OR c.status_id IS NULL)")
-            else: conditions.append(not_in_cond)
-            params.extend(archival_ids)
-    sql = f"{base_query} {'WHERE ' + ' AND '.join(conditions) if conditions else ''} ORDER BY c.client_name;"
-    cursor.execute(sql, params)
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- ClientNotes CRUD ---
-@_manage_conn
-def add_client_note(client_id: str, note_text: str, user_id: str = None, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor()
-    sql = "INSERT INTO ClientNotes (client_id, note_text, user_id) VALUES (?, ?, ?)"
-    try: cursor.execute(sql, (client_id, note_text, user_id)); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-# get_client_notes is already present and correctly defined.
-
-# --- Projects (Continued from previous additions) ---
-@_manage_conn
-def add_project(project_data: dict, conn: sqlite3.Connection = None) -> str | None:
-    cursor=conn.cursor(); new_id=str(uuid.uuid4()); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO Projects (project_id, client_id, project_name, description, start_date, deadline_date, budget, status_id, progress_percentage, manager_team_member_id, priority, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(new_id, project_data['client_id'], project_data['project_name'], project_data.get('description'), project_data.get('start_date'), project_data.get('deadline_date'), project_data.get('budget'), project_data.get('status_id'), project_data.get('progress_percentage',0), project_data.get('manager_team_member_id'), project_data.get('priority',0), now, now)
-    try: cursor.execute(sql,params); return new_id
-    except sqlite3.Error: return None # Changed from generic except
-
-@_manage_conn
-def get_projects_by_client_id(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); cursor.execute("SELECT * FROM Projects WHERE client_id = ?", (client_id,))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_all_projects(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Projects"; q_params=[]
-    if filters:
-        cls=[]; valid=['client_id','status_id','manager_team_member_id','priority']
-        for k,v in filters.items():
-            if k in valid: cls.append(f"{k}=?"); q_params.append(v)
-        if cls: sql+=" WHERE "+" AND ".join(cls)
-    cursor.execute(sql,q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_project(project_id: str, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['client_id','project_name','description','start_date','deadline_date','budget','status_id','progress_percentage','manager_team_member_id','priority','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(project_id)
-    sql=f"UPDATE Projects SET {', '.join(set_c)} WHERE project_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_project(project_id: str, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Projects WHERE project_id = ?",(project_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_total_projects_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor(); cursor.execute("SELECT COUNT(project_id) as total_count FROM Projects"); row = cursor.fetchone()
-    return row['total_count'] if row else 0
-
-@_manage_conn
-def get_active_projects_count(conn: sqlite3.Connection = None) -> int:
-    cursor = conn.cursor()
-    sql = "SELECT COUNT(p.project_id) as active_count FROM Projects p LEFT JOIN StatusSettings ss ON p.status_id = ss.status_id WHERE (ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE) OR p.status_id IS NULL"
-    cursor.execute(sql); row = cursor.fetchone()
-    return row['active_count'] if row else 0
-
-# --- Tasks CRUD ---
-@_manage_conn
-def add_task(task_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO Tasks (project_id, task_name, description, status_id, assignee_team_member_id, reporter_team_member_id, due_date, priority, estimated_hours, actual_hours_spent, parent_task_id, created_at, updated_at, completed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(task_data['project_id'], task_data['task_name'], task_data.get('description'), task_data.get('status_id'), task_data.get('assignee_team_member_id'), task_data.get('reporter_team_member_id'), task_data.get('due_date'), task_data.get('priority',0), task_data.get('estimated_hours'), task_data.get('actual_hours_spent'), task_data.get('parent_task_id'), now, now, task_data.get('completed_at'))
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_task_by_id(task_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM Tasks WHERE task_id = ?",(task_id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_tasks_by_project_id(project_id: str, filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM Tasks WHERE project_id = ?"; params=[project_id]
-    if filters:
-        cls=[]; valid=['assignee_team_member_id','status_id','priority']
-        for k,v in filters.items():
-            if k in valid: cls.append(f"{k}=?"); params.append(v)
-        if cls: sql+=" AND "+" AND ".join(cls)
-    cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_task(task_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['project_id','task_name','description','status_id','assignee_team_member_id','reporter_team_member_id','due_date','priority','estimated_hours','actual_hours_spent','parent_task_id','updated_at','completed_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(task_id)
-    sql=f"UPDATE Tasks SET {', '.join(set_c)} WHERE task_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_task(task_id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM Tasks WHERE task_id = ?",(task_id,)); return cursor.rowcount > 0
-
-@_manage_conn
-def get_all_tasks(active_only: bool = False, project_id_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT t.* FROM Tasks t"; params=[]; conditions=[]
-    if active_only: sql+=" LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id"; conditions.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-    if project_id_filter: conditions.append("t.project_id = ?"); params.append(project_id_filter)
-    if conditions: sql+=" WHERE "+" AND ".join(conditions)
-    sql+=" ORDER BY t.created_at DESC"; cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def get_tasks_by_assignee_id(assignee_id: int, active_only: bool = False, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT t.* FROM Tasks t"; params=[]; conditions=["t.assignee_team_member_id = ?"]; params.append(assignee_id)
-    if active_only: sql+=" LEFT JOIN StatusSettings ss ON t.status_id = ss.status_id"; conditions.append("(ss.is_completion_status IS NOT TRUE AND ss.is_archival_status IS NOT TRUE)")
-    sql+=" WHERE "+" AND ".join(conditions)+" ORDER BY t.due_date ASC, t.priority DESC"; cursor.execute(sql,tuple(params))
-    return [dict(row) for row in cursor.fetchall()]
-
-# --- TeamMembers CRUD ---
-@_manage_conn
-def add_team_member(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
-    sql="INSERT INTO TeamMembers (user_id, full_name, email, role_or_title, department, phone_number, profile_picture_url, is_active, notes, hire_date, performance, skills, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    params=(data.get('user_id'), data['full_name'], data['email'], data.get('role_or_title'), data.get('department'), data.get('phone_number'), data.get('profile_picture_url'), data.get('is_active',True), data.get('notes'), data.get('hire_date'), data.get('performance',0), data.get('skills'), now, now)
-    try: cursor.execute(sql,params); return cursor.lastrowid
-    except sqlite3.Error: return None
-
-@_manage_conn
-def get_team_member_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
-    cursor=conn.cursor(); cursor.execute("SELECT * FROM TeamMembers WHERE team_member_id = ?",(id,)); row=cursor.fetchone()
-    return dict(row) if row else None
-
-@_manage_conn
-def get_all_team_members(filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor=conn.cursor(); sql="SELECT * FROM TeamMembers"; q_params=[]
-    if filters:
-        cls=[]; valid=['is_active','department','user_id']
-        for k,v in filters.items():
-            if k in valid:
-                if k=='is_active' and isinstance(v,bool): cls.append(f"{k}=?"); q_params.append(1 if v else 0)
-                else: cls.append(f"{k}=?"); q_params.append(v)
-        if cls: sql+=" WHERE "+" AND ".join(cls)
-    cursor.execute(sql,q_params)
-    return [dict(row) for row in cursor.fetchall()]
-
-@_manage_conn
-def update_team_member(id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not data: return False; cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"; data['updated_at']=now
-    valid_cols=['user_id','full_name','email','role_or_title','department','phone_number','profile_picture_url','is_active','notes','hire_date','performance','skills','updated_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
-    if not to_set: return False
-    set_c=[f"{k}=?" for k in to_set.keys()]; params=list(to_set.values()); params.append(id)
-    sql=f"UPDATE TeamMembers SET {', '.join(set_c)} WHERE team_member_id = ?"; cursor.execute(sql,params)
-    return cursor.rowcount > 0
-
-@_manage_conn
-def delete_team_member(id: int, conn: sqlite3.Connection = None) -> bool:
-    cursor=conn.cursor(); cursor.execute("DELETE FROM TeamMembers WHERE team_member_id = ?",(id,)); return cursor.rowcount > 0
-
-
-# (Ensure all other CRUD functions from original db.py are added here, refactored with @_manage_conn and `conn` parameter)
-# For brevity, I will assume the rest of the functions are added in a similar fashion.
-# The __all__ list needs to be fully comprehensive.
+__all__ = sorted(list(set(imported_function_names + stub_function_names)))
