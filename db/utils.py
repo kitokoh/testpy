@@ -32,40 +32,9 @@ except (ImportError, ValueError): # pragma: no cover
 
 # CRUD function imports
 
-    # Updated imports to point to specific CRUD files
-    from .cruds.companies_crud import get_company_by_id
-    from .cruds.company_personnel_crud import get_personnel_for_company
-    from .cruds.clients_crud import get_client_by_id
-    from .cruds.locations_crud import get_country_by_id, get_city_by_id
-    from .cruds.contacts_crud import get_contacts_for_client # Assuming this is in contacts_crud
-    from .cruds.projects_crud import get_project_by_id
-    from .cruds.status_settings_crud import get_status_setting_by_id
-    from .cruds.products_crud import get_product_by_id
-    from .cruds.client_project_products_crud import get_products_for_client_or_project # Assuming this is in a dedicated file
-    from .cruds.client_documents_crud import get_client_document_notes
-
-    _crud_functions_imported = True
-    print("Successfully imported CRUD functions from db.cruds for utils.py.")
-except ImportError as e:
-    print(f"Warning: Not all CRUD functions available to utils.py from db.cruds. Error: {e}. Using placeholders for some.")
-    # Define placeholders for functions that might fail to import
-    # This helps the application run even if some CRUD modules are not yet created/populated.
-    def _placeholder_crud_func_util(entity_name="entity", *args, **kwargs):
-        # print(f"Placeholder for {entity_name} called with {args}, {kwargs}")
-        return None if not "list" in entity_name else []
-
-    # Fallback definitions for functions that might not be imported
-    if 'get_company_by_id' not in globals(): get_company_by_id = lambda id, conn=None: _placeholder_crud_func_util("company")
-    if 'get_personnel_for_company' not in globals(): get_personnel_for_company = lambda id, role=None, conn=None: _placeholder_crud_func_util("company_personnel_list")
-    if 'get_client_by_id' not in globals(): get_client_by_id = lambda id, conn=None: _placeholder_crud_func_util("client")
-    if 'get_country_by_id' not in globals(): get_country_by_id = lambda id, conn=None: _placeholder_crud_func_util("country")
-    if 'get_city_by_id' not in globals(): get_city_by_id = lambda id, conn=None: _placeholder_crud_func_util("city")
-    if 'get_contacts_for_client' not in globals(): get_contacts_for_client = lambda id, limit=None, offset=None, conn=None: _placeholder_crud_func_util("contacts_list")
-    if 'get_project_by_id' not in globals(): get_project_by_id = lambda id, conn=None: _placeholder_crud_func_util("project")
-    if 'get_status_setting_by_id' not in globals(): get_status_setting_by_id = lambda id, conn=None: _placeholder_crud_func_util("status_setting")
-    if 'get_product_by_id' not in globals(): get_product_by_id = lambda id, conn=None: _placeholder_crud_func_util("product")
-    if 'get_products_for_client_or_project' not in globals(): get_products_for_client_or_project = lambda client_id, project_id=None, conn=None: _placeholder_crud_func_util("products_list")
-    if 'get_client_document_notes' not in globals(): get_client_document_notes = lambda client_id, document_type=None, language_code=None, is_active=None, conn=None: _placeholder_crud_func_util("notes_list")
+    # CRUD imports removed to prevent circular dependencies.
+    # Functions requiring CRUD operations will import `db` directly.
+    print("CRUD functions will be imported dynamically in functions that need them.")
 
 
 
@@ -88,6 +57,7 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
     except (ValueError, TypeError): return str(amount) # Fallback to string representation if not a number
 
 def _get_batch_products_and_equivalents(product_ids: list[int], target_language_code: str, conn_passed=None) -> dict:
+    from .. import db # Import db here to avoid circular import at module level
     if not product_ids: return {}
 
     conn_is_internal = False
@@ -102,7 +72,7 @@ def _get_batch_products_and_equivalents(product_ids: list[int], target_language_
         cursor = conn.cursor()
 
         for pid_original in product_ids:
-            product_detail = products_get_product_by_id(id=pid_original, conn=conn) # Use aliased import
+            product_detail = db.get_product_by_id_details(id=pid_original, conn=conn) # Use db object
             if product_detail:
                 results[pid_original]['original'] = product_detail
 
@@ -143,6 +113,7 @@ def get_document_context_data(
     project_id: str = None, linked_product_ids_for_doc: list[int] = None,
     additional_context: dict = None, conn_passed: sqlite3.Connection = None
 ) -> dict:
+    from .. import db # Import db here to avoid circular import at module level
     context = {"doc": {}, "client": {}, "seller": {}, "project": {}, "products": [], "lang": {}, "additional": {}}
     effective_additional_context = additional_context if isinstance(additional_context, dict) else {}
     context["additional"] = effective_additional_context
@@ -169,7 +140,7 @@ def get_document_context_data(
         context["doc"]["vat_rate_percentage"] = float(effective_additional_context.get("vat_rate_percentage", 20.0))
         context["doc"]["discount_rate_percentage"] = float(effective_additional_context.get("discount_rate_percentage", 0.0))
 
-        seller_company_data = get_company_by_id(company_id, conn=conn)
+        seller_company_data = db.get_company_by_id(company_id, conn=conn)
         if seller_company_data:
             context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
             context["seller"]["address"] = seller_company_data.get('address', "N/A")
@@ -182,7 +153,7 @@ def get_document_context_data(
             else:
                 context["seller"]["company_logo_path"] = None
 
-            seller_personnel_list = get_personnel_for_company(company_id, conn=conn)
+            seller_personnel_list = db.get_personnel_for_company(company_id, conn=conn)
             if seller_personnel_list: # Check if list is not empty
                  # Assuming the first person is the representative, or apply specific logic
                 context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0].get('name', "N/A")}
@@ -190,25 +161,25 @@ def get_document_context_data(
                 context["seller"]["personnel"] = {"representative_name": "N/A"}
 
 
-        client_data = get_client_by_id(client_id, conn=conn)
+        client_data = db.get_client_by_id(client_id, conn=conn)
         if client_data:
             context["client"]["id"] = client_data.get('client_id')
             context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
             context["client"]["address"] = client_data.get('address', "N/A") # Assuming 'address' field exists
 
             if client_data.get('country_id'):
-                country = get_country_by_id(client_data['country_id'], conn=conn)
+                country = db.get_country_by_id(client_data['country_id'], conn=conn)
                 context["client"]["country_name"] = country['country_name'] if country else "N/A"
             else:
                 context["client"]["country_name"] = "N/A"
 
             if client_data.get('city_id'):
-                city = get_city_by_id(client_data['city_id'], conn=conn)
+                city = db.get_city_by_id(client_data['city_id'], conn=conn)
                 context["client"]["city_name"] = city['city_name'] if city else "N/A"
             else:
                 context["client"]["city_name"] = "N/A"
 
-            client_contacts = get_contacts_for_client(client_id, conn=conn)
+            client_contacts = db.get_contacts_for_client(client_id, conn=conn)
             if client_contacts: # Assuming first contact is primary or representative
                 context["client"]["primary_contact_name"] = client_contacts[0].get('name', client_contacts[0].get('displayName', "N/A"))
                 context["client"]["primary_contact_email"] = client_contacts[0].get('email', "N/A")
@@ -218,7 +189,7 @@ def get_document_context_data(
 
 
         if project_id:
-            project_data = get_project_by_id(project_id, conn=conn)
+            project_data = db.get_project_by_id(project_id, conn=conn)
             if project_data:
                 context["project"]["name"] = project_data.get('project_name')
                 # Potentially add more project details if needed
@@ -240,7 +211,7 @@ def get_document_context_data(
                     })
         elif linked_product_ids_for_doc: # Assuming this is a list of ClientProjectProduct IDs
             for cpp_id in linked_product_ids_for_doc:
-                cpp_data = get_client_project_product_by_id(cpp_id, conn=conn)
+                cpp_data = db.get_client_project_product_by_id(cpp_id, conn=conn) # Use db object
                 if cpp_data and cpp_data.get('product_id'):
                     all_product_ids_to_fetch.add(cpp_data['product_id'])
                     product_data_for_loop.append({
@@ -250,7 +221,7 @@ def get_document_context_data(
                         'serial_number': cpp_data.get('serial_number')
                     })
         else: # Default to client/project products if no specific list provided
-            client_project_products = get_products_for_client_or_project(client_id=client_id, project_id=project_id, conn=conn)
+            client_project_products = db.get_products_for_client_or_project(client_id=client_id, project_id=project_id, conn=conn) # Use db object
             for cpp_data in client_project_products:
                 if cpp_data.get('product_id'):
                     all_product_ids_to_fetch.add(cpp_data['product_id'])
@@ -326,7 +297,7 @@ def get_document_context_data(
 
         doc_type_for_notes = effective_additional_context.get('current_document_type_for_notes')
         if doc_type_for_notes and client_id and target_language_code:
-            notes = get_client_document_notes(client_id=client_id, document_type=doc_type_for_notes, language_code=target_language_code, is_active=True, conn=conn)
+            notes = db.get_client_document_notes(client_id=client_id, document_type=doc_type_for_notes, language_code=target_language_code, is_active=True, conn=conn) # Use db object
             if notes: context['doc']['client_specific_footer_notes'] = notes[0]['note_content'].replace('\n','<br>')
 
         # Mapping to buyer_*, seller_* placeholders (ensure these are consistent)
