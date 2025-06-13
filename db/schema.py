@@ -161,6 +161,23 @@ def initialize_database():
     # (Continue with all other CREATE TABLE statements from the existing schema.py)
     cursor.execute("CREATE TABLE IF NOT EXISTS Client_FreightForwarders (client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE, UNIQUE (client_id, forwarder_id))")
 
+    # --- Product Media Links Table ---
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ProductMediaLinks (
+            link_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Using INTEGER for simplicity with SQLite autoincrement
+            product_id INTEGER NOT NULL,
+            media_item_id TEXT NOT NULL, -- Matching MediaItems.media_item_id type
+            display_order INTEGER DEFAULT 0,
+            alt_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
+            FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+            UNIQUE (product_id, media_item_id), -- A media item can be linked to a product only once
+            UNIQUE (product_id, display_order) -- Ensures display_order is unique per product (optional, but can simplify reordering)
+        );
+    """)
+    # --- End Product Media Links Table ---
+
     # --- Updated Partner Tables ---
     # PartnerCategories table
     cursor.execute("""
@@ -321,6 +338,11 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_status_id ON Clients(status_id)")
     # ... (ALL OTHER CREATE INDEX STATEMENTS from existing schema.py)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+
+    # --- Indexes for ProductMediaLinks Table ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
+    # --- End Indexes for ProductMediaLinks Table ---
 
     # --- Indexes for Partner Tables (adjusting PartnerCategoryLink index) ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
