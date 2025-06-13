@@ -6,41 +6,8 @@ import json # Required by some CRUD functions, even if not directly in generic
 import os
 import logging
 
-# Configuration and Utilities
-try:
-    from .. import db_config # Assumes db_config.py is in /app
-    # Corrected import for utils.py, it's in db/, generic_crud.py is in db/cruds/
-    # So, to get to db/utils.py from db/cruds/generic_crud.py, it's one level up.
-    from ..utils import get_db_connection
-except (ImportError, ValueError): # Handle running file directly or package issues
-    import sys
-    # Determine the /app directory path relative to this file (db/cruds/generic_crud.py)
-    # generic_crud.py -> cruds/ -> db/ -> app/
-    app_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-
-    # Path to the 'db' directory, which contains 'utils.py'
-    db_dir_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # This should be /app/db
-    if db_dir_path not in sys.path:
-         sys.path.append(db_dir_path)
-
-    try:
-        import db_config
-        from utils import get_db_connection # utils is in db/
-    except ImportError as e:
-        print(f"CRITICAL: db_config.py or utils.py (for get_db_connection) not found in generic_crud.py. Using fallbacks. Error: {e}")
-        class db_config: # Minimal fallback for db_config
-            DATABASE_NAME = "app_data_fallback_generic.db"
-            APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # app/
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback_generic"
-
-        def get_db_connection(db_name=None): # Fallback get_db_connection
-            name_to_connect = db_name if db_name else db_config.DATABASE_NAME
-            db_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, name_to_connect)
-            conn_fallback = sqlite3.connect(db_path)
-            conn_fallback.row_factory = sqlite3.Row
-            return conn_fallback
+# Simplified import for get_db_connection using relative path
+from ..utils import get_db_connection
 
 # Helper to manage connection lifecycle for CRUD functions
 def _manage_conn(func):

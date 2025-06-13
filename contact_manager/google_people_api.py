@@ -8,25 +8,9 @@ import json
 # from googleapiclient.discovery import build # If using google-api-python-client, e.g. service = build('people', 'v1', credentials=creds)
 
 # --- Application-specific imports ---
-try:
-    from . import google_auth # For getting authenticated session
-    from ..db import crud as db_manager # For potential direct DB access if needed (e.g., logging, user details)
-except (ImportError, ValueError):
-    # Fallback for potential execution context issues (e.g. running script directly)
-    import sys
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    app_root_dir = os.path.dirname(current_dir)
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-    try:
-        import google_auth # Assuming google_auth.py is in the same directory
-        from db import crud as db_manager
-    except ImportError:
-        google_auth = None
-        db_manager = None
-        print("Warning: Could not import google_auth or db_manager for Google People API. API calls will fail.")
-
+from . import google_auth # For getting authenticated session
+# db_manager is no longer imported here as it was not directly used by this module's functions.
+# google_auth module handles its own database interactions via specific CRUD modules.
 
 PEOPLE_API_BASE_URL = "https://people.googleapis.com/v1/"
 
@@ -232,8 +216,8 @@ if __name__ == '__main__':
     # Example test flow (highly dependent on dummy_user_id having valid placeholder creds):
     dummy_user_id_for_api_test = "test_user_123" # Assume this user has placeholder creds set up via google_auth.py logic
 
-    if not google_auth or not db_manager:
-        print("Skipping People API tests as google_auth or db_manager is not properly imported/initialized.")
+    if not google_auth: # db_manager check removed as it's not imported/used here
+        print("Skipping People API tests as google_auth is not properly imported/initialized.")
     else:
         print(f"\n--- Testing with User ID: {dummy_user_id_for_api_test} ---")
 

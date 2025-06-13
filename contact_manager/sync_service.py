@@ -7,33 +7,14 @@ import json
 from datetime import datetime, timezone # Ensure timezone is imported
 
 # --- Application-specific imports ---
-try:
-    from . import google_auth
-    from . import google_people_api
-    from ..db import crud as db_manager # Access to database CRUD operations
-    from ..db import db_config # For any config values if needed
-except (ImportError, ValueError) as e:
-    # Fallback for potential execution context issues
-    import sys
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    app_root_dir = os.path.dirname(current_dir) # Up to /app
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-    try:
-        import google_auth # from contact_manager.google_auth
-        import google_people_api # from contact_manager.google_people_api
-        from db import crud as db_manager
-        from db import db_config
-    except ImportError as final_e:
-        google_auth = None
-        google_people_api = None
-        db_manager = None
-        db_config = None
-        print(f"Critical Import Error in sync_service.py: {final_e}. Sync functionality will be disabled.")
+from . import google_auth
+from . import google_people_api
+from db.cruds import google_sync_crud # Changed from ..db.cruds. For database operations related to sync logs and google accounts
 
 # Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+# Replaced basicConfig with getLogger to avoid configuring root logger directly from a module
+logger = logging.getLogger(__name__)
 
 # --- Transformation Functions ---
 
@@ -225,11 +206,11 @@ def _sync_platform_to_google(user_id: str, user_google_account: dict):
     - Mapping various local contact types (Clients, PartnerContacts, CompanyPersonnel)
       to a single Google Person format.
     """
-    if not all([db_manager, google_people_api]):
-        logging.error("DB manager or Google People API module not available for platform-to-Google sync.")
+    if not all([google_sync_crud, google_people_api]): # Updated db_manager to google_sync_crud
+        logger.error("google_sync_crud or Google People API module not available for platform-to-Google sync.")
         return
 
-    logging.info(f"Starting platform-to-Google sync for user_id: {user_id}")
+    logger.info(f"Starting platform-to-Google sync for user_id: {user_id}")
     user_google_account_id = user_google_account.get('user_google_account_id')
 
     # --- Placeholder: Fetching local contacts ---
@@ -242,7 +223,7 @@ def _sync_platform_to_google(user_id: str, user_google_account: dict):
 
     # Example: Fetch some client contacts (main Contacts table)
     # This does not check for "recently updated", just fetches all.
-    # all_platform_contacts_raw = db_manager.get_all_contacts() # Assuming this gets from Contacts table
+    # all_platform_contacts_raw = contacts_crud.get_all_contacts() # Example if using contacts_crud
     # for pc_raw in all_platform_contacts_raw:
     #    platform_contacts_to_check.append({'type': 'client_contact', 'data': dict(pc_raw)})
 
@@ -256,14 +237,14 @@ def _sync_platform_to_google(user_id: str, user_google_account: dict):
         elif local_contact_type == 'partner_contact': local_id_val = str(local_contact_data.get('contact_id'))
         elif local_contact_type == 'company_personnel': local_id_val = str(local_contact_data.get('personnel_id'))
         else:
-            logging.warning(f"Unknown local_contact_type: {local_contact_type}. Skipping.")
+            logger.warning(f"Unknown local_contact_type: {local_contact_type}. Skipping.")
             continue
 
         if not local_id_val:
-            logging.warning(f"Missing ID for local contact of type {local_contact_type}. Data: {local_contact_data}")
+            logger.warning(f"Missing ID for local contact of type {local_contact_type}. Data: {local_contact_data}")
             continue
 
-        sync_log_entry = db_manager.get_contact_sync_log_by_local_contact(
+        sync_log_entry = google_sync_crud.get_contact_sync_log_by_local_contact( # Updated
             user_google_account_id, local_id_val, local_contact_type
         )
 
@@ -300,22 +281,22 @@ def _sync_platform_to_google(user_id: str, user_google_account: dict):
                 etag=google_etag
             )
             if updated_g_contact:
-                db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+                google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                     'google_etag': updated_g_contact.get('etag'),
                     # 'platform_etag': current_platform_etag,
                     'sync_status': 'synced',
                     'sync_direction': 'platform_to_google',
                     'error_message': None
                 })
-                logging.info(f"Successfully updated Google contact {google_contact_id}.")
+                logger.info(f"Successfully updated Google contact {google_contact_id}.")
             else:
-                db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+                google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                     'sync_status': 'error', 'error_message': 'Failed to update Google contact (API error)'
                 })
-                logging.error(f"Failed to update Google contact {google_contact_id}.")
+                logger.error(f"Failed to update Google contact {google_contact_id}.")
         else:
             # Create new Google contact
-            logging.info(f"Creating new Google contact for local {local_id_val} ({local_contact_type}).")
+            logger.info(f"Creating new Google contact for local {local_id_val} ({local_contact_type}).")
             created_g_contact = google_people_api.create_google_contact(user_id, google_formatted_contact)
             if created_g_contact and created_g_contact.get('resourceName'):
                 log_data = {
@@ -329,15 +310,15 @@ def _sync_platform_to_google(user_id: str, user_google_account: dict):
                     'sync_direction': 'platform_to_google',
                 }
                 if sync_log_entry: # Update existing log if it was partial
-                    db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], log_data)
+                    google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], log_data) # Updated
                 else: # Add new log
-                    db_manager.add_contact_sync_log(log_data)
-                logging.info(f"Successfully created Google contact {created_g_contact['resourceName']}.")
+                    google_sync_crud.add_contact_sync_log(log_data) # Updated
+                logger.info(f"Successfully created Google contact {created_g_contact['resourceName']}.")
             else:
                 # Could create a log entry with error status if creation failed
-                logging.error(f"Failed to create Google contact for local {local_id_val} ({local_contact_type}).")
+                logger.error(f"Failed to create Google contact for local {local_id_val} ({local_contact_type}).")
 
-    logging.info(f"Platform-to-Google sync completed for user_id: {user_id}")
+    logger.info(f"Platform-to-Google sync completed for user_id: {user_id}")
 
 
 def _sync_google_to_platform(user_id: str, user_google_account: dict):
@@ -353,11 +334,11 @@ def _sync_google_to_platform(user_id: str, user_google_account: dict):
       A generic "Synced Contacts" table or staging area might be needed.
     - Conflict resolution if a contact was changed both locally and on Google simultaneously.
     """
-    if not all([db_manager, google_people_api]):
-        logging.error("DB manager or Google People API module not available for Google-to-platform sync.")
+    if not all([google_sync_crud, google_people_api]): # Updated
+        logger.error("google_sync_crud or Google People API module not available for Google-to-platform sync.")
         return
 
-    logging.info(f"Starting Google-to-platform sync for user_id: {user_id}")
+    logger.info(f"Starting Google-to-platform sync for user_id: {user_id}")
     user_google_account_id = user_google_account.get('user_google_account_id')
 
     next_page_token = None
@@ -380,46 +361,46 @@ def _sync_google_to_platform(user_id: str, user_google_account: dict):
             google_etag_summary = g_contact_summary.get("etag")
 
             if not google_contact_id:
-                logging.warning(f"Found a Google contact without a resourceName. Skipping. Data: {g_contact_summary}")
+                logger.warning(f"Found a Google contact without a resourceName. Skipping. Data: {g_contact_summary}")
                 continue
 
-            sync_log_entry = db_manager.get_contact_sync_log_by_google_contact_id(
+            sync_log_entry = google_sync_crud.get_contact_sync_log_by_google_contact_id( # Updated
                 user_google_account_id, google_contact_id
             )
 
             if sync_log_entry:
                 # Existing contact, check if ETag changed
                 if sync_log_entry.get('google_etag') != google_etag_summary:
-                    logging.info(f"ETag changed for Google contact {google_contact_id}. Fetching full details.")
+                    logger.info(f"ETag changed for Google contact {google_contact_id}. Fetching full details.")
                     # Fetch full contact details as summary might be limited
                     g_contact_full = google_people_api.get_google_contact(user_id, google_contact_id) # Uses more comprehensive person_fields by default
                     if not g_contact_full:
-                        logging.error(f"Failed to fetch full details for updated Google contact {google_contact_id}.")
-                        db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+                        logger.error(f"Failed to fetch full details for updated Google contact {google_contact_id}.")
+                        google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                             'sync_status': 'error', 'error_message': 'Failed to fetch full Google contact after ETag change.'
                         })
                         continue
 
                     platform_equivalent = _transform_google_contact_to_platform(g_contact_full)
                     if not platform_equivalent:
-                        logging.warning(f"Failed to transform updated Google contact {google_contact_id} to platform format.")
+                        logger.warning(f"Failed to transform updated Google contact {google_contact_id} to platform format.")
                         continue
 
                     # --- Placeholder: Update local platform contact ---
                     # This is the most complex part. `sync_log_entry` should contain
                     # `local_contact_id` and `local_contact_type`.
-                    # Based on `local_contact_type`, call the appropriate db_manager update function.
-                    # E.g., if local_contact_type == 'client_contact', update db_manager.update_contact(...)
-                    logging.info(f"Placeholder: Would update local contact (ID: {sync_log_entry.get('local_contact_id')}, Type: {sync_log_entry.get('local_contact_type')}) with data from Google contact {google_contact_id}.")
-                    # Example: db_manager.update_contact(sync_log_entry.get('local_contact_id'), platform_equivalent_for_specific_type)
+                    # Based on `local_contact_type`, call the appropriate update function from a specific CRUD module.
+                    # E.g., if local_contact_type == 'client_contact', update contacts_crud.update_contact(...)
+                    logger.info(f"Placeholder: Would update local contact (ID: {sync_log_entry.get('local_contact_id')}, Type: {sync_log_entry.get('local_contact_type')}) with data from Google contact {google_contact_id}.")
+                    # Example: contacts_crud.update_contact(sync_log_entry.get('local_contact_id'), platform_equivalent_for_specific_type)
 
-                    db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+                    google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                         'google_etag': g_contact_full.get('etag'), # Use ETag from full fetched contact
                         'sync_status': 'synced', # Or 'pending_platform_update' if manual review needed
                         'sync_direction': 'google_to_platform',
                         'error_message': None
                     })
-                    logging.info(f"Successfully processed update for Google contact {google_contact_id}.")
+                    logger.info(f"Successfully processed update for Google contact {google_contact_id}.")
                 # else: ETag is same, assume no change from Google's side.
             else:
                 # New contact from Google's side
@@ -454,7 +435,7 @@ def _sync_google_to_platform(user_id: str, user_google_account: dict):
                      logging.info(f"Google contact {google_contact_id} has userDefined fields pointing to local ID {linked_local_id} ({linked_local_type}). This might be a re-sync or requires conflict resolution.")
                      # This scenario needs careful handling - it might be a contact previously synced from platform, deleted on platform, and now re-appearing from Google.
 
-                db_manager.add_contact_sync_log({
+                google_sync_crud.add_contact_sync_log({ # Updated
                     'user_google_account_id': user_google_account_id,
                     'local_contact_id': linked_local_id or "UNKNOWN_GOOGLE_ORIGINATED", # Placeholder if no local link
                     'local_contact_type': linked_local_type or "google_originated", # Placeholder
@@ -463,17 +444,17 @@ def _sync_google_to_platform(user_id: str, user_google_account: dict):
                     'sync_status': 'pending_platform_creation', # Or 'synced' if auto-created
                     'sync_direction': 'google_to_platform',
                 })
-                logging.info(f"Created sync log for new Google contact {google_contact_id}.")
+                logger.info(f"Created sync log for new Google contact {google_contact_id}.")
 
         next_page_token = google_contacts_page.get("nextPageToken")
         if not next_page_token:
-            logging.info("All pages of Google contacts processed.")
+            logger.info("All pages of Google contacts processed.")
             break
         if processed_count >= max_contacts_to_process_per_run:
-            logging.info(f"Reached max processing limit ({max_contacts_to_process_per_run}) for this sync run.")
+            logger.info(f"Reached max processing limit ({max_contacts_to_process_per_run}) for this sync run.")
             break
 
-    logging.info(f"Google-to-platform sync completed for user_id: {user_id}")
+    logger.info(f"Google-to-platform sync completed for user_id: {user_id}")
 
 
 def synchronize_contacts_for_user(user_id: str):
@@ -482,15 +463,15 @@ def synchronize_contacts_for_user(user_id: str):
     Fetches user's Google account, handles token refresh, and calls sync sub-functions.
     Updates UserGoogleAccounts with sync timestamps.
     """
-    if not all([db_manager, google_auth, google_people_api]):
-        logging.error("One or more core modules (db_manager, google_auth, google_people_api) not available. Cannot synchronize.")
+    if not all([google_sync_crud, google_auth, google_people_api]): # Updated
+        logger.error("One or more core modules (google_sync_crud, google_auth, google_people_api) not available. Cannot synchronize.")
         return
 
-    logging.info(f"Starting contact synchronization process for user_id: {user_id}")
+    logger.info(f"Starting contact synchronization process for user_id: {user_id}")
 
-    user_google_account = db_manager.get_user_google_account_by_user_id(user_id)
+    user_google_account = google_sync_crud.get_user_google_account_by_user_id(user_id) # Updated
     if not user_google_account:
-        logging.info(f"No Google account linked for user {user_id}. Skipping synchronization.")
+        logger.info(f"No Google account linked for user {user_id}. Skipping synchronization.")
         return
 
     user_google_account_id = user_google_account['user_google_account_id']
@@ -500,12 +481,12 @@ def synchronize_contacts_for_user(user_id: str):
     # For placeholder, assume it returns credentials that are valid or have been refreshed.
     session_creds = google_auth.get_authenticated_session(user_id)
     if not session_creds or not session_creds.get('token'): # 'token' is access_token from placeholder
-        logging.error(f"Failed to obtain valid Google session/token for user {user_id}. Cannot synchronize.")
-        db_manager.update_user_google_account(user_google_account_id, {'last_sync_initiated_at': datetime.utcnow().isoformat() + "Z", 'error_message': 'Auth failed'})
+        logger.error(f"Failed to obtain valid Google session/token for user {user_id}. Cannot synchronize.")
+        google_sync_crud.update_user_google_account(user_google_account_id, {'last_sync_initiated_at': datetime.utcnow().isoformat() + "Z", 'error_message': 'Auth failed'}) # Updated
         return
 
     # Update last_sync_initiated_at
-    db_manager.update_user_google_account(user_google_account_id, {'last_sync_initiated_at': datetime.utcnow().isoformat() + "Z"})
+    google_sync_crud.update_user_google_account(user_google_account_id, {'last_sync_initiated_at': datetime.utcnow().isoformat() + "Z"}) # Updated
 
     # --- Perform Sync Operations ---
     # Order can matter. E.g., platform to Google first to push local changes,
@@ -527,9 +508,9 @@ def synchronize_contacts_for_user(user_id: str):
 
     # Update last_sync_successful_at (if all parts were successful or based on criteria)
     # This is simplified; might need more robust error tracking from sub-syncs.
-    db_manager.update_user_google_account(user_google_account_id, {'last_sync_successful_at': datetime.utcnow().isoformat() + "Z", 'error_message': None})
+    google_sync_crud.update_user_google_account(user_google_account_id, {'last_sync_successful_at': datetime.utcnow().isoformat() + "Z", 'error_message': None}) # Updated
 
-    logging.info(f"Contact synchronization process for user_id {user_id} completed.")
+    logger.info(f"Contact synchronization process for user_id {user_id} completed.")
 
 
 def handle_contact_change_from_platform(user_id: str, local_contact_id: str, local_contact_type: str, change_type: str):
@@ -543,15 +524,15 @@ def handle_contact_change_from_platform(user_id: str, local_contact_id: str, loc
         local_contact_type: Type of local contact (e.g., 'client_contact').
         change_type: 'create', 'update', or 'delete'.
     """
-    if not all([db_manager, google_auth, google_people_api]):
-        logging.error("Core modules not available for handling platform contact change.")
+    if not all([google_sync_crud, google_auth, google_people_api]): # Updated
+        logger.error("Core modules not available for handling platform contact change.")
         return
 
-    logging.info(f"Handling platform contact change: User: {user_id}, ID: {local_contact_id}, Type: {local_contact_type}, Change: {change_type}")
+    logger.info(f"Handling platform contact change: User: {user_id}, ID: {local_contact_id}, Type: {local_contact_type}, Change: {change_type}")
 
-    user_google_account = db_manager.get_user_google_account_by_user_id(user_id)
+    user_google_account = google_sync_crud.get_user_google_account_by_user_id(user_id) # Updated
     if not user_google_account:
-        logging.info(f"No Google account linked for user {user_id}. Cannot process change for {local_contact_id}.")
+        logger.info(f"No Google account linked for user {user_id}. Cannot process change for {local_contact_id}.")
         return
     user_google_account_id = user_google_account['user_google_account_id']
 
@@ -570,25 +551,25 @@ def handle_contact_change_from_platform(user_id: str, local_contact_id: str, loc
         # elif local_contact_type == 'company_personnel': platform_contact_data = db_manager.get_company_personnel_by_id(local_contact_id) # Assuming this exists
 
         if not platform_contact_data:
-            logging.error(f"Could not fetch local contact {local_contact_id} ({local_contact_type}) for {change_type} operation.")
+            logger.error(f"Could not fetch local contact {local_contact_id} ({local_contact_type}) for {change_type} operation.")
             return
-        logging.info(f"Placeholder: Fetched local contact data for {local_contact_id} ({local_contact_type}): {platform_contact_data}")
+        logger.info(f"Placeholder: Fetched local contact data for {local_contact_id} ({local_contact_type}): {platform_contact_data}")
 
 
-    sync_log_entry = db_manager.get_contact_sync_log_by_local_contact(
+    sync_log_entry = google_sync_crud.get_contact_sync_log_by_local_contact( # Updated
         user_google_account_id, str(local_contact_id), local_contact_type
     )
 
     if change_type == 'delete':
         if sync_log_entry and sync_log_entry.get('google_contact_id'):
             google_contact_id_to_delete = sync_log_entry['google_contact_id']
-            logging.info(f"Deleting Google contact {google_contact_id_to_delete} linked to local {local_contact_id} ({local_contact_type}).")
+            logger.info(f"Deleting Google contact {google_contact_id_to_delete} linked to local {local_contact_id} ({local_contact_type}).")
             delete_success = google_people_api.delete_google_contact(user_id, google_contact_id_to_delete)
             if delete_success:
-                db_manager.delete_contact_sync_log(sync_log_entry['sync_log_id'])
-                logging.info(f"Successfully deleted Google contact {google_contact_id_to_delete} and its sync log.")
+                google_sync_crud.delete_contact_sync_log(sync_log_entry['sync_log_id']) # Updated
+                logger.info(f"Successfully deleted Google contact {google_contact_id_to_delete} and its sync log.")
             else:
-                logging.error(f"Failed to delete Google contact {google_contact_id_to_delete}. Sync log not deleted.")
+                logger.error(f"Failed to delete Google contact {google_contact_id_to_delete}. Sync log not deleted.")
                 # Update sync log with error?
         else:
             logging.info(f"No Google contact found in sync log for local {local_contact_id} ({local_contact_type}). Nothing to delete on Google's side.")
@@ -618,19 +599,19 @@ def handle_contact_change_from_platform(user_id: str, local_contact_id: str, loc
             update_person_fields=update_person_fields_str, etag=google_etag
         )
         if updated_g_contact:
-            db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+            google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                 'google_etag': updated_g_contact.get('etag'),
                 # 'platform_etag': current_platform_etag,
                 'sync_status': 'synced', 'sync_direction': 'platform_to_google', 'error_message': None
             })
-            logging.info(f"Successfully updated Google contact {google_contact_id_to_update}.")
+            logger.info(f"Successfully updated Google contact {google_contact_id_to_update}.")
         else:
-            db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], {
+            google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], { # Updated
                 'sync_status': 'error', 'error_message': 'Platform change: Failed to update Google contact.'
             })
-            logging.error(f"Failed to update Google contact {google_contact_id_to_update} from platform change.")
+            logger.error(f"Failed to update Google contact {google_contact_id_to_update} from platform change.")
     else: # No existing link, or log is partial -> Create
-        logging.info(f"Creating Google contact due to platform change on {local_contact_id} ({local_contact_type}).")
+        logger.info(f"Creating Google contact due to platform change on {local_contact_id} ({local_contact_type}).")
         created_g_contact = google_people_api.create_google_contact(user_id, google_formatted_contact)
         if created_g_contact and created_g_contact.get('resourceName'):
             log_payload = {
@@ -643,12 +624,12 @@ def handle_contact_change_from_platform(user_id: str, local_contact_id: str, loc
                 'sync_status': 'synced', 'sync_direction': 'platform_to_google'
             }
             if sync_log_entry: # Update existing partial log
-                db_manager.update_contact_sync_log(sync_log_entry['sync_log_id'], log_payload)
+                google_sync_crud.update_contact_sync_log(sync_log_entry['sync_log_id'], log_payload) # Updated
             else: # Add new log
-                db_manager.add_contact_sync_log(log_payload)
-            logging.info(f"Successfully created Google contact {created_g_contact['resourceName']}.")
+                google_sync_crud.add_contact_sync_log(log_payload) # Updated
+            logger.info(f"Successfully created Google contact {created_g_contact['resourceName']}.")
         else:
-            logging.error(f"Failed to create Google contact from platform change for {local_contact_id} ({local_contact_type}).")
+            logger.error(f"Failed to create Google contact from platform change for {local_contact_id} ({local_contact_type}).")
             # Optionally create an error log entry here.
 
 # --- Main (for testing or scheduled execution) ---

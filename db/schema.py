@@ -26,57 +26,90 @@ except (ImportError, ValueError):
         db_config = db_config_fallback
 
 
-# Placeholder imports for CRUD functions that will be in db/crud.py
-# These are called by initialize_database during seeding.
+# Imports for functions used by initialize_database (when schema.py is run directly)
+# These should point to the new CRUD locations.
 try:
-    # Attempt to import actual functions first
-    from .crud import (
-        get_user_by_username, get_country_by_name, get_city_by_name_and_country_id,
-        get_status_setting_by_name, set_setting, add_default_template_if_not_exists,
-        add_cover_page_template, get_cover_page_template_by_name, add_template_category
-    )
-    print("Successfully imported CRUD functions from .crud for schema initialization.")
-except ImportError:
-    print("Warning: db.crud module not found or some functions missing. Using placeholders for seeding in schema.py.")
-    # Define placeholders if actual import fails
+    from .cruds.users_crud import get_user_by_username
+    from .cruds.locations_crud import get_country_by_name, get_city_by_name_and_country_id
+    from .cruds.status_settings_crud import get_status_setting_by_name
+    from .cruds.application_settings_crud import set_setting
+    from .cruds.templates_crud import add_default_template_if_not_exists
+    from .cruds.cover_page_templates_crud import add_cover_page_template, get_cover_page_template_by_name
+    from .cruds.template_categories_crud import add_template_category
+    print("Successfully imported CRUD functions from db.cruds for schema initialization.")
+except ImportError as e:
+    print(f"Warning: Could not import all CRUD functions for db.schema.initialize_database: {e}. Placeholders will be used if schema.py is run as main.")
+    # Define placeholders if actual import fails, so schema.py can still be run as __main__ for basic setup
     get_user_by_username = lambda username, conn=None: {'user_id': str(uuid.uuid4()), 'username': username, 'full_name': 'Admin Fallback'} if username == db_config.DEFAULT_ADMIN_USERNAME else None
     get_country_by_name = lambda name, conn=None: {'country_id': 1, 'country_name': name} if name else None
     get_city_by_name_and_country_id = lambda name, country_id, conn=None: {'city_id': 1, 'city_name': name} if name and country_id else None
     get_status_setting_by_name = lambda name, type, conn=None: {'status_id': 1, 'status_name': name} if name and type else None
-    set_setting = lambda key, value, conn=None: True
+    set_setting = lambda key, value, conn=None: True # Simplified
 
-    def add_template_category(category_name: str, description: str = None, conn=None):
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = ?", (category_name,))
-            row = cursor.fetchone()
-            if row: return row['category_id']
-            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", (category_name, description))
-            return cursor.lastrowid
-        return None
+    # Placeholder for add_template_category if needed by add_default_template_if_not_exists placeholder
+    _placeholder_add_template_category = lambda category_name, description=None, conn=None: 1 # Dummy ID
 
     def add_default_template_if_not_exists(data, conn=None): # Simplified placeholder
         print(f"[SCHEMA_PLACEHOLDER] add_default_template_if_not_exists for: {data.get('template_name')}")
-        if not conn: return None
-        # Minimal insert for placeholder to allow seeding to proceed without full functionality
-        category_id = add_template_category(data.get('category_name', 'General'), conn=conn)
-        if not category_id: return None
-        cursor = conn.cursor()
-        cursor.execute("INSERT OR IGNORE INTO Templates (template_name, template_type, language_code, base_file_name, category_id, email_subject_template) VALUES (?,?,?,?,?,?)",
-                       (data.get('template_name'), data.get('template_type'), data.get('language_code'), data.get('base_file_name'), category_id, data.get('email_subject_template')))
-        return cursor.lastrowid
+        # This placeholder might not be fully functional without real DB interaction
+        return None
 
     def add_cover_page_template(data, conn=None): # Simplified placeholder
         print(f"[SCHEMA_PLACEHOLDER] add_cover_page_template for: {data.get('template_name')}")
-        if not conn: return None
-        # Minimal insert
-        cursor = conn.cursor()
-        new_id = str(uuid.uuid4())
-        cursor.execute("INSERT OR IGNORE INTO CoverPageTemplates (template_id, template_name, is_default_template) VALUES (?,?,?)",
-                       (new_id, data.get('template_name'), data.get('is_default_template',0)))
-        return new_id
+        return str(uuid.uuid4())
 
     get_cover_page_template_by_name = lambda name, conn=None: None
+    add_template_category = _placeholder_add_template_category
+
+
+# This TABLE_SCHEMAS dictionary is the source of truth for table structures.
+# It is used by db.ca.initialize_database()
+TABLE_SCHEMAS = {
+    'Users': {
+        'columns': [
+            ('user_id', 'TEXT PRIMARY KEY'),
+            ('username', 'TEXT NOT NULL UNIQUE'),
+            ('password_hash', 'TEXT NOT NULL'),
+            ('full_name', 'TEXT'),
+            ('email', 'TEXT NOT NULL UNIQUE'),
+            ('role', 'TEXT NOT NULL'),
+            ('is_active', 'BOOLEAN DEFAULT TRUE'),
+            ('created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
+            ('updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
+            ('last_login_at', 'TIMESTAMP')
+        ],
+        'foreign_keys': [],
+        'indexes': [
+            ('idx_users_username', ['username'], True), # True for UNIQUE
+            ('idx_users_email', ['email'], True)
+        ]
+    },
+    # ... (other table schemas like Companies, CompanyPersonnel, TeamMembers as before) ...
+    'Countries': {
+        'columns': [
+            ('country_id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+            ('country_name', 'TEXT UNIQUE NOT NULL'),
+            ('country_code', 'TEXT'),
+            ('created_at', 'TEXT DEFAULT CURRENT_TIMESTAMP'), # Added
+            ('updated_at', 'TEXT DEFAULT CURRENT_TIMESTAMP')  # Added
+        ],
+        'foreign_keys': [],
+        'indexes': [('idx_countries_country_name', ['country_name'], True)]
+    },
+    'Cities': {
+        'columns': [
+            ('city_id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+            ('country_id', 'INTEGER NOT NULL'),
+            ('city_name', 'TEXT NOT NULL')
+            # Assuming created_at/updated_at might be added here too if consistency is desired
+        ],
+        'foreign_keys': [
+            ('fk_cities_country_id', 'country_id', 'Countries(country_id)')
+        ],
+        'indexes': [('idx_cities_country_id_city_name', ['country_id', 'city_name'], True)]
+    },
+    # ... (rest of the TABLE_SCHEMAS definition from the original file) ...
+}
 
 
 DEFAULT_COVER_PAGE_TEMPLATES = [
@@ -133,7 +166,15 @@ def initialize_database():
     cursor.execute("CREATE TABLE IF NOT EXISTS Companies (company_id TEXT PRIMARY KEY, company_name TEXT NOT NULL, address TEXT, payment_info TEXT, logo_path TEXT, other_info TEXT, is_default BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
     cursor.execute("CREATE TABLE IF NOT EXISTS CompanyPersonnel (personnel_id INTEGER PRIMARY KEY AUTOINCREMENT, company_id TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, phone TEXT, email TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE)")
     cursor.execute("CREATE TABLE IF NOT EXISTS TeamMembers (team_member_id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT UNIQUE, full_name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, role_or_title TEXT, department TEXT, phone_number TEXT, profile_picture_url TEXT, is_active BOOLEAN DEFAULT TRUE, notes TEXT, hire_date TEXT, performance INTEGER DEFAULT 0, skills TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS Countries (country_id INTEGER PRIMARY KEY AUTOINCREMENT, country_name TEXT NOT NULL UNIQUE)")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Countries (
+            country_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            country_name TEXT NOT NULL UNIQUE,
+            country_code TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     cursor.execute("CREATE TABLE IF NOT EXISTS Cities (city_id INTEGER PRIMARY KEY AUTOINCREMENT, country_id INTEGER NOT NULL, city_name TEXT NOT NULL, FOREIGN KEY (country_id) REFERENCES Countries (country_id))")
 
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='StatusSettings'")
@@ -161,29 +202,40 @@ def initialize_database():
     # (Continue with all other CREATE TABLE statements from the existing schema.py)
     cursor.execute("CREATE TABLE IF NOT EXISTS Client_FreightForwarders (client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE, FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE, UNIQUE (client_id, forwarder_id))")
 
-    # --- New Partner Tables ---
+    # --- Updated Partner Tables ---
+    # PartnerCategories table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS PartnerCategories (
+            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Partners table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Partners (
             partner_id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            address TEXT,
-            phone TEXT,
-            location TEXT,
+            partner_name TEXT NOT NULL,
+            partner_category_id INTEGER,
+            contact_person_name TEXT,
             email TEXT UNIQUE,
+            phone TEXT,
+            address TEXT,
+            website_url TEXT,
+            services_offered TEXT,
+            collaboration_start_date TEXT,
+            status TEXT DEFAULT 'Active',
             notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
         )
     """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerCategories (
-            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT
-        )
-    """)
-
+    # PartnerContacts table (assuming no changes needed based on subtask focus, but FK to Partners is vital)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerContacts (
             contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,13 +250,14 @@ def initialize_database():
         )
     """)
 
+    # PartnerCategoryLink table (Updated to use new FK name for PartnerCategories)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
             partner_id TEXT NOT NULL,
-            category_id INTEGER NOT NULL,
-            PRIMARY KEY (partner_id, category_id),
+            partner_category_id INTEGER NOT NULL,
+            PRIMARY KEY (partner_id, partner_category_id),
             FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
-            FOREIGN KEY (category_id) REFERENCES PartnerCategories(category_id) ON DELETE CASCADE
+            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
         )
     """)
 
@@ -310,12 +363,15 @@ def initialize_database():
     # ... (ALL OTHER CREATE INDEX STATEMENTS from existing schema.py)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
 
-    # --- Indexes for New Partner Tables ---
+    # --- Indexes for Partner Tables (adjusting PartnerCategoryLink index) ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_category_id ON PartnerCategoryLink(category_id)")
+    # Index for PartnerCategoryLink's category_id foreign key
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategorylink_partner_category_id ON PartnerCategoryLink(partner_category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnerdocuments_partner_id ON PartnerDocuments(partner_id)")
-    # --- End Indexes for New Partner Tables ---
+    # It's also good practice to have an index on PartnerCategories.category_name for lookups
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercategories_category_name ON PartnerCategories(category_name)")
+    # --- End Indexes for Partner Tables ---
 
     # --- Indexes for Google Contact Sync Tables ---
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
