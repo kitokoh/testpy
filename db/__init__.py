@@ -16,7 +16,6 @@ from .ca import initialize_database
 from .cruds.application_settings_crud import (
     get_setting,
     set_setting,
-    get_all_settings,
 )
 
 # Clients
@@ -54,7 +53,6 @@ from .cruds.company_personnel_crud import (
     get_personnel_for_company,
     update_company_personnel,
     delete_company_personnel,
-    get_company_personnel_by_id, # Assuming this exists
 )
 
 # Contacts
@@ -375,7 +373,7 @@ __all__ = [
     # CA
     "initialize_database",
     # Application Settings
-    "get_setting", "set_setting", "get_all_settings",
+    "get_setting", "set_setting",
     # Clients
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client",
     "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country",
@@ -387,7 +385,6 @@ __all__ = [
     "set_default_company", "get_default_company",
     # Company Personnel
     "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
-    "get_company_personnel_by_id",
     # Contacts
     "add_contact", "get_contact_by_id", "get_contact_by_email", "get_all_contacts", "update_contact", "delete_contact",
     "link_contact_to_client", "unlink_contact_from_client", "get_contacts_for_client", "get_clients_for_contact",
