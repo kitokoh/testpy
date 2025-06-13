@@ -55,6 +55,8 @@ from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
+
+
 class SettingsDialog(OriginalSettingsDialog):
     def __init__(self, main_config, parent=None):
         super().__init__(main_config, parent)
@@ -334,7 +336,8 @@ class DocumentManager(QMainWindow):
             icon_path (str, optional): Path to a custom icon. If None, a default icon based
                                        on the 'type' will be used. Defaults to None.
         """
-        from main import get_notification_manager # For notifications - Moved import here
+        from main import get_notification_manager # Local import
+
         manager = get_notification_manager()
         if manager:
             manager.show(title, message, type=type, duration=duration, icon_path=icon_path)
