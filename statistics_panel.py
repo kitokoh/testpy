@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QIcon
-import db as db_manager # Assuming db_manager is accessible
+import db.crud as db_manager # Assuming db_manager is accessible
 
 class CollapsibleStatisticsWidget(QWidget):
     def __init__(self, parent=None):
