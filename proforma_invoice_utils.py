@@ -4,50 +4,62 @@ import hashlib
 from datetime import datetime, timezone
 import json
 import os
-import logging # For logging errors
+import logging
+from typing import Optional, List, Dict, Any, Union
 
-# Attempt to import from db module (db.py at root)
-# Assuming db.py contains the necessary database interaction functions
+# Attempt to import ProformaInvoice model for type hinting
+try:
+    from api.models import ProformaInvoice
+except ImportError:
+    logging.warning("Could not import ProformaInvoice from api.models. Type hinting will use Any.")
+    ProformaInvoice = Any # Fallback type
+
+# Attempt to import from db module
 try:
     from db import (
-        get_db_session, # Assuming get_db() is renamed or get_db_session() is preferred
-        # The following functions are expected to be in db.py or a similar accessible module
-        # For this implementation, we'll mock/stub their existence if direct import fails
-        # get_company_by_id,
-        # get_personnel_for_company,
-        # get_client_by_id,
-        # get_country_by_id,
-        # get_city_by_id,
-        # get_contacts_for_client,
-        # get_project_by_id,
-        # get_product_by_id, # Individual product fetch
-        # get_products_for_client_or_project, # For fetching linked ClientProjectProducts
-        # get_client_document_notes,
+        get_db_session,
+        get_company_by_id as db_get_company_by_id,
+        get_personnel_for_company as db_get_personnel_for_company,
+        get_client_by_id as db_get_client_by_id,
+        get_country_by_id as db_get_country_by_id,
+        get_city_by_id as db_get_city_by_id,
+        get_contacts_for_client as db_get_contacts_for_client,
+        get_project_by_id as db_get_project_by_id,
+        get_product_by_id as db_get_product_by_id, # Renamed to avoid conflict if a local mock is used
+        get_products_for_client_or_project as db_get_products_for_client_or_project,
+        get_client_document_notes as db_get_client_document_notes,
     )
-    # For _get_batch_products_and_equivalents, it's complex.
-    # If it's in db.py and meant to be shared, it should be importable.
-    # from db import _get_batch_products_and_equivalents
 except ImportError as e:
-    logging.warning(f"Could not import all dependencies from db: {e}. Using placeholder functions. Full functionality requires db.py to be correctly structured and accessible.")
-    # Define placeholder functions if db.py or its functions are not found
+    logging.warning(f"Could not import all dependencies from db: {e}. Using placeholder functions.")
     def get_db_session(): raise NotImplementedError("get_db_session not imported/defined")
-    def get_company_by_id(session, company_id): return None
-    def get_personnel_for_company(session, company_id): return []
-    def get_client_by_id(session, client_id): return None
-    def get_country_by_id(session, country_id): return None
-    def get_city_by_id(session, city_id): return None
-    def get_contacts_for_client(session, client_id, is_primary=None): return []
-    def get_project_by_id(session, project_id): return None
-    def get_product_by_id(session, product_id): return None
-    def get_products_for_client_or_project(session, client_id, project_id=None): return []
-    def get_client_document_notes(session, client_id, document_type, language_code): return "N/A"
+    def db_get_company_by_id(session, company_id): return None
+    def db_get_personnel_for_company(session, company_id): return []
+    def db_get_client_by_id(session, client_id): return None
+    def db_get_country_by_id(session, country_id): return None
+    def db_get_city_by_id(session, city_id): return None
+    def db_get_contacts_for_client(session, client_id, is_primary=None): return []
+    def db_get_project_by_id(session, project_id): return None
+    # Mock Product needs attributes like id, name, description, language_code, base_unit_price etc.
+    class MockProduct:
+        def __init__(self, id, name, desc, lang, price, unit, weight=None, dims=None):
+            self.id = id; self.name = name; self.description = desc; self.language_code = lang
+            self.base_unit_price = price; self.unit_of_measure = unit
+            self.product_weight_kg = weight; self.product_dimensions_cm = dims
+    def db_get_product_by_id(session, product_id): return MockProduct(id=product_id, name=f"Mock Product {product_id}", desc="Mock Desc", lang="en", price=10.0, unit="pcs")
+    def db_get_products_for_client_or_project(session, client_id, project_id=None): return []
+    def db_get_client_document_notes(session, client_id, document_type, language_code): return "N/A"
 
 
-# --- Constants (Potentially from app_config.py or settings) ---
-APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.abspath(__file__)) # Example
-LOGO_SUBDIR_CONTEXT = "assets/logos" # Example
+# --- Constants ---
+APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.abspath(__file__))
+LOGO_SUBDIR_CONTEXT = "assets/logos"
+CURRENCY_SYMBOLS = {
+    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥",
+    # Add more as needed
+}
 
 # --- Helper Functions ---
+# Ensure these functions are robust enough for various inputs (None, etc.)
 def _parse_json_field(json_string, default_value=None):
     if default_value is None:
         default_value = {}
@@ -89,97 +101,142 @@ def format_currency(amount, currency_symbol="€", decimal_places=2):
 
 # Placeholder for _get_batch_products_and_equivalents
 # This is a complex function that would normally interact with a ProductEquivalents table.
-def _get_batch_products_and_equivalents(db_session, product_ids: list, target_language_code: str):
+def _get_batch_products_and_equivalents(db_session, product_ids: List[str], target_language_code: str) -> Dict[str, Dict[str, Any]]:
     """
-    Simplified placeholder. Real implementation would query Products and ProductEquivalents.
-    Returns a dictionary mapping product_id to its details including potential translation.
+    Fetches product details and their equivalents based on target language.
+    Real implementation would query Products and ProductEquivalents tables/models.
     """
-    products_data = {}
-    for pid in product_ids:
-        # Simulate fetching product data - replace with actual DB call using get_product_by_id
-        # This mocked version assumes product_id itself contains info or calls a simple getter
-        product = get_product_by_id(db_session, pid) # This would be a SQLAlchemy object
-        if product:
-            products_data[pid] = {
-                "id": product.id,
-                "original_name": product.name,
-                "original_description": product.description,
-                "original_language_code": product.language_code, # Assuming Product model has this
-                "base_unit_price": product.base_unit_price,
-                "unit_of_measure": product.unit_of_measure,
-                "product_weight_kg": product.product_weight_kg,
-                "product_dimensions_cm": product.product_dimensions_cm,
-                "equivalent_name": None,
+    products_data: Dict[str, Dict[str, Any]] = {}
+    if not product_ids:
+        return products_data
+
+    for pid_str in product_ids:
+        # Using db_get_product_by_id which uses the SQLAlchemy session (or mock)
+        product = db_get_product_by_id(db_session, pid_str) # Assumes pid_str is the correct type for lookup
+        if product and hasattr(product, 'id'): # Check if a valid product object was returned
+            products_data[str(product.id)] = { # Ensure key is string
+                "id": str(product.id),
+                "original_name": getattr(product, 'name', 'N/A'), # Using getattr for safety on mock/real objects
+                "original_description": getattr(product, 'description', 'N/A'),
+                "original_language_code": getattr(product, 'language_code', 'N/A'),
+                "base_unit_price": getattr(product, 'base_unit_price', 0.0),
+                "unit_of_measure": getattr(product, 'unit_of_measure', 'N/A'),
+                "product_weight_kg": getattr(product, 'product_weight_kg', None),
+                "product_dimensions_cm": getattr(product, 'product_dimensions_cm', None),
+                "equivalent_name": None, # Placeholder for translation logic
                 "equivalent_description": None,
                 "equivalent_language_code": None,
             }
-            # Simulate finding an equivalent if target language is different
-            if target_language_code != product.language_code and target_language_code == 'fr':
-                 # In a real scenario, query ProductEquivalents table here
-                products_data[pid]["equivalent_name"] = f"{product.name} (FR)"
-                products_data[pid]["equivalent_description"] = f"{product.description} (Description Française)"
-                products_data[pid]["equivalent_language_code"] = "fr"
+            # Simple mock translation logic (replace with actual DB query for equivalents)
+            current_product_data = products_data[str(product.id)]
+            if target_language_code != current_product_data["original_language_code"] and target_language_code == 'fr':
+                current_product_data["equivalent_name"] = f"{current_product_data['original_name']} (FR)"
+                current_product_data["equivalent_description"] = f"{current_product_data['original_description']} (Description Française)"
+                current_product_data["equivalent_language_code"] = "fr"
         else:
-            products_data[pid] = None # Product not found
+            logging.warning(f"Product with ID {pid_str} not found or is invalid.")
+            products_data[pid_str] = None # Explicitly mark as not found / error
     return products_data
 
 
 def get_proforma_invoice_context_data(
-    client_id: str,
-    company_id: str,
-    target_language_code: str,
-    project_id: str = None,
-    linked_product_ids_for_doc: list[int] = None,
-    additional_context: dict = None
-) -> dict:
+    client_id_arg: Optional[str] = None,
+    company_id_arg: Optional[str] = None,
+    target_language_code: str = "fr",
+    project_id_arg: Optional[str] = None,
+    proforma_instance: Optional[ProformaInvoice] = None, # Type hint with actual ProformaInvoice model
+    linked_product_ids_for_doc: Optional[List[str]] = None, # Not directly used if proforma_instance is primary
+    additional_context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+
+    client_id = client_id_arg
+    company_id = company_id_arg
+    project_id = project_id_arg
+
+    if proforma_instance:
+        logging.info(f"Using ProformaInvoice instance {proforma_instance.id} for context data.")
+        client_id = proforma_instance.client_id
+        company_id = proforma_instance.company_id
+        project_id = proforma_instance.project_id
+        # target_language_code could also be on proforma_instance, e.g.
+        # target_language_code = getattr(proforma_instance, 'language_code', target_language_code)
+
     if additional_context is None:
         additional_context = {}
 
-    context = {
+    context: Dict[str, Any] = {
         "doc": {}, "client": {}, "seller": {}, "project": {},
         "products": [], "lang": {}, "additional": additional_context,
-        "placeholders": {} # For flat key-value access in template
+        "placeholders": {}
     }
 
-    # --- Language & Static Text ---
     context["lang"]["target_language_code"] = target_language_code
-    # Add French static text if needed, though most is in the template itself.
-    # context["lang"]["invoice_title"] = "FACTURE PROFORMA"
-
-    # --- Document Info (defaults and from additional_context) ---
     doc_ctx = context["doc"]
-    doc_ctx["current_date"] = additional_context.get("current_date", datetime.now(timezone.utc).strftime('%Y-%m-%d'))
-    doc_ctx["current_year"] = str(datetime.now(timezone.utc).year)
-    doc_ctx["currency_symbol"] = additional_context.get("currency_symbol", "€") # Default to Euro
-    doc_ctx["vat_rate_percentage"] = float(additional_context.get("vat_rate_percentage", 20.0)) # Default 20%
+
+    # --- Populate Document Info (doc_ctx) ---
+    # Priority: proforma_instance -> additional_context -> defaults
+    if proforma_instance:
+        doc_ctx["proforma_id"] = proforma_instance.proforma_invoice_number
+        doc_ctx["payment_terms"] = proforma_instance.payment_terms
+        doc_ctx["delivery_terms"] = proforma_instance.delivery_terms
+        doc_ctx["incoterms"] = proforma_instance.incoterms
+        doc_ctx["named_place_of_delivery"] = proforma_instance.named_place_of_delivery
+        doc_ctx["currency_symbol"] = CURRENCY_SYMBOLS.get(str(proforma_instance.currency).upper(), str(proforma_instance.currency))
+        doc_ctx["proforma_notes"] = proforma_instance.notes
+        # Financials directly from instance
+        doc_ctx["subtotal_amount_raw"] = float(proforma_instance.subtotal_amount)
+        doc_ctx["discount_amount_raw"] = float(proforma_instance.discount_amount or 0.0)
+        doc_ctx["vat_amount_raw"] = float(proforma_instance.vat_amount)
+        doc_ctx["grand_total_amount_raw"] = float(proforma_instance.grand_total_amount)
+        # Dates
+        doc_ctx["current_date"] = proforma_instance.created_date.strftime('%Y-%m-%d') if proforma_instance.created_date else datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        doc_ctx["sent_date"] = proforma_instance.sent_date.strftime('%Y-%m-%d') if proforma_instance.sent_date else None
+    else:
+        # Fallback to additional_context or defaults if no proforma_instance
+        doc_ctx["proforma_id"] = additional_context.get("proforma_id", f"PF-{uuid.uuid4().hex[:8].upper()}")
+        doc_ctx["payment_terms"] = additional_context.get("payment_terms", "Paiement anticipé")
+        doc_ctx["delivery_terms"] = additional_context.get("delivery_terms", "Selon accord")
+        doc_ctx["incoterms"] = additional_context.get("incoterms", "EXW")
+        doc_ctx["named_place_of_delivery"] = additional_context.get("named_place_of_delivery", "Lieu du vendeur")
+        doc_ctx["currency_symbol"] = additional_context.get("currency_symbol", "€")
+        doc_ctx["proforma_notes"] = additional_context.get("notes", "")
+        doc_ctx["current_date"] = additional_context.get("current_date", datetime.now(timezone.utc).strftime('%Y-%m-%d'))
+        doc_ctx["sent_date"] = additional_context.get("sent_date")
+
+
+    # VAT and Discount rates often come from additional_context during creation/regeneration
+    doc_ctx["vat_rate_percentage"] = float(additional_context.get("vat_rate_percentage", 20.0))
     doc_ctx["discount_rate_percentage"] = float(additional_context.get("discount_rate_percentage", 0.0))
-    doc_ctx["proforma_id"] = additional_context.get("proforma_id", f"PF-{uuid.uuid4().hex[:8].upper()}")
-    doc_ctx["payment_terms"] = additional_context.get("payment_terms", "Paiement anticipé")
-    doc_ctx["delivery_terms"] = additional_context.get("delivery_terms", "Selon accord")
-    doc_ctx["incoterms"] = additional_context.get("incoterms", "EXW") # Ex Works
-    doc_ctx["named_place_of_delivery"] = additional_context.get("named_place_of_delivery", "Lieu du vendeur")
+    doc_ctx["current_year"] = str(datetime.now(timezone.utc).year)
 
 
-    db_session = None # Initialize
+    db_session = None
     try:
-        # It's better to pass the session if this function is called from a context that already has one.
-        # For now, assuming get_db_session() creates one if not provided via additional_context.
         db_session = additional_context.get("db_session") or get_db_session()
 
         # --- Seller Data ---
         seller_ctx = context["seller"]
-        seller_company_data = get_company_by_id(db_session, company_id) if company_id else None
-        if seller_company_data:
-            seller_ctx["id"] = seller_company_data.id
-            seller_ctx["company_name"] = seller_company_data.name or "N/A"
-            seller_ctx["email"] = seller_company_data.email or "N/A"
-            seller_ctx["phone"] = seller_company_data.phone or "N/A"
-            seller_ctx["website"] = seller_company_data.website or "N/A"
+        seller_company_data: Optional[Any] = None # Using Any for mocked DB objects
+        if proforma_instance and hasattr(proforma_instance, 'company') and proforma_instance.company:
+            seller_company_data = proforma_instance.company
+            logging.info(f"Using seller company from proforma_instance: {seller_company_data.id if hasattr(seller_company_data, 'id') else 'N/A'}")
+        elif company_id:
+            seller_company_data = db_get_company_by_id(db_session, company_id)
+            logging.info(f"Fetched seller company by ID {company_id}: {'Found' if seller_company_data else 'Not Found'}")
 
-            raw_address = seller_company_data.address or ""
-            payment_info = _parse_json_field(seller_company_data.payment_info)
-            other_info_json = _parse_json_field(seller_company_data.other_info)
-            other_info_kv = _parse_key_value_string(seller_company_data.other_info)
+        if seller_company_data:
+            seller_ctx["id"] = getattr(seller_company_data, 'id', company_id)
+            seller_ctx["company_name"] = getattr(seller_company_data, 'company_name', getattr(seller_company_data, 'name', "N/A")) # Adapt field name
+            seller_ctx["email"] = getattr(seller_company_data, 'email', "N/A")
+            seller_ctx["phone"] = getattr(seller_company_data, 'phone', "N/A")
+            seller_ctx["website"] = getattr(seller_company_data, 'website', "N/A")
+
+            raw_address = getattr(seller_company_data, 'address', "")
+            payment_info = _parse_json_field(getattr(seller_company_data, 'payment_info', "{}"))
+            other_info_raw = getattr(seller_company_data, 'other_info', "")
+            other_info_json = _parse_json_field(other_info_raw)
+            other_info_kv = _parse_key_value_string(other_info_raw if isinstance(other_info_raw, str) else "")
+
 
             seller_ctx["bank_name"] = payment_info.get("bank_name", additional_context.get("seller_bank_name", "N/A"))
             seller_ctx["bank_account_number"] = payment_info.get("account_number", additional_context.get("seller_bank_account_number", "N/A"))
@@ -188,161 +245,216 @@ def get_proforma_invoice_context_data(
             seller_ctx["bank_account_holder_name"] = payment_info.get("account_holder_name", seller_ctx["company_name"])
             seller_ctx["bank_iban"] = payment_info.get("iban", additional_context.get("seller_bank_iban", seller_ctx["bank_account_number"]))
 
-
             seller_ctx["vat_id"] = other_info_json.get("vat_id", other_info_kv.get("vat", other_info_kv.get("vat_id", additional_context.get("seller_vat_id", "N/A"))))
             seller_ctx["registration_number"] = other_info_json.get("registration_number", other_info_kv.get("reg", other_info_kv.get("registration_number", additional_context.get("seller_registration_number", "N/A"))))
 
-            seller_ctx["address_line1"] = raw_address # Or parse more granularly if possible
-            seller_ctx["city"] = additional_context.get("seller_city", "")
-            seller_ctx["postal_code"] = additional_context.get("seller_postal_code", "")
-            seller_ctx["country"] = additional_context.get("seller_country", "")
+            seller_ctx["address_line1"] = raw_address
+            # Assume city, postal_code, country might be part of 'address' or need separate fields/parsing
+            seller_ctx["city"] = payment_info.get("city", additional_context.get("seller_city", "")) # Example: if stored in payment_info
+            seller_ctx["postal_code"] = payment_info.get("postal_code", additional_context.get("seller_postal_code", ""))
+            seller_ctx["country"] = payment_info.get("country", additional_context.get("seller_country", ""))
             seller_ctx["address"] = _format_address_parts(seller_ctx["address_line1"], seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
             seller_ctx["city_zip_country"] = _format_address_parts(None, seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
 
-
-            seller_personnel = get_personnel_for_company(db_session, company_id)
-            # Assuming first personnel is the representative, or filter by a role
-            seller_rep = seller_personnel[0] if seller_personnel else {}
+            seller_personnel = db_get_personnel_for_company(db_session, seller_ctx["id"])
+            seller_rep = seller_personnel[0] if seller_personnel and isinstance(seller_personnel, list) and seller_personnel[0] else {}
             seller_ctx["representative_name"] = f"{seller_rep.get('first_name','')} {seller_rep.get('last_name','')}".strip() or "N/A"
 
-            logo_filename = seller_company_data.logo_filename or additional_context.get("seller_logo_filename")
-            if logo_filename:
-                seller_ctx["logo_path"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_filename)
+            logo_filename = getattr(seller_company_data, 'logo_filename', getattr(seller_company_data, 'logo_path', None)) or additional_context.get("seller_logo_filename")
+            if logo_filename and isinstance(logo_filename, str) and not logo_filename.startswith("http"): # if it's a filename not a full URL
+                seller_ctx["logo_path"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, os.path.basename(logo_filename))
+            elif logo_filename and isinstance(logo_filename, str): # if it's a full path or URL
+                seller_ctx["logo_path"] = logo_filename
             else:
                 seller_ctx["logo_path"] = None
-        else: # Fallbacks if no seller_company_data
-            for k in ["company_name", "email", "phone", "website", "bank_name", "bank_account_number", "bank_swift_bic", "bank_address", "bank_account_holder_name", "bank_iban", "vat_id", "registration_number", "address_line1", "city", "postal_code", "country", "address", "representative_name", "logo_path", "city_zip_country"]:
-                seller_ctx[k] = additional_context.get(f"seller_{k}", "N/A")
-
+        else:
+            logging.warning(f"Seller company data not found for ID {company_id}. Using fallbacks.")
+            for k_seller in ["company_name", "email", "phone", "website", "bank_name", "bank_account_number", "bank_swift_bic", "bank_address", "bank_account_holder_name", "bank_iban", "vat_id", "registration_number", "address_line1", "city", "postal_code", "country", "address", "representative_name", "logo_path", "city_zip_country"]:
+                seller_ctx[k_seller] = additional_context.get(f"seller_{k_seller}", "N/A")
 
         # --- Client Data ---
         client_ctx = context["client"]
-        client_data = get_client_by_id(db_session, client_id) if client_id else None
-        if client_data:
-            client_ctx["id"] = client_data.id
-            client_ctx["company_name"] = client_data.company_name or "N/A"
-            client_ctx["contact_person_name_default"] = client_data.client_name or "N/A" # Main contact from client table
+        client_data: Optional[Any] = None
+        if proforma_instance and hasattr(proforma_instance, 'client') and proforma_instance.client:
+            client_data = proforma_instance.client
+            logging.info(f"Using client from proforma_instance: {client_data.id if hasattr(client_data, 'id') else 'N/A'}")
+        elif client_id:
+            client_data = db_get_client_by_id(db_session, client_id)
+            logging.info(f"Fetched client by ID {client_id}: {'Found' if client_data else 'Not Found'}")
 
-            client_notes_json = _parse_json_field(client_data.notes)
-            client_notes_kv = _parse_key_value_string(client_data.notes)
-            client_dist_info_json = _parse_json_field(client_data.distributor_specific_info)
-            client_dist_info_kv = _parse_key_value_string(client_data.distributor_specific_info)
+        if client_data:
+            client_ctx["id"] = getattr(client_data, 'id', client_id)
+            client_ctx["company_name"] = getattr(client_data, 'company_name', "N/A")
+            client_ctx["contact_person_name_default"] = getattr(client_data, 'client_name', "N/A")
+
+            client_notes_raw = getattr(client_data, 'notes', "")
+            client_notes_json = _parse_json_field(client_notes_raw)
+            client_notes_kv = _parse_key_value_string(client_notes_raw if isinstance(client_notes_raw, str) else "")
+
+            client_dist_info_raw = getattr(client_data, 'distributor_specific_info', "")
+            client_dist_info_json = _parse_json_field(client_dist_info_raw)
+            client_dist_info_kv = _parse_key_value_string(client_dist_info_raw if isinstance(client_dist_info_raw, str) else "")
 
             client_ctx["vat_id"] = client_notes_json.get("vat_id", client_notes_kv.get("vat", client_dist_info_json.get("vat_id", client_dist_info_kv.get("vat", additional_context.get("client_vat_id", "N/A")))))
             client_ctx["registration_number"] = client_notes_json.get("registration_number", client_notes_kv.get("reg", client_dist_info_json.get("registration_number", client_dist_info_kv.get("reg", additional_context.get("client_registration_number", "N/A")))))
 
-            primary_contacts = get_contacts_for_client(db_session, client_id, is_primary=True)
-            primary_contact = primary_contacts[0] if primary_contacts else None
+            primary_contacts = db_get_contacts_for_client(db_session, client_ctx["id"], is_primary=True)
+            primary_contact = primary_contacts[0] if primary_contacts and isinstance(primary_contacts, list) and primary_contacts[0] else None
 
-            if primary_contact: # Primary contact from Contacts table
-                client_ctx["representative_name"] = f"{primary_contact.first_name or ''} {primary_contact.last_name or ''}".strip() or client_ctx["contact_person_name_default"]
-                client_ctx["email"] = primary_contact.email or client_data.email or "N/A" # Client's email as fallback
-                client_ctx["phone"] = primary_contact.phone or client_data.phone or "N/A" # Client's phone as fallback
-                client_ctx["address_line1"] = primary_contact.address_streetAddress or "N/A"
-                client_ctx["city"] = primary_contact.address_city or (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else "N/A")
-                client_ctx["postal_code"] = primary_contact.address_postalCode or "N/A"
-                client_ctx["country"] = primary_contact.address_country or (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else "N/A")
-            else: # Fallback to client table data or additional_context
+            if primary_contact:
+                client_ctx["representative_name"] = f"{getattr(primary_contact, 'first_name','')} {getattr(primary_contact, 'last_name','')}".strip() or client_ctx["contact_person_name_default"]
+                client_ctx["email"] = getattr(primary_contact, 'email', getattr(client_data, 'email', "N/A"))
+                client_ctx["phone"] = getattr(primary_contact, 'phone', getattr(client_data, 'phone', "N/A"))
+                client_ctx["address_line1"] = getattr(primary_contact, 'address_streetAddress', "N/A")
+                client_city_obj = db_get_city_by_id(db_session, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None
+                client_ctx["city"] = getattr(primary_contact, 'address_city', getattr(client_city_obj, 'name', "N/A"))
+                client_ctx["postal_code"] = getattr(primary_contact, 'address_postalCode', "N/A")
+                client_country_obj = db_get_country_by_id(db_session, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None
+                client_ctx["country"] = getattr(primary_contact, 'address_country', getattr(client_country_obj, 'name', "N/A"))
+            else:
                 client_ctx["representative_name"] = client_ctx["contact_person_name_default"]
-                client_ctx["email"] = client_data.email or additional_context.get("client_email", "N/A")
-                client_ctx["phone"] = client_data.phone or additional_context.get("client_phone", "N/A")
-                client_ctx["address_line1"] = client_data.address_line1 if hasattr(client_data, 'address_line1') else additional_context.get("client_address_line1", "N/A")
-                client_ctx["city"] = (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else None) or additional_context.get("client_city", "N/A")
-                client_ctx["postal_code"] = additional_context.get("client_postal_code", "N/A")
-                client_ctx["country"] = (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else None) or additional_context.get("client_country", "N/A")
+                client_ctx["email"] = getattr(client_data, 'email', additional_context.get("client_email", "N/A"))
+                client_ctx["phone"] = getattr(client_data, 'phone', additional_context.get("client_phone", "N/A"))
+                client_ctx["address_line1"] = getattr(client_data, 'address_line1', additional_context.get("client_address_line1", "N/A")) # Assuming client_data might have address_line1
+                client_city_obj_fallback = db_get_city_by_id(db_session, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None
+                client_ctx["city"] = getattr(client_city_obj_fallback, 'name', additional_context.get("client_city", "N/A"))
+                client_ctx["postal_code"] = additional_context.get("client_postal_code", "N/A") # Assuming client_data might not have postal_code
+                client_country_obj_fallback = db_get_country_by_id(db_session, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None
+                client_ctx["country"] = getattr(client_country_obj_fallback, 'name', additional_context.get("client_country", "N/A"))
 
             client_ctx["address"] = _format_address_parts(client_ctx["address_line1"], client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
             client_ctx["city_zip_country"] = _format_address_parts(None, client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
-
-        else: # Fallbacks if no client_data
-             for k in ["company_name", "email", "phone", "vat_id", "registration_number", "address_line1", "city", "postal_code", "country", "address", "representative_name", "city_zip_country"]:
-                client_ctx[k] = additional_context.get(f"client_{k}", "N/A")
-
+        else:
+            logging.warning(f"Client data not found for ID {client_id}. Using fallbacks.")
+            for k_client in ["company_name", "email", "phone", "vat_id", "registration_number", "address_line1", "city", "postal_code", "country", "address", "representative_name", "city_zip_country"]:
+                client_ctx[k_client] = additional_context.get(f"client_{k_client}", "N/A")
 
         # --- Project Data ---
         project_ctx = context["project"]
-        project_data = get_project_by_id(db_session, project_id) if project_id else None
+        project_data: Optional[Any] = None
+        if proforma_instance and hasattr(proforma_instance, 'project') and proforma_instance.project:
+            project_data = proforma_instance.project
+            logging.info(f"Using project from proforma_instance: {project_data.id if hasattr(project_data, 'id') else 'N/A'}")
+        elif project_id:
+            project_data = db_get_project_by_id(db_session, project_id)
+            logging.info(f"Fetched project by ID {project_id}: {'Found' if project_data else 'Not Found'}")
+
         if project_data:
-            project_ctx["id"] = project_data.id
-            project_ctx["name"] = project_data.name or "N/A"
-            project_ctx["description"] = project_data.description or "N/A"
-            project_ctx["identifier"] = project_data.project_identifier or "N/A"
+            project_ctx["id"] = getattr(project_data, 'id', project_id)
+            project_ctx["name"] = getattr(project_data, 'name', "N/A") # SQLAlchemy model might use 'name'
+            project_ctx["description"] = getattr(project_data, 'description', "N/A")
+            project_ctx["identifier"] = getattr(project_data, 'project_identifier', "N/A") # SQLAlchemy model might use 'project_identifier'
         else: # Fallbacks
             project_ctx["id"] = project_id or "N/A"
             project_ctx["name"] = additional_context.get("project_name", "N/A")
             project_ctx["description"] = additional_context.get("project_description", "N/A")
-            project_ctx["identifier"] = additional_context.get("project_identifier", (client_data.project_identifier if client_data else "N/A"))
+            project_ctx["identifier"] = additional_context.get("project_identifier", (getattr(client_data, 'project_identifier', "N/A") if client_data else "N/A"))
 
 
         # --- Products Data ---
         products_list_for_doc = []
         products_table_html_rows_list = []
-        subtotal_amount_calculated = 0.0
+        # If proforma_instance is not used for totals, this will be calculated from items below
+        subtotal_amount_calculated_from_items = 0.0
+        product_items_to_process: List[Dict[str, Any]] = []
+        product_ids_for_batch_fetch: List[str] = []
 
-        product_items_to_fetch = [] # List of (product_id, quantity, unit_price_override)
+        if proforma_instance and hasattr(proforma_instance, 'items') and proforma_instance.items:
+            logging.info(f"Processing {len(proforma_instance.items)} items from proforma_instance.")
+            for item_instance in proforma_instance.items:
+                product_items_to_process.append({
+                    "product_id": getattr(item_instance, 'product_id', None),
+                    "quantity": float(getattr(item_instance, 'quantity', 0)),
+                    "unit_price": float(getattr(item_instance, 'unit_price', 0.0)),
+                    "description": getattr(item_instance, 'description', "N/A"),
+                    "total_price": float(getattr(item_instance, 'total_price', 0.0)),
+                })
+                if getattr(item_instance, 'product_id', None):
+                    product_ids_for_batch_fetch.append(str(getattr(item_instance, 'product_id')))
 
-        if additional_context.get('lite_selected_products'):
-            # Format: list of dicts e.g. [{"product_id": pid, "quantity": qty, "unit_price_override": price}, ...]
-            for item in additional_context['lite_selected_products']:
-                product_items_to_fetch.append((item["product_id"], item.get("quantity", 1), item.get("unit_price_override")))
-        elif linked_product_ids_for_doc: # Assuming these are ClientProjectProduct IDs
-            # Need to fetch ClientProjectProduct entries then get Product details
-            # This part would require a specific DB function, e.g. get_client_project_products_by_ids
-            logging.warning("Fetching by linked_product_ids_for_doc (ClientProjectProduct IDs) is not fully implemented in this stub.")
-            # Mock fetching: for pid_ref in linked_product_ids_for_doc:
-            #   cpp_entry = db_session.query(ClientProjectProduct).get(pid_ref)
-            #   if cpp_entry: product_items_to_fetch.append((cpp_entry.product_id, cpp_entry.quantity, cpp_entry.unit_price_override))
-            pass # Placeholder
-        else: # Default: products linked to client/project
-            client_project_products = get_products_for_client_or_project(db_session, client_id, project_id)
-            for cpp in client_project_products:
-                product_items_to_fetch.append((cpp.product_id, cpp.quantity, cpp.unit_price_override))
+        elif additional_context.get('lite_selected_products'):
+            logging.info("Processing items from additional_context['lite_selected_products'].")
+            # This list should conform to: [{"product_id": str, "quantity": float, "unit_price_override": float, "description": Optional[str]}, ...]
+            for item_data_ac in additional_context['lite_selected_products']:
+                pid_ac = item_data_ac.get("product_id")
+                if pid_ac: product_ids_for_batch_fetch.append(str(pid_ac))
+                # Description and unit_price will be resolved after batch fetching product details
+                product_items_to_process.append({
+                    "product_id": pid_ac,
+                    "quantity": float(item_data_ac.get("quantity", 1)),
+                    "unit_price_override": float(item_data_ac.get("unit_price_override")) if item_data_ac.get("unit_price_override") is not None else None,
+                    "description_override": item_data_ac.get("description"), # Explicit description from context
+                    # total_price will be calculated
+                })
+        # elif linked_product_ids_for_doc: ... (existing logic, can be adapted similarly if needed)
 
-        # Batch fetch product details and their equivalents
-        all_product_ids = [item[0] for item in product_items_to_fetch]
-        product_details_batch = _get_batch_products_and_equivalents(db_session, all_product_ids, target_language_code)
+        product_details_batch = {}
+        if product_ids_for_batch_fetch:
+            product_details_batch = _get_batch_products_and_equivalents(db_session, list(set(product_ids_for_batch_fetch)), target_language_code)
 
-        for p_id, quantity, unit_price_override in product_items_to_fetch:
-            original_product_details = product_details_batch.get(p_id)
-            if not original_product_details:
-                logging.warning(f"Product with ID {p_id} not found in batch details. Skipping.")
-                continue
+        for item_data_to_render in product_items_to_process:
+            p_id_render = item_data_to_render.get("product_id")
+            original_product_details = product_details_batch.get(str(p_id_render)) if p_id_render else None
 
-            product_name_for_doc = original_product_details["original_name"]
-            product_description_for_doc = original_product_details["original_description"]
-            language_match = (original_product_details["original_language_code"] == target_language_code)
+            # Determine effective unit price and description
+            effective_unit_price = item_data_to_render.get("unit_price") # From ProformaInvoiceItem
+            if effective_unit_price is None: # Not from ProformaInvoiceItem (e.g. from lite_selected_products)
+                effective_unit_price = item_data_to_render.get("unit_price_override")
+                if effective_unit_price is None and original_product_details:
+                    effective_unit_price = original_product_details.get("base_unit_price", 0.0)
+                elif effective_unit_price is None:
+                    effective_unit_price = 0.0
 
-            if not language_match and original_product_details["equivalent_name"]:
-                product_name_for_doc = original_product_details["equivalent_name"]
-                product_description_for_doc = original_product_details["equivalent_description"]
-                language_match = True # Considered a match if equivalent is used
+            description_for_render = item_data_to_render.get("description") # From ProformaInvoiceItem
+            if description_for_render is None: # Not from ProformaInvoiceItem
+                description_for_render = item_data_to_render.get("description_override")
+                if description_for_render is None and original_product_details:
+                    description_for_render = original_product_details.get("original_name", "Custom Item")
+                elif description_for_render is None:
+                    description_for_render = "Custom Item"
 
-            effective_unit_price = unit_price_override if unit_price_override is not None else original_product_details["base_unit_price"]
-            if effective_unit_price is None: effective_unit_price = 0.0 # Ensure float
+            quantity_render = item_data_to_render.get("quantity", 0.0)
+            total_price_render = item_data_to_render.get("total_price") # From ProformaInvoiceItem
+            if total_price_render is None: # Calculate if not from ProformaInvoiceItem
+                total_price_render = quantity_render * effective_unit_price
 
-            total_price = float(quantity) * float(effective_unit_price)
-            subtotal_amount_calculated += total_price
+            if not proforma_instance: # If not using totals from instance, sum here
+                subtotal_amount_calculated_from_items += total_price_render
+
+            # Language handling for name/description if needed (using original_product_details)
+            product_name_display = description_for_render # Default to the determined description
+            product_secondary_desc_display = "" # Could be original translated description
+            language_match = True # Assume true if desc is taken from item/override
+
+            if original_product_details:
+                # If stored description is same as original name, and translation exists, use translation for display name
+                if description_for_render == original_product_details.get("original_name") and \
+                   target_language_code != original_product_details.get("original_language_code") and \
+                   original_product_details.get("equivalent_name"):
+                    product_name_display = original_product_details["equivalent_name"]
+                    # product_secondary_desc_display = original_product_details.get("equivalent_description", "")
+                # If description_for_render is short, maybe append translated original description
+                # elif len(description_for_render.split()) < 5 and original_product_details.get("equivalent_description"):
+                #    product_secondary_desc_display = original_product_details.get("equivalent_description")
+
 
             product_entry = {
-                "id": original_product_details["id"],
-                "name": product_name_for_doc,
-                "description": product_description_for_doc,
-                "quantity": quantity,
+                "id": str(p_id_render) if p_id_render else uuid.uuid4().hex[:8],
+                "name": product_name_display,
+                "description": product_secondary_desc_display, # Use if you want a sub-description
+                "quantity": quantity_render,
                 "unit_price_raw": float(effective_unit_price),
                 "unit_price_formatted": format_currency(float(effective_unit_price), doc_ctx["currency_symbol"]),
-                "total_price_raw": total_price,
-                "total_price_formatted": format_currency(total_price, doc_ctx["currency_symbol"]),
-                "unit_of_measure": original_product_details["unit_of_measure"],
-                "language_match": language_match,
-                "original_name": original_product_details["original_name"],
-                "original_description": original_product_details["original_description"],
-                "weight_kg": original_product_details["product_weight_kg"],
-                "dimensions_cm": original_product_details["product_dimensions_cm"],
+                "total_price_raw": float(total_price_render),
+                "total_price_formatted": format_currency(float(total_price_render), doc_ctx["currency_symbol"]),
+                "unit_of_measure": original_product_details.get("unit_of_measure", "N/A") if original_product_details else "N/A",
+                "language_match": language_match, # This needs more robust logic based on source of name/desc
+                "original_name": original_product_details.get("original_name", "") if original_product_details else "",
+                "original_description": original_product_details.get("original_description", "") if original_product_details else "",
+                "weight_kg": original_product_details.get("product_weight_kg") if original_product_details else None,
+                "dimensions_cm": original_product_details.get("product_dimensions_cm") if original_product_details else None,
             }
             products_list_for_doc.append(product_entry)
-
-            # Generate HTML row for table
-            # This is a simplified version. Actual template might handle this better with a loop.
             products_table_html_rows_list.append(
                 f"<tr><td>{len(products_list_for_doc)}</td>"
                 f"<td><strong>{product_entry['name']}</strong><br><small>{product_entry['description'] or ''}</small></td>"
@@ -350,34 +462,37 @@ def get_proforma_invoice_context_data(
                 f"<td class='number'>{product_entry['unit_price_formatted']}</td>"
                 f"<td class='number'>{product_entry['total_price_formatted']}</td></tr>"
             )
-
         context["products"] = products_list_for_doc
         doc_ctx["products_table_rows"] = "".join(products_table_html_rows_list)
 
-        # --- Totals ---
-        doc_ctx["subtotal_amount_raw"] = subtotal_amount_calculated
-        doc_ctx["subtotal_amount_formatted"] = format_currency(subtotal_amount_calculated, doc_ctx["currency_symbol"])
+        # --- Totals Finalization ---
+        if not proforma_instance: # If totals were not sourced from proforma_instance
+            doc_ctx["subtotal_amount_raw"] = subtotal_amount_calculated_from_items
+            # Recalculate discount, vat, grand_total based on subtotal_amount_calculated_from_items
+            # and discount_rate_percentage, vat_rate_percentage from additional_context or defaults
+            current_discount_rate = doc_ctx.get("discount_rate_percentage", 0.0)
+            doc_ctx["discount_amount_raw"] = (current_discount_rate / 100.0) * doc_ctx["subtotal_amount_raw"]
 
-        discount_amount = (doc_ctx["discount_rate_percentage"] / 100.0) * subtotal_amount_calculated
-        doc_ctx["discount_amount_raw"] = discount_amount
-        doc_ctx["discount_amount_formatted"] = format_currency(discount_amount, doc_ctx["currency_symbol"])
+            amount_after_discount = doc_ctx["subtotal_amount_raw"] - doc_ctx["discount_amount_raw"]
+            current_vat_rate = doc_ctx.get("vat_rate_percentage", 20.0) # Default VAT if not set
+            doc_ctx["vat_amount_raw"] = (current_vat_rate / 100.0) * amount_after_discount
+            doc_ctx["grand_total_amount_raw"] = amount_after_discount + doc_ctx["vat_amount_raw"]
 
-        amount_after_discount = subtotal_amount_calculated - discount_amount
-        vat_amount = (doc_ctx["vat_rate_percentage"] / 100.0) * amount_after_discount
-        doc_ctx["vat_amount_raw"] = vat_amount
-        doc_ctx["vat_amount_formatted"] = format_currency(vat_amount, doc_ctx["currency_symbol"])
-
-        grand_total_amount = amount_after_discount + vat_amount
-        doc_ctx["grand_total_amount_raw"] = grand_total_amount
-        doc_ctx["grand_total_amount_formatted"] = format_currency(grand_total_amount, doc_ctx["currency_symbol"])
-
-        # Placeholder for amount in words - requires a library or complex logic
-        doc_ctx["grand_total_amount_words"] = additional_context.get("grand_total_amount_words", "N/A")
+        # Format all raw amounts (whether from instance or calculated)
+        doc_ctx["subtotal_amount_formatted"] = format_currency(doc_ctx["subtotal_amount_raw"], doc_ctx["currency_symbol"])
+        doc_ctx["discount_amount_formatted"] = format_currency(doc_ctx["discount_amount_raw"], doc_ctx["currency_symbol"])
+        doc_ctx["vat_amount_formatted"] = format_currency(doc_ctx["vat_amount_raw"], doc_ctx["currency_symbol"])
+        doc_ctx["grand_total_amount_formatted"] = format_currency(doc_ctx["grand_total_amount_raw"], doc_ctx["currency_symbol"])
+        doc_ctx["grand_total_amount_words"] = additional_context.get("grand_total_amount_words", "N/A") # Placeholder
 
         # --- Client Specific Notes ---
-        doc_notes_type = additional_context.get("client_document_notes_type", "Proforma")
-        notes_text = get_client_document_notes(db_session, client_id, doc_notes_type, target_language_code)
-        doc_ctx["client_specific_footer_notes"] = notes_text.replace('\n', '<br>') if notes_text else "N/A"
+        doc_notes_type = additional_context.get("client_document_notes_type", "Proforma") # e.g. Proforma, Invoice
+        if client_id: # Only fetch notes if client_id is available
+            notes_text = db_get_client_document_notes(db_session, client_id, doc_notes_type, target_language_code)
+            doc_ctx["client_specific_footer_notes"] = notes_text.replace('\n', '<br>') if notes_text and isinstance(notes_text, str) else ""
+        else:
+            doc_ctx["client_specific_footer_notes"] = ""
+
 
     except Exception as e:
         logging.error(f"Error in get_proforma_invoice_context_data: {e}", exc_info=True)
@@ -400,58 +515,57 @@ def get_proforma_invoice_context_data(
 
 
     # --- Final Placeholder Mapping ---
-    # This flattens the context for easier use in simple template engines or direct access
-    # More complex engines like Jinja2 can access nested context directly (e.g. seller.company_name)
-
-    # Document details
+    # This flattens the context for easier use in simple template engines
     context["placeholders"]["PROFORMA_ID"] = doc_ctx.get("proforma_id", "N/A")
     context["placeholders"]["DATE"] = doc_ctx.get("current_date", "N/A")
+    context["placeholders"]["SENT_DATE"] = doc_ctx.get("sent_date", "N/A")
     context["placeholders"]["PAYMENT_TERMS"] = doc_ctx.get("payment_terms", "N/A")
     context["placeholders"]["DELIVERY_TERMS"] = doc_ctx.get("delivery_terms", "N/A")
     context["placeholders"]["INCOTERMS"] = doc_ctx.get("incoterms", "N/A")
     context["placeholders"]["NAMED_PLACE_OF_DELIVERY"] = doc_ctx.get("named_place_of_delivery", "N/A")
-    context["placeholders"]["DOCUMENT_CURRENCY"] = doc_ctx.get("currency_symbol", "N/A") # Used for table items
+    context["placeholders"]["DOCUMENT_CURRENCY"] = doc_ctx.get("currency_symbol", "N/A")
+    context["placeholders"]["PROFORMA_NOTES"] = doc_ctx.get("proforma_notes", "")
 
-    # Seller details
-    context["placeholders"]["SELLER_COMPANY_NAME"] = seller_ctx.get("company_name", "N/A")
+
+    # Seller details (ensure seller_ctx is populated before this)
+    seller_ctx_final = context.get("seller", {})
+    context["placeholders"]["SELLER_COMPANY_NAME"] = seller_ctx_final.get("company_name", "N/A")
     context["placeholders"]["SELLER_ADDRESS_LINE1"] = seller_ctx.get("address_line1", "N/A")
     context["placeholders"]["SELLER_CITY"] = seller_ctx.get("city", "")
-    context["placeholders"]["SELLER_POSTAL_CODE"] = seller_ctx.get("postal_code", "")
-    context["placeholders"]["SELLER_COUNTRY"] = seller_ctx.get("country", "")
-    context["placeholders"]["SELLER_FULL_ADDRESS"] = seller_ctx.get("address", "N/A") # Full formatted
-    context["placeholders"]["SELLER_CITY_ZIP_COUNTRY"] = seller_ctx.get("city_zip_country", "N/A")
-    context["placeholders"]["SELLER_COMPANY_PHONE"] = seller_ctx.get("phone", "N/A")
-    context["placeholders"]["SELLER_COMPANY_EMAIL"] = seller_ctx.get("email", "N/A")
-    context["placeholders"]["SELLER_VAT_ID"] = seller_ctx.get("vat_id", "N/A")
-    context["placeholders"]["SELLER_REGISTRATION_NUMBER"] = seller_ctx.get("registration_number", "N/A")
-    context["placeholders"]["SELLER_COMPANY_LOGO_PATH"] = seller_ctx.get("logo_path") # May be None
-    context["placeholders"]["SELLER_BANK_NAME"] = seller_ctx.get("bank_name", "N/A")
-    context["placeholders"]["SELLER_BANK_ACCOUNT_HOLDER_NAME"] = seller_ctx.get("bank_account_holder_name", "N/A")
-    context["placeholders"]["SELLER_BANK_ACCOUNT_NUMBER"] = seller_ctx.get("bank_account_number", "N/A") # Generic
-    context["placeholders"]["SELLER_BANK_IBAN"] = seller_ctx.get("bank_iban", "N/A") # Specific
-    context["placeholders"]["SELLER_BANK_SWIFT_BIC"] = seller_ctx.get("bank_swift_bic", "N/A")
-    context["placeholders"]["SELLER_BANK_ADDRESS"] = seller_ctx.get("bank_address", "N/A")
+    context["placeholders"]["SELLER_POSTAL_CODE"] = seller_ctx_final.get("postal_code", "")
+    context["placeholders"]["SELLER_COUNTRY"] = seller_ctx_final.get("country", "")
+    context["placeholders"]["SELLER_FULL_ADDRESS"] = seller_ctx_final.get("address", "N/A")
+    context["placeholders"]["SELLER_CITY_ZIP_COUNTRY"] = seller_ctx_final.get("city_zip_country", "N/A")
+    context["placeholders"]["SELLER_COMPANY_PHONE"] = seller_ctx_final.get("phone", "N/A")
+    context["placeholders"]["SELLER_COMPANY_EMAIL"] = seller_ctx_final.get("email", "N/A")
+    context["placeholders"]["SELLER_VAT_ID"] = seller_ctx_final.get("vat_id", "N/A")
+    context["placeholders"]["SELLER_REGISTRATION_NUMBER"] = seller_ctx_final.get("registration_number", "N/A")
+    context["placeholders"]["SELLER_COMPANY_LOGO_PATH"] = seller_ctx_final.get("logo_path")
+    context["placeholders"]["SELLER_BANK_NAME"] = seller_ctx_final.get("bank_name", "N/A")
+    context["placeholders"]["SELLER_BANK_ACCOUNT_HOLDER_NAME"] = seller_ctx_final.get("bank_account_holder_name", "N/A")
+    context["placeholders"]["SELLER_BANK_ACCOUNT_NUMBER"] = seller_ctx_final.get("bank_account_number", "N/A")
+    context["placeholders"]["SELLER_BANK_IBAN"] = seller_ctx_final.get("bank_iban", "N/A")
+    context["placeholders"]["SELLER_BANK_SWIFT_BIC"] = seller_ctx_final.get("bank_swift_bic", "N/A")
+    context["placeholders"]["SELLER_BANK_ADDRESS"] = seller_ctx_final.get("bank_address", "N/A")
 
+    client_ctx_final = context.get("client", {})
+    context["placeholders"]["BUYER_COMPANY_NAME"] = client_ctx_final.get("company_name", "N/A")
+    context["placeholders"]["BUYER_REPRESENTATIVE_NAME"] = client_ctx_final.get("representative_name", "N/A")
+    context["placeholders"]["BUYER_ADDRESS_LINE1"] = client_ctx_final.get("address_line1", "N/A")
+    context["placeholders"]["BUYER_CITY"] = client_ctx_final.get("city", "")
+    context["placeholders"]["BUYER_POSTAL_CODE"] = client_ctx_final.get("postal_code", "")
+    context["placeholders"]["BUYER_COUNTRY"] = client_ctx_final.get("country", "")
+    context["placeholders"]["BUYER_FULL_ADDRESS"] = client_ctx_final.get("address", "N/A")
+    context["placeholders"]["BUYER_CITY_ZIP_COUNTRY"] = client_ctx_final.get("city_zip_country", "N/A")
+    context["placeholders"]["BUYER_PHONE"] = client_ctx_final.get("phone", "N/A")
+    context["placeholders"]["BUYER_EMAIL"] = client_ctx_final.get("email", "N/A")
+    context["placeholders"]["BUYER_VAT_NUMBER"] = client_ctx_final.get("vat_id", "N/A")
+    context["placeholders"]["BUYER_COMPANY_REGISTRATION_NUMBER"] = client_ctx_final.get("registration_number", "N/A")
 
-    # Client (Buyer) details
-    context["placeholders"]["BUYER_COMPANY_NAME"] = client_ctx.get("company_name", "N/A")
-    context["placeholders"]["BUYER_REPRESENTATIVE_NAME"] = client_ctx.get("representative_name", "N/A")
-    context["placeholders"]["BUYER_ADDRESS_LINE1"] = client_ctx.get("address_line1", "N/A")
-    context["placeholders"]["BUYER_CITY"] = client_ctx.get("city", "")
-    context["placeholders"]["BUYER_POSTAL_CODE"] = client_ctx.get("postal_code", "")
-    context["placeholders"]["BUYER_COUNTRY"] = client_ctx.get("country", "")
-    context["placeholders"]["BUYER_FULL_ADDRESS"] = client_ctx.get("address", "N/A") # Full formatted
-    context["placeholders"]["BUYER_CITY_ZIP_COUNTRY"] = client_ctx.get("city_zip_country", "N/A")
-    context["placeholders"]["BUYER_PHONE"] = client_ctx.get("phone", "N/A")
-    context["placeholders"]["BUYER_EMAIL"] = client_ctx.get("email", "N/A")
-    context["placeholders"]["BUYER_VAT_NUMBER"] = client_ctx.get("vat_id", "N/A") # Template uses BUYER_VAT_NUMBER
-    context["placeholders"]["BUYER_COMPANY_REGISTRATION_NUMBER"] = client_ctx.get("registration_number", "N/A")
+    project_ctx_final = context.get("project", {})
+    context["placeholders"]["PROJECT_ID"] = project_ctx_final.get("identifier", "N/A")
+    context["placeholders"]["PROJECT_NAME"] = project_ctx_final.get("name", "N/A")
 
-    # Project details
-    context["placeholders"]["PROJECT_ID"] = project_ctx.get("identifier", "N/A") # Using identifier for display
-    context["placeholders"]["PROJECT_NAME"] = project_ctx.get("name", "N/A")
-
-    # Totals
     context["placeholders"]["SUBTOTAL_AMOUNT"] = doc_ctx.get("subtotal_amount_formatted", "N/A")
     context["placeholders"]["DISCOUNT_RATE"] = str(doc_ctx.get("discount_rate_percentage", 0.0))
     context["placeholders"]["DISCOUNT_AMOUNT"] = doc_ctx.get("discount_amount_formatted", "N/A")
