@@ -143,7 +143,7 @@ from .cruds.partners_crud import (
     get_all_partners,
     update_partner,
     delete_partner,
-    get_partners_by_category,
+    get_partners_by_category_id,
 )
 
 
@@ -394,7 +394,7 @@ __all__ = [
     "get_city_by_id", "get_city_by_name_and_country_id", "add_city",
     # Partners
     "add_partner_category", "get_all_partner_categories", "add_partner", "get_partner_by_id",
-    "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category",
+    "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category_id",
     # Products
     "add_product", "get_product_by_id", "get_product_by_name", "get_all_products", "update_product", "delete_product",
     "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection",
