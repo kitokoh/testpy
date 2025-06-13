@@ -132,6 +132,7 @@ class ProductListDialog(QDialog):
             # products is already a list of dicts
             if products:
                 self.product_table.setRowCount(len(products))
+
                 for row, product_data in enumerate(products):
                     id_item = QTableWidgetItem(str(product_data.get("product_id")))
                     id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
