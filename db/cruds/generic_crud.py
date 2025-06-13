@@ -8,11 +8,10 @@ import logging
 
 # Configuration and Utilities
 try:
-    from ... import db_config # Assumes db_config.py is in /app
-    # Corrected import for utils.py, it's in db/, generic_crud.py is in db/cruds/
-    # So, to get to db/utils.py from db/cruds/generic_crud.py, it's one level up.
+    from ... import db_config # For db_config.py in app/
+    from ... import config    # For config.py in app/
     from ..utils import get_db_connection
-except (ImportError, ValueError): # Handle running file directly or package issues
+except (ImportError, ValueError) as e_import_primary:
     import sys
     # Determine the /app directory path relative to this file (db/cruds/generic_crud.py)
     # generic_crud.py -> cruds/ -> db/ -> app/
