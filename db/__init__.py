@@ -1,24 +1,61 @@
-"""
-DB Package Facade
-This __init__.py re-exports all public CRUD functions and other key DB utilities.
-"""
+# db/__init__.py
 
-# --- Utilities ---
-from .utils import get_document_context_data, get_db_connection, format_currency
-# Note: _get_batch_products_and_equivalents is internal to utils
+# Initialize the database schema if run directly (e.g., for setup)
+# This also makes the initialize_database function available for import.
+from .init_schema import initialize_database
 
-# --- CA (Certificate Authority / DB Initialization) ---
-from .ca import initialize_database
+# Import key utilities from db.utils to be available at the db level
+from .utils import get_db_connection, format_currency, get_document_context_data
 
-# --- CRUDs ---
+# Import all CRUD functions from their respective modules
+# This makes them available via db.function_name()
 
-# Application Settings
-from .cruds.application_settings_crud import (
-    get_setting,
-    set_setting,
+from .cruds.activity_logs_crud import (
+    add_activity_log,
+    get_activity_logs_for_user,
+    get_activity_logs_for_client,
+    get_activity_logs_for_project,
+    get_all_activity_logs,
 )
-
-# Clients
+from .cruds.application_settings_crud import (
+    get_application_setting,
+    set_application_setting,
+    get_all_application_settings,
+    initialize_default_settings,
+)
+from .cruds.client_assigned_personnel_crud import (
+    assign_personnel_to_client,
+    get_assigned_personnel_for_client,
+    unassign_personnel_from_client,
+    update_client_personnel_assignment,
+)
+from .cruds.client_documents_crud import (
+    add_client_document,
+    get_client_document_by_id,
+    get_client_documents_for_client,
+    get_client_documents_for_project,
+    update_client_document,
+    delete_client_document,
+)
+from .cruds.client_freight_forwarders_crud import (
+    assign_freight_forwarder_to_client,
+    get_assigned_freight_forwarders_for_client,
+    unassign_freight_forwarder_from_client,
+    update_client_freight_forwarder_email_status,
+)
+from .cruds.client_project_products_crud import (
+    add_product_to_client_or_project,
+    update_client_project_product,
+    remove_product_from_client_or_project,
+    get_client_project_product_by_id,
+    get_products_for_client_or_project,
+)
+from .cruds.client_transporters_crud import (
+    assign_transporter_to_client,
+    get_assigned_transporters_for_client,
+    unassign_transporter_from_client,
+    update_client_transporter_email_status,
+)
 from .cruds.clients_crud import (
     add_client,
     get_client_by_id,
@@ -32,11 +69,10 @@ from .cruds.clients_crud import (
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
     get_clients_by_archival_status,
-    add_client_note, # Belongs here or a separate client_notes_crud.py? Assuming here for now.
-    get_client_notes, # Belongs here or a separate client_notes_crud.py? Assuming here for now.
+    get_active_clients_per_country,
+    add_client_note,
+    get_client_notes,
 )
-
-# Companies
 from .cruds.companies_crud import (
     add_company,
     get_company_by_id,
@@ -46,68 +82,34 @@ from .cruds.companies_crud import (
     set_default_company,
     get_default_company,
 )
-
-# Company Personnel
 from .cruds.company_personnel_crud import (
     add_company_personnel,
     get_personnel_for_company,
     update_company_personnel,
     delete_company_personnel,
 )
-
-# Contacts
 from .cruds.contacts_crud import (
+    get_contacts_for_client,
     add_contact,
     get_contact_by_id,
     get_contact_by_email,
     get_all_contacts,
     update_contact,
     delete_contact,
+    add_contact_list, # Stub
+    add_contact_to_list, # Stub
+    delete_contact_list, # Stub
+    get_all_contact_lists, # Stub
+    get_contact_list_by_id, # Stub
+    get_contacts_in_list, # Stub
+    remove_contact_from_list, # Stub
     link_contact_to_client,
     unlink_contact_from_client,
-    get_contacts_for_client,
-    get_clients_for_contact,
     get_contacts_for_client_count,
-    update_client_contact_link,
+    get_clients_for_contact,
     get_specific_client_contact_link_details,
+    update_client_contact_link,
 )
-
-# Client Documents
-from .cruds.client_documents_crud import (
-    add_client_document,
-    get_document_by_id,
-    get_documents_for_client,
-    get_documents_for_project,
-    update_client_document,
-    delete_client_document,
-    add_client_document_note,
-    get_client_document_notes,
-    update_client_document_note,
-    delete_client_document_note,
-    get_client_document_note_by_id,
-)
-
-
-# Client Project Products
-from .cruds.client_project_products_crud import (
-    add_product_to_client_or_project,
-    get_products_for_client_or_project,
-    update_client_project_product,
-    remove_product_from_client_or_project,
-    get_client_project_product_by_id,
-)
-
-# Cover Page Templates
-from .cruds.cover_page_templates_crud import (
-    add_cover_page_template,
-    get_cover_page_template_by_id,
-    get_cover_page_template_by_name,
-    get_all_cover_page_templates,
-    update_cover_page_template,
-    delete_cover_page_template,
-)
-
-# Cover Pages
 from .cruds.cover_pages_crud import (
     add_cover_page,
     get_cover_page_by_id,
@@ -117,74 +119,137 @@ from .cruds.cover_pages_crud import (
     delete_cover_page,
     get_cover_pages_for_user,
 )
-
-# Generic (if any public functions)
-# from .cruds.generic_crud import ...
-
-
-# Locations (Countries, Cities)
-from .cruds.locations_crud import (
-    get_all_countries,
-    get_country_by_id,
-    get_country_by_name,
-    add_country,
-    get_all_cities,
-    get_city_by_id,
-    get_city_by_name_and_country_id,
-    add_city,
+from .cruds.freight_forwarders_crud import (
+    add_freight_forwarder,
+    get_freight_forwarder_by_id,
+    get_all_freight_forwarders,
+    update_freight_forwarder,
+    delete_freight_forwarder,
 )
-
-# Partners
+from .cruds.google_sync_crud import (
+    add_user_google_account,
+    get_user_google_account_by_user_id,
+    get_user_google_account_by_google_account_id,
+    get_user_google_account_by_id,
+    update_user_google_account,
+    delete_user_google_account,
+    get_all_user_google_accounts,
+    add_contact_sync_log,
+    get_contact_sync_log_by_local_contact,
+    get_contact_sync_log_by_google_contact_id,
+    get_contact_sync_log_by_id,
+    update_contact_sync_log,
+    delete_contact_sync_log,
+    get_contacts_pending_sync,
+    get_all_sync_logs_for_account,
+)
+from .cruds.kpis_crud import ( # Stubs
+    get_kpis_for_project,
+    add_kpi_to_project,
+    update_kpi,
+    delete_kpi,
+)
+from .cruds.locations_crud import (
+    get_country_by_name,
+    get_country_by_id,
+    get_or_add_country,
+    add_country,
+    get_all_countries,
+    get_city_by_name_and_country_id,
+    get_city_by_id,
+    add_city,
+    get_or_add_city,
+    get_all_cities,
+)
+from .cruds.milestones_crud import (
+    get_milestones_for_project,
+    add_milestone,
+    get_milestone_by_id,
+    update_milestone,
+    delete_milestone,
+)
 from .cruds.partners_crud import (
     add_partner_category,
+    get_partner_category_by_id,
+    get_partner_category_by_name,
     get_all_partner_categories,
+    update_partner_category,
+    delete_partner_category,
+    get_or_add_partner_category,
     add_partner,
     get_partner_by_id,
+    get_partner_by_email,
     get_all_partners,
     update_partner,
     delete_partner,
     get_partners_by_category_id,
+    add_partner_contact,
+    get_partner_contact_by_id,
+    get_contacts_for_partner,
+    update_partner_contact,
+    delete_partner_contact,
+    delete_contacts_for_partner,
+    link_partner_to_category,
+    unlink_partner_from_category,
+    get_categories_for_partner,
+    get_partners_in_category,
+    add_partner_document,
+    get_documents_for_partner,
+    get_partner_document_by_id,
+    update_partner_document,
+    delete_partner_document,
 )
-
-
-# Products
+from .cruds.product_media_links_crud import (
+    link_media_to_product,
+    get_media_links_for_product,
+    get_media_link_by_ids,
+    get_media_link_by_link_id,
+    update_media_link,
+    unlink_media_from_product,
+    unlink_media_by_ids,
+    unlink_all_media_from_product,
+    update_product_media_display_orders,
+)
 from .cruds.products_crud import (
+    get_product_by_id as get_product_by_id_details, # Renamed to avoid conflict with simple get_product_by_id if it existed
     add_product,
-    get_product_by_id,
     get_product_by_name,
     get_all_products,
     update_product,
     delete_product,
-    get_products, # often a more filtered version of get_all_products
+    get_products,
     update_product_price,
     get_products_by_name_pattern,
-    get_all_products_for_selection_filtered, # or get_all_products_for_selection_filtered
+    get_all_products_for_selection_filtered,
+    get_total_products_count,
+    add_or_update_product_dimension,
+    get_product_dimension,
+    delete_product_dimension,
     add_product_equivalence,
     get_equivalent_products,
     get_all_product_equivalencies,
     remove_product_equivalence,
-    add_or_update_product_dimension, # ProductDimensions
-    get_product_dimension,
-    delete_product_dimension,
 )
-
-# Projects
-from .cruds.projects_crud import (
+from .cruds.projects_crud import ( # Placeholders
     add_project,
     get_project_by_id,
+    delete_project,
     get_projects_for_client,
     update_project,
-    delete_project,
 )
-
-# Tasks
-from .cruds.tasks_crud import (
+from .cruds.status_settings_crud import (
+    get_status_setting_by_name,
+    get_status_setting_by_id,
+    get_all_status_settings,
+)
+from .cruds.tasks_crud import ( # Placeholders
     add_task,
     get_task_by_id,
     get_tasks_for_project,
     update_task,
     delete_task,
 )
+
 
 # KPIs (often linked to projects or other entities)
 from .cruds.kpis_crud import ( # Assuming a kpis_crud.py exists
@@ -200,6 +265,15 @@ from .cruds.status_settings_crud import (
     get_all_status_settings,
     get_status_setting_by_id,
     get_status_setting_by_name,
+)
+
+# Team Members
+from .cruds.team_members_crud import (
+    add_team_member,
+    get_team_member_by_id,
+    get_all_team_members,
+    update_team_member,
+    delete_team_member,
 )
 
 # Template Categories
@@ -302,94 +376,117 @@ from .cruds.transporters_crud import (
     update_transporter,
     delete_transporter,
 )
-
-# --- FreightForwarders (Moved in previous step) ---
-from .cruds.freight_forwarders_crud import (
-    add_freight_forwarder,
-    get_freight_forwarder_by_id,
-    get_all_freight_forwarders,
-    update_freight_forwarder,
-    delete_freight_forwarder,
+from .cruds.users_crud import (
+    add_user,
+    get_user_by_id,
+    get_user_by_username,
+    get_user_by_email,
+    update_user,
+    delete_user,
+    verify_user_password,
 )
 
-# --- Client_AssignedPersonnel (Moved in previous step) ---
-from .cruds.client_assigned_personnel_crud import (
-    assign_personnel_to_client,
-    get_assigned_personnel_for_client,
-    unassign_personnel_from_client,
-)
-
-# --- Client_Transporters (Moved in previous step) ---
-from .cruds.client_transporters_crud import (
-    assign_transporter_to_client,
-    get_assigned_transporters_for_client,
-    unassign_transporter_from_client,
-    update_client_transporter_email_status,
-)
-
-# --- Client_FreightForwarders (Moved in previous step) ---
-from .cruds.client_freight_forwarders_crud import (
-    assign_forwarder_to_client,
-    get_assigned_forwarders_for_client,
-    unassign_forwarder_from_client,
-)
-
-
+# List all functions to be made available through `from db import *`
 __all__ = [
-    # Utilities
-    "get_document_context_data", "get_db_connection", "format_currency",
-    # CA
+    # from init_schema
     "initialize_database",
-    # Application Settings
-    "get_setting", "set_setting",
-    # Clients
+    # from utils
+    "get_db_connection",
+    "format_currency",
+    "get_document_context_data",
+    # from activity_logs_crud
+    "add_activity_log", "get_activity_logs_for_user", "get_activity_logs_for_client",
+    "get_activity_logs_for_project", "get_all_activity_logs",
+    # from application_settings_crud
+    "get_application_setting", "set_application_setting", "get_all_application_settings",
+    "initialize_default_settings",
+    # from client_assigned_personnel_crud
+    "assign_personnel_to_client", "get_assigned_personnel_for_client",
+    "unassign_personnel_from_client", "update_client_personnel_assignment",
+    # from client_documents_crud
+    "add_client_document", "get_client_document_by_id", "get_client_documents_for_client",
+    "get_client_documents_for_project", "update_client_document", "delete_client_document",
+    # from client_freight_forwarders_crud
+    "assign_freight_forwarder_to_client", "get_assigned_freight_forwarders_for_client",
+    "unassign_freight_forwarder_from_client", "update_client_freight_forwarder_email_status",
+    # from client_project_products_crud
+    "add_product_to_client_or_project", "update_client_project_product",
+    "remove_product_from_client_or_project", "get_client_project_product_by_id",
+    "get_products_for_client_or_project",
+    # from client_transporters_crud
+    "assign_transporter_to_client", "get_assigned_transporters_for_client",
+    "unassign_transporter_from_client", "update_client_transporter_email_status",
+    # from clients_crud
     "add_client", "get_client_by_id", "get_all_clients", "update_client", "delete_client",
     "get_all_clients_with_details", "get_active_clients_count", "get_client_counts_by_country",
     "get_client_segmentation_by_city", "get_client_segmentation_by_status",
     "get_client_segmentation_by_category", "get_clients_by_archival_status",
-    "add_client_note", "get_client_notes",
-    # Companies
+    "get_active_clients_per_country", "add_client_note", "get_client_notes",
+    # from companies_crud
     "add_company", "get_company_by_id", "get_all_companies", "update_company", "delete_company",
     "set_default_company", "get_default_company",
-    # Company Personnel
+    # from company_personnel_crud
     "add_company_personnel", "get_personnel_for_company", "update_company_personnel", "delete_company_personnel",
-    # Contacts
-    "add_contact", "get_contact_by_id", "get_contact_by_email", "get_all_contacts", "update_contact", "delete_contact",
-    "link_contact_to_client", "unlink_contact_from_client", "get_contacts_for_client", "get_clients_for_contact",
-    "get_contacts_for_client_count", "update_client_contact_link", "get_specific_client_contact_link_details",
-    # Client Documents
-    "add_client_document", "get_document_by_id", "get_documents_for_client", "get_documents_for_project",
-    "update_client_document", "delete_client_document",
-    "add_client_document_note", "get_client_document_notes", "update_client_document_note",
-    "delete_client_document_note", "get_client_document_note_by_id",
-    # Client Project Products
-    "add_product_to_client_or_project", "get_products_for_client_or_project", "update_client_project_product",
-    "remove_product_from_client_or_project", "get_client_project_product_by_id",
-    # Cover Page Templates
-    "add_cover_page_template", "get_cover_page_template_by_id", "get_cover_page_template_by_name",
-    "get_all_cover_page_templates", "update_cover_page_template", "delete_cover_page_template",
-    # Cover Pages
+    # from contacts_crud
+    "get_contacts_for_client", "add_contact", "get_contact_by_id", "get_contact_by_email",
+    "get_all_contacts", "update_contact", "delete_contact", "add_contact_list", "add_contact_to_list",
+    "delete_contact_list", "get_all_contact_lists", "get_contact_list_by_id", "get_contacts_in_list",
+    "remove_contact_from_list", "link_contact_to_client", "unlink_contact_from_client",
+    "get_contacts_for_client_count", "get_clients_for_contact", "get_specific_client_contact_link_details",
+    "update_client_contact_link",
+    # from cover_pages_crud
     "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project",
     "update_cover_page", "delete_cover_page", "get_cover_pages_for_user",
-    # Locations
-    "get_all_countries", "get_country_by_id", "get_country_by_name", "add_country", "get_all_cities",
-    "get_city_by_id", "get_city_by_name_and_country_id", "add_city",
-    # Partners
-    "add_partner_category", "get_all_partner_categories", "add_partner", "get_partner_by_id",
+    # from freight_forwarders_crud
+    "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders",
+    "update_freight_forwarder", "delete_freight_forwarder",
+    # from google_sync_crud
+    "add_user_google_account", "get_user_google_account_by_user_id", "get_user_google_account_by_google_account_id",
+    "get_user_google_account_by_id", "update_user_google_account", "delete_user_google_account",
+    "get_all_user_google_accounts", "add_contact_sync_log", "get_contact_sync_log_by_local_contact",
+    "get_contact_sync_log_by_google_contact_id", "get_contact_sync_log_by_id", "update_contact_sync_log",
+    "delete_contact_sync_log", "get_contacts_pending_sync", "get_all_sync_logs_for_account",
+    # from kpis_crud (stubs)
+    "get_kpis_for_project", "add_kpi_to_project", "update_kpi", "delete_kpi",
+    # from locations_crud
+    "get_country_by_name", "get_country_by_id", "get_or_add_country", "add_country", "get_all_countries",
+    "get_city_by_name_and_country_id", "get_city_by_id", "add_city", "get_or_add_city", "get_all_cities",
+    # from milestones_crud
+    "get_milestones_for_project", "add_milestone", "get_milestone_by_id", "update_milestone", "delete_milestone",
+    # from partners_crud
+    "add_partner_category", "get_partner_category_by_id", "get_partner_category_by_name",
+    "get_all_partner_categories", "update_partner_category", "delete_partner_category",
+    "get_or_add_partner_category", "add_partner", "get_partner_by_id", "get_partner_by_email",
     "get_all_partners", "update_partner", "delete_partner", "get_partners_by_category_id",
-    # Products
-    "add_product", "get_product_by_id", "get_product_by_name", "get_all_products", "update_product", "delete_product",
-    "get_products", "update_product_price", "get_products_by_name_pattern", "get_all_products_for_selection_filtered",
-    "add_product_equivalence", "get_equivalent_products", "get_all_product_equivalencies", "remove_product_equivalence",
-    "add_or_update_product_dimension", "get_product_dimension", "delete_product_dimension",
-    # Projects
-    "add_project", "get_project_by_id", "get_projects_for_client", "update_project", "delete_project",
-    # Tasks
+    "add_partner_contact", "get_partner_contact_by_id", "get_contacts_for_partner",
+    "update_partner_contact", "delete_partner_contact", "delete_contacts_for_partner",
+    "link_partner_to_category", "unlink_partner_from_category", "get_categories_for_partner",
+    "get_partners_in_category", "add_partner_document", "get_documents_for_partner",
+    "get_partner_document_by_id", "update_partner_document", "delete_partner_document",
+    # from product_media_links_crud
+    "link_media_to_product", "get_media_links_for_product", "get_media_link_by_ids",
+    "get_media_link_by_link_id", "update_media_link", "unlink_media_from_product",
+    "unlink_media_by_ids", "unlink_all_media_from_product", "update_product_media_display_orders",
+    # from products_crud
+    "get_product_by_id_details", "add_product", "get_product_by_name", "get_all_products",
+    "update_product", "delete_product", "get_products", "update_product_price",
+    "get_products_by_name_pattern", "get_all_products_for_selection_filtered",
+    "get_total_products_count", "add_or_update_product_dimension", "get_product_dimension",
+    "delete_product_dimension", "add_product_equivalence", "get_equivalent_products",
+    "get_all_product_equivalencies", "remove_product_equivalence",
+    # from projects_crud (placeholders)
+    "add_project", "get_project_by_id", "delete_project", "get_projects_for_client", "update_project",
+    # from status_settings_crud
+    "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
+    # from tasks_crud (placeholders)
     "add_task", "get_task_by_id", "get_tasks_for_project", "update_task", "delete_task",
+
     # KPIs
     "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi",
     # Status Settings
     "get_all_status_settings", "get_status_setting_by_id", "get_status_setting_by_name",
+    # Team Members
+    "add_team_member", "get_team_member_by_id", "get_all_team_members", "update_team_member", "delete_team_member",
     # Template Categories
     "add_template_category", "get_template_category_by_id", "get_template_category_by_name",
     "get_all_template_categories", "update_template_category", "delete_template_category", "get_template_category_details",
@@ -416,12 +513,17 @@ __all__ = [
     "update_smtp_config", "delete_smtp_config", "set_default_smtp_config",
     # Transporters
     "add_transporter", "get_transporter_by_id", "get_all_transporters", "update_transporter", "delete_transporter",
-    # FreightForwarders
-    "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders", "update_freight_forwarder", "delete_freight_forwarder",
-    # Client_AssignedPersonnel
-    "assign_personnel_to_client", "get_assigned_personnel_for_client", "unassign_personnel_from_client",
-    # Client_Transporters
-    "assign_transporter_to_client", "get_assigned_transporters_for_client", "unassign_transporter_from_client", "update_client_transporter_email_status",
-    # Client_FreightForwarders
-    "assign_forwarder_to_client", "get_assigned_forwarders_for_client", "unassign_forwarder_from_client",
+    # from users_crud
+    "add_user", "get_user_by_id", "get_user_by_username", "get_user_by_email", "update_user", "delete_user",
+    "verify_user_password",
 ]
+
+# Note: financial_reports_crud.py and media_items_crud.py were not found and are thus not included.
+# If these modules are created later, their functions will need to be added here and to __all__.
+# The _manage_conn decorator from generic_crud is not exposed as it's internal.
+# Placeholder functions from projects_crud and tasks_crud are included for completeness of the current structure.
+# Stubs from contacts_crud and kpis_crud are also included.
+# The 'get_product_by_id' from products_crud was renamed to 'get_product_by_id_details' to avoid
+# potential naming conflicts if a simpler 'get_product_by_id' (without media links) were desired at the top level.
+# This can be adjusted based on actual usage patterns.
+print(f"DB Facade Initialized. {len(__all__)} functions/variables exposed in __all__.")
