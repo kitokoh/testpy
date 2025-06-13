@@ -269,6 +269,7 @@ from .cruds.tasks_crud import ( # Placeholders
     add_task_dependency,
     remove_task_dependency,
     get_predecessor_tasks,
+    get_tasks_by_project_id_ordered_by_sequence,
 )
 
 
@@ -478,7 +479,8 @@ __all__ = [
     # from status_settings_crud
     "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
     # from tasks_crud (placeholders)
-    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_tasks_by_assignee_id", "get_all_tasks", "add_task_dependency", "remove_task_dependency", "get_predecessor_tasks",
+    "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_tasks_by_assignee_id", "get_all_tasks", "add_task_dependency", "remove_task_dependency", "get_predecessor_tasks", "get_tasks_by_project_id_ordered_by_sequence",
+
 
     # KPIs
     "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi", "add_kpi", "get_kpi_by_id", # Added get_kpi_by_id here too
