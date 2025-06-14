@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
+import logging # Added logging import
 
 # Import necessary functions from the db facade
 from db import (
@@ -4435,6 +4436,14 @@ class AddProductionOrderDialog(QDialog):
         )
 
         self.log_activity("Updated user preferences")
+
+    def save_account_settings(self):
+        # TODO: Implement account settings saving logic
+        logging.info("Placeholder for save_account_settings called in MainDashboard.")
+        # Depending on UI, might want to show a message to the user
+        # from PyQt5.QtWidgets import QMessageBox
+        # QMessageBox.information(self, "Settings", "Account settings saving not yet implemented.")
+        pass
 
     def add_on_page(self):
         from Installsweb.installmodules import InstallerDialog

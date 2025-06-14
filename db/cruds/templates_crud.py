@@ -60,7 +60,7 @@ def add_template(data: dict, conn: sqlite3.Connection = None) -> int | None:
         return None
 
 @_manage_conn
-def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = None) -> int | None:
+def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = None, **kwargs) -> int | None:
     cursor=conn.cursor()
     name,ttype,lang = data.get('template_name'),data.get('template_type'),data.get('language_code')
 
