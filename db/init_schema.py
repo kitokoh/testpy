@@ -189,12 +189,14 @@ def initialize_database():
     if 'created_at' not in countries_column_names:
         try:
             cursor.execute("ALTER TABLE Countries ADD COLUMN created_at TIMESTAMP")
+
             print("Added 'created_at' column to Countries table.")
         except sqlite3.Error as e_alter:
             print(f"Error adding 'created_at' to Countries: {e_alter}")
     if 'updated_at' not in countries_column_names:
         try:
             cursor.execute("ALTER TABLE Countries ADD COLUMN updated_at TIMESTAMP")
+
             print("Added 'updated_at' column to Countries table.")
         except sqlite3.Error as e_alter:
             print(f"Error adding 'updated_at' to Countries: {e_alter}")
@@ -218,12 +220,14 @@ def initialize_database():
     if 'created_at' not in cities_column_names:
         try:
             cursor.execute("ALTER TABLE Cities ADD COLUMN created_at TIMESTAMP")
+
             print("Added 'created_at' column to Cities table.")
         except sqlite3.Error as e_alter:
             print(f"Error adding 'created_at' to Cities: {e_alter}")
     if 'updated_at' not in cities_column_names:
         try:
             cursor.execute("ALTER TABLE Cities ADD COLUMN updated_at TIMESTAMP")
+
             print("Added 'updated_at' column to Cities table.")
         except sqlite3.Error as e_alter:
             print(f"Error adding 'updated_at' to Cities: {e_alter}")
