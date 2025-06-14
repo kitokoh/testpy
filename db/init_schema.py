@@ -4,29 +4,25 @@ import json
 from datetime import datetime
 import uuid
 import hashlib
+import sys # Ensure sys is imported for path manipulation
 
-# Imports from db_config.py (taken from db/schema.py)
+# Get the project root directory
+# This allows importing config.py from the root
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 try:
-    from .. import db_config # For package structure: db/init_schema.py importing from /app/db_config.py
-except (ImportError, ValueError):
-    # Fallback for running script directly or if db_config is not found in parent
-    import sys
-    # Assuming this script is in /app/db/, so parent is /app/
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-    except ImportError:
-        print("CRITICAL: db_config.py not found. Using fallback DATABASE_PATH.")
-        # Minimal fallback if db_config.py is crucial and not found
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_data_fallback.db")
-            APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
-            DEFAULT_ADMIN_USERNAME = "admin_fallback"
-            DEFAULT_ADMIN_PASSWORD = "password_fallback" # Ensure this is a secure default if used
-        db_config = db_config_fallback
+    import config
+except ImportError:
+    print("CRITICAL: config.py not found at project root by db/init_schema.py. Using fallback configurations.")
+    class config_fallback:
+        DATABASE_PATH = os.path.join(project_root, "app_data_fallback_init.db")
+        DEFAULT_ADMIN_USERNAME = "admin_fallback_init"
+        DEFAULT_ADMIN_PASSWORD = "password_fallback_init"
+        # Add other necessary fallbacks if init_schema.py uses them directly
+        # For example, APP_ROOT_DIR if it were used directly for paths here.
+    config = config_fallback
 
 from auth.roles import SUPER_ADMIN
 
@@ -97,8 +93,8 @@ def initialize_database():
     Initializes the database by creating tables if they don't already exist.
     Combines schema from db/ca.py and db/schema.py.
     """
-    # Use DATABASE_PATH from db_config (imported at the top)
-    conn = sqlite3.connect(db_config.DATABASE_PATH)
+    # Use DATABASE_PATH from config (imported at the top)
+    conn = sqlite3.connect(config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row # Essential for accessing columns by name
     cursor = conn.cursor()
 
@@ -884,7 +880,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS proforma_invoice_items (
         id TEXT PRIMARY KEY,
         proforma_invoice_id TEXT NOT NULL,
-        product_id TEXT,
+        product_id INTEGER,
         description TEXT NOT NULL,
         quantity REAL NOT NULL,
         unit_price REAL NOT NULL,
@@ -1233,7 +1229,7 @@ def initialize_database():
             admin_uid = str(uuid.uuid4())
             # Generate salt and hash for default admin - direct SQL insertion for bootstrap
             admin_salt = os.urandom(16).hex()
-            admin_password_bytes = db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')
+            admin_password_bytes = config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')
             admin_salt_bytes = bytes.fromhex(admin_salt)
             admin_pass_hash = hashlib.sha256(admin_salt_bytes + admin_password_bytes).hexdigest()
 
@@ -1241,9 +1237,9 @@ def initialize_database():
                 INSERT OR IGNORE INTO Users
                     (user_id, username, password_hash, salt, full_name, email, role, is_deleted, deleted_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
-                  'Default Admin', f'{db_config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
-            print(f"Admin user '{db_config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
+            """, (admin_uid, config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
+                  'Default Admin', f'{config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
+            print(f"Admin user '{config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
 
         # Application Settings Seeding
         # Using the imported set_setting CRUD function, passing the connection
@@ -1263,6 +1259,6 @@ def initialize_database():
         conn.close()
 
 if __name__ == '__main__':
-    print(f"Running init_schema.py directly. Using database path: {db_config.DATABASE_PATH}")
+    print(f"Running init_schema.py directly. Using database path: {config.DATABASE_PATH}")
     initialize_database()
     print("Schema initialization complete (called from init_schema.py __main__).")
