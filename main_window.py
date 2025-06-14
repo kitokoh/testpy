@@ -347,7 +347,7 @@ class DocumentManager(QMainWindow):
         self.status_filter_combo.clear()
         self.status_filter_combo.addItem(self.tr("Tous les statuts"), None)
         try:
-            client_statuses = db_manager.get_all_status_settings(status_type='Client')
+            client_statuses = db_manager.get_all_status_settings(type_filter='Client')
             if client_statuses is None: client_statuses = []
             for status_dict in client_statuses:
                 self.status_filter_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))

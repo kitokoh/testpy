@@ -251,49 +251,66 @@ def initialize_database():
         default_duration_days INTEGER,
         is_archival_status BOOLEAN DEFAULT FALSE,
         is_completion_status BOOLEAN DEFAULT FALSE,
+        sort_order INTEGER DEFAULT 0,  -- Added column
         UNIQUE (status_name, status_type)
     )
     """)
 
+    # Ensure StatusSettings table has sort_order if it already existed
+    cursor.execute("PRAGMA table_info(StatusSettings)")
+    status_settings_columns = [info['name'] for info in cursor.fetchall()]
+    if 'sort_order' not in status_settings_columns:
+        try:
+            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN sort_order INTEGER DEFAULT 0")
+            print("DEBUG_INIT_DB: Added missing 'sort_order' column to existing StatusSettings table.")
+            # No commit here, it will be part of the main transaction commit
+        except sqlite3.Error as e_alter_ss:
+            print(f"DEBUG_INIT_DB: Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}")
+            # If altering fails, this might be a critical issue.
+            # The subsequent INSERTs will likely fail if this was needed and failed.
+    else:
+        print("DEBUG_INIT_DB: 'sort_order' column already exists in StatusSettings table.")
+
     # Pre-populate StatusSettings (full list from ca.py)
     default_statuses = [
-        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True}
+        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
+        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 7},
+        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 8},
+        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 4},
+        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
+        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
     ]
     for status in default_statuses:
         cursor.execute("""
             INSERT OR REPLACE INTO StatusSettings (
                 status_name, status_type, color_hex, icon_name,
-                is_completion_status, is_archival_status, default_duration_days
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                is_completion_status, is_archival_status, default_duration_days, sort_order
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             status['status_name'], status['status_type'], status['color_hex'],
             status.get('icon_name'), status.get('is_completion_status', False),
-            status.get('is_archival_status', False), status.get('default_duration_days')
+            status.get('is_archival_status', False), status.get('default_duration_days'),
+            status.get('sort_order', 0)
         ))
 
     # Create Clients table (base from ca.py, includes distributor_specific_info logic)
@@ -1229,7 +1246,10 @@ def initialize_database():
 
     # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
     try:
+        print("DEBUG_INIT_DB: Starting data seeding phase.")
+
         # User Seeding (Admin user)
+        print("DEBUG_INIT_DB: Checking/Seeding Users...")
         cursor.execute("SELECT COUNT(*) FROM Users")
         if cursor.fetchone()['COUNT(*)'] == 0: # Use dict access due to row_factory
             admin_uid = str(uuid.uuid4())
@@ -1246,21 +1266,28 @@ def initialize_database():
             """, (admin_uid, config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
                   'Default Admin', f'{config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
             print(f"Admin user '{config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
+            print("DEBUG_INIT_DB: Admin user potentially seeded.")
+        print("DEBUG_INIT_DB: User seeding check complete.")
 
         # Application Settings Seeding
+        print("DEBUG_INIT_DB: Seeding Application Settings...")
         # Using the imported set_setting CRUD function, passing the connection
-        set_setting('initial_data_seeded_version', '1.3_consolidated_schema')
-        set_setting('default_app_language', 'en')
-        print("Default application settings seeded.")
+        set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
+        set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        print("DEBUG_INIT_DB: Application settings seeded.")
 
         # Populate Default Cover Page Templates
+        print("DEBUG_INIT_DB: Populating Default Cover Page Templates...")
         _populate_default_cover_page_templates(conn_passed=conn) # Uses CRUDs internally
+        print("DEBUG_INIT_DB: Default Cover Page Templates population attempt finished.")
 
         conn.commit() # Commit all schema changes and seeding
+        print("DEBUG_INIT_DB: Data seeding phase committed successfully.")
         print("Database schema initialized and initial data seeded successfully.")
     except Exception as e_seed:
-        print(f"Error during data seeding: {e_seed}")
+        print(f"DEBUG_INIT_DB: Error during data seeding: {e_seed}") # Existing error print
         conn.rollback() # Rollback in case of error during seeding
+        print("DEBUG_INIT_DB: Rollback due to seeding error.")
     finally:
         conn.close()
 
