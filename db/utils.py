@@ -4,31 +4,22 @@ import json
 from datetime import datetime
 import logging # Keep logging import
 
-# Import global constants from db_config.py
-try:
-    from .. import db_config
-    from .. import config # For MEDIA_FILES_BASE_PATH
-except (ImportError, ValueError): # pragma: no cover
-    import sys
-    # Correctly get the /app directory (parent of db/)
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-        import config # For MEDIA_FILES_BASE_PATH
-    except ImportError:
-        print("CRITICAL: db_config.py or config.py not found in utils.py. Using fallback paths.")
-        # Fallback class definition
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(app_dir, "app_data_fallback.db") # Use app_dir for path
-            APP_ROOT_DIR_CONTEXT = app_dir
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
-        db_config = db_config_fallback
-        class config_fallback:
-            MEDIA_FILES_BASE_PATH = os.path.join(app_dir, "media_files_fallback")
-        config = config_fallback
+# --- Configuration Import ---
+# Get the application root directory (parent of 'db' directory)
+app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir) # Insert at the beginning to ensure it's checked first
 
+try:
+    import config  # This should now find config.py at the root
+    db_config = config # Alias config as db_config for compatibility
+except ImportError as e:
+    # This block should ideally not be reached if config.py exists at the root
+    logging.critical(f"CRITICAL: config.py not found at root ({app_dir}) by db/utils.py. Error: {e}")
+    # Optionally, re-raise the error or exit, as the application cannot function without config.
+    raise ImportError(f"config.py is essential and was not found at {app_dir}") from e
+
+# --- End Configuration Import ---
 
 # CRUD function imports
 
@@ -149,8 +140,8 @@ def get_document_context_data(
             context["seller"]["full_address"] = seller_company_data.get('address', "N/A") # Redundant, consider removing
             logo_path_relative = seller_company_data.get('logo_path')
             if logo_path_relative:
-                # Ensure APP_ROOT_DIR_CONTEXT and LOGO_SUBDIR_CONTEXT are correctly defined in db_config
-                abs_logo_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, db_config.LOGO_SUBDIR_CONTEXT, logo_path_relative)
+                # Ensure APP_ROOT_DIR and LOGO_SUBDIR are correctly defined in config
+                abs_logo_path = os.path.join(config.APP_ROOT_DIR, config.LOGO_SUBDIR, logo_path_relative)
                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}" if os.path.exists(abs_logo_path) else None
             else:
                 context["seller"]["company_logo_path"] = None
