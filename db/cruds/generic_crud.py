@@ -3,43 +3,19 @@ import uuid # Required by some CRUD functions, even if not directly in generic
 import hashlib # Required by some CRUD functions, even if not directly in generic
 from datetime import datetime # Required by some CRUD functions, even if not directly in generic
 import json # Required by some CRUD functions, even if not directly in generic
-import os
+import os # Keep os if used by other parts of the file, but not for path manipulation for config.
 import logging
 
 # Configuration and Utilities
 try:
-    from ... import db_config # For db_config.py in app/
-    # from ... import config    # config.py might not be needed directly by generic_crud's connection logic
-    from ..connection import get_db_connection # Changed to import from db.connection
-except (ImportError, ValueError) as e_import_primary:
-    import sys
-    # Determine the /app directory path relative to this file (db/cruds/generic_crud.py)
-    # generic_crud.py -> cruds/ -> db/ -> app/
-    app_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-
-    # Path to the 'db' directory, which contains 'utils.py'
-    db_dir_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # This should be /app/db
-    if db_dir_path not in sys.path:
-         sys.path.append(db_dir_path)
-
-    try:
-        import db_config # Assumes db_config.py is at app_root_dir (added to sys.path)
-        from connection import get_db_connection # Assumes connection.py is in db/ (db_dir_path added to sys.path)
-    except ImportError as e:
-        print(f"CRITICAL: db_config.py or connection.py (for get_db_connection) not found in generic_crud.py fallback. Error: {e}")
-        class db_config: # Minimal fallback for db_config
-            DATABASE_NAME = "app_data_fallback_generic.db"
-            APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # app/
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback_generic"
-
-        def get_db_connection(db_name=None): # Fallback get_db_connection
-            name_to_connect = db_name if db_name else db_config.DATABASE_NAME
-            db_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, name_to_connect)
-            conn_fallback = sqlite3.connect(db_path)
-            conn_fallback.row_factory = sqlite3.Row
-            return conn_fallback
+    # This is the primary and now should be the ONLY way it gets get_db_connection
+    from ..connection import get_db_connection
+except ImportError as e:
+    # If this import fails, it's a problem with db.connection or the package structure.
+    # generic_crud.py should not try to work around it with its own config loading.
+    logging.critical(f"CRITICAL: Failed to import get_db_connection from ..connection in generic_crud.py. Error: {e}")
+    # Re-raise the error as the CRUD operations cannot function without a db connection.
+    raise ImportError(f"Essential import get_db_connection from ..connection failed in generic_crud.py") from e
 
 # Helper to manage connection lifecycle for CRUD functions
 def _manage_conn(func):
