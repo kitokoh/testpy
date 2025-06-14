@@ -4305,66 +4305,14 @@ class AddProductionOrderDialog(QDialog):
                     else:
                         QMessageBox.warning(self, "Error", f"Failed to update role for {user_data_edit_access.get('full_name')}")
 
-
     def save_account_settings(self):
-        if not self.current_user or 'id' not in self.current_user:
-            QMessageBox.warning(self, "Error", "You must be logged in to modify your settings.")
-            return
-
-        user_id_to_update = self.current_user['id']
-        current_username = self.current_user['username'] # Needed for password verification
-
-        full_name = self.name_edit.text()
-        email = self.email_edit.text()
-        phone = self.phone_edit.text()
-        current_pwd = self.current_pwd_edit.text()
-        new_pwd = self.new_pwd_edit.text()
-        confirm_pwd = self.confirm_pwd_edit.text()
-
-        if not full_name or not email:
-            QMessageBox.warning(self, "Error", "Full name and email are required.")
-            return
-
-        if new_pwd and (new_pwd != confirm_pwd):
-            QMessageBox.warning(self, "Error", "New passwords do not match.")
-            return
-
-        update_data = { # Reverted rename as it's local to this function.
-            'full_name': full_name,
-            'email': email,
-            'phone': phone if phone else None
-        }
-
-        # Verify current password if a new one is provided
-        if new_pwd:
-            if not current_pwd:
-                QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
-                return
-
-            verified_user = verify_user_password(current_username, current_pwd)
-            if not verified_user or verified_user['user_id'] != user_id_to_update:
-                QMessageBox.warning(self, "Error", "Current password is incorrect.")
-                return
-            update_data['password'] = new_pwd
-
-        success = update_user(user_id_to_update, update_data)
-
-        if success:
-            # Update current user information in the session
-            self.current_user['full_name'] = full_name
-            self.current_user['email'] = email
-            # self.current_user['phone'] = phone # If you store it in self.current_user
-            self.user_name.setText(full_name) # Update UI
-
-            self.log_activity("Updated account information")
-            QMessageBox.information(self, "Success", "Changes have been saved.")
-
-            # Clear password fields
-            self.current_pwd_edit.clear()
-            self.new_pwd_edit.clear()
-            self.confirm_pwd_edit.clear()
-        else:
-            QMessageBox.warning(self, "Error", "Failed to update account information.")
+        # Placeholder for saving account settings
+        print("DEBUG: save_account_settings called. Functionality not yet fully implemented.")
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Account Settings", "Functionality to save account settings is under development.")
+        except Exception as e:
+            print(f"Error showing QMessageBox in placeholder: {e}")
 
     def save_preferences(self):
         if not self.current_user or 'id' not in self.current_user: # Check for id too
