@@ -260,6 +260,7 @@ from .cruds.projects_crud import ( # Placeholders
     update_project,
     get_all_projects,
     get_total_projects_count, # Already correctly added in previous step
+    get_active_projects_count,
 )
 from .cruds.status_settings_crud import (
     get_status_setting_by_name,
@@ -486,7 +487,7 @@ __all__ = [
     "delete_product_dimension", "add_product_equivalence", "get_equivalent_products",
     "get_all_product_equivalencies", "remove_product_equivalence",
     # from projects_crud
-    "add_project", "get_project_by_id", "delete_project", "get_projects_by_client_id", "update_project", "get_all_projects", "get_total_projects_count", # Already correct
+    "add_project", "get_project_by_id", "delete_project", "get_projects_by_client_id", "update_project", "get_all_projects", "get_total_projects_count", "get_active_projects_count", # Already correct
     # from status_settings_crud
     "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
     # from tasks_crud (placeholders)
