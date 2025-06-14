@@ -4445,6 +4445,7 @@ class AddProductionOrderDialog(QDialog):
         # QMessageBox.information(self, "Settings", "Account settings saving not yet implemented.")
         pass
 
+
     def add_on_page(self):
         from Installsweb.installmodules import InstallerDialog
         installer = InstallerDialog(self)
@@ -5243,6 +5244,110 @@ if __name__ == "__main__":
     test_host_window.show()
 
     sys.exit(app.exec_())
+
+# The following 'save_account_settings' method was originally outside the MainDashboard class.
+# It is being removed from here as it's now correctly placed inside the MainDashboard class.
+# def save_account_settings(self):
+#     if not self.current_user or not self.current_user.get('user_id'):
+#         QMessageBox.warning(self, self.tr("Error"), self.tr("No user logged in or user ID is missing."))
+#         return
+#
+#     user_id = self.current_user.get('user_id')
+#     username = self.current_user.get('username') # Needed for password verification
+#
+#     name_val = self.name_edit.text().strip()
+#     email_val = self.email_edit.text().strip()
+#     # Phone is not directly part of the Users table in db.py schema, so skipping phone_val for now
+#     # phone_val = self.phone_edit.text().strip()
+#
+#     current_pwd_val = self.current_pwd_edit.text()
+#     new_pwd_val = self.new_pwd_edit.text()
+#     confirm_pwd_val = self.confirm_pwd_edit.text()
+#
+#     user_data_to_update = {}
+#     log_messages = []
+#
+#     # Check current user data from db to see if basic info changed
+#     # This assumes self.current_user might be stale, safer to re-fetch or compare with initial load.
+#     # For simplicity, directly compare with self.current_user fields.
+#     if name_val and name_val != self.current_user.get('full_name'):
+#         user_data_to_update['full_name'] = name_val
+#         log_messages.append(self.tr("Full name updated."))
+#
+#     if email_val and email_val != self.current_user.get('email'):
+#         user_data_to_update['email'] = email_val
+#         log_messages.append(self.tr("Email updated."))
+#
+#     password_changed_successfully = False
+#     if new_pwd_val: # User intends to change password
+#         if not current_pwd_val:
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("Please enter your current password to set a new one."))
+#             self.current_pwd_edit.setFocus()
+#             return
+#         if new_pwd_val != confirm_pwd_val:
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("New passwords do not match."))
+#             self.new_pwd_edit.clear()
+#             self.confirm_pwd_edit.clear()
+#             self.new_pwd_edit.setFocus()
+#             return
+#
+#         # Verify current password
+#         if not verify_user_password(username, current_pwd_val):
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("Incorrect current password."))
+#             self.current_pwd_edit.clear()
+#             self.current_pwd_edit.setFocus()
+#             return
+#
+#         # Hash new password
+#         salt = os.urandom(16).hex()
+#         password_hash = hashlib.sha256((new_pwd_val + salt).encode('utf-8')).hexdigest()
+#         user_data_to_update['password_hash'] = password_hash
+#         user_data_to_update['salt'] = salt
+#         password_changed_successfully = True
+#         log_messages.append(self.tr("Password updated."))
+#
+#     if not user_data_to_update:
+#         if new_pwd_val and not password_changed_successfully:
+#             # This case should be handled by earlier returns, but as a safeguard:
+#             QMessageBox.information(self, self.tr("No Changes"), self.tr("Password change attempted but failed. No other changes detected."))
+#         else:
+#             QMessageBox.information(self, self.tr("No Changes"), self.tr("No changes detected to save."))
+#         self.current_pwd_edit.clear()
+#         self.new_pwd_edit.clear()
+#         self.confirm_pwd_edit.clear()
+#         return
+#
+#     try:
+#         success = update_user(user_id, user_data_to_update)
+#         if success:
+#             # Update self.current_user with new details if changes were made
+#             if 'full_name' in user_data_to_update:
+#                 self.current_user['full_name'] = user_data_to_update['full_name']
+#                 self.user_name.setText(self.current_user['full_name']) # Update display name in topbar
+#             if 'email' in user_data_to_update:
+#                 self.current_user['email'] = user_data_to_update['email']
+#
+#             # Log specific changes
+#             activity_details = "; ".join(log_messages)
+#             self.log_activity(self.tr("Updated account settings"), details=activity_details)
+#
+#             QMessageBox.information(self, self.tr("Success"), self.tr("Account settings updated successfully."))
+#
+#             if password_changed_successfully:
+#                 # Inform user about password change success, separate from general success if needed.
+#                 # For now, it's part of the general success message context.
+#                 pass
+#
+#         else:
+#             QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update account settings. Check application logs."))
+#     except Exception as e:
+#         QMessageBox.critical(self, self.tr("Error"), self.tr("An unexpected error occurred: {0}").format(str(e)))
+#         print(f"Error saving account settings: {e}")
+#     finally:
+#         # Always clear password fields after any operation attempt
+#         self.current_pwd_edit.clear()
+#         self.new_pwd_edit.clear()
+#         self.confirm_pwd_edit.clear()
 
     def focus_on_project(self, project_id_to_focus):
         # Switch to the projects page/tab
