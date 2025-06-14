@@ -120,8 +120,8 @@ class NotificationManager:
         notifications_found = []
 
         # Get all relevant statuses to avoid multiple DB calls for status properties
-        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Project')}
-        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
+        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Project')}
+        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Task')}
 
         try:
             all_projects_list = get_all_projects() # Use direct import
@@ -2333,7 +2333,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        project_statuses_list = get_all_status_settings(status_type='Project') # Use direct import
+        project_statuses_list = get_all_status_settings(type_filter='Project') # Use direct import
         if project_statuses_list:
             for ps in project_statuses_list: # Iterate over fetched list
                 status_combo.addItem(ps['status_name'], ps['status_id'])
@@ -2492,7 +2492,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             budget_spin.setValue(project_data_dict.get('budget', 0.0))
 
             status_combo = QComboBox()
-            project_statuses_list_edit = get_all_status_settings(status_type='Project') # Use direct import
+            project_statuses_list_edit = get_all_status_settings(type_filter='Project') # Use direct import
             current_status_id = project_data_dict.get('status_id')
             if project_statuses_list_edit:
                 for idx, ps in enumerate(project_statuses_list_edit): # Iterate over fetched list
@@ -3266,7 +3266,7 @@ class EditProductionStepDialog(QDialog):
         self.description_edit.setFixedHeight(80)
 
         self.status_combo = QComboBox()
-        task_statuses = get_all_status_settings(status_type='Task')
+        task_statuses = get_all_status_settings(type_filter='Task')
         current_status_id = self.task_data.get('status_id')
         if task_statuses:
             for idx, ts in enumerate(task_statuses):
@@ -3388,7 +3388,7 @@ class EditProductionOrderDialog(QDialog):
         self.budget_spin.setValue(self.order_data.get('budget', 0.0))
 
         self.status_combo = QComboBox()
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         current_status_id = self.order_data.get('status_id')
         if project_statuses:
             for idx, ps in enumerate(project_statuses):
@@ -3730,7 +3730,7 @@ class AddProductionOrderDialog(QDialog):
         self.status_combo = QComboBox()
         # TODO: Populate with relevant statuses for 'ProductionOrder' type if different from 'Project'
         # For now, using common project statuses
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         if project_statuses:
             for ps in project_statuses:
                 if not ps.get('is_archival_status') and not ps.get('is_completion_status'): # Only show active statuses
@@ -3898,7 +3898,7 @@ class AddProductionOrderDialog(QDialog):
         desc_edit.setMinimumHeight(80)
 
         status_combo = QComboBox()
-        task_statuses_list = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list:
             for ts in task_statuses_list: # Iterate over fetched list
                 if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
@@ -4053,7 +4053,7 @@ class AddProductionOrderDialog(QDialog):
             desc_edit.setMinimumHeight(80)
 
             status_combo = QComboBox()
-            task_statuses_list_edit = get_all_status_settings(status_type='Task') # Use direct import
+            task_statuses_list_edit = get_all_status_settings(type_filter='Task') # Use direct import
             current_status_id_for_task = task_data_dict.get('status_id')
             if task_statuses_list_edit:
                 for idx, ts in enumerate(task_statuses_list_edit): # Iterate over fetched list
@@ -4186,7 +4186,7 @@ class AddProductionOrderDialog(QDialog):
         task_name = task_to_complete.get('task_name', 'Unknown Task')
 
         completed_status_id = None
-        task_statuses_list_comp = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list_comp = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list_comp:
             for ts in task_statuses_list_comp: # Iterate over fetched list
                 if ts.get('is_completion_status'):

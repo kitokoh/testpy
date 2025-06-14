@@ -14,7 +14,7 @@ def get_setting(key: str, conn: sqlite3.Connection = None) -> str | None:
         return None
 
 @_manage_conn
-def set_setting(key: str, value: str, conn: sqlite3.Connection = None) -> bool:
+def set_setting(key: str, value: str, conn: sqlite3.Connection = None, **kwargs) -> bool:
     cursor=conn.cursor()
     sql="INSERT OR REPLACE INTO ApplicationSettings (setting_key, setting_value) VALUES (?, ?)"
     try:
