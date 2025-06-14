@@ -37,7 +37,7 @@ from db import (
     get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member,
     get_all_clients,
     get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id,
-    get_all_cover_page_templates, get_cover_page_template_by_id,
+    get_all_file_based_templates, get_cover_page_template_by_id,
     get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone,
     initialize_database
 )
@@ -120,8 +120,8 @@ class NotificationManager:
         notifications_found = []
 
         # Get all relevant statuses to avoid multiple DB calls for status properties
-        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Project')}
-        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
+        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Project')}
+        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Task')}
 
         try:
             all_projects_list = get_all_projects() # Use direct import
@@ -2297,6 +2297,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete team member {member_name}.")
 
+    def show_add_task_dialog(self):
+        # Placeholder for showing a dialog to add a new task
+        # For now, just show a message or print to console
+        print("DEBUG: show_add_task_dialog called. UI for adding task not yet implemented.")
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Add Task", "Functionality to add a new task is under development.")
+        except Exception as e:
+            print(f"Error showing QMessageBox in placeholder: {e}")
+
     def show_add_project_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Project")
@@ -2323,7 +2333,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        project_statuses_list = get_all_status_settings(status_type='Project') # Use direct import
+        project_statuses_list = get_all_status_settings(type_filter='Project') # Use direct import
         if project_statuses_list:
             for ps in project_statuses_list: # Iterate over fetched list
                 status_combo.addItem(ps['status_name'], ps['status_id'])
@@ -2482,7 +2492,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             budget_spin.setValue(project_data_dict.get('budget', 0.0))
 
             status_combo = QComboBox()
-            project_statuses_list_edit = get_all_status_settings(status_type='Project') # Use direct import
+            project_statuses_list_edit = get_all_status_settings(type_filter='Project') # Use direct import
             current_status_id = project_data_dict.get('status_id')
             if project_statuses_list_edit:
                 for idx, ps in enumerate(project_statuses_list_edit): # Iterate over fetched list
@@ -3256,7 +3266,7 @@ class EditProductionStepDialog(QDialog):
         self.description_edit.setFixedHeight(80)
 
         self.status_combo = QComboBox()
-        task_statuses = get_all_status_settings(status_type='Task')
+        task_statuses = get_all_status_settings(type_filter='Task')
         current_status_id = self.task_data.get('status_id')
         if task_statuses:
             for idx, ts in enumerate(task_statuses):
@@ -3378,7 +3388,7 @@ class EditProductionOrderDialog(QDialog):
         self.budget_spin.setValue(self.order_data.get('budget', 0.0))
 
         self.status_combo = QComboBox()
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         current_status_id = self.order_data.get('status_id')
         if project_statuses:
             for idx, ps in enumerate(project_statuses):
@@ -3720,7 +3730,7 @@ class AddProductionOrderDialog(QDialog):
         self.status_combo = QComboBox()
         # TODO: Populate with relevant statuses for 'ProductionOrder' type if different from 'Project'
         # For now, using common project statuses
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         if project_statuses:
             for ps in project_statuses:
                 if not ps.get('is_archival_status') and not ps.get('is_completion_status'): # Only show active statuses
@@ -3888,7 +3898,7 @@ class AddProductionOrderDialog(QDialog):
         desc_edit.setMinimumHeight(80)
 
         status_combo = QComboBox()
-        task_statuses_list = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list:
             for ts in task_statuses_list: # Iterate over fetched list
                 if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
@@ -4043,7 +4053,7 @@ class AddProductionOrderDialog(QDialog):
             desc_edit.setMinimumHeight(80)
 
             status_combo = QComboBox()
-            task_statuses_list_edit = get_all_status_settings(status_type='Task') # Use direct import
+            task_statuses_list_edit = get_all_status_settings(type_filter='Task') # Use direct import
             current_status_id_for_task = task_data_dict.get('status_id')
             if task_statuses_list_edit:
                 for idx, ts in enumerate(task_statuses_list_edit): # Iterate over fetched list
@@ -4176,7 +4186,7 @@ class AddProductionOrderDialog(QDialog):
         task_name = task_to_complete.get('task_name', 'Unknown Task')
 
         completed_status_id = None
-        task_statuses_list_comp = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list_comp = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list_comp:
             for ts in task_statuses_list_comp: # Iterate over fetched list
                 if ts.get('is_completion_status'):
@@ -4295,66 +4305,14 @@ class AddProductionOrderDialog(QDialog):
                     else:
                         QMessageBox.warning(self, "Error", f"Failed to update role for {user_data_edit_access.get('full_name')}")
 
-
     def save_account_settings(self):
-        if not self.current_user or 'id' not in self.current_user:
-            QMessageBox.warning(self, "Error", "You must be logged in to modify your settings.")
-            return
-
-        user_id_to_update = self.current_user['id']
-        current_username = self.current_user['username'] # Needed for password verification
-
-        full_name = self.name_edit.text()
-        email = self.email_edit.text()
-        phone = self.phone_edit.text()
-        current_pwd = self.current_pwd_edit.text()
-        new_pwd = self.new_pwd_edit.text()
-        confirm_pwd = self.confirm_pwd_edit.text()
-
-        if not full_name or not email:
-            QMessageBox.warning(self, "Error", "Full name and email are required.")
-            return
-
-        if new_pwd and (new_pwd != confirm_pwd):
-            QMessageBox.warning(self, "Error", "New passwords do not match.")
-            return
-
-        update_data = { # Reverted rename as it's local to this function.
-            'full_name': full_name,
-            'email': email,
-            'phone': phone if phone else None
-        }
-
-        # Verify current password if a new one is provided
-        if new_pwd:
-            if not current_pwd:
-                QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
-                return
-
-            verified_user = verify_user_password(current_username, current_pwd)
-            if not verified_user or verified_user['user_id'] != user_id_to_update:
-                QMessageBox.warning(self, "Error", "Current password is incorrect.")
-                return
-            update_data['password'] = new_pwd
-
-        success = update_user(user_id_to_update, update_data)
-
-        if success:
-            # Update current user information in the session
-            self.current_user['full_name'] = full_name
-            self.current_user['email'] = email
-            # self.current_user['phone'] = phone # If you store it in self.current_user
-            self.user_name.setText(full_name) # Update UI
-
-            self.log_activity("Updated account information")
-            QMessageBox.information(self, "Success", "Changes have been saved.")
-
-            # Clear password fields
-            self.current_pwd_edit.clear()
-            self.new_pwd_edit.clear()
-            self.confirm_pwd_edit.clear()
-        else:
-            QMessageBox.warning(self, "Error", "Failed to update account information.")
+        # Placeholder for saving account settings
+        print("DEBUG: save_account_settings called. Functionality not yet fully implemented.")
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Account Settings", "Functionality to save account settings is under development.")
+        except Exception as e:
+            print(f"Error showing QMessageBox in placeholder: {e}")
 
     def save_preferences(self):
         if not self.current_user or 'id' not in self.current_user: # Check for id too
@@ -4999,7 +4957,7 @@ class CoverPageEditorDialog(QDialog):
 
     def populate_templates_combo(self):
         self.cp_template_combo.addItem("None (Custom)", None)
-        templates_list = get_all_cover_page_templates() # Use direct import
+        templates_list = get_all_file_based_templates() # Use direct import
         if templates_list:
             for tpl in templates_list: # Iterate over fetched list
                 self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])

@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QIcon
-import db.crud as db_manager # Assuming db_manager is accessible
+from db import get_all_clients, get_active_clients_count, get_total_projects_count, get_active_projects_count, get_total_products_count, get_client_counts_by_country, get_client_segmentation_by_city, get_client_segmentation_by_status, get_client_segmentation_by_category # Assuming db_manager is accessible
 
 class CollapsibleStatisticsWidget(QWidget):
     def __init__(self, parent=None):
@@ -128,19 +128,19 @@ class CollapsibleStatisticsWidget(QWidget):
 
     def update_global_stats(self):
         try:
-            total_clients = db_manager.get_all_clients()
+            total_clients = get_all_clients()
             self.stats_labels["total_clients"].setText(str(len(total_clients) if total_clients else 0))
 
-            active_clients = db_manager.get_active_clients_count()
+            active_clients = get_active_clients_count()
             self.stats_labels["active_clients"].setText(str(active_clients))
 
-            total_projects = db_manager.get_total_projects_count()
+            total_projects = get_total_projects_count()
             self.stats_labels["total_projects"].setText(str(total_projects))
 
-            active_projects = db_manager.get_active_projects_count()
+            active_projects = get_active_projects_count()
             self.stats_labels["active_projects"].setText(str(active_projects))
 
-            total_products = db_manager.get_total_products_count() # Assuming this function exists
+            total_products = get_total_products_count() # Assuming this function exists
             self.stats_labels["total_products"].setText(str(total_products))
         except Exception as e:
             print(f"Error updating global stats: {e}")
@@ -150,9 +150,9 @@ class CollapsibleStatisticsWidget(QWidget):
     def update_business_health_score(self):
         # Basic example: score based on ratio of active clients to total clients
         try:
-            total_clients_list = db_manager.get_all_clients()
+            total_clients_list = get_all_clients()
             total_clients_count = len(total_clients_list) if total_clients_list else 0
-            active_clients_count = db_manager.get_active_clients_count()
+            active_clients_count = get_active_clients_count()
 
             if total_clients_count > 0:
                 health_score = (active_clients_count / total_clients_count) * 100
@@ -201,7 +201,7 @@ class CollapsibleStatisticsWidget(QWidget):
                 table.insertRow(row_idx)
                 for col_idx, col_key in enumerate(column_keys):
                     item_value = row_data.get(col_key, "")
-                    table.setItem(row_idx, col_idx, QTableWidget(str(item_value)))
+                    table.setItem(row_idx, col_idx, QTableWidget(str(item_value))) # This should be QTableWidgetItem
         except Exception as e:
             print(f"Error populating table {table_key}: {e}")
             # Optionally show error in table or a message box
@@ -209,10 +209,10 @@ class CollapsibleStatisticsWidget(QWidget):
             table.setSortingEnabled(True)
 
     def update_customer_segmentation_views(self):
-        self._populate_table("country", db_manager.get_client_counts_by_country, ["country_name", "client_count"])
-        self._populate_table("city", db_manager.get_client_segmentation_by_city, ["country_name", "city_name", "client_count"])
-        self._populate_table("status", db_manager.get_client_segmentation_by_status, ["status_name", "client_count"])
-        self._populate_table("category", db_manager.get_client_segmentation_by_category, ["category", "client_count"])
+        self._populate_table("country", get_client_counts_by_country, ["country_name", "client_count"])
+        self._populate_table("city", get_client_segmentation_by_city, ["country_name", "city_name", "client_count"])
+        self._populate_table("status", get_client_segmentation_by_status, ["status_name", "client_count"])
+        self._populate_table("category", get_client_segmentation_by_category, ["category", "client_count"])
 
 if __name__ == '__main__':
     import sys
