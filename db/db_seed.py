@@ -70,14 +70,14 @@ def _seed_default_partner_categories(cursor: sqlite3.Cursor, logger_passed: logg
 
         # Check if category exists using the cursor directly
         # Ensure partners_crud.get_partner_category_by_name can accept a cursor
-        existing_category_row = partners_crud.get_partner_category_by_name(category_def['category_name'], cursor=cursor)
+        existing_category_row = partners_crud.get_partner_category_by_name(category_def['category_name'], conn=cursor.connection)
 
         if existing_category_row: # Check if it's not None
             logger.info(f"Partner Category '{category_def['category_name']}' already exists with ID: {existing_category_row['partner_category_id']}. Skipping.")
         else:
             # Add category using the cursor directly
             # Ensure partners_crud.add_partner_category can accept a cursor
-            category_id = partners_crud.add_partner_category(category_def, cursor=cursor)
+            category_id = partners_crud.add_partner_category(category_def, conn=cursor.connection)
             if category_id:
                 logger.info(f"Partner Category '{category_def['category_name']}' added with ID: {category_id}")
             else:
