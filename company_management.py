@@ -22,12 +22,38 @@ if current_dir not in sys.path: # for running directly if db.py is alongside
     sys.path.insert(0, current_dir)
 
 try:
-    import db.crud as db_manager # Changed from 'import db as db_manager' to match crud.py usage
-    print("db.crud as db_manager imported successfully.")
+    from db import (
+        add_company,
+        get_company_by_id, # Though not explicitly listed as used, good for completeness if CompanyDialog uses it
+        get_all_companies,
+        update_company,
+        delete_company,
+        set_default_company,
+        get_default_company, # For completeness
+        add_company_personnel,
+        get_personnel_for_company,
+        update_company_personnel,
+        delete_company_personnel,
+        initialize_database
+    )
+    db_available = True
+    print("Specific db functions imported successfully.")
 except ImportError as e:
-    print(f"Error importing db.crud as db_manager: {e}")
-    db_manager = None
-    print("Failed to import db_manager. Some features will not work.")
+    print(f"Error importing specific db functions: {e}")
+    db_available = False
+    # Define fallbacks or ensure checks like 'if db_available:' are used around db calls
+    def add_company(*args, **kwargs): print("DB function add_company unavailable"); return None
+    def get_all_companies(*args, **kwargs): print("DB function get_all_companies unavailable"); return []
+    def update_company(*args, **kwargs): print("DB function update_company unavailable"); return False
+    def delete_company(*args, **kwargs): print("DB function delete_company unavailable"); return False
+    def set_default_company(*args, **kwargs): print("DB function set_default_company unavailable"); return False
+    def add_company_personnel(*args, **kwargs): print("DB function add_company_personnel unavailable"); return None
+    def get_personnel_for_company(*args, **kwargs): print("DB function get_personnel_for_company unavailable"); return []
+    def update_company_personnel(*args, **kwargs): print("DB function update_company_personnel unavailable"); return False
+    def delete_company_personnel(*args, **kwargs): print("DB function delete_company_personnel unavailable"); return False
+    def initialize_database(*args, **kwargs): print("DB function initialize_database unavailable"); pass
+
+    print("Failed to import specific db functions. Some features will not work.")
 
 # Define APP_ROOT_DIR
 APP_ROOT_DIR = parent_dir
@@ -116,8 +142,8 @@ class CompanyDialog(QDialog):
 
     def accept(self):
         # ... (accept implementation for CompanyDialog as before) ...
-        if not db_manager:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+        if not db_available:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
             return
         company_name = self.company_name_edit.text().strip()
         if not company_name:
@@ -145,14 +171,14 @@ class CompanyDialog(QDialog):
                 return
         data['logo_path'] = final_logo_rel_path
         if self.company_id:
-            success = db_manager.update_company(self.company_id, data)
+            success = update_company(self.company_id, data)
             if success:
                 QMessageBox.information(self, self.tr("Success"), self.tr("Company updated successfully."))
                 super().accept()
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update company."))
         else:
-            new_company_id = db_manager.add_company(data)
+            new_company_id = add_company(data)
             if new_company_id:
                 if self.logo_path_selected_for_upload and not self.company_id:
                     temp_logo_filename = data.get('logo_path')
@@ -168,7 +194,7 @@ class CompanyDialog(QDialog):
                             if os.path.exists(old_full_path):
                                 try:
                                     os.rename(old_full_path, new_full_path)
-                                    db_manager.update_company(new_company_id, {'logo_path': new_proper_filename})
+                                    update_company(new_company_id, {'logo_path': new_proper_filename})
                                     print(f"Renamed logo from {temp_logo_filename} to {new_proper_filename}")
                                 except Exception as e_rename:
                                     print(f"Error renaming logo after company creation: {e_rename}")
@@ -226,8 +252,8 @@ class PersonnelDialog(QDialog):
             self.role_combo.lineEdit().setText(role)
 
     def accept(self):
-        if not db_manager:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+        if not db_available:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
             return
 
         name = self.name_edit.text().strip()
@@ -242,7 +268,7 @@ class PersonnelDialog(QDialog):
         data = {"company_id": self.company_id, "name": name, "role": role, "email": email, "phone": phone}
 
         if self.personnel_id: # Editing
-            success = db_manager.update_company_personnel(self.personnel_id, data)
+            success = update_company_personnel(self.personnel_id, data)
             if success:
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel updated successfully."))
                 if hasattr(self, 'current_user_id') and self.current_user_id:
@@ -262,7 +288,7 @@ class PersonnelDialog(QDialog):
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update personnel."))
         else: # Adding
-            new_personnel_id = db_manager.add_company_personnel(data)
+            new_personnel_id = add_company_personnel(data)
             if new_personnel_id:
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel added successfully."))
                 if hasattr(self, 'current_user_id') and self.current_user_id:
@@ -355,9 +381,9 @@ class CompanyTabWidget(QWidget):
         self.company_list_widget.clear()
         if self.company_details_view: self.company_info_layout.removeWidget(self.company_details_view); self.company_details_view.deleteLater(); self.company_details_view = None
         self.sellers_table.setRowCount(0); self.tech_managers_table.setRowCount(0); self.current_selected_company_id = None
-        if not db_manager: self.company_list_widget.addItem(QListWidgetItem(self.tr("Error: DB Manager not loaded."))); return
+        if not db_available: self.company_list_widget.addItem(QListWidgetItem(self.tr("Error: DB functions not available."))); return
         try:
-            companies = db_manager.get_all_companies()
+            companies = get_all_companies()
             if not companies: self.company_list_widget.addItem(QListWidgetItem(self.tr("No companies found.")))
             for company in companies:
                 item_text = company['company_name']
@@ -384,7 +410,7 @@ class CompanyTabWidget(QWidget):
 
     def handle_add_company(self):
         # ... (handle_add_company implementation as before) ...
-        if not db_manager: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available.")); return
+        if not db_available: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available.")); return
         dialog = CompanyDialog(parent=self, app_root_dir=self.app_root_dir)
         if dialog.exec_() == QDialog.Accepted: self.load_companies()
 
@@ -411,16 +437,16 @@ class CompanyTabWidget(QWidget):
         company_data = item.data(Qt.UserRole)
         confirm = QMessageBox.warning(self, self.tr("Confirm Delete"), self.tr("Are you sure you want to delete {0}? This will also delete all associated personnel.").format(company_data.get('company_name')), QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:
-            if db_manager:
+            if db_available:
                 logo_rel_path = company_data.get('logo_path')
                 if logo_rel_path:
                     full_logo_path = os.path.join(self.app_root_dir, LOGO_SUBDIR, logo_rel_path)
                     if os.path.exists(full_logo_path):
                         try: os.remove(full_logo_path); print(f"Deleted logo: {full_logo_path}")
                         except Exception as e_logo_del: QMessageBox.warning(self, self.tr("Logo Deletion Error"), self.tr("Could not delete logo file: {0}.\nPlease remove it manually.").format(str(e_logo_del)))
-                if db_manager.delete_company(self.current_selected_company_id): QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully.")); self.load_companies()
+                if delete_company(self.current_selected_company_id): QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully.")); self.load_companies()
                 else: QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to delete company from database."))
-            else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+            else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
 
     def handle_set_default(self):
         # ... (handle_set_default implementation as before) ...
@@ -428,13 +454,13 @@ class CompanyTabWidget(QWidget):
         item = self.company_list_widget.currentItem();
         if not item: return
         company_data = item.data(Qt.UserRole)
-        if db_manager:
-            if db_manager.set_default_company(self.current_selected_company_id):
+        if db_available:
+            if set_default_company(self.current_selected_company_id):
                 QMessageBox.information(self, self.tr("Success"), self.tr("'{0}' is now the default company.").format(company_data.get('company_name')))
                 current_selection_row = self.company_list_widget.currentRow(); self.load_companies()
                 if current_selection_row >=0 and current_selection_row < self.company_list_widget.count(): self.company_list_widget.setCurrentRow(current_selection_row); self.on_company_selected(self.company_list_widget.currentItem())
             else: QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to set default company."))
-        else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+        else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
 
     def update_company_button_states(self):
         # ... (update_company_button_states implementation as before) ...
@@ -453,12 +479,12 @@ class CompanyTabWidget(QWidget):
     def load_personnel(self, company_id):
         # ... (load_personnel implementation as before) ...
         self.sellers_table.setRowCount(0); self.tech_managers_table.setRowCount(0)
-        if not db_manager or not company_id: return
+        if not db_available or not company_id: return
         try:
-            sellers = db_manager.get_personnel_for_company(company_id, role='seller'); self._populate_personnel_table(self.sellers_table, sellers)
-            tech_managers = db_manager.get_personnel_for_company(company_id, role='technical_manager'); self._populate_personnel_table(self.tech_managers_table, tech_managers)
-            others_sellers = db_manager.get_personnel_for_company(company_id, role='other_seller'); self._populate_personnel_table(self.sellers_table, others_sellers, append=True) # Example custom roles
-            others_tech = db_manager.get_personnel_for_company(company_id, role='other_technical_manager'); self._populate_personnel_table(self.tech_managers_table, others_tech, append=True)
+            sellers = get_personnel_for_company(company_id, role='seller'); self._populate_personnel_table(self.sellers_table, sellers)
+            tech_managers = get_personnel_for_company(company_id, role='technical_manager'); self._populate_personnel_table(self.tech_managers_table, tech_managers)
+            others_sellers = get_personnel_for_company(company_id, role='other_seller'); self._populate_personnel_table(self.sellers_table, others_sellers, append=True) # Example custom roles
+            others_tech = get_personnel_for_company(company_id, role='other_technical_manager'); self._populate_personnel_table(self.tech_managers_table, others_tech, append=True)
         except Exception as e: QMessageBox.warning(self, self.tr("Personnel Error"), self.tr("Error loading personnel: {0}").format(str(e)))
 
 
@@ -539,7 +565,7 @@ class CompanyTabWidget(QWidget):
             else:
                 print("Warning: current_user_id or personnel_id not available in CompanyTabWidget for delete sync trigger.")
 
-            if db_manager and db_manager.delete_company_personnel(personnel_id):
+            if db_available and delete_company_personnel(personnel_id):
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel deleted successfully."))
                 self.load_personnel(self.current_selected_company_id)
             else:
@@ -556,10 +582,10 @@ if __name__ == '__main__':
         else: print(f"Stylesheet not found at {stylesheet_path_to_try}. Using default style.")
     except Exception as e: print(f"Error loading stylesheet: {e}")
 
-    if db_manager:
-        try: db_manager.initialize_database(); print("Database initialized by company_management.py (for testing if run directly).")
+    if db_available:
+        try: initialize_database(); print("Database initialized by company_management.py (for testing if run directly).")
         except Exception as e: print(f"Error initializing database from company_management.py: {e}")
-    else: print("db_manager not available, skipping database initialization in company_management.py.")
+    else: print("db functions not available, skipping database initialization in company_management.py.")
 
     os.makedirs(os.path.join(APP_ROOT_DIR, LOGO_SUBDIR), exist_ok=True)
 

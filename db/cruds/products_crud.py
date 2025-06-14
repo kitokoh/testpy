@@ -792,3 +792,26 @@ add_product_equivalence = products_crud_instance.add_product_equivalence
 get_equivalent_products = products_crud_instance.get_equivalent_products
 get_all_product_equivalencies = products_crud_instance.get_all_product_equivalencies
 remove_product_equivalence = products_crud_instance.remove_product_equivalence
+
+__all__ = [
+    "get_product_by_id",
+    "add_product",
+    "get_product_by_name",
+    "get_all_products",
+    "update_product",
+    "delete_product", # Soft delete
+    "get_products", # Active products, optionally by lang
+    "update_product_price",
+    "get_products_by_name_pattern",
+    "get_all_products_for_selection_filtered",
+    "get_total_products_count",
+    "add_or_update_product_dimension",
+    "get_product_dimension",
+    "delete_product_dimension",
+    "add_product_equivalence",
+    "get_equivalent_products",
+    "get_all_product_equivalencies",
+    "remove_product_equivalence",
+    "ProductsCRUD", # Exporting the class itself for type hinting or direct instantiation
+    "products_crud_instance" # Exporting the instance if needed elsewhere
+]

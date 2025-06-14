@@ -313,3 +313,24 @@ def get_templates_by_category_id(category_id: int, conn: sqlite3.Connection = No
     except sqlite3.Error as e:
         logging.error(f"Failed to get templates by category id {category_id}: {e}")
         return []
+
+__all__ = [
+    "add_template",
+    "add_default_template_if_not_exists",
+    "get_template_by_id",
+    "get_templates_by_type",
+    "update_template",
+    "delete_template",
+    "get_distinct_template_languages",
+    "get_distinct_template_types",
+    "get_filtered_templates",
+    "get_template_details_for_preview",
+    "get_template_path_info",
+    "delete_template_and_get_file_info",
+    "set_default_template_by_id",
+    "get_template_by_type_lang_default",
+    "get_all_templates",
+    "get_distinct_languages_for_template_type",
+    "get_all_file_based_templates",
+    "get_templates_by_category_id",
+]

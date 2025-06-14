@@ -21,7 +21,7 @@ try:
         delete_contact_sync_log
         # Add other specific db functions if used elsewhere in this file
     )
-    import db_config
+    import config # Changed from db_config, corrected indent
 except (ImportError, ValueError) as e:
     # Fallback for potential execution context issues
     import sys
@@ -45,7 +45,7 @@ except (ImportError, ValueError) as e:
             delete_contact_sync_log
             # Add other specific db functions if used elsewhere in this file
         )
-        import db_config
+        import config # Changed from db_config, corrected indent
     except ImportError as final_e:
         google_auth = None
         google_people_api = None
@@ -57,7 +57,7 @@ except (ImportError, ValueError) as e:
         get_contact_sync_log_by_google_contact_id = None
         update_contact_sync_log = None
         delete_contact_sync_log = None
-        db_config = None
+        config = None # Changed from db_config
         print(f"Critical Import Error in sync_service.py: {final_e}. Sync functionality will be disabled.")
 
 # Setup basic logging
