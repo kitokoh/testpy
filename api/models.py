@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLAlchemyEnum
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLAlchemyEnum, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
@@ -15,10 +15,19 @@ Base = declarative_base()
 
 class User(Base): # Assuming User model might be needed for created_by/modified_by later
     __tablename__ = "users"
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4())) # user_id in schema is TEXT
     username = Column(String, unique=True, nullable=False)
-    email = Column(String, unique=True, nullable=True)
-    # Add other fields as necessary
+    email = Column(String, unique=True, nullable=False) # Changed nullable to False
+    password_hash = Column(String, nullable=False)
+    salt = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    role = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_deleted = Column(Integer, default=0, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
     # Example relationship (if users create proformas, not directly requested but good for structure)
     # proforma_invoices_created = relationship("ProformaInvoice", back_populates="created_by_user")
 
@@ -48,8 +57,22 @@ class Company(Base): # Represents the user's company (seller)
 
 class Product(Base):
     __tablename__ = "products"
-    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4())) # Changed to String to match ProformaInvoiceItem.product_id
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     product_name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String, nullable=True)
+    language_code = Column(String, default='fr', nullable=False)
+    base_unit_price = Column(Float, nullable=False)
+    unit_of_measure = Column(String, nullable=True)
+    weight = Column(Float, nullable=True)
+    dimensions = Column(Text, nullable=True) # Using Text for dimensions
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_deleted = Column(Integer, default=0, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (UniqueConstraint('product_name', 'language_code', name='uq_product_name_language'),)
     # No back_populates to ProformaInvoiceItem unless specified, as one product can be in many items
 
 class ClientDocument(Base): # For storing generated PDFs like Proformas or Invoices
@@ -113,7 +136,7 @@ class ProformaInvoiceItem(Base):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     proforma_invoice_id = Column(String, ForeignKey("proforma_invoices.id"), nullable=False, index=True)
-    product_id = Column(String, ForeignKey("products.id"), nullable=True) # Nullable if custom item
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True) # Nullable if custom item
     description = Column(Text, nullable=False)
     quantity = Column(Float, nullable=False)
     unit_price = Column(Float, nullable=False)

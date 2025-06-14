@@ -3,7 +3,23 @@ import os
 from datetime import datetime
 import json # For some template fields that might be JSON strings
 import logging
-from .generic_crud import _manage_conn, get_db_connection, db_config
+import sys # Add sys for path manipulation
+
+# Get the project root directory
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+try:
+    import config
+except ImportError:
+    print("CRITICAL: config.py not found at project root by templates_crud.py. Path construction may fail.")
+    # Define a minimal fallback config object if needed for APP_ROOT_DIR, or let it fail if config is essential.
+    class config_fallback_templates:
+        APP_ROOT_DIR = project_root # Best guess fallback
+    config = config_fallback_templates
+
+from .generic_crud import _manage_conn, get_db_connection # db_config removed from this import
 from .template_categories_crud import add_template_category
 
 # --- Templates CRUD ---
@@ -63,14 +79,10 @@ def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = No
         data['category_id'] = cat_id
 
         if 'base_file_name' in data and 'raw_template_file_data' not in data:
-            # Ensure db_config.APP_ROOT_DIR_CONTEXT is available and correct
-            if not hasattr(db_config, 'APP_ROOT_DIR_CONTEXT'):
-                logging.error("db_config.APP_ROOT_DIR_CONTEXT not configured for add_default_template_if_not_exists.")
-                # Fallback or raise error, depending on desired strictness
-                # For now, let's try to proceed without it, which might fail if path is relative
-                fpath = os.path.join("email_template_designs", data['base_file_name'])
-            else:
-                fpath = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, "email_template_designs", data['base_file_name'])
+            # Use config.APP_ROOT_DIR from the root config.py
+            # The new config.py defines APP_ROOT_DIR.
+            # The path "email_template_designs" is relative to the project root.
+            fpath = os.path.join(config.APP_ROOT_DIR, "email_template_designs", data['base_file_name'])
 
             if os.path.exists(fpath):
                 with open(fpath,'r',encoding='utf-8') as f:
