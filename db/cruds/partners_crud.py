@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # --- PartnerCategories CRUD Functions ---
 @_manage_conn
-def add_partner_category(category_data_or_name: str | dict, description: str = None, conn: sqlite3.Connection = None) -> int | None:
+def add_partner_category(category_data_or_name: str | dict, description: str = None, conn: sqlite3.Connection = None, **kwargs) -> int | None:
     """Adds a new partner category. Can accept name directly or a dict."""
     cursor = conn.cursor()
     name = None
