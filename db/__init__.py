@@ -11,7 +11,9 @@ from .cruds.projects_crud import (
     get_project_by_id,
     add_project,
     update_project,
-    delete_project
+    delete_project,
+    get_total_projects_count,
+    get_active_projects_count
 )
 from .cruds.tasks_crud import (
     get_tasks_by_project_id,
@@ -27,6 +29,9 @@ from .cruds.tasks_crud import (
 )
 from .cruds.kpis_crud import (
     get_kpis_for_project
+)
+from .cruds.products_crud import (
+    get_total_products_count
 )
 from .cruds.activity_logs_crud import (
     add_activity_log,
@@ -47,10 +52,14 @@ from .cruds.team_members_crud import (
 )
 from .cruds.clients_crud import clients_crud_instance
 get_all_clients = clients_crud_instance.get_all_clients
+get_active_clients_count = clients_crud_instance.get_active_clients_count
+get_client_counts_by_country = clients_crud_instance.get_client_counts_by_country
+get_client_segmentation_by_city = clients_crud_instance.get_client_segmentation_by_city
+get_client_segmentation_by_status = clients_crud_instance.get_client_segmentation_by_status
+get_client_segmentation_by_category = clients_crud_instance.get_client_segmentation_by_category
 # Ensure other methods from ClientsCRUD that projectManagement.py might use in the future
 # are also exposed similarly if they are intended to be part of the db facade.
 # For now, only get_all_clients is explicitly mentioned in projectManagement.py's import block for clients.
-
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
     add_cover_page,
@@ -58,9 +67,11 @@ from .cruds.cover_pages_crud import (
     delete_cover_page,
     get_cover_page_by_id
 )
-from .cruds.templates_crud import ( # Assuming get_all_file_based_templates is here
-    get_all_file_based_templates,
-    get_cover_page_template_by_id # Assuming get_cover_page_template_by_id is here based on previous context
+from .cruds.templates_crud import (
+    get_all_file_based_templates
+)
+from .cruds.cover_page_templates_crud import (
+    get_cover_page_template_by_id
 )
 from .cruds.milestones_crud import (
     get_milestones_for_project,
