@@ -18,14 +18,15 @@ from utils import is_first_launch, mark_initial_setup_complete
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
+import db # Added import for db module
 from db.db_seed import run_seed
 from db.cruds.companies_crud import get_all_companies, add_company # Specific imports for company check
-from db.cruds.application_settings_crud import get_setting # New import
-from db.init_schema import initialize_database
+# from db.cruds.application_settings_crud import get_setting # Removed direct import
+from db.init_schema import initialize_database # This will be db.initialize_database after this change
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
-# import db as db_manager # For db initialization - already imported above
+# import db as db_manager # For db initialization - already imported above, now using 'import db'
 from main_window import DocumentManager # The main application window
 from notifications import NotificationManager # Added for notifications
 
@@ -68,7 +69,7 @@ def check_session_timeout() -> bool:
 def main():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
 
-    initialize_database() # Initialize database before any other operations
+    db.initialize_database() # Initialize database before any other operations
 
     # 1. Configure logging as the very first step.
     setup_logging()
@@ -172,7 +173,7 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    language_code_from_db = get_setting('user_selected_language') # Use new import
+    language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
     # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
