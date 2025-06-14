@@ -278,12 +278,12 @@ def initialize_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_by_user_id TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
-        deleted_at TEXT -- Added for soft delete
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
     )
     """)
     cursor.execute("PRAGMA table_info(Clients)")
