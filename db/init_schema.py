@@ -282,8 +282,8 @@ def initialize_database():
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
         FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
-        deleted_at TEXT -- Added for soft delete
+        is_deleted INTEGER DEFAULT 0, 
+        deleted_at TEXT 
     )
     """)
     cursor.execute("PRAGMA table_info(Clients)")

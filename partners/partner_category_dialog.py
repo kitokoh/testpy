@@ -3,8 +3,11 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QPushButton,
                              QHBoxLayout, QMessageBox, QDialogButtonBox,
                              QInputDialog, QListWidgetItem)
 from PyQt5.QtCore import Qt
-import db.crud as db_manager
+import db as db_manager
 
+from db import ( get_all_partner_categories,get_partner_category_by_name,add_partner_category,  delete_partner_category, 
+    get_all_partner_categories, update_partner_category, get_partner_category_by_id
+)
 class PartnerCategoryDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,7 +44,7 @@ class PartnerCategoryDialog(QDialog):
     def load_categories(self):
         self.category_list_widget.clear()
         try:
-            categories = db_manager.get_all_partner_categories()
+            categories = get_all_partner_categories()
             if categories:
                 for category in categories:
                     item = QListWidgetItem(category['name'])
@@ -55,12 +58,12 @@ class PartnerCategoryDialog(QDialog):
         if ok and text.strip():
             category_name = text.strip()
             # Check if category already exists (case insensitive for example)
-            existing = db_manager.get_partner_category_by_name(category_name)
+            existing = get_partner_category_by_name(category_name)
             if existing:
                 QMessageBox.warning(self, "Add Category", f"Category '{category_name}' already exists.")
                 return
 
-            category_id = db_manager.add_partner_category(name=category_name)
+            category_id = add_partner_category(name=category_name)
             if category_id is not None:
                 self.load_categories()
             else:
@@ -88,12 +91,12 @@ class PartnerCategoryDialog(QDialog):
                 return # No change
 
             # Check if new name conflicts with another existing category
-            existing_other = db_manager.get_partner_category_by_name(new_name)
+            existing_other = get_partner_category_by_name(new_name)
             if existing_other and existing_other['category_id'] != category_id:
                  QMessageBox.warning(self, "Edit Category", f"Another category with name '{new_name}' already exists.")
                  return
 
-            if db_manager.update_partner_category(category_id, name=new_name):
+            if update_partner_category(category_id, name=new_name):
                 self.load_categories()
             else:
                 QMessageBox.warning(self, "Edit Category", f"Failed to update category '{current_name}'.")
@@ -115,7 +118,7 @@ class PartnerCategoryDialog(QDialog):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
-            if db_manager.delete_partner_category(category_id):
+            if delete_partner_category(category_id):
                 self.load_categories()
             else:
                 QMessageBox.warning(self, "Delete Category", f"Failed to delete category '{category_name}'.")
