@@ -2297,6 +2297,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete team member {member_name}.")
 
+    def show_add_task_dialog(self):
+        # Placeholder for showing a dialog to add a new task
+        # For now, just show a message or print to console
+        print("DEBUG: show_add_task_dialog called. UI for adding task not yet implemented.")
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Add Task", "Functionality to add a new task is under development.")
+        except Exception as e:
+            print(f"Error showing QMessageBox in placeholder: {e}")
+
     def show_add_project_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Project")

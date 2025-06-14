@@ -176,9 +176,28 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Countries (
         country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_name TEXT NOT NULL UNIQUE
+        country_name TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # Ensure created_at and updated_at columns exist in Countries
+    cursor.execute("PRAGMA table_info(Countries)")
+    countries_columns_info = cursor.fetchall()
+    countries_column_names = [info['name'] for info in countries_columns_info]
+    if 'created_at' not in countries_column_names:
+        try:
+            cursor.execute("ALTER TABLE Countries ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            print("Added 'created_at' column to Countries table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'created_at' to Countries: {e_alter}")
+    if 'updated_at' not in countries_column_names:
+        try:
+            cursor.execute("ALTER TABLE Countries ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            print("Added 'updated_at' column to Countries table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'updated_at' to Countries: {e_alter}")
 
     # Create Cities table (base from ca.py)
     cursor.execute("""
@@ -186,9 +205,28 @@ def initialize_database():
         city_id INTEGER PRIMARY KEY AUTOINCREMENT,
         country_id INTEGER NOT NULL,
         city_name TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (country_id) REFERENCES Countries (country_id)
     )
     """)
+
+    # Ensure created_at and updated_at columns exist in Cities
+    cursor.execute("PRAGMA table_info(Cities)")
+    cities_columns_info = cursor.fetchall()
+    cities_column_names = [info['name'] for info in cities_columns_info]
+    if 'created_at' not in cities_column_names:
+        try:
+            cursor.execute("ALTER TABLE Cities ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            print("Added 'created_at' column to Cities table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'created_at' to Cities: {e_alter}")
+    if 'updated_at' not in cities_column_names:
+        try:
+            cursor.execute("ALTER TABLE Cities ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            print("Added 'updated_at' column to Cities table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'updated_at' to Cities: {e_alter}")
 
     # StatusSettings Table (logic from ca.py to add icon_name if missing)
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='StatusSettings'")
@@ -296,6 +334,25 @@ def initialize_database():
             # No commit here, part of larger transaction
         except sqlite3.Error as e:
             print(f"Error adding 'distributor_specific_info' column to Clients table: {e}")
+
+    # Ensure is_deleted and deleted_at columns exist for soft delete
+    cursor.execute("PRAGMA table_info(Clients)")
+    clients_columns_info = cursor.fetchall()
+    clients_column_names = [info['name'] for info in clients_columns_info]
+
+    if 'is_deleted' not in clients_column_names:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            print("Added 'is_deleted' column to Clients table.")
+        except sqlite3.Error as e_alter_is_deleted:
+            print(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}")
+
+    if 'deleted_at' not in clients_column_names:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN deleted_at TEXT")
+            print("Added 'deleted_at' column to Clients table.")
+        except sqlite3.Error as e_alter_deleted_at:
+            print(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}")
 
 
     # Create ClientNotes table (base from ca.py)
@@ -1186,8 +1243,8 @@ def initialize_database():
 
         # Application Settings Seeding
         # Using the imported set_setting CRUD function, passing the connection
-        set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn)
-        set_setting('default_app_language', 'en', conn=conn)
+        set_setting('initial_data_seeded_version', '1.3_consolidated_schema')
+        set_setting('default_app_language', 'en')
         print("Default application settings seeded.")
 
         # Populate Default Cover Page Templates
