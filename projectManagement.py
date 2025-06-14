@@ -408,14 +408,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Product Management Menu
         product_management_btn = QPushButton("Gestion Produits")
-        product_management_btn.setIcon(QIcon(":/icons/package.svg")) # Suggestion: package.svg or similar
+        product_management_btn.setIcon(QIcon(":/icons/briefcase.svg")) # Suggestion: package.svg or similar
         product_management_btn.setObjectName("menu_button")
 
         product_menu = QMenu(product_management_btn)
-        manage_global_products_action = product_menu.addAction(QIcon(":/icons/box.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
+        manage_global_products_action = product_menu.addAction(QIcon(":/icons/plus-square.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
         manage_global_products_action.triggered.connect(self.open_manage_global_products_dialog)
 
-        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/shuffle.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
+        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/refresh-cw.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
         manage_equivalencies_action.triggered.connect(self.open_product_equivalency_dialog)
 
         product_management_btn.setMenu(product_menu)
@@ -445,7 +445,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             lambda: self.change_page(6)
         )
         projects_menu.addAction(
-            QIcon(":/icons/tool.svg"), # Placeholder icon
+            QIcon(":/icons/settings.svg"), # Placeholder icon
             "Production Orders",
             lambda: self.change_page(7)
         )
