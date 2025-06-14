@@ -294,7 +294,7 @@ def main():
     else: # Not the first launch
         logging.info("Application not on first launch. Checking for company existence.")
         try:
-            companies = get_all_companies()
+            # companies = get_all_companies()
             if not companies:
                 logging.info("No companies found in the database on a subsequent launch. Executing PromptCompanyInfoDialog.")
                 prompt_dialog = PromptCompanyInfoDialog()
