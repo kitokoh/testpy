@@ -112,143 +112,144 @@ def initialize_database():
         logger.info("Starting schema creation phase.")
         # --- Schema Creation Phase (DDL statements: CREATE, ALTER, CREATE INDEX) ---
         # Wrap all DDL in its own try for a single schema commit
-        # Create Users table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Users (
-        user_id TEXT PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        salt TEXT NOT NULL, -- Added for password salting
-        full_name TEXT,
-        email TEXT NOT NULL UNIQUE,
-        role TEXT NOT NULL, -- e.g., 'admin', 'manager', 'member'
-        is_active BOOLEAN DEFAULT TRUE,
-        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
-        deleted_at TEXT, -- Added for soft delete
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login_at TIMESTAMP
-    )
-    """)
-
-    # Create Companies table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Companies (
-        company_id TEXT PRIMARY KEY,
-        company_name TEXT NOT NULL,
-        address TEXT,
-        payment_info TEXT,
-        logo_path TEXT,
-        other_info TEXT,
-        is_default BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    # Create CompanyPersonnel table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CompanyPersonnel (
-        personnel_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL, -- e.g., "seller", "technical_manager"
-        phone TEXT,
-        email TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE
-    )
-    """)
-
-    # Create TeamMembers table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS TeamMembers (
-        team_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT UNIQUE,
-        full_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        role_or_title TEXT,
-        department TEXT,
-        phone_number TEXT,
-        profile_picture_url TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        notes TEXT,
-        hire_date TEXT,
-        performance INTEGER DEFAULT 0,
-        skills TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create Countries table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Countries (
-        country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_name TEXT NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    # Create Cities table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Cities (
-        city_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_id INTEGER NOT NULL,
-        city_name TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (country_id) REFERENCES Countries (country_id)
-    )
-    """)
-
-    # Ensure StatusSettings table is created (idempotent)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS StatusSettings (
-        status_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        status_name TEXT NOT NULL,
-        status_type TEXT NOT NULL,
-        color_hex TEXT,
-        icon_name TEXT,
-        default_duration_days INTEGER,
-        is_archival_status BOOLEAN DEFAULT FALSE,
-        is_completion_status BOOLEAN DEFAULT FALSE,
-        sort_order INTEGER DEFAULT 0,  -- Added column
-        UNIQUE (status_name, status_type)
-    )
-    """)
-    logger.debug("Ensured StatusSettings table exists or is created.")
-
-    # Check and add icon_name for older schema migration
-    cursor.execute("PRAGMA table_info(StatusSettings)")
-    columns = [column['name'] for column in cursor.fetchall()]
-    if 'icon_name' not in columns:
         try:
-            logger.info("Attempting to add 'icon_name' to StatusSettings for schema migration.")
-            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
-            logger.info("Added 'icon_name' column to StatusSettings table.")
-        except sqlite3.Error as e_alter_status:
-            logger.error(f"Error adding 'icon_name' to StatusSettings (migration): {e_alter_status}", exc_info=True)
+            # Create Users table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Users (
+                user_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL, -- Added for password salting
+                full_name TEXT,
+                email TEXT NOT NULL UNIQUE,
+                role TEXT NOT NULL, -- e.g., 'admin', 'manager', 'member'
+                is_active BOOLEAN DEFAULT TRUE,
+                is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+                deleted_at TEXT, -- Added for soft delete
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login_at TIMESTAMP
+            )
+            """)
 
-    # Ensure StatusSettings table has sort_order if it already existed
-    cursor.execute("PRAGMA table_info(StatusSettings)")
-    status_settings_columns = [info['name'] for info in cursor.fetchall()]
-    if 'sort_order' not in status_settings_columns:
-        try:
-            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN sort_order INTEGER DEFAULT 0")
-            logger.info("Added missing 'sort_order' column to existing StatusSettings table.")
-        except sqlite3.Error as e_alter_ss:
-            logger.error(f"Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}", exc_info=True)
-    else:
-        logger.debug("'sort_order' column already exists in StatusSettings table.")
+            # Create Companies table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Companies (
+                company_id TEXT PRIMARY KEY,
+                company_name TEXT NOT NULL,
+                address TEXT,
+                payment_info TEXT,
+                logo_path TEXT,
+                other_info TEXT,
+                is_default BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
 
-    # Create Clients table (base from ca.py, includes distributor_specific_info logic)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Clients (
-        client_id TEXT PRIMARY KEY,
-        client_name TEXT NOT NULL,
+            # Create CompanyPersonnel table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS CompanyPersonnel (
+                personnel_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                role TEXT NOT NULL, -- e.g., "seller", "technical_manager"
+                phone TEXT,
+                email TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE
+            )
+            """)
+
+            # Create TeamMembers table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS TeamMembers (
+                team_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT UNIQUE,
+                full_name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                role_or_title TEXT,
+                department TEXT,
+                phone_number TEXT,
+                profile_picture_url TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                notes TEXT,
+                hire_date TEXT,
+                performance INTEGER DEFAULT 0,
+                skills TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )
+            """)
+
+            # Create Countries table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Countries (
+                country_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # Create Cities table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Cities (
+                city_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                country_id INTEGER NOT NULL,
+                city_name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (country_id) REFERENCES Countries (country_id)
+            )
+            """)
+
+            # Ensure StatusSettings table is created (idempotent)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS StatusSettings (
+                status_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                status_name TEXT NOT NULL,
+                status_type TEXT NOT NULL,
+                color_hex TEXT,
+                icon_name TEXT,
+                default_duration_days INTEGER,
+                is_archival_status BOOLEAN DEFAULT FALSE,
+                is_completion_status BOOLEAN DEFAULT FALSE,
+                sort_order INTEGER DEFAULT 0,  -- Added column
+                UNIQUE (status_name, status_type)
+            )
+            """)
+            logger.debug("Ensured StatusSettings table exists or is created.")
+
+            # Check and add icon_name for older schema migration
+            cursor.execute("PRAGMA table_info(StatusSettings)")
+            columns = [column['name'] for column in cursor.fetchall()]
+            if 'icon_name' not in columns:
+                try:
+                    logger.info("Attempting to add 'icon_name' to StatusSettings for schema migration.")
+                    cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
+                    logger.info("Added 'icon_name' column to StatusSettings table.")
+                except sqlite3.Error as e_alter_status:
+                    logger.error(f"Error adding 'icon_name' to StatusSettings (migration): {e_alter_status}", exc_info=True)
+
+            # Ensure StatusSettings table has sort_order if it already existed
+            cursor.execute("PRAGMA table_info(StatusSettings)")
+            status_settings_columns = [info['name'] for info in cursor.fetchall()]
+            if 'sort_order' not in status_settings_columns:
+                try:
+                    cursor.execute("ALTER TABLE StatusSettings ADD COLUMN sort_order INTEGER DEFAULT 0")
+                    logger.info("Added missing 'sort_order' column to existing StatusSettings table.")
+                except sqlite3.Error as e_alter_ss:
+                    logger.error(f"Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}", exc_info=True)
+            else:
+                logger.debug("'sort_order' column already exists in StatusSettings table.")
+
+            # Create Clients table (base from ca.py, includes distributor_specific_info logic)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Clients (
+                client_id TEXT PRIMARY KEY,
+                client_name TEXT NOT NULL,
         company_name TEXT,
         primary_need_description TEXT,
         project_identifier TEXT NOT NULL,
@@ -269,57 +270,57 @@ def initialize_database():
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
-    )
-    """)
-    cursor.execute("PRAGMA table_info(Clients)")
-    columns_info = cursor.fetchall()
-    column_names = [info['name'] for info in columns_info]
-    if 'distributor_specific_info' not in column_names:
-        try:
-            cursor.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
-            logger.info("Added 'distributor_specific_info' column to Clients table.")
-        except sqlite3.Error as e:
-            logger.error(f"Error adding 'distributor_specific_info' column to Clients table: {e}", exc_info=True)
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+            )
+            """)
+            cursor.execute("PRAGMA table_info(Clients)")
+            columns_info = cursor.fetchall()
+            column_names = [info['name'] for info in columns_info]
+            if 'distributor_specific_info' not in column_names:
+                try:
+                    cursor.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
+                    logger.info("Added 'distributor_specific_info' column to Clients table.")
+                except sqlite3.Error as e:
+                    logger.error(f"Error adding 'distributor_specific_info' column to Clients table: {e}", exc_info=True)
 
-    # Ensure is_deleted and deleted_at columns exist for soft delete
-    cursor.execute("PRAGMA table_info(Clients)")
-    clients_columns_info = cursor.fetchall()
-    clients_column_names = [info['name'] for info in clients_columns_info]
+            # Ensure is_deleted and deleted_at columns exist for soft delete
+            cursor.execute("PRAGMA table_info(Clients)")
+            clients_columns_info = cursor.fetchall()
+            clients_column_names = [info['name'] for info in clients_columns_info]
 
-    if 'is_deleted' not in clients_column_names:
-        try:
-            cursor.execute("ALTER TABLE Clients ADD COLUMN is_deleted INTEGER DEFAULT 0")
-            logger.info("Added 'is_deleted' column to Clients table.")
-        except sqlite3.Error as e_alter_is_deleted:
-            logger.error(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}", exc_info=True)
+            if 'is_deleted' not in clients_column_names:
+                try:
+                    cursor.execute("ALTER TABLE Clients ADD COLUMN is_deleted INTEGER DEFAULT 0")
+                    logger.info("Added 'is_deleted' column to Clients table.")
+                except sqlite3.Error as e_alter_is_deleted:
+                    logger.error(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}", exc_info=True)
 
-    if 'deleted_at' not in clients_column_names:
-        try:
-            cursor.execute("ALTER TABLE Clients ADD COLUMN deleted_at TEXT")
-            logger.info("Added 'deleted_at' column to Clients table.")
-        except sqlite3.Error as e_alter_deleted_at:
-            logger.error(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}", exc_info=True)
+            if 'deleted_at' not in clients_column_names:
+                try:
+                    cursor.execute("ALTER TABLE Clients ADD COLUMN deleted_at TEXT")
+                    logger.info("Added 'deleted_at' column to Clients table.")
+                except sqlite3.Error as e_alter_deleted_at:
+                    logger.error(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}", exc_info=True)
 
 
-    # Create ClientNotes table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientNotes (
-        note_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        note_text TEXT NOT NULL,
-        user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
+            # Create ClientNotes table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ClientNotes (
+                note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                note_text TEXT NOT NULL,
+                user_id TEXT,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )
+            """)
 
-    # Create Projects table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Projects (
-        project_id TEXT PRIMARY KEY,
-        client_id TEXT NOT NULL,
+            # Create Projects table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Projects (
+                project_id TEXT PRIMARY KEY,
+                client_id TEXT NOT NULL,
         project_name TEXT NOT NULL,
         description TEXT,
         start_date DATE,
@@ -333,15 +334,15 @@ def initialize_database():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (client_id) REFERENCES Clients (client_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (manager_team_member_id) REFERENCES Users (user_id) -- ca.py links to Users
-    )
-    """)
+                FOREIGN KEY (manager_team_member_id) REFERENCES Users (user_id) -- ca.py links to Users
+            )
+            """)
 
-    # Create Contacts table (base from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Contacts (
-        contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
+            # Create Contacts table (base from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Contacts (
+                contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
         email TEXT UNIQUE,
         phone TEXT,
         position TEXT,
@@ -376,16 +377,16 @@ def initialize_database():
         can_receive_documents BOOLEAN DEFAULT TRUE,
         FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
         FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE,
-        UNIQUE (client_id, contact_id)
-    )
-    """)
-    # Note: Contacts.contact_id is INTEGER AUTOINCREMENT. ClientContacts.contact_id is now defined as INTEGER to match.
+                UNIQUE (client_id, contact_id)
+            )
+            """)
+            # Note: Contacts.contact_id is INTEGER AUTOINCREMENT. ClientContacts.contact_id is now defined as INTEGER to match.
 
-    # Create Products table first
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Products (
-        product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_name TEXT NOT NULL,
+            # Create Products table first
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Products (
+                product_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_name TEXT NOT NULL,
         description TEXT,
         category TEXT,
         language_code TEXT DEFAULT 'fr',
@@ -398,88 +399,88 @@ def initialize_database():
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted INTEGER DEFAULT 0,
         deleted_at TEXT,
-        UNIQUE (product_name, language_code)
-    )
-    """)
-    logger.debug("Ensured Products table exists or is created.")
+                UNIQUE (product_name, language_code)
+            )
+            """)
+            logger.debug("Ensured Products table exists or is created.")
 
-    # Then, handle potential alterations for existing tables from older schemas
-    # (e.g., if 'weight' or 'dimensions' were added later)
-    # This logic is now for schema migration, not initial creation of these columns if table is new
-    cursor.execute("PRAGMA table_info(Products)")
-    columns_info = cursor.fetchall()
-    existing_column_names = {info['name'] for info in columns_info}
-    altered_products = False
+            # Then, handle potential alterations for existing tables from older schemas
+            # (e.g., if 'weight' or 'dimensions' were added later)
+            # This logic is now for schema migration, not initial creation of these columns if table is new
+            cursor.execute("PRAGMA table_info(Products)")
+            columns_info = cursor.fetchall()
+            existing_column_names = {info['name'] for info in columns_info}
+            altered_products = False
 
-    if 'weight' not in existing_column_names:
-        try:
-            cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
-            logger.info("Added 'weight' column to Products table for schema migration.")
-            altered_products = True
-        except sqlite3.Error as e_alter_weight:
-            logger.error(f"Error adding 'weight' to Products (migration): {e_alter_weight}", exc_info=True)
+            if 'weight' not in existing_column_names:
+                try:
+                    cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
+                    logger.info("Added 'weight' column to Products table for schema migration.")
+                    altered_products = True
+                except sqlite3.Error as e_alter_weight:
+                    logger.error(f"Error adding 'weight' to Products (migration): {e_alter_weight}", exc_info=True)
 
-    if 'dimensions' not in existing_column_names:
-        try:
-            cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
-            logger.info("Added 'dimensions' column to Products table for schema migration.")
-            altered_products = True
-        except sqlite3.Error as e_alter_dimensions:
-            logger.error(f"Error adding 'dimensions' to Products (migration): {e_alter_dimensions}", exc_info=True)
+            if 'dimensions' not in existing_column_names:
+                try:
+                    cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
+                    logger.info("Added 'dimensions' column to Products table for schema migration.")
+                    altered_products = True
+                except sqlite3.Error as e_alter_dimensions:
+                    logger.error(f"Error adding 'dimensions' to Products (migration): {e_alter_dimensions}", exc_info=True)
 
-    if altered_products:
-        logger.info("Products table schema migration for weight/dimensions attempted.")
+            if altered_products:
+                logger.info("Products table schema migration for weight/dimensions attempted.")
 
-    # Create ProductDimensions table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ProductDimensions (
-        product_id INTEGER PRIMARY KEY,
+            # Create ProductDimensions table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ProductDimensions (
+                product_id INTEGER PRIMARY KEY,
         dim_A TEXT, dim_B TEXT, dim_C TEXT, dim_D TEXT, dim_E TEXT,
         dim_F TEXT, dim_G TEXT, dim_H TEXT, dim_I TEXT, dim_J TEXT,
         technical_image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE
-    )
-    """)
+                FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE
+            )
+            """)
 
-    # Create ProductEquivalencies table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ProductEquivalencies (
-        equivalence_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_id_a INTEGER NOT NULL,
-        product_id_b INTEGER NOT NULL,
-        FOREIGN KEY (product_id_a) REFERENCES Products (product_id) ON DELETE CASCADE,
-        FOREIGN KEY (product_id_b) REFERENCES Products (product_id) ON DELETE CASCADE,
-        UNIQUE (product_id_a, product_id_b)
-    )
-    """)
+            # Create ProductEquivalencies table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ProductEquivalencies (
+                equivalence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id_a INTEGER NOT NULL,
+                product_id_b INTEGER NOT NULL,
+                FOREIGN KEY (product_id_a) REFERENCES Products (product_id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id_b) REFERENCES Products (product_id) ON DELETE CASCADE,
+                UNIQUE (product_id_a, product_id_b)
+            )
+            """)
 
-    # Create ClientProjectProducts table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientProjectProducts (
-        client_project_product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id TEXT NOT NULL,
-        project_id TEXT,
-        product_id INTEGER NOT NULL,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        unit_price_override REAL,
-        total_price_calculated REAL,
-        serial_number TEXT,
-        purchase_confirmed_at TIMESTAMP,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
-        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
-        UNIQUE (client_id, project_id, product_id)
-    )
-    """)
+            # Create ClientProjectProducts table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ClientProjectProducts (
+                client_project_product_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT NOT NULL,
+                project_id TEXT,
+                product_id INTEGER NOT NULL,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                unit_price_override REAL,
+                total_price_calculated REAL,
+                serial_number TEXT,
+                purchase_confirmed_at TIMESTAMP,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
+                UNIQUE (client_id, project_id, product_id)
+            )
+            """)
 
-    # Create ScheduledEmails table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ScheduledEmails (
-        scheduled_email_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        recipient_email TEXT NOT NULL,
+            # Create ScheduledEmails table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ScheduledEmails (
+                scheduled_email_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipient_email TEXT NOT NULL,
         subject TEXT NOT NULL,
         body_html TEXT,
         body_text TEXT,
@@ -493,54 +494,54 @@ def initialize_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (related_client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
         FOREIGN KEY (related_project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )
+            """)
 
-    # Create EmailReminders table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS EmailReminders (
-        reminder_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        scheduled_email_id INTEGER NOT NULL,
-        reminder_type TEXT NOT NULL, -- e.g., 'before_send', 'after_send_no_reply'
-        reminder_send_at TIMESTAMP NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'sent', 'cancelled'
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (scheduled_email_id) REFERENCES ScheduledEmails (scheduled_email_id) ON DELETE CASCADE
-    )
-    """)
+            # Create EmailReminders table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS EmailReminders (
+                reminder_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scheduled_email_id INTEGER NOT NULL,
+                reminder_type TEXT NOT NULL, -- e.g., 'before_send', 'after_send_no_reply'
+                reminder_send_at TIMESTAMP NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'sent', 'cancelled'
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (scheduled_email_id) REFERENCES ScheduledEmails (scheduled_email_id) ON DELETE CASCADE
+            )
+            """)
 
-    # Create ContactLists table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ContactLists (
-        list_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        list_name TEXT NOT NULL UNIQUE,
-        description TEXT,
-        created_by_user_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
+            # Create ContactLists table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ContactLists (
+                list_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                list_name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                created_by_user_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )
+            """)
 
-    # Create ContactListMembers table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ContactListMembers (
-        list_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        list_id INTEGER NOT NULL,
-        contact_id INTEGER NOT NULL, -- Assuming Contacts.contact_id is INTEGER
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (list_id) REFERENCES ContactLists (list_id) ON DELETE CASCADE,
-        FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE,
-        UNIQUE (list_id, contact_id)
-    )
-    """)
+            # Create ContactListMembers table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ContactListMembers (
+                list_member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                list_id INTEGER NOT NULL,
+                contact_id INTEGER NOT NULL, -- Assuming Contacts.contact_id is INTEGER
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (list_id) REFERENCES ContactLists (list_id) ON DELETE CASCADE,
+                FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE,
+                UNIQUE (list_id, contact_id)
+            )
+            """)
 
-    # Create ActivityLog table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ActivityLog (
-        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
+            # Create ActivityLog table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ActivityLog (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
         action_type TEXT NOT NULL,
         details TEXT,
         related_entity_type TEXT,
@@ -550,540 +551,540 @@ def initialize_database():
         user_agent TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES Users (user_id) ON DELETE SET NULL,
-        FOREIGN KEY (related_client_id) REFERENCES Clients (client_id) ON DELETE SET NULL
-    )
-    """)
+                FOREIGN KEY (related_client_id) REFERENCES Clients (client_id) ON DELETE SET NULL
+            )
+            """)
 
-    # Create TemplateCategories table (base from ca.py, pre-population logic from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS TemplateCategories (
-        category_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_name TEXT NOT NULL UNIQUE,
-        description TEXT
-    )
-    """)
-    general_category_id_for_migration = None
-    try:
-        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
-        cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
-        general_row = cursor.fetchone()
-        if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
-
-        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
-        # These INSERTs will be moved to the data seeding phase.
-        # The CREATE TABLE for TemplateCategories is DDL and stays here.
-        # general_category_id_for_migration will be determined during seeding if needed for migration.
-        pass # INSERTs moved to data seeding phase
-    except sqlite3.Error as e_cat_init: # This error is for CREATE TABLE, which is fine here.
-        logger.error(f"Error creating TemplateCategories table: {e_cat_init}", exc_info=True)
-
-
-    # Templates table migration logic (from ca.py, seems more complete for this part)
-    # This migration involves DDL (RENAME, CREATE new, DROP old) and DML (INSERT SELECT)
-    # It should be part of the schema transaction.
-    cursor.execute("PRAGMA table_info(Templates)")
-    columns = [column['name'] for column in cursor.fetchall()]
-    needs_migration = 'category' in columns and 'category_id' not in columns
-
-    if needs_migration:
-        logger.info("Templates table needs migration (category to category_id). Starting migration process...")
-        try:
-            # Determine general_category_id for migration *before* altering tables if possible,
-            # or ensure _get_or_create_category_id can run mid-transaction if it needs to create 'General'.
-            # For simplicity, assume 'General' category will be created in seeding, and _get_or_create_category_id
-            # will find it or create it if called during migration.
-            # If 'General' must exist before this, its INSERT should be here (but that makes it DDL-like).
-            # Given the refactor, _get_or_create_category_id will be called within this schema transaction.
-            # It's better if 'General' category is pre-created. Let's add its creation here for the migration to work.
-            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates for migration'))
-            cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
-            general_row = cursor.fetchone()
-            if general_row: general_category_id_for_migration = general_row['category_id']
-            else: general_category_id_for_migration = None # Should not happen if INSERT OR IGNORE worked
-
-            cursor.execute("ALTER TABLE Templates RENAME TO Templates_old")
-            logger.info("Renamed Templates to Templates_old.")
+            # Create TemplateCategories table (base from ca.py, pre-population logic from ca.py)
             cursor.execute("""
-            CREATE TABLE Templates (
-                template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
-                description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-                category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
-                cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
-                version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CREATE TABLE IF NOT EXISTS TemplateCategories (
+                category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_name TEXT NOT NULL UNIQUE,
+                description TEXT
+            )
+            """)
+            general_category_id_for_migration = None
+            try:
+                cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
+                cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
+                general_row = cursor.fetchone()
+                if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
+
+                cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
+                # These INSERTs will be moved to the data seeding phase.
+                # The CREATE TABLE for TemplateCategories is DDL and stays here.
+                # general_category_id_for_migration will be determined during seeding if needed for migration.
+                pass # INSERTs moved to data seeding phase
+            except sqlite3.Error as e_cat_init: # This error is for CREATE TABLE, which is fine here.
+                logger.error(f"Error creating TemplateCategories table: {e_cat_init}", exc_info=True)
+
+
+            # Templates table migration logic (from ca.py, seems more complete for this part)
+            # This migration involves DDL (RENAME, CREATE new, DROP old) and DML (INSERT SELECT)
+            # It should be part of the schema transaction.
+            cursor.execute("PRAGMA table_info(Templates)")
+            columns = [column['name'] for column in cursor.fetchall()]
+            needs_migration = 'category' in columns and 'category_id' not in columns
+
+            if needs_migration:
+                logger.info("Templates table needs migration (category to category_id). Starting migration process...")
+                try:
+                    # Determine general_category_id for migration *before* altering tables if possible,
+                    # or ensure _get_or_create_category_id can run mid-transaction if it needs to create 'General'.
+                    # For simplicity, assume 'General' category will be created in seeding, and _get_or_create_category_id
+                    # will find it or create it if called during migration.
+                    # If 'General' must exist before this, its INSERT should be here (but that makes it DDL-like).
+                    # Given the refactor, _get_or_create_category_id will be called within this schema transaction.
+                    # It's better if 'General' category is pre-created. Let's add its creation here for the migration to work.
+                    cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates for migration'))
+                    cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
+                    general_row = cursor.fetchone()
+                    if general_row: general_category_id_for_migration = general_row['category_id']
+                    else: general_category_id_for_migration = None # Should not happen if INSERT OR IGNORE worked
+
+                    cursor.execute("ALTER TABLE Templates RENAME TO Templates_old")
+                    logger.info("Renamed Templates to Templates_old.")
+                    cursor.execute("""
+                    CREATE TABLE Templates (
+                        template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
+                        description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+                        category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
+                        cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
+                        version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        created_by_user_id TEXT,
+                        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+                        FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
+                        UNIQUE (template_name, template_type, language_code, version)
+                    )""")
+                    print("Created new Templates table with category_id.")
+
+                    # Fetch column names from Templates_old to map correctly
+                    cursor_old_desc = conn.cursor() # Use a new cursor for safety or ensure main cursor is fine
+                    cursor_old_desc.execute("PRAGMA table_info(Templates_old)")
+                    old_column_names = [col_info['name'] for col_info in cursor_old_desc.fetchall()]
+
+                    cursor_old_data = conn.cursor()
+                    cursor_old_data.execute("SELECT * FROM Templates_old")
+                    old_templates = cursor_old_data.fetchall()
+
+
+                    for old_template_row in old_templates: # old_template_row is already a Row object
+                        old_template_dict = dict(old_template_row) # Convert Row to dict for .get()
+                        category_name_text = old_template_dict.get('category')
+                        new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
+
+                        new_template_values = (
+                            old_template_dict.get('template_id'), old_template_dict.get('template_name'),
+                            old_template_dict.get('template_type'), old_template_dict.get('description'),
+                            old_template_dict.get('base_file_name'), old_template_dict.get('language_code'),
+                            old_template_dict.get('is_default_for_type_lang', False), new_cat_id,
+                            old_template_dict.get('content_definition'), old_template_dict.get('email_subject_template'),
+                            old_template_dict.get('email_variables_info'), old_template_dict.get('cover_page_config_json'),
+                            old_template_dict.get('document_mapping_config_json'), old_template_dict.get('raw_template_file_data'),
+                            old_template_dict.get('version'), old_template_dict.get('created_at'),
+                            old_template_dict.get('updated_at'), old_template_dict.get('created_by_user_id')
+                        )
+                        insert_sql = """
+                            INSERT INTO Templates (
+                                template_id, template_name, template_type, description, base_file_name,
+                                language_code, is_default_for_type_lang, category_id,
+                                content_definition, email_subject_template, email_variables_info,
+                                cover_page_config_json, document_mapping_config_json,
+                                raw_template_file_data, version, created_at, updated_at, created_by_user_id
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """
+                        cursor.execute(insert_sql, new_template_values)
+                    logger.info(f"Migrated {len(old_templates)} templates to new schema.")
+                    cursor.execute("DROP TABLE Templates_old")
+                    logger.info("Dropped Templates_old table.")
+                    logger.info("Templates table migration (category to category_id) completed successfully.")
+                except sqlite3.Error as e:
+                    logger.error(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.", exc_info=True)
+            else: # Templates table does not need category migration
+                logger.info("Templates table schema is current or does not require category_id migration.")
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS Templates (
+                    template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
+                    description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+                    category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
+                    cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
+                    version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_by_user_id TEXT,
+                    FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+                    FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
+                    UNIQUE (template_name, template_type, language_code, version)
+                )""")
+
+            # Create Tasks table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Tasks (
+                task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id TEXT NOT NULL,
+                task_name TEXT NOT NULL,
+                description TEXT,
+                status_id INTEGER,
+                assignee_team_member_id INTEGER, -- Matches TeamMembers.team_member_id
+                reporter_team_member_id INTEGER,   -- Matches TeamMembers.team_member_id
+                due_date DATE,
+                priority INTEGER DEFAULT 0,
+                estimated_hours REAL,
+                actual_hours_spent REAL,
+                parent_task_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
+                FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+                FOREIGN KEY (assignee_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
+                FOREIGN KEY (reporter_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
+                FOREIGN KEY (parent_task_id) REFERENCES Tasks (task_id) ON DELETE SET NULL
+            )
+            """)
+
+            # Create ClientDocuments table (logic from ca.py to add order_identifier if missing)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ClientDocuments (
+                document_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, project_id TEXT,
+                order_identifier TEXT, document_name TEXT NOT NULL, file_name_on_disk TEXT NOT NULL,
+                file_path_relative TEXT NOT NULL, document_type_generated TEXT,
+                source_template_id INTEGER, version_tag TEXT, notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_by_user_id TEXT,
-                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-                FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-                UNIQUE (template_name, template_type, language_code, version)
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id),
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id),
+                FOREIGN KEY (source_template_id) REFERENCES Templates (template_id),
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
             )""")
-            print("Created new Templates table with category_id.")
+            cursor.execute("PRAGMA table_info(ClientDocuments)")
+            columns_cd = [column['name'] for column in cursor.fetchall()]
+            if 'order_identifier' not in columns_cd:
+                try:
+                    cursor.execute("ALTER TABLE ClientDocuments ADD COLUMN order_identifier TEXT")
+                    logger.info("Added 'order_identifier' column to ClientDocuments table.")
+                except sqlite3.Error as e:
+                    logger.error(f"Error adding 'order_identifier' column to ClientDocuments: {e}", exc_info=True)
 
-            # Fetch column names from Templates_old to map correctly
-            cursor_old_desc = conn.cursor() # Use a new cursor for safety or ensure main cursor is fine
-            cursor_old_desc.execute("PRAGMA table_info(Templates_old)")
-            old_column_names = [col_info['name'] for col_info in cursor_old_desc.fetchall()]
-
-            cursor_old_data = conn.cursor()
-            cursor_old_data.execute("SELECT * FROM Templates_old")
-            old_templates = cursor_old_data.fetchall()
-
-
-            for old_template_row in old_templates: # old_template_row is already a Row object
-                old_template_dict = dict(old_template_row) # Convert Row to dict for .get()
-                category_name_text = old_template_dict.get('category')
-                new_cat_id = _get_or_create_category_id(cursor, category_name_text, general_category_id_for_migration)
-
-                new_template_values = (
-                    old_template_dict.get('template_id'), old_template_dict.get('template_name'),
-                    old_template_dict.get('template_type'), old_template_dict.get('description'),
-                    old_template_dict.get('base_file_name'), old_template_dict.get('language_code'),
-                    old_template_dict.get('is_default_for_type_lang', False), new_cat_id,
-                    old_template_dict.get('content_definition'), old_template_dict.get('email_subject_template'),
-                    old_template_dict.get('email_variables_info'), old_template_dict.get('cover_page_config_json'),
-                    old_template_dict.get('document_mapping_config_json'), old_template_dict.get('raw_template_file_data'),
-                    old_template_dict.get('version'), old_template_dict.get('created_at'),
-                    old_template_dict.get('updated_at'), old_template_dict.get('created_by_user_id')
-                )
-                insert_sql = """
-                    INSERT INTO Templates (
-                        template_id, template_name, template_type, description, base_file_name,
-                        language_code, is_default_for_type_lang, category_id,
-                        content_definition, email_subject_template, email_variables_info,
-                        cover_page_config_json, document_mapping_config_json,
-                        raw_template_file_data, version, created_at, updated_at, created_by_user_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                cursor.execute(insert_sql, new_template_values)
-            logger.info(f"Migrated {len(old_templates)} templates to new schema.")
-            cursor.execute("DROP TABLE Templates_old")
-            logger.info("Dropped Templates_old table.")
-            logger.info("Templates table migration (category to category_id) completed successfully.")
-        except sqlite3.Error as e:
-            logger.error(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.", exc_info=True)
-    else: # Templates table does not need category migration
-        logger.info("Templates table schema is current or does not require category_id migration.")
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
-            description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-            category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
-            cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
-            version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by_user_id TEXT,
-            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            UNIQUE (template_name, template_type, language_code, version)
-        )""")
-
-    # Create Tasks table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Tasks (
-        task_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id TEXT NOT NULL,
-        task_name TEXT NOT NULL,
-        description TEXT,
-        status_id INTEGER,
-        assignee_team_member_id INTEGER, -- Matches TeamMembers.team_member_id
-        reporter_team_member_id INTEGER,   -- Matches TeamMembers.team_member_id
-        due_date DATE,
-        priority INTEGER DEFAULT 0,
-        estimated_hours REAL,
-        actual_hours_spent REAL,
-        parent_task_id INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE,
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (assignee_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
-        FOREIGN KEY (reporter_team_member_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
-        FOREIGN KEY (parent_task_id) REFERENCES Tasks (task_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create ClientDocuments table (logic from ca.py to add order_identifier if missing)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientDocuments (
-        document_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, project_id TEXT,
-        order_identifier TEXT, document_name TEXT NOT NULL, file_name_on_disk TEXT NOT NULL,
-        file_path_relative TEXT NOT NULL, document_type_generated TEXT,
-        source_template_id INTEGER, version_tag TEXT, notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id),
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id),
-        FOREIGN KEY (source_template_id) REFERENCES Templates (template_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
-    )""")
-    cursor.execute("PRAGMA table_info(ClientDocuments)")
-    columns_cd = [column['name'] for column in cursor.fetchall()]
-    if 'order_identifier' not in columns_cd:
-        try:
-            cursor.execute("ALTER TABLE ClientDocuments ADD COLUMN order_identifier TEXT")
-            logger.info("Added 'order_identifier' column to ClientDocuments table.")
-        except sqlite3.Error as e:
-            logger.error(f"Error adding 'order_identifier' column to ClientDocuments: {e}", exc_info=True)
-
-    # Create ClientDocumentNotes table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ClientDocumentNotes (
-        note_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
-        document_type TEXT NOT NULL, language_code TEXT NOT NULL,
-        note_content TEXT NOT NULL, is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        UNIQUE (client_id, document_type, language_code)
-    )""")
-
-    # Create SmtpConfigs table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS SmtpConfigs (
-        smtp_config_id INTEGER PRIMARY KEY AUTOINCREMENT, config_name TEXT NOT NULL UNIQUE,
-        smtp_server TEXT NOT NULL, smtp_port INTEGER NOT NULL, username TEXT,
-        password_encrypted TEXT, use_tls BOOLEAN DEFAULT TRUE, is_default BOOLEAN DEFAULT FALSE,
-        sender_email_address TEXT NOT NULL, sender_display_name TEXT
-    )""")
-
-    # Create ApplicationSettings table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ApplicationSettings (
-        setting_key TEXT PRIMARY KEY,
-        setting_value TEXT
-    )""")
-
-    # Create KPIs table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS KPIs (
-        kpi_id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, name TEXT NOT NULL,
-        value REAL NOT NULL, target REAL NOT NULL, trend TEXT NOT NULL, unit TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE
-    )""")
-
-    # Create CoverPageTemplates table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CoverPageTemplates (
-        template_id TEXT PRIMARY KEY, template_name TEXT NOT NULL UNIQUE, description TEXT,
-        default_title TEXT, default_subtitle TEXT, default_author TEXT,
-        style_config_json TEXT, is_default_template INTEGER DEFAULT 0 NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )""")
-
-    # Create CoverPages table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS CoverPages (
-        cover_page_id TEXT PRIMARY KEY, cover_page_name TEXT, client_id TEXT, project_id TEXT,
-        template_id TEXT, title TEXT NOT NULL, subtitle TEXT, author_text TEXT,
-        institution_text TEXT, department_text TEXT, document_type_text TEXT,
-        document_version TEXT, creation_date DATE, logo_name TEXT, logo_data BLOB,
-        custom_style_config_json TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_by_user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
-        FOREIGN KEY (template_id) REFERENCES CoverPageTemplates (template_id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )""")
-
-    # Create SAVTickets table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS SAVTickets (
-        ticket_id TEXT PRIMARY KEY, client_id TEXT NOT NULL,
-        client_project_product_id INTEGER, issue_description TEXT NOT NULL,
-        status_id INTEGER NOT NULL, assigned_technician_id INTEGER,
-        resolution_details TEXT, opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        closed_at TIMESTAMP, created_by_user_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (client_project_product_id) REFERENCES ClientProjectProducts (client_project_product_id) ON DELETE SET NULL,
-        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (assigned_technician_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )""")
-
-    # Create ImportantDates table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ImportantDates (
-        important_date_id INTEGER PRIMARY KEY AUTOINCREMENT, date_name TEXT NOT NULL,
-        date_value DATE NOT NULL, is_recurring_annually BOOLEAN DEFAULT TRUE,
-        language_code TEXT, email_template_id INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (date_name, date_value, language_code),
-        FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
-    )""")
-
-    # Create ProformaInvoices table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS proforma_invoices (
-        id TEXT PRIMARY KEY,
-        proforma_invoice_number TEXT UNIQUE NOT NULL,
-        client_id TEXT NOT NULL,
-        project_id TEXT,
-        company_id TEXT NOT NULL,
-        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-        sent_date TIMESTAMP,
-        status TEXT NOT NULL DEFAULT 'DRAFT',
-        currency TEXT NOT NULL DEFAULT 'USD',
-        subtotal_amount REAL NOT NULL DEFAULT 0.0,
-        discount_amount REAL DEFAULT 0.0,
-        vat_amount REAL NOT NULL DEFAULT 0.0,
-        grand_total_amount REAL NOT NULL DEFAULT 0.0,
-        payment_terms TEXT,
-        delivery_terms TEXT,
-        incoterms TEXT,
-        named_place_of_delivery TEXT,
-        notes TEXT,
-        linked_document_id TEXT,
-        generated_invoice_id TEXT,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
-        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE,
-        FOREIGN KEY (linked_document_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL,
-        FOREIGN KEY (generated_invoice_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create ProformaInvoiceItems table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS proforma_invoice_items (
-        id TEXT PRIMARY KEY,
-        proforma_invoice_id TEXT NOT NULL,
-        product_id INTEGER,
-        description TEXT NOT NULL,
-        quantity REAL NOT NULL,
-        unit_price REAL NOT NULL,
-        total_price REAL NOT NULL,
-        FOREIGN KEY (proforma_invoice_id) REFERENCES proforma_invoices (id) ON DELETE CASCADE,
-        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE SET NULL
-    )
-    """)
-
-    # Create Transporters table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Transporters (
-        transporter_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
-        phone TEXT, email TEXT, address TEXT, service_area TEXT, notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )""")
-
-    # Create FreightForwarders table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS FreightForwarders (
-        forwarder_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
-        phone TEXT, email TEXT, address TEXT, services_offered TEXT, notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )""")
-
-    # Create Client_AssignedPersonnel table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Client_AssignedPersonnel (
-        assignment_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
-        personnel_id INTEGER NOT NULL, role_in_project TEXT,
-        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE CASCADE,
-        UNIQUE (client_id, personnel_id, role_in_project)
-    )""")
-
-    # Create Client_Transporters table (logic from ca.py to add email_status if missing)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Client_Transporters (
-        client_transporter_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
-        transporter_id TEXT NOT NULL, transport_details TEXT, cost_estimate REAL,
-        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, email_status TEXT DEFAULT 'Pending',
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (transporter_id) REFERENCES Transporters (transporter_id) ON DELETE CASCADE,
-        UNIQUE (client_id, transporter_id)
-    )""")
-    cursor.execute("PRAGMA table_info(Client_Transporters)")
-    columns_ct = [column['name'] for column in cursor.fetchall()]
-    if 'email_status' not in columns_ct:
-        try:
-            cursor.execute("ALTER TABLE Client_Transporters ADD COLUMN email_status TEXT DEFAULT 'Pending'")
-            logger.info("Added 'email_status' column to Client_Transporters table.")
-        except sqlite3.Error as e_ct_alter:
-            logger.error(f"Error adding 'email_status' column to Client_Transporters: {e_ct_alter}", exc_info=True)
-
-    # Create Client_FreightForwarders table (from ca.py)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Client_FreightForwarders (
-        client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
-        forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL,
-        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE,
-        UNIQUE (client_id, forwarder_id)
-    )""")
-
-    # Partner Tables (definitions from ca.py which appear to be more up-to-date or matching schema.py's newer ones)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerCategories (
-            partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL UNIQUE,
-            description TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )""")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Partners (
-            partner_id TEXT PRIMARY KEY, partner_name TEXT NOT NULL, partner_category_id INTEGER,
-            contact_person_name TEXT, email TEXT UNIQUE, phone TEXT, address TEXT,
-            website_url TEXT, services_offered TEXT, collaboration_start_date TEXT,
-            status TEXT DEFAULT 'Active', notes TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
-        )""")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerContacts (
-            contact_id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id TEXT NOT NULL, name TEXT NOT NULL,
-            email TEXT, phone TEXT, role TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
-        )""")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
-            partner_id TEXT NOT NULL, partner_category_id INTEGER NOT NULL,
-            PRIMARY KEY (partner_id, partner_category_id),
-            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
-            FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
-        )""")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS PartnerDocuments (
-            document_id TEXT PRIMARY KEY, partner_id TEXT NOT NULL, document_name TEXT NOT NULL,
-            file_path_relative TEXT NOT NULL, document_type TEXT, description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
-        )""")
-
-    # MediaItems, Tags, MediaItemTags, Playlists, PlaylistItems (from ca.py, includes migration for MediaItems.category)
-    # MediaItems Table
-    cursor.execute("PRAGMA table_info(MediaItems)")
-    mi_columns = [column['name'] for column in cursor.fetchall()]
-    mi_needs_alter = 'thumbnail_path' not in mi_columns or 'metadata_json' not in mi_columns
-
-    if not mi_needs_alter: # If table potentially exists and is up-to-date schema-wise
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='MediaItems'")
-        if not cursor.fetchone(): # Table does not exist, create it fully
-             mi_needs_alter = True # Mark to create
-
-    if 'category' in mi_columns and 'thumbnail_path' in mi_columns and 'metadata_json' in mi_columns : # Already migrated and altered
-        logger.debug("MediaItems table already migrated and has new columns or is new.")
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS MediaItems (
-                media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
-                item_type TEXT NOT NULL, filepath TEXT, url TEXT,
-                uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+            # Create ClientDocumentNotes table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ClientDocumentNotes (
+                note_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
+                document_type TEXT NOT NULL, language_code TEXT NOT NULL,
+                note_content TEXT NOT NULL, is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
-            );''')
-    elif 'category' in mi_columns : # Needs category migration (and potentially alter for new columns)
-        logger.info("Migrating 'category' from MediaItems to Tags system and ensuring new columns...")
-        # Create Tags and MediaItemTags first if they don't exist
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                UNIQUE (client_id, document_type, language_code)
+            )""")
 
-        cursor.execute("SELECT media_item_id, category FROM MediaItems WHERE category IS NOT NULL AND category != ''")
-        items_with_categories = cursor.fetchall()
-        for item_row in items_with_categories:
-            item_id, category_name = item_row['media_item_id'], item_row['category']
-            cursor.execute("INSERT OR IGNORE INTO Tags (tag_name) VALUES (?)", (category_name,))
-            tag_id = cursor.execute("SELECT tag_id FROM Tags WHERE tag_name = ?", (category_name,)).fetchone()['tag_id']
-            if tag_id:
-                cursor.execute("INSERT OR IGNORE INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (item_id, tag_id))
+            # Create SmtpConfigs table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS SmtpConfigs (
+                smtp_config_id INTEGER PRIMARY KEY AUTOINCREMENT, config_name TEXT NOT NULL UNIQUE,
+                smtp_server TEXT NOT NULL, smtp_port INTEGER NOT NULL, username TEXT,
+                password_encrypted TEXT, use_tls BOOLEAN DEFAULT TRUE, is_default BOOLEAN DEFAULT FALSE,
+                sender_email_address TEXT NOT NULL, sender_display_name TEXT
+            )""")
 
-        cursor.execute("ALTER TABLE MediaItems RENAME TO MediaItems_old_cat_mig")
-        cursor.execute('''
-            CREATE TABLE MediaItems (
-                media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
-                item_type TEXT NOT NULL, filepath TEXT, url TEXT,
-                uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+            # Create ApplicationSettings table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ApplicationSettings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT
+            )""")
+
+            # Create KPIs table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS KPIs (
+                kpi_id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, name TEXT NOT NULL,
+                value REAL NOT NULL, target REAL NOT NULL, trend TEXT NOT NULL, unit TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
-            );''')
-        # Copy data, explicitly selecting columns that exist in old and new, handling new ones.
-        # The CASE WHEN EXISTS checks ensure that we only try to copy thumbnail_path and metadata_json
-        # if they actually existed in the MediaItems_old_cat_mig table, preventing errors if migrating from a very old schema.
-        cursor.execute('''
-            INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
-            SELECT media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at,
-                   CASE WHEN EXISTS (SELECT 1 FROM pragma_table_info('MediaItems_old_cat_mig') WHERE name='thumbnail_path') THEN thumbnail_path ELSE NULL END,
-                   CASE WHEN EXISTS (SELECT 1 FROM pragma_table_info('MediaItems_old_cat_mig') WHERE name='metadata_json') THEN metadata_json ELSE NULL END
-            FROM MediaItems_old_cat_mig;
-        ''')
-        cursor.execute("DROP TABLE MediaItems_old_cat_mig")
-        logger.info("MediaItems 'category' migration complete, table recreated.")
-    elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
-        if not mi_columns: # Table does not exist, create it
-            logger.info("MediaItems table does not exist. Creating with new columns.")
-            cursor.execute('''
-                CREATE TABLE MediaItems (
-                    media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
-                    item_type TEXT NOT NULL, filepath TEXT, url TEXT,
-                    uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE CASCADE
+            )""")
+
+            # Create CoverPageTemplates table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS CoverPageTemplates (
+                template_id TEXT PRIMARY KEY, template_name TEXT NOT NULL UNIQUE, description TEXT,
+                default_title TEXT, default_subtitle TEXT, default_author TEXT,
+                style_config_json TEXT, is_default_template INTEGER DEFAULT 0 NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by_user_id TEXT,
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )""")
+
+            # Create CoverPages table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS CoverPages (
+                cover_page_id TEXT PRIMARY KEY, cover_page_name TEXT, client_id TEXT, project_id TEXT,
+                template_id TEXT, title TEXT NOT NULL, subtitle TEXT, author_text TEXT,
+                institution_text TEXT, department_text TEXT, document_type_text TEXT,
+                document_version TEXT, creation_date DATE, logo_name TEXT, logo_data BLOB,
+                custom_style_config_json TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by_user_id TEXT,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+                FOREIGN KEY (template_id) REFERENCES CoverPageTemplates (template_id) ON DELETE SET NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )""")
+
+            # Create SAVTickets table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS SAVTickets (
+                ticket_id TEXT PRIMARY KEY, client_id TEXT NOT NULL,
+                client_project_product_id INTEGER, issue_description TEXT NOT NULL,
+                status_id INTEGER NOT NULL, assigned_technician_id INTEGER,
+                resolution_details TEXT, opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                closed_at TIMESTAMP, created_by_user_id TEXT,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (client_project_product_id) REFERENCES ClientProjectProducts (client_project_product_id) ON DELETE SET NULL,
+                FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+                FOREIGN KEY (assigned_technician_id) REFERENCES TeamMembers (team_member_id) ON DELETE SET NULL,
+                FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+            )""")
+
+            # Create ImportantDates table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ImportantDates (
+                important_date_id INTEGER PRIMARY KEY AUTOINCREMENT, date_name TEXT NOT NULL,
+                date_value DATE NOT NULL, is_recurring_annually BOOLEAN DEFAULT TRUE,
+                language_code TEXT, email_template_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (date_name, date_value, language_code),
+                FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
+            )""")
+
+            # Create ProformaInvoices table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS proforma_invoices (
+                id TEXT PRIMARY KEY,
+                proforma_invoice_number TEXT UNIQUE NOT NULL,
+                client_id TEXT NOT NULL,
+                project_id TEXT,
+                company_id TEXT NOT NULL,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                sent_date TIMESTAMP,
+                status TEXT NOT NULL DEFAULT 'DRAFT',
+                currency TEXT NOT NULL DEFAULT 'USD',
+                subtotal_amount REAL NOT NULL DEFAULT 0.0,
+                discount_amount REAL DEFAULT 0.0,
+                vat_amount REAL NOT NULL DEFAULT 0.0,
+                grand_total_amount REAL NOT NULL DEFAULT 0.0,
+                payment_terms TEXT,
+                delivery_terms TEXT,
+                incoterms TEXT,
+                named_place_of_delivery TEXT,
+                notes TEXT,
+                linked_document_id TEXT,
+                generated_invoice_id TEXT,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+                FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE,
+                FOREIGN KEY (linked_document_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL,
+                FOREIGN KEY (generated_invoice_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL
+            )
+            """)
+
+            # Create ProformaInvoiceItems table
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS proforma_invoice_items (
+                id TEXT PRIMARY KEY,
+                proforma_invoice_id TEXT NOT NULL,
+                product_id INTEGER,
+                description TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                unit_price REAL NOT NULL,
+                total_price REAL NOT NULL,
+                FOREIGN KEY (proforma_invoice_id) REFERENCES proforma_invoices (id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE SET NULL
+            )
+            """)
+
+            # Create Transporters table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Transporters (
+                transporter_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
+                phone TEXT, email TEXT, address TEXT, service_area TEXT, notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+
+            # Create FreightForwarders table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS FreightForwarders (
+                forwarder_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
+                phone TEXT, email TEXT, address TEXT, services_offered TEXT, notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+
+            # Create Client_AssignedPersonnel table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Client_AssignedPersonnel (
+                assignment_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
+                personnel_id INTEGER NOT NULL, role_in_project TEXT,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE CASCADE,
+                UNIQUE (client_id, personnel_id, role_in_project)
+            )""")
+
+            # Create Client_Transporters table (logic from ca.py to add email_status if missing)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Client_Transporters (
+                client_transporter_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
+                transporter_id TEXT NOT NULL, transport_details TEXT, cost_estimate REAL,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, email_status TEXT DEFAULT 'Pending',
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (transporter_id) REFERENCES Transporters (transporter_id) ON DELETE CASCADE,
+                UNIQUE (client_id, transporter_id)
+            )""")
+            cursor.execute("PRAGMA table_info(Client_Transporters)")
+            columns_ct = [column['name'] for column in cursor.fetchall()]
+            if 'email_status' not in columns_ct:
+                try:
+                    cursor.execute("ALTER TABLE Client_Transporters ADD COLUMN email_status TEXT DEFAULT 'Pending'")
+                    logger.info("Added 'email_status' column to Client_Transporters table.")
+                except sqlite3.Error as e_ct_alter:
+                    logger.error(f"Error adding 'email_status' column to Client_Transporters: {e_ct_alter}", exc_info=True)
+
+            # Create Client_FreightForwarders table (from ca.py)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Client_FreightForwarders (
+                client_forwarder_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL,
+                forwarder_id TEXT NOT NULL, task_description TEXT, cost_estimate REAL,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+                FOREIGN KEY (forwarder_id) REFERENCES FreightForwarders (forwarder_id) ON DELETE CASCADE,
+                UNIQUE (client_id, forwarder_id)
+            )""")
+
+            # Partner Tables (definitions from ca.py which appear to be more up-to-date or matching schema.py's newer ones)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS PartnerCategories (
+                    partner_category_id INTEGER PRIMARY KEY AUTOINCREMENT, category_name TEXT NOT NULL UNIQUE,
+                    description TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )""")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS Partners (
+                    partner_id TEXT PRIMARY KEY, partner_name TEXT NOT NULL, partner_category_id INTEGER,
+                    contact_person_name TEXT, email TEXT UNIQUE, phone TEXT, address TEXT,
+                    website_url TEXT, services_offered TEXT, collaboration_start_date TEXT,
+                    status TEXT DEFAULT 'Active', notes TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories (partner_category_id) ON DELETE SET NULL
+                )""")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS PartnerContacts (
+                    contact_id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id TEXT NOT NULL, name TEXT NOT NULL,
+                    email TEXT, phone TEXT, role TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+                )""")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
+                    partner_id TEXT NOT NULL, partner_category_id INTEGER NOT NULL,
+                    PRIMARY KEY (partner_id, partner_category_id),
+                    FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+                    FOREIGN KEY (partner_category_id) REFERENCES PartnerCategories(partner_category_id) ON DELETE CASCADE
+                )""")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS PartnerDocuments (
+                    document_id TEXT PRIMARY KEY, partner_id TEXT NOT NULL, document_name TEXT NOT NULL,
+                    file_path_relative TEXT NOT NULL, document_type TEXT, description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
-                );''')
-            logger.info("Created MediaItems table with new columns.")
-            # Refresh mi_columns as the table was just created
+                    FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+                )""")
+
+            # MediaItems, Tags, MediaItemTags, Playlists, PlaylistItems (from ca.py, includes migration for MediaItems.category)
+            # MediaItems Table
             cursor.execute("PRAGMA table_info(MediaItems)")
-            updated_mi_columns_info = cursor.fetchall() # Use a different variable name to avoid confusion
-            mi_columns = [info['name'] for info in updated_mi_columns_info] # Update mi_columns
-            logger.debug("Refreshed mi_columns after table creation.")
+            mi_columns = [column['name'] for column in cursor.fetchall()]
+            mi_needs_alter = 'thumbnail_path' not in mi_columns or 'metadata_json' not in mi_columns
 
-        if 'thumbnail_path' not in mi_columns :
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
-             logger.info("Added 'thumbnail_path' column to MediaItems table.")
-        if 'metadata_json' not in mi_columns:
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
-             logger.info("Added 'metadata_json' column to MediaItems table.")
-    else:
-        logger.debug("MediaItems table schema is current or does not require thumbnail/metadata columns addition (no 'category' column was present for migration trigger).")
+            if not mi_needs_alter: # If table potentially exists and is up-to-date schema-wise
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='MediaItems'")
+                if not cursor.fetchone(): # Table does not exist, create it fully
+                     mi_needs_alter = True # Mark to create
 
-    cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS Playlists (playlist_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, user_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE);''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS PlaylistItems (playlist_item_id TEXT PRIMARY KEY, playlist_id TEXT NOT NULL, media_item_id TEXT NOT NULL, added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (playlist_id) REFERENCES Playlists(playlist_id) ON DELETE CASCADE, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE);''')
+            if 'category' in mi_columns and 'thumbnail_path' in mi_columns and 'metadata_json' in mi_columns : # Already migrated and altered
+                logger.debug("MediaItems table already migrated and has new columns or is new.")
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS MediaItems (
+                        media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
+                        item_type TEXT NOT NULL, filepath TEXT, url TEXT,
+                        uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
+                    );''')
+            elif 'category' in mi_columns : # Needs category migration (and potentially alter for new columns)
+                logger.info("Migrating 'category' from MediaItems to Tags system and ensuring new columns...")
+                # Create Tags and MediaItemTags first if they don't exist
+                cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
+                cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
 
-    # ProductMediaLinks table (from schema.py)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ProductMediaLinks (
-            link_id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
-            media_item_id TEXT NOT NULL, display_order INTEGER DEFAULT 0, alt_text TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
-            FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
-            UNIQUE (product_id, media_item_id),
-            UNIQUE (product_id, display_order)
-        );
-    """)
+                cursor.execute("SELECT media_item_id, category FROM MediaItems WHERE category IS NOT NULL AND category != ''")
+                items_with_categories = cursor.fetchall()
+                for item_row in items_with_categories:
+                    item_id, category_name = item_row['media_item_id'], item_row['category']
+                    cursor.execute("INSERT OR IGNORE INTO Tags (tag_name) VALUES (?)", (category_name,))
+                    tag_id = cursor.execute("SELECT tag_id FROM Tags WHERE tag_name = ?", (category_name,)).fetchone()['tag_id']
+                    if tag_id:
+                        cursor.execute("INSERT OR IGNORE INTO MediaItemTags (media_item_id, tag_id) VALUES (?, ?)", (item_id, tag_id))
 
-    # Google Contact Sync Tables (from schema.py)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS UserGoogleAccounts (
-            user_google_account_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
-            google_account_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL, refresh_token TEXT,
-            access_token TEXT, token_expiry TIMESTAMP, scopes TEXT,
-            last_sync_initiated_at TIMESTAMP NULL, last_sync_successful_at TIMESTAMP NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
-        )""")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ContactSyncLog (
-            sync_log_id INTEGER PRIMARY KEY AUTOINCREMENT, user_google_account_id TEXT NOT NULL,
-            local_contact_id TEXT NOT NULL, local_contact_type TEXT NOT NULL,
-            google_contact_id TEXT NOT NULL, platform_etag TEXT NULL, google_etag TEXT NULL,
-            last_sync_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, sync_status TEXT NOT NULL,
-            sync_direction TEXT NULL, error_message TEXT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_google_account_id) REFERENCES UserGoogleAccounts(user_google_account_id) ON DELETE CASCADE,
-            UNIQUE (user_google_account_id, local_contact_id, local_contact_type),
-            UNIQUE (user_google_account_id, google_contact_id)
-        )""")
+                cursor.execute("ALTER TABLE MediaItems RENAME TO MediaItems_old_cat_mig")
+                cursor.execute('''
+                    CREATE TABLE MediaItems (
+                        media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
+                        item_type TEXT NOT NULL, filepath TEXT, url TEXT,
+                        uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
+                    );''')
+                # Copy data, explicitly selecting columns that exist in old and new, handling new ones.
+                # The CASE WHEN EXISTS checks ensure that we only try to copy thumbnail_path and metadata_json
+                # if they actually existed in the MediaItems_old_cat_mig table, preventing errors if migrating from a very old schema.
+                cursor.execute('''
+                    INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
+                    SELECT media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at,
+                           CASE WHEN EXISTS (SELECT 1 FROM pragma_table_info('MediaItems_old_cat_mig') WHERE name='thumbnail_path') THEN thumbnail_path ELSE NULL END,
+                           CASE WHEN EXISTS (SELECT 1 FROM pragma_table_info('MediaItems_old_cat_mig') WHERE name='metadata_json') THEN metadata_json ELSE NULL END
+                    FROM MediaItems_old_cat_mig;
+                ''')
+                cursor.execute("DROP TABLE MediaItems_old_cat_mig")
+                logger.info("MediaItems 'category' migration complete, table recreated.")
+            elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
+                if not mi_columns: # Table does not exist, create it
+                    logger.info("MediaItems table does not exist. Creating with new columns.")
+                    cursor.execute('''
+                        CREATE TABLE MediaItems (
+                            media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
+                            item_type TEXT NOT NULL, filepath TEXT, url TEXT,
+                            uploader_user_id TEXT, thumbnail_path TEXT, metadata_json TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
+                        );''')
+                    logger.info("Created MediaItems table with new columns.")
+                    # Refresh mi_columns as the table was just created
+                    cursor.execute("PRAGMA table_info(MediaItems)")
+                    updated_mi_columns_info = cursor.fetchall() # Use a different variable name to avoid confusion
+                    mi_columns = [info['name'] for info in updated_mi_columns_info] # Update mi_columns
+                    logger.debug("Refreshed mi_columns after table creation.")
+
+                if 'thumbnail_path' not in mi_columns :
+                     cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
+                     logger.info("Added 'thumbnail_path' column to MediaItems table.")
+                if 'metadata_json' not in mi_columns:
+                     cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
+                     logger.info("Added 'metadata_json' column to MediaItems table.")
+            else:
+                logger.debug("MediaItems table schema is current or does not require thumbnail/metadata columns addition (no 'category' column was present for migration trigger).")
+
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS Playlists (playlist_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, user_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE);''')
+            cursor.execute('''CREATE TABLE IF NOT EXISTS PlaylistItems (playlist_item_id TEXT PRIMARY KEY, playlist_id TEXT NOT NULL, media_item_id TEXT NOT NULL, added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (playlist_id) REFERENCES Playlists(playlist_id) ON DELETE CASCADE, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE);''')
+
+            # ProductMediaLinks table (from schema.py)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ProductMediaLinks (
+                    link_id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
+                    media_item_id TEXT NOT NULL, display_order INTEGER DEFAULT 0, alt_text TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE CASCADE,
+                    FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+                    UNIQUE (product_id, media_item_id),
+                    UNIQUE (product_id, display_order)
+                );
+            """)
+
+            # Google Contact Sync Tables (from schema.py)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS UserGoogleAccounts (
+                    user_google_account_id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+                    google_account_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL, refresh_token TEXT,
+                    access_token TEXT, token_expiry TIMESTAMP, scopes TEXT,
+                    last_sync_initiated_at TIMESTAMP NULL, last_sync_successful_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+                )""")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ContactSyncLog (
+                    sync_log_id INTEGER PRIMARY KEY AUTOINCREMENT, user_google_account_id TEXT NOT NULL,
+                    local_contact_id TEXT NOT NULL, local_contact_type TEXT NOT NULL,
+                    google_contact_id TEXT NOT NULL, platform_etag TEXT NULL, google_etag TEXT NULL,
+                    last_sync_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, sync_status TEXT NOT NULL,
+                    sync_direction TEXT NULL, error_message TEXT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_google_account_id) REFERENCES UserGoogleAccounts(user_google_account_id) ON DELETE CASCADE,
+                    UNIQUE (user_google_account_id, local_contact_id, local_contact_type),
+                    UNIQUE (user_google_account_id, google_contact_id)
+                )""")
 
 
-    # --- Indexes (Consolidated from ca.py and schema.py) ---
-    # Clients
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_status_id ON Clients(status_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_country_id ON Clients(country_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_city_id ON Clients(city_id)")
+            # --- Indexes (Consolidated from ca.py and schema.py) ---
+            # Clients
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_status_id ON Clients(status_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_country_id ON Clients(country_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_city_id ON Clients(city_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_project_identifier ON Clients(project_identifier)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
@@ -1197,12 +1198,12 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_email ON UserGoogleAccounts(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_user_google_account_id ON ContactSyncLog(user_google_account_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
 
-        # --- END OF DDL ---
-        conn.commit() # Commit all schema DDL (CREATE, ALTER, INDEX)
-        logger.info("Schema creation phase committed successfully.")
+            # --- END OF DDL ---
+            conn.commit() # Commit all schema DDL (CREATE, ALTER, INDEX)
+            logger.info("Schema creation phase committed successfully.")
 
     except sqlite3.Error as e_schema:
         logger.error(f"Error during schema creation phase: {e_schema}", exc_info=True)
