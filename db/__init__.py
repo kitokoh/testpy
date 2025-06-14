@@ -116,6 +116,12 @@ from .cruds.cover_pages_crud import (
     delete_cover_page,
     get_cover_pages_for_user,
 )
+
+# Cover Page Templates
+from .cruds.cover_page_templates_crud import (
+    get_all_cover_page_templates,
+)
+
 from .cruds.freight_forwarders_crud import (
     add_freight_forwarder,
     get_freight_forwarder_by_id,
@@ -437,6 +443,8 @@ __all__ = [
     # from cover_pages_crud
     "add_cover_page", "get_cover_page_by_id", "get_cover_pages_for_client", "get_cover_pages_for_project",
     "update_cover_page", "delete_cover_page", "get_cover_pages_for_user",
+    # from cover_page_templates_crud
+    "get_all_cover_page_templates",
     # from freight_forwarders_crud
     "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders",
     "update_freight_forwarder", "delete_freight_forwarder",
