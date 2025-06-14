@@ -1051,6 +1051,12 @@ def initialize_database():
                     FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
                 );''')
             print("Created MediaItems table with new columns.")
+            # Refresh mi_columns as the table was just created
+            cursor.execute("PRAGMA table_info(MediaItems)")
+            updated_mi_columns_info = cursor.fetchall()
+            mi_columns = [info['name'] for info in updated_mi_columns_info]
+            print("Refreshed mi_columns after table creation.") # Optional: for logging
+
         if 'thumbnail_path' not in mi_columns :
              cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
              print("Added 'thumbnail_path' column to MediaItems table.")
