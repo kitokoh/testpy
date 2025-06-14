@@ -658,7 +658,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         title.setObjectName("pageTitleLabel")
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setIcon(QIcon(":/icons/user-plus.svg"))
+        self.add_member_btn.setIcon(QIcon(":/icons/user-add.svg"))
         self.add_member_btn.setObjectName("primaryButton")
         # Global style applies
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
