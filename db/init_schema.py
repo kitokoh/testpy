@@ -1045,12 +1045,6 @@ def initialize_database():
         cursor.execute("DROP TABLE MediaItems_old_cat_mig")
         print("MediaItems 'category' migration complete, table recreated.")
     elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
-        if 'thumbnail_path' not in mi_columns :
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
-             print("Added 'thumbnail_path' column to MediaItems table.")
-        if 'metadata_json' not in mi_columns:
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
-             print("Added 'metadata_json' column to MediaItems table.")
         if not mi_columns: # Table does not exist, create it
             cursor.execute('''
                 CREATE TABLE MediaItems (
@@ -1061,6 +1055,17 @@ def initialize_database():
                     FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
                 );''')
             print("Created MediaItems table with new columns.")
+            # Refresh mi_columns as the table was just created
+            cursor.execute("PRAGMA table_info(MediaItems)")
+            updated_mi_columns_info = cursor.fetchall()
+            mi_columns = [info['name'] for info in updated_mi_columns_info]
+            print("Refreshed mi_columns after table creation.") # Optional: for logging
+        if 'thumbnail_path' not in mi_columns :
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
+             print("Added 'thumbnail_path' column to MediaItems table.")
+        if 'metadata_json' not in mi_columns:
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
+             print("Added 'metadata_json' column to MediaItems table.")
 
     cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
