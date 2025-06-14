@@ -471,3 +471,40 @@ def delete_partner_document(document_id: str, conn: sqlite3.Connection = None) -
     except sqlite3.Error as e:
         logger.error(f"Database error deleting partner document {document_id}: {e}")
         return False
+
+__all__ = [
+    # PartnerCategories
+    "add_partner_category",
+    "get_partner_category_by_id",
+    "get_partner_category_by_name",
+    "get_all_partner_categories",
+    "update_partner_category",
+    "delete_partner_category",
+    "get_or_add_partner_category",
+    # Partners
+    "add_partner",
+    "get_partner_by_id",
+    "get_partner_by_email",
+    "get_all_partners",
+    "update_partner",
+    "delete_partner",
+    "get_partners_by_category_id", # Alias for get_all_partners with filter
+    # PartnerContacts
+    "add_partner_contact",
+    "get_partner_contact_by_id",
+    "get_contacts_for_partner",
+    "update_partner_contact",
+    "delete_partner_contact",
+    "delete_contacts_for_partner",
+    # PartnerCategoryLink
+    "link_partner_to_category",
+    "unlink_partner_from_category",
+    "get_categories_for_partner",
+    "get_partners_in_category", # This is the one needed by the import
+    # PartnerDocuments
+    "add_partner_document",
+    "get_documents_for_partner",
+    "get_partner_document_by_id",
+    "update_partner_document",
+    "delete_partner_document",
+]

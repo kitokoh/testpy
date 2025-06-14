@@ -49,3 +49,10 @@ def delete_company_personnel(personnel_id: int, conn: sqlite3.Connection = None)
     except sqlite3.Error:
         # logging.error(f"Failed to delete company personnel {personnel_id}: {e}") # Consider logging
         return False
+
+__all__ = [
+    "add_company_personnel",
+    "get_personnel_for_company",
+    "update_company_personnel",
+    "delete_company_personnel",
+]

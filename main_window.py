@@ -478,7 +478,11 @@ class DocumentManager(QMainWindow):
                     popup_html+=f"<br><b>{self.tr('Clients Actifs')}:</b><ul>"
                     for client in active_clients_in_country: js_safe_name=client['client_name'].replace("'","\\'").replace('"','\\"'); popup_html+=f"<li><a href='#' onclick='onClientClick(\"{client['client_id']}\",\"{js_safe_name}\")'>{client['client_name']}</a></li>"
                     popup_html+="</ul>"
-                popup_html+=f"<br><button onclick='onCountryFeatureClick(\"{country_name.replace("'", "\\'")}\")'>{self.tr('Ajouter Client Ici')}</button>"
+                # Refactor to simplify the f-string for the button
+                js_onclick_country_name = country_name.replace("'", "\\'") # As per original logic for JS string
+                button_text_translation = self.tr('Ajouter Client Ici')
+                button_html = f"<br><button onclick='onCountryFeatureClick(\"{js_onclick_country_name}\")'>{button_text_translation}</button>"
+                popup_html += button_html
                 feature['properties']['popup_content']=popup_html
             popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content'])); popup_layer.add_to(m)
             if data_for_map["country_name"]: folium.LayerControl().add_to(m)

@@ -46,13 +46,13 @@ def get_active_projects_count(db_session):
 # to prevent further import errors during broader testing, if known.
 # For now, only functions directly imported by document_manager_logic.py are added.
 
-# If an __all__ list is used in other CRUD files, it should be added here too.
-# For example:
-# __all__ = [
-#     "add_project",
-#     "get_project_by_id",
-#     "delete_project",
-#     "get_projects_for_client",
-#     "update_project",
-#     "get_all_projects",
-# ]
+__all__ = [
+    "add_project",
+    "get_project_by_id",
+    "delete_project",
+    "get_projects_by_client_id",
+    "update_project",
+    "get_all_projects",
+    "get_total_projects_count",
+    "get_active_projects_count",
+]

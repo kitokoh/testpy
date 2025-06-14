@@ -259,3 +259,21 @@ def get_all_sync_logs_for_account(user_google_account_id: str, conn: sqlite3.Con
     cursor.execute(sql, (user_google_account_id,))
     return [dict(row) for row in cursor.fetchall()]
 # --- End ContactSyncLog CRUD ---
+
+__all__ = [
+    "add_user_google_account",
+    "get_user_google_account_by_user_id",
+    "get_user_google_account_by_google_account_id",
+    "get_user_google_account_by_id",
+    "update_user_google_account",
+    "delete_user_google_account",
+    "get_all_user_google_accounts",
+    "add_contact_sync_log",
+    "get_contact_sync_log_by_local_contact",
+    "get_contact_sync_log_by_google_contact_id",
+    "get_contact_sync_log_by_id",
+    "update_contact_sync_log",
+    "delete_contact_sync_log",
+    "get_contacts_pending_sync",
+    "get_all_sync_logs_for_account",
+]
