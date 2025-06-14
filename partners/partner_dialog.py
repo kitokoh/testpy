@@ -6,7 +6,13 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPush
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 
-import db.crud as db_manager
+from db import (
+    get_partner_by_id, get_documents_for_partner, add_partner_document,
+    delete_partner_document, get_contacts_for_partner, get_all_partner_categories,
+    get_categories_for_partner, update_partner, add_partner,
+    update_partner_contact, add_partner_contact, delete_partner_contact,
+    link_partner_to_category, unlink_partner_from_category
+)
 import os
 import shutil
 from datetime import datetime
@@ -157,7 +163,7 @@ class PartnerDialog(QDialog):
             self.documents_table.setEnabled(False)
             return
 
-        partner = db_manager.get_partner_by_id(self.partner_id)
+        partner = get_partner_by_id(self.partner_id)
         if partner:
             self.name_input.setText(partner.get('name', ''))
             self.email_input.setText(partner.get('email', ''))
@@ -179,7 +185,7 @@ class PartnerDialog(QDialog):
             return
 
         self.documents_table.setRowCount(0) # Clear existing rows
-        documents = db_manager.get_documents_for_partner(self.partner_id)
+        documents = get_documents_for_partner(self.partner_id)
         if documents:
             for doc in documents:
                 row_position = self.documents_table.rowCount()
@@ -276,7 +282,7 @@ class PartnerDialog(QDialog):
             'description': description
         }
 
-        new_doc_id = db_manager.add_partner_document(doc_data)
+        new_doc_id = add_partner_document(doc_data)
         if new_doc_id:
             QMessageBox.information(self, "Success", "Document uploaded successfully.")
             self.load_partner_documents()
@@ -367,7 +373,7 @@ class PartnerDialog(QDialog):
                 file_deleted_ok = True # Consider it "ok" in terms of allowing DB delete
 
             if file_deleted_ok: # If file deletion was successful OR file was not found (allowing DB cleanup)
-                if db_manager.delete_partner_document(document_id_to_delete):
+                if delete_partner_document(document_id_to_delete):
                     QMessageBox.information(self, "Success", "Document deleted successfully.")
                     self.load_partner_documents()
                 else:
@@ -377,7 +383,7 @@ class PartnerDialog(QDialog):
 
     def load_contacts(self):
         if not self.partner_id: return
-        self.original_contacts = db_manager.get_contacts_for_partner(self.partner_id)
+        self.original_contacts = get_contacts_for_partner(self.partner_id)
         self.contacts_table.setRowCount(0)
         for contact in self.original_contacts:
             row_position = self.contacts_table.rowCount()
@@ -398,11 +404,11 @@ class PartnerDialog(QDialog):
 
     def load_and_set_partner_categories(self):
         self.categories_list_widget.clear()
-        all_categories = db_manager.get_all_partner_categories()
+        all_categories = get_all_partner_categories()
         linked_category_ids = set()
 
         if self.partner_id:
-            linked_categories = db_manager.get_categories_for_partner(self.partner_id)
+            linked_categories = get_categories_for_partner(self.partner_id)
             if linked_categories:
                 linked_category_ids = {cat['category_id'] for cat in linked_categories}
 
@@ -454,9 +460,9 @@ class PartnerDialog(QDialog):
 
         success = False
         if self.partner_id:
-            success = db_manager.update_partner(self.partner_id, partner_data)
+            success = update_partner(self.partner_id, partner_data)
         else:
-            new_partner_id = db_manager.add_partner(partner_data)
+            new_partner_id = add_partner(partner_data)
             if new_partner_id:
                 self.partner_id = new_partner_id
                 success = True
@@ -509,9 +515,9 @@ class PartnerDialog(QDialog):
                                       original_contact.get('phone','') != contact_details['phone'] or
                                       original_contact.get('role','') != contact_details['role'])
                         if is_changed:
-                            db_manager.update_partner_contact(contact_id, contact_details)
+                            update_partner_contact(contact_id, contact_details)
                 else: # New contact
-                    db_manager.add_partner_contact(contact_details)
+                    add_partner_contact(contact_details)
 
             # Process deletions for contacts that were in original_contacts but not in current table
             # or explicitly marked for deletion via remove_contact_row
@@ -521,7 +527,7 @@ class PartnerDialog(QDialog):
             all_ids_to_delete = ids_to_delete_from_table_absence.union(self.deleted_contact_ids)
 
             for contact_id_to_delete in all_ids_to_delete:
-                db_manager.delete_partner_contact(contact_id_to_delete)
+                delete_partner_contact(contact_id_to_delete)
 
         # Save Category Links
         if self.partner_id: # Ensure partner_id is set
@@ -532,16 +538,16 @@ class PartnerDialog(QDialog):
                 if item.checkState() == Qt.Checked:
                     selected_category_ids.add(item.data(Qt.UserRole))
 
-            current_linked_categories_list = db_manager.get_categories_for_partner(partner_id_to_use)
+            current_linked_categories_list = get_categories_for_partner(partner_id_to_use)
             current_linked_ids = {cat['category_id'] for cat in current_linked_categories_list} if current_linked_categories_list else set()
 
             categories_to_link = selected_category_ids - current_linked_ids
             for cat_id in categories_to_link:
-                db_manager.link_partner_to_category(partner_id_to_use, cat_id)
+                link_partner_to_category(partner_id_to_use, cat_id)
 
             categories_to_unlink = current_linked_ids - selected_category_ids
             for cat_id in categories_to_unlink:
-                db_manager.unlink_partner_from_category(partner_id_to_use, cat_id)
+                unlink_partner_from_category(partner_id_to_use, cat_id)
 
         QMessageBox.information(self, "Success", "Partner data saved successfully.")
         self.accept()
