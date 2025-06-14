@@ -50,6 +50,7 @@ get_all_clients = clients_crud_instance.get_all_clients
 # Ensure other methods from ClientsCRUD that projectManagement.py might use in the future
 # are also exposed similarly if they are intended to be part of the db facade.
 # For now, only get_all_clients is explicitly mentioned in projectManagement.py's import block for clients.
+
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
     add_cover_page,
