@@ -121,6 +121,7 @@ from .cruds.cover_pages_crud import (
 from .cruds.cover_page_templates_crud import (
     get_all_cover_page_templates,
     get_cover_page_template_by_id,
+
 )
 
 from .cruds.freight_forwarders_crud import (
@@ -447,6 +448,7 @@ __all__ = [
     "update_cover_page", "delete_cover_page", "get_cover_pages_for_user",
     # from cover_page_templates_crud
     "get_all_cover_page_templates", "get_cover_page_template_by_id",
+
     # from freight_forwarders_crud
     "add_freight_forwarder", "get_freight_forwarder_by_id", "get_all_freight_forwarders",
     "update_freight_forwarder", "delete_freight_forwarder",
@@ -490,6 +492,7 @@ __all__ = [
     "get_status_setting_by_name", "get_status_setting_by_id", "get_all_status_settings",
     # from tasks_crud (placeholders)
     "add_task", "get_task_by_id", "get_tasks_by_project_id", "update_task", "delete_task", "get_tasks_by_assignee_id", "get_all_tasks", "add_task_dependency", "remove_task_dependency", "get_predecessor_tasks", "get_tasks_by_project_id_ordered_by_sequence",
+
 
     # KPIs
     "add_kpi_to_project", "get_kpis_for_project", "update_kpi", "delete_kpi", "add_kpi", "get_kpi_by_id", # Added get_kpi_by_id here too
