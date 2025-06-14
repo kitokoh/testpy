@@ -149,11 +149,11 @@ class DocumentManager(QMainWindow):
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
         self.config = CONFIG
-        db_google_maps_url = db_manager.get_setting('google_maps_review_url')
-        if db_google_maps_url is not None:
-            self.config['google_maps_review_url'] = db_google_maps_url
-        elif 'google_maps_review_url' not in self.config:
-            self.config['google_maps_review_url'] = 'https://maps.google.com/?cid=YOUR_CID_HERE_FALLBACK'
+        # Use get_setting with default, falling back to config, then to a hardcoded default.
+        self.config['google_maps_review_url'] = db_manager.get_setting(
+            'google_maps_review_url',
+            default=self.config.get('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE_FALLBACK_CONFIG')
+        )
 
         self.clients_data_map = {}
         self.current_offset = 0
