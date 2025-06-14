@@ -49,7 +49,7 @@ def get_partner_category_by_id(category_id: int, conn: sqlite3.Connection = None
     return dict(row) if row else None
 
 @_manage_conn
-def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None) -> dict | None:
+def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None, **kwargs) -> dict | None:
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM PartnerCategories WHERE category_name = ?", (name,))
     row = cursor.fetchone()
