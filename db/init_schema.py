@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 import hashlib
 import sys # Ensure sys is imported for path manipulation
+import logging
 
 # Get the project root directory
 # This allows importing config.py from the root
@@ -15,7 +16,9 @@ if project_root not in sys.path:
 try:
     import config
 except ImportError:
-    print("CRITICAL: config.py not found at project root by db/init_schema.py. Using fallback configurations.")
+    # Use basic logging if config fails, as logger might not be fully configured yet.
+    logging.basicConfig(level=logging.INFO) # Basic config for this specific error
+    logging.critical("CRITICAL: config.py not found at project root by db/init_schema.py. Using fallback configurations.")
     class config_fallback:
         DATABASE_PATH = os.path.join(project_root, "app_data_fallback_init.db")
         DEFAULT_ADMIN_USERNAME = "admin_fallback_init"
@@ -55,7 +58,10 @@ def _get_or_create_category_id(cursor: sqlite3.Cursor, category_name: str, defau
             # conn.commit() # Should not commit here; part of larger transaction
             return cursor.lastrowid
     except sqlite3.Error as e:
-        print(f"Error in _get_or_create_category_id for '{category_name}': {e}")
+        # Assuming logger might not be available or configured if this helper is called outside initialize_database context
+        # For now, keep print, or pass logger instance if this function is to be used more broadly with logging.
+        # For the purpose of this refactor, initialize_database will have its own logger.
+        logging.error(f"Error in _get_or_create_category_id for '{category_name}': {e}", exc_info=True)
         return default_category_id
 
 # Cover page templates data and population function (from db/schema.py)
@@ -66,13 +72,13 @@ DEFAULT_COVER_PAGE_TEMPLATES = [
     {'template_name': 'Technical Document Cover', 'description': 'A clean and formal cover for technical documentation.', 'default_title': 'Technical Specification Document', 'default_subtitle': 'Version [VersionNumber]', 'default_author': 'Engineering Team', 'style_config_json': {'font': 'Roboto', 'primary_color': '#191970', 'secondary_color': '#cccccc'}, 'is_default_template': 1}
 ]
 
-def _populate_default_cover_page_templates(conn_passed):
-    print("Populating default cover page templates...")
+def _populate_default_cover_page_templates(conn_passed, logger): # Pass logger
+    logger.info("Populating default cover page templates...")
     for template_def in DEFAULT_COVER_PAGE_TEMPLATES:
         # Use the imported CRUD function
         existing_template = get_cover_page_template_by_name(template_def['template_name'], conn=conn_passed)
         if existing_template:
-            print(f"Default template '{template_def['template_name']}' already exists. Skipping.")
+            logger.info(f"Default template '{template_def['template_name']}' already exists. Skipping.")
         else:
             # Ensure style_config_json is passed as a JSON string if it's a dict
             template_def_for_add = template_def.copy() # Avoid modifying original dict
@@ -82,23 +88,31 @@ def _populate_default_cover_page_templates(conn_passed):
             # Use the imported CRUD function
             new_id = add_cover_page_template(template_def_for_add, conn=conn_passed)
             if new_id:
-                print(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
+                logger.info(f"Added default cover page template: '{template_def['template_name']}' with ID: {new_id}")
             else:
-                print(f"Failed to add default cover page template: '{template_def['template_name']}'")
-    print("Default cover page templates population attempt finished.")
+                logger.warning(f"Failed to add default cover page template: '{template_def['template_name']}'")
+    logger.info("Default cover page templates population attempt finished.")
 
 
 def initialize_database():
     """
     Initializes the database by creating tables if they don't already exist.
-    Combines schema from db/ca.py and db/schema.py.
+    Separates schema creation and data seeding into distinct transactions.
     """
-    # Use DATABASE_PATH from config (imported at the top)
-    conn = sqlite3.connect(config.DATABASE_PATH)
-    conn.row_factory = sqlite3.Row # Essential for accessing columns by name
-    cursor = conn.cursor()
+    logger = logging.getLogger(__name__)
+    logger.info("Initializing database...")
 
-    # Create Users table (base from ca.py)
+    conn = None  # Initialize conn to None for the finally block
+    try:
+        # Use DATABASE_PATH from config (imported at the top)
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        conn.row_factory = sqlite3.Row # Essential for accessing columns by name
+        cursor = conn.cursor()
+
+        logger.info("Starting schema creation phase.")
+        # --- Schema Creation Phase (DDL statements: CREATE, ALTER, CREATE INDEX) ---
+        # Wrap all DDL in its own try for a single schema commit
+        # Create Users table (base from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Users (
         user_id TEXT PRIMARY KEY,
@@ -205,18 +219,18 @@ def initialize_database():
         UNIQUE (status_name, status_type)
     )
     """)
-    # print("Ensured StatusSettings table exists or is created.") # Optional print
+    logger.debug("Ensured StatusSettings table exists or is created.")
 
     # Check and add icon_name for older schema migration
     cursor.execute("PRAGMA table_info(StatusSettings)")
     columns = [column['name'] for column in cursor.fetchall()]
     if 'icon_name' not in columns:
         try:
-            print("Attempting to add 'icon_name' to StatusSettings for schema migration.")
+            logger.info("Attempting to add 'icon_name' to StatusSettings for schema migration.")
             cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
-            print("Added 'icon_name' column to StatusSettings table.")
+            logger.info("Added 'icon_name' column to StatusSettings table.")
         except sqlite3.Error as e_alter_status:
-            print(f"Error adding 'icon_name' to StatusSettings (migration): {e_alter_status}")
+            logger.error(f"Error adding 'icon_name' to StatusSettings (migration): {e_alter_status}", exc_info=True)
 
     # Ensure StatusSettings table has sort_order if it already existed
     cursor.execute("PRAGMA table_info(StatusSettings)")
@@ -224,56 +238,11 @@ def initialize_database():
     if 'sort_order' not in status_settings_columns:
         try:
             cursor.execute("ALTER TABLE StatusSettings ADD COLUMN sort_order INTEGER DEFAULT 0")
-            print("DEBUG_INIT_DB: Added missing 'sort_order' column to existing StatusSettings table.")
-            # No commit here, it will be part of the main transaction commit
+            logger.info("Added missing 'sort_order' column to existing StatusSettings table.")
         except sqlite3.Error as e_alter_ss:
-            print(f"DEBUG_INIT_DB: Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}")
-            # If altering fails, this might be a critical issue.
-            # The subsequent INSERTs will likely fail if this was needed and failed.
+            logger.error(f"Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}", exc_info=True)
     else:
-        print("DEBUG_INIT_DB: 'sort_order' column already exists in StatusSettings table.")
-
-    # Pre-populate StatusSettings (full list from ca.py)
-    default_statuses = [
-        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
-        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
-        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
-        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
-        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
-        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
-        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 7},
-        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 8},
-        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
-        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
-        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
-        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 4},
-        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
-        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
-        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
-        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
-        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
-        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
-        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
-        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
-        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
-    ]
-    for status in default_statuses:
-        cursor.execute("""
-            INSERT OR REPLACE INTO StatusSettings (
-                status_name, status_type, color_hex, icon_name,
-                is_completion_status, is_archival_status, default_duration_days, sort_order
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            status['status_name'], status['status_type'], status['color_hex'],
-            status.get('icon_name'), status.get('is_completion_status', False),
-            status.get('is_archival_status', False), status.get('default_duration_days'),
-            status.get('sort_order', 0)
-        ))
+        logger.debug("'sort_order' column already exists in StatusSettings table.")
 
     # Create Clients table (base from ca.py, includes distributor_specific_info logic)
     cursor.execute("""
@@ -309,10 +278,9 @@ def initialize_database():
     if 'distributor_specific_info' not in column_names:
         try:
             cursor.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
-            print("Added 'distributor_specific_info' column to Clients table.")
-            # No commit here, part of larger transaction
+            logger.info("Added 'distributor_specific_info' column to Clients table.")
         except sqlite3.Error as e:
-            print(f"Error adding 'distributor_specific_info' column to Clients table: {e}")
+            logger.error(f"Error adding 'distributor_specific_info' column to Clients table: {e}", exc_info=True)
 
     # Ensure is_deleted and deleted_at columns exist for soft delete
     cursor.execute("PRAGMA table_info(Clients)")
@@ -322,16 +290,16 @@ def initialize_database():
     if 'is_deleted' not in clients_column_names:
         try:
             cursor.execute("ALTER TABLE Clients ADD COLUMN is_deleted INTEGER DEFAULT 0")
-            print("Added 'is_deleted' column to Clients table.")
+            logger.info("Added 'is_deleted' column to Clients table.")
         except sqlite3.Error as e_alter_is_deleted:
-            print(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}")
+            logger.error(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}", exc_info=True)
 
     if 'deleted_at' not in clients_column_names:
         try:
             cursor.execute("ALTER TABLE Clients ADD COLUMN deleted_at TEXT")
-            print("Added 'deleted_at' column to Clients table.")
+            logger.info("Added 'deleted_at' column to Clients table.")
         except sqlite3.Error as e_alter_deleted_at:
-            print(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}")
+            logger.error(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}", exc_info=True)
 
 
     # Create ClientNotes table (base from ca.py)
@@ -433,7 +401,7 @@ def initialize_database():
         UNIQUE (product_name, language_code)
     )
     """)
-    print("Ensured Products table exists or is created.")
+    logger.debug("Ensured Products table exists or is created.")
 
     # Then, handle potential alterations for existing tables from older schemas
     # (e.g., if 'weight' or 'dimensions' were added later)
@@ -446,21 +414,21 @@ def initialize_database():
     if 'weight' not in existing_column_names:
         try:
             cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
-            print("Added 'weight' column to Products table for schema migration.")
+            logger.info("Added 'weight' column to Products table for schema migration.")
             altered_products = True
         except sqlite3.Error as e_alter_weight:
-            print(f"Error adding 'weight' to Products (migration): {e_alter_weight}")
+            logger.error(f"Error adding 'weight' to Products (migration): {e_alter_weight}", exc_info=True)
 
     if 'dimensions' not in existing_column_names:
         try:
             cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
-            print("Added 'dimensions' column to Products table for schema migration.")
+            logger.info("Added 'dimensions' column to Products table for schema migration.")
             altered_products = True
         except sqlite3.Error as e_alter_dimensions:
-            print(f"Error adding 'dimensions' to Products (migration): {e_alter_dimensions}")
+            logger.error(f"Error adding 'dimensions' to Products (migration): {e_alter_dimensions}", exc_info=True)
 
     if altered_products:
-        print("Products table schema migration for weight/dimensions attempted.")
+        logger.info("Products table schema migration for weight/dimensions attempted.")
 
     # Create ProductDimensions table (from ca.py)
     cursor.execute("""
@@ -602,22 +570,39 @@ def initialize_database():
         if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
 
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
-        cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Modèles Email', 'Modèles pour les corps des emails'))
-        # No commit here, part of larger transaction
-    except sqlite3.Error as e_cat_init:
-        print(f"Error initializing TemplateCategories: {e_cat_init}")
+        # These INSERTs will be moved to the data seeding phase.
+        # The CREATE TABLE for TemplateCategories is DDL and stays here.
+        # general_category_id_for_migration will be determined during seeding if needed for migration.
+        pass # INSERTs moved to data seeding phase
+    except sqlite3.Error as e_cat_init: # This error is for CREATE TABLE, which is fine here.
+        logger.error(f"Error creating TemplateCategories table: {e_cat_init}", exc_info=True)
 
 
     # Templates table migration logic (from ca.py, seems more complete for this part)
+    # This migration involves DDL (RENAME, CREATE new, DROP old) and DML (INSERT SELECT)
+    # It should be part of the schema transaction.
     cursor.execute("PRAGMA table_info(Templates)")
     columns = [column['name'] for column in cursor.fetchall()]
     needs_migration = 'category' in columns and 'category_id' not in columns
 
     if needs_migration:
-        print("Templates table needs migration (category to category_id). Starting migration process...")
+        logger.info("Templates table needs migration (category to category_id). Starting migration process...")
         try:
+            # Determine general_category_id for migration *before* altering tables if possible,
+            # or ensure _get_or_create_category_id can run mid-transaction if it needs to create 'General'.
+            # For simplicity, assume 'General' category will be created in seeding, and _get_or_create_category_id
+            # will find it or create it if called during migration.
+            # If 'General' must exist before this, its INSERT should be here (but that makes it DDL-like).
+            # Given the refactor, _get_or_create_category_id will be called within this schema transaction.
+            # It's better if 'General' category is pre-created. Let's add its creation here for the migration to work.
+            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates for migration'))
+            cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
+            general_row = cursor.fetchone()
+            if general_row: general_category_id_for_migration = general_row['category_id']
+            else: general_category_id_for_migration = None # Should not happen if INSERT OR IGNORE worked
+
             cursor.execute("ALTER TABLE Templates RENAME TO Templates_old")
-            print("Renamed Templates to Templates_old.")
+            logger.info("Renamed Templates to Templates_old.")
             cursor.execute("""
             CREATE TABLE Templates (
                 template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
@@ -668,15 +653,14 @@ def initialize_database():
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 cursor.execute(insert_sql, new_template_values)
-            print(f"Migrated {len(old_templates)} templates to new schema.")
+            logger.info(f"Migrated {len(old_templates)} templates to new schema.")
             cursor.execute("DROP TABLE Templates_old")
-            print("Dropped Templates_old table.")
-            # No commit here, part of larger transaction
-            print("Templates table migration (category to category_id) completed successfully.")
+            logger.info("Dropped Templates_old table.")
+            logger.info("Templates table migration (category to category_id) completed successfully.")
         except sqlite3.Error as e:
-            # Rollback might be handled at the end of initialize_database
-            print(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.")
-    else:
+            logger.error(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.", exc_info=True)
+    else: # Templates table does not need category migration
+        logger.info("Templates table schema is current or does not require category_id migration.")
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS Templates (
             template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
@@ -735,10 +719,9 @@ def initialize_database():
     if 'order_identifier' not in columns_cd:
         try:
             cursor.execute("ALTER TABLE ClientDocuments ADD COLUMN order_identifier TEXT")
-            print("Added 'order_identifier' column to ClientDocuments table.")
-            # No commit here
+            logger.info("Added 'order_identifier' column to ClientDocuments table.")
         except sqlite3.Error as e:
-            print(f"Error adding 'order_identifier' column to ClientDocuments: {e}")
+            logger.error(f"Error adding 'order_identifier' column to ClientDocuments: {e}", exc_info=True)
 
     # Create ClientDocumentNotes table (from ca.py)
     cursor.execute("""
@@ -917,10 +900,9 @@ def initialize_database():
     if 'email_status' not in columns_ct:
         try:
             cursor.execute("ALTER TABLE Client_Transporters ADD COLUMN email_status TEXT DEFAULT 'Pending'")
-            print("Added 'email_status' column to Client_Transporters table.")
-            # No commit here
+            logger.info("Added 'email_status' column to Client_Transporters table.")
         except sqlite3.Error as e_ct_alter:
-            print(f"Error adding 'email_status' column to Client_Transporters: {e_ct_alter}")
+            logger.error(f"Error adding 'email_status' column to Client_Transporters: {e_ct_alter}", exc_info=True)
 
     # Create Client_FreightForwarders table (from ca.py)
     cursor.execute("""
@@ -983,6 +965,7 @@ def initialize_database():
              mi_needs_alter = True # Mark to create
 
     if 'category' in mi_columns and 'thumbnail_path' in mi_columns and 'metadata_json' in mi_columns : # Already migrated and altered
+        logger.debug("MediaItems table already migrated and has new columns or is new.")
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS MediaItems (
                 media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
@@ -992,7 +975,7 @@ def initialize_database():
                 FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
             );''')
     elif 'category' in mi_columns : # Needs category migration (and potentially alter for new columns)
-        print("Migrating 'category' from MediaItems to Tags system and ensuring new columns...")
+        logger.info("Migrating 'category' from MediaItems to Tags system and ensuring new columns...")
         # Create Tags and MediaItemTags first if they don't exist
         cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
@@ -1026,9 +1009,10 @@ def initialize_database():
             FROM MediaItems_old_cat_mig;
         ''')
         cursor.execute("DROP TABLE MediaItems_old_cat_mig")
-        print("MediaItems 'category' migration complete, table recreated.")
+        logger.info("MediaItems 'category' migration complete, table recreated.")
     elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
         if not mi_columns: # Table does not exist, create it
+            logger.info("MediaItems table does not exist. Creating with new columns.")
             cursor.execute('''
                 CREATE TABLE MediaItems (
                     media_item_id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT,
@@ -1037,19 +1021,21 @@ def initialize_database():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
                 );''')
-            print("Created MediaItems table with new columns.")
+            logger.info("Created MediaItems table with new columns.")
             # Refresh mi_columns as the table was just created
             cursor.execute("PRAGMA table_info(MediaItems)")
-            updated_mi_columns_info = cursor.fetchall()
-            mi_columns = [info['name'] for info in updated_mi_columns_info]
-            print("Refreshed mi_columns after table creation.") # Optional: for logging
+            updated_mi_columns_info = cursor.fetchall() # Use a different variable name to avoid confusion
+            mi_columns = [info['name'] for info in updated_mi_columns_info] # Update mi_columns
+            logger.debug("Refreshed mi_columns after table creation.")
 
         if 'thumbnail_path' not in mi_columns :
              cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
-             print("Added 'thumbnail_path' column to MediaItems table.")
+             logger.info("Added 'thumbnail_path' column to MediaItems table.")
         if 'metadata_json' not in mi_columns:
              cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
-             print("Added 'metadata_json' column to MediaItems table.")
+             logger.info("Added 'metadata_json' column to MediaItems table.")
+    else:
+        logger.debug("MediaItems table schema is current or does not require thumbnail/metadata columns addition (no 'category' column was present for migration trigger).")
 
     cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
@@ -1214,16 +1200,94 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
 
-    # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
+        # --- END OF DDL ---
+        conn.commit() # Commit all schema DDL (CREATE, ALTER, INDEX)
+        logger.info("Schema creation phase committed successfully.")
+
+    except sqlite3.Error as e_schema:
+        logger.error(f"Error during schema creation phase: {e_schema}", exc_info=True)
+        if conn:
+            try:
+                conn.rollback()
+                logger.info("Schema creation phase rolled back due to error.")
+            except sqlite3.Error as e_rb_schema:
+                logger.error(f"Error during schema creation rollback: {e_rb_schema}", exc_info=True)
+            try:
+                conn.close()
+                logger.info("Database connection closed due to schema error.")
+                conn = None # Ensure conn is None so finally block doesn't try to close again
+            except sqlite3.Error as e_close_schema:
+                logger.error(f"Error closing connection after schema error: {e_close_schema}", exc_info=True)
+        raise # Re-raise to signal critical failure to the caller
+
+    # --- Initial Data Seeding Phase (DML statements: INSERT, UPDATE) ---
+    # This phase occurs *after* the schema creation has been successfully committed.
     try:
-        print("DEBUG_INIT_DB: Starting data seeding phase.")
+        logger.info("Starting initial data seeding phase.")
+        cursor = conn.cursor() # Re-acquire cursor if needed, though it should still be valid from above
+
+        # Pre-populate StatusSettings (full list from ca.py)
+        logger.info("Seeding StatusSettings...")
+        default_statuses = [
+            {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+            {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+            {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+            {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+            {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
+            {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+            {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
+            {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 7},
+            {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 8},
+            {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+            {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+            {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+            {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+            {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 4},
+            {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
+            {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+            {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+            {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
+            {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+            {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
+            {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+            {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+            {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+            {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+            {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+            {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
+        ]
+        for status in default_statuses:
+            cursor.execute("""
+                INSERT OR REPLACE INTO StatusSettings (
+                    status_name, status_type, color_hex, icon_name,
+                    is_completion_status, is_archival_status, default_duration_days, sort_order
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                status['status_name'], status['status_type'], status['color_hex'],
+                status.get('icon_name'), status.get('is_completion_status', False),
+                status.get('is_archival_status', False), status.get('default_duration_days'),
+                status.get('sort_order', 0)
+            ))
+        logger.info("StatusSettings seeded.")
+
+        # Pre-populate TemplateCategories
+        logger.info("Seeding TemplateCategories...")
+        try:
+            # Note: 'General' category for migration was already inserted in schema phase if migration ran.
+            # This ensures it exists regardless, and adds others.
+            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
+            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
+            cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Modèles Email', 'Modèles pour les corps des emails'))
+            logger.info("TemplateCategories seeded.")
+        except sqlite3.Error as e_cat_seed:
+            logger.error(f"Error seeding TemplateCategories: {e_cat_seed}", exc_info=True)
+            # Decide if this is critical enough to stop all seeding
 
         # User Seeding (Admin user)
-        print("DEBUG_INIT_DB: Checking/Seeding Users...")
+        logger.info("Checking/Seeding Users...")
         cursor.execute("SELECT COUNT(*) FROM Users")
         if cursor.fetchone()['COUNT(*)'] == 0: # Use dict access due to row_factory
             admin_uid = str(uuid.uuid4())
-            # Generate salt and hash for default admin - direct SQL insertion for bootstrap
             admin_salt = os.urandom(16).hex()
             admin_password_bytes = config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')
             admin_salt_bytes = bytes.fromhex(admin_salt)
@@ -1235,33 +1299,59 @@ def initialize_database():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (admin_uid, config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
                   'Default Admin', f'{config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
-            print(f"Admin user '{config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
-            print("DEBUG_INIT_DB: Admin user potentially seeded.")
-        print("DEBUG_INIT_DB: User seeding check complete.")
+            logger.info(f"Admin user '{config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
+        else:
+            logger.info("Users table already populated. Admin user seeding skipped.")
+        logger.info("User seeding check complete.")
 
         # Application Settings Seeding
-        print("DEBUG_INIT_DB: Seeding Application Settings...")
-        # Using the imported set_setting CRUD function, passing the connection
-        set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
+        logger.info("Seeding Application Settings...")
+        set_setting('initial_data_seeded_version', '1.4_logging_transactions', conn=conn) # Pass conn
         set_setting('default_app_language', 'en', conn=conn) # Pass conn
-        print("DEBUG_INIT_DB: Application settings seeded.")
+        logger.info("Application settings seeded.")
 
         # Populate Default Cover Page Templates
-        print("DEBUG_INIT_DB: Populating Default Cover Page Templates...")
-        _populate_default_cover_page_templates(conn_passed=conn) # Uses CRUDs internally
-        print("DEBUG_INIT_DB: Default Cover Page Templates population attempt finished.")
+        logger.info("Populating Default Cover Page Templates...")
+        _populate_default_cover_page_templates(conn_passed=conn, logger=logger) # Pass logger
+        logger.info("Default Cover Page Templates population attempt finished.")
 
-        conn.commit() # Commit all schema changes and seeding
-        print("DEBUG_INIT_DB: Data seeding phase committed successfully.")
-        print("Database schema initialized and initial data seeded successfully.")
-    except Exception as e_seed:
-        print(f"DEBUG_INIT_DB: Error during data seeding: {e_seed}") # Existing error print
-        conn.rollback() # Rollback in case of error during seeding
-        print("DEBUG_INIT_DB: Rollback due to seeding error.")
+        conn.commit() # Commit all data seeding
+        logger.info("Initial data seeding phase committed successfully.")
+        logger.info("Database schema initialized and initial data seeded successfully.")
+
+    except sqlite3.Error as e_seed:
+        logger.error(f"Error during initial data seeding phase: {e_seed}", exc_info=True)
+        if conn:
+            try:
+                conn.rollback()
+                logger.info("Initial data seeding phase rolled back due to SQLite error.")
+            except sqlite3.Error as e_rb_seed:
+                logger.error(f"Error during seeding rollback: {e_rb_seed}", exc_info=True)
+    except Exception as e_other_seed:
+        logger.error(f"Non-SQLite error during initial data seeding phase: {e_other_seed}", exc_info=True)
+        if conn: # conn might be None if connect itself failed earlier, though less likely here
+            try:
+                conn.rollback()
+                logger.info("Initial data seeding phase rolled back due to non-SQLite error.")
+            except sqlite3.Error as e_rb_other:
+                logger.error(f"Error during seeding rollback (non-SQLite error): {e_rb_other}", exc_info=True)
     finally:
-        conn.close()
+        if conn: # Ensure conn exists and wasn't closed by schema error handling
+            try:
+                conn.close()
+                logger.info("Database connection closed.")
+            except sqlite3.Error as e_close_final:
+                logger.error(f"Error closing connection in finally block: {e_close_final}", exc_info=True)
+        logger.info("Database initialization finished.")
 
 if __name__ == '__main__':
-    print(f"Running init_schema.py directly. Using database path: {config.DATABASE_PATH}")
-    initialize_database()
-    print("Schema initialization complete (called from init_schema.py __main__).")
+    # Basic logging configuration for direct script execution
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+    # Get a logger for the __main__ scope
+    main_logger = logging.getLogger(__name__)
+    main_logger.info(f"Running init_schema.py directly. Using database path: {config.DATABASE_PATH}")
+    try:
+        initialize_database()
+        main_logger.info("Schema initialization complete (called from init_schema.py __main__).")
+    except Exception as e_main:
+        main_logger.critical(f"Critical error during __main__ execution of init_schema: {e_main}", exc_info=True)

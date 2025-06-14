@@ -240,7 +240,7 @@ class DocumentManager(QMainWindow):
         self.page_info_label = QLabel(self.tr("Page 1")); pagination_layout.addWidget(self.prev_page_button); pagination_layout.addWidget(self.page_info_label); pagination_layout.addWidget(self.next_page_button)
         left_pane_layout.addLayout(pagination_layout)
         
-        self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client")); self.add_new_client_button.setIcon(QIcon(":/icons/modern/user-add.svg")); self.add_new_client_button.setObjectName("primaryButton"); self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog); left_pane_layout.addWidget(self.add_new_client_button)
+        self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client")); self.add_new_client_button.setIcon(QIcon(":/icons/user-add.svg")); self.add_new_client_button.setObjectName("primaryButton"); self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog); left_pane_layout.addWidget(self.add_new_client_button)
         map_group_box = QGroupBox(self.tr("Carte des Présences Client")); map_layout = QVBoxLayout(map_group_box); map_layout.addWidget(self.map_view_integrated); map_group_box.setMinimumHeight(200); left_pane_layout.addWidget(map_group_box, 1)
         left_pane_widget.setLayout(left_pane_layout); main_splitter.addWidget(left_pane_widget)
         right_pane_splitter = QSplitter(Qt.Vertical)
