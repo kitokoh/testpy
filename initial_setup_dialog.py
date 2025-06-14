@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QCoreApplication
 from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QFormLayout
 
 # Assuming db_manager.py is in the same directory or Python path
 import db as db_manager
@@ -213,6 +214,7 @@ class PromptCompanyInfoDialog(QDialog):
         )
         instruction_label.setWordWrap(True)
         layout.addWidget(instruction_label)
+        from PyQt5.QtWidgets import QFormLayout
 
         form_layout = QFormLayout()
         self.company_name_edit = QLineEdit()

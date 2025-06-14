@@ -3,6 +3,7 @@ from .cruds.status_settings_crud import (
     get_all_status_settings,
     get_status_setting_by_name,
 )
+from .cruds.application_settings_crud import get_setting, set_setting
 from .cruds.projects_crud import (
     get_all_projects,
     get_project_by_id,
@@ -125,6 +126,8 @@ from .cruds.partners_crud import (
 from .init_schema import initialize_database
 
 __all__ = [
+    "get_setting",
+    "set_setting",
     "get_status_setting_by_id",
     "get_all_status_settings",
     "get_status_setting_by_name",
