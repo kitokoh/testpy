@@ -123,6 +123,7 @@ from .cruds.partners_crud import (
     update_partner_category,
     get_partner_category_by_id, # Added
 )
+from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
 __all__ = [
@@ -230,4 +231,6 @@ __all__ = [
     "update_partner_category",
     "get_partner_category_by_id", # Added
     "initialize_database",
+    "get_setting",
+    "set_setting",
 ]
