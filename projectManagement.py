@@ -37,7 +37,7 @@ from db import (
     get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member,
     get_all_clients,
     get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id,
-    get_all_cover_page_templates, get_cover_page_template_by_id,
+    get_all_file_based_templates, get_cover_page_template_by_id,
     get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone,
     initialize_database
 )
@@ -4999,7 +4999,7 @@ class CoverPageEditorDialog(QDialog):
 
     def populate_templates_combo(self):
         self.cp_template_combo.addItem("None (Custom)", None)
-        templates_list = get_all_cover_page_templates() # Use direct import
+        templates_list = get_all_file_based_templates() # Use direct import
         if templates_list:
             for tpl in templates_list: # Iterate over fetched list
                 self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])
