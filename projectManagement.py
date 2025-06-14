@@ -219,7 +219,10 @@ class NotificationManager:
         # Auto-hide after 7 seconds
         QTimer.singleShot(7000, self.notification_banner.hide)
         print(f"Showing custom notification: {title} - {message}") # For debugging
-
+    def check_notification(self, title, message):
+        """Check if a notification with the same title and message already exists."""
+        # This is a simple check; you might want to implement a more robust system
+        return self.notification_banner.message_label.text() == f"<b>{title}</b><br>{message}"
 
 class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def __init__(self, parent=None, current_user=None): # Added current_user parameter
@@ -3119,7 +3122,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # This method should set up the cover page management UI
         # For now, we will just print a message to console
         print("Setting up cover page management UI")    
-        
+
 class ProductionOrderDetailDialog(QDialog):
     def __init__(self, project_id, parent=None):
         super().__init__(parent)
