@@ -182,25 +182,6 @@ def initialize_database():
     )
     """)
 
-    # Ensure created_at and updated_at columns exist in Countries
-    cursor.execute("PRAGMA table_info(Countries)")
-    countries_columns_info = cursor.fetchall()
-    countries_column_names = [info['name'] for info in countries_columns_info]
-    if 'created_at' not in countries_column_names:
-        try:
-            cursor.execute("ALTER TABLE Countries ADD COLUMN created_at TIMESTAMP")
-
-            print("Added 'created_at' column to Countries table.")
-        except sqlite3.Error as e_alter:
-            print(f"Error adding 'created_at' to Countries: {e_alter}")
-    if 'updated_at' not in countries_column_names:
-        try:
-            cursor.execute("ALTER TABLE Countries ADD COLUMN updated_at TIMESTAMP")
-
-            print("Added 'updated_at' column to Countries table.")
-        except sqlite3.Error as e_alter:
-            print(f"Error adding 'updated_at' to Countries: {e_alter}")
-
     # Create Cities table (base from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Cities (
@@ -213,38 +194,7 @@ def initialize_database():
     )
     """)
 
-    # Ensure created_at and updated_at columns exist in Cities
-    cursor.execute("PRAGMA table_info(Cities)")
-    cities_columns_info = cursor.fetchall()
-    cities_column_names = [info['name'] for info in cities_columns_info]
-    if 'created_at' not in cities_column_names:
-        try:
-            cursor.execute("ALTER TABLE Cities ADD COLUMN created_at TIMESTAMP")
-
-            print("Added 'created_at' column to Cities table.")
-        except sqlite3.Error as e_alter:
-            print(f"Error adding 'created_at' to Cities: {e_alter}")
-    if 'updated_at' not in cities_column_names:
-        try:
-            cursor.execute("ALTER TABLE Cities ADD COLUMN updated_at TIMESTAMP")
-
-            print("Added 'updated_at' column to Cities table.")
-        except sqlite3.Error as e_alter:
-            print(f"Error adding 'updated_at' to Cities: {e_alter}")
-
-    # StatusSettings Table (logic from ca.py to add icon_name if missing)
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='StatusSettings'")
-    table_exists = cursor.fetchone()
-    if table_exists:
-        cursor.execute("PRAGMA table_info(StatusSettings)")
-        columns = [column['name'] for column in cursor.fetchall()]
-        if 'icon_name' not in columns:
-            print("StatusSettings table exists but icon_name column is missing. Adding it now.")
-            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
-            # No commit here, part of larger transaction
-    else:
-        print("StatusSettings table does not exist. It will be created.")
-
+    # Ensure StatusSettings table is created (idempotent)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS StatusSettings (
         status_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -258,6 +208,18 @@ def initialize_database():
         UNIQUE (status_name, status_type)
     )
     """)
+    # print("Ensured StatusSettings table exists or is created.") # Optional print
+
+    # Check and add icon_name for older schema migration
+    cursor.execute("PRAGMA table_info(StatusSettings)")
+    columns = [column['name'] for column in cursor.fetchall()]
+    if 'icon_name' not in columns:
+        try:
+            print("Attempting to add 'icon_name' to StatusSettings for schema migration.")
+            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN icon_name TEXT")
+            print("Added 'icon_name' column to StatusSettings table.")
+        except sqlite3.Error as e_alter_status:
+            print(f"Error adding 'icon_name' to StatusSettings (migration): {e_alter_status}")
 
     # Pre-populate StatusSettings (full list from ca.py)
     default_statuses = [
@@ -428,39 +390,17 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS ClientContacts (
         client_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id TEXT NOT NULL,
-        contact_id TEXT NOT NULL, -- Changed from INTEGER in some versions, keep TEXT if Contacts.contact_id is TEXT
+        contact_id INTEGER NOT NULL, -- Standardized to INTEGER to match Contacts.contact_id
         is_primary_for_client BOOLEAN DEFAULT FALSE,
         can_receive_documents BOOLEAN DEFAULT TRUE,
         FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
-        FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE, -- Assuming contact_id is INTEGER in Contacts
+        FOREIGN KEY (contact_id) REFERENCES Contacts (contact_id) ON DELETE CASCADE,
         UNIQUE (client_id, contact_id)
     )
     """)
-    # Note: Contacts.contact_id is INTEGER AUTOINCREMENT, so ClientContacts.contact_id should be INTEGER.
-    # The schema from ca.py for Contacts has INTEGER. The ClientContacts table in ca.py has contact_id TEXT. This is a mismatch.
-    # Standardizing to INTEGER for contact_id in ClientContacts.
-    # Re-creating ClientContacts with contact_id as INTEGER if it was TEXT.
-    # This is complex to do safely if data exists. For init, we define it correctly.
-    # For now, I will use the TEXT version from ca.py and note this potential issue.
+    # Note: Contacts.contact_id is INTEGER AUTOINCREMENT. ClientContacts.contact_id is now defined as INTEGER to match.
 
-    # Create Products table (logic from ca.py to add weight/dimensions if missing)
-    try:
-        cursor.execute("PRAGMA table_info(Products)")
-        columns_info = cursor.fetchall()
-        existing_column_names = {info['name'] for info in columns_info}
-        altered = False
-        if 'weight' not in existing_column_names:
-            cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
-            altered = True
-        if 'dimensions' not in existing_column_names:
-            cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
-            altered = True
-        if altered:
-            print("Added 'weight' and/or 'dimensions' to Products table.")
-            # No commit here
-    except sqlite3.Error: # Products table might not exist yet
-        pass
-
+    # Create Products table first
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -475,11 +415,39 @@ def initialize_database():
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
-        deleted_at TEXT, -- Added for soft delete
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
         UNIQUE (product_name, language_code)
     )
     """)
+    print("Ensured Products table exists or is created.")
+
+    # Then, handle potential alterations for existing tables from older schemas
+    # (e.g., if 'weight' or 'dimensions' were added later)
+    # This logic is now for schema migration, not initial creation of these columns if table is new
+    cursor.execute("PRAGMA table_info(Products)")
+    columns_info = cursor.fetchall()
+    existing_column_names = {info['name'] for info in columns_info}
+    altered_products = False
+
+    if 'weight' not in existing_column_names:
+        try:
+            cursor.execute("ALTER TABLE Products ADD COLUMN weight REAL")
+            print("Added 'weight' column to Products table for schema migration.")
+            altered_products = True
+        except sqlite3.Error as e_alter_weight:
+            print(f"Error adding 'weight' to Products (migration): {e_alter_weight}")
+
+    if 'dimensions' not in existing_column_names:
+        try:
+            cursor.execute("ALTER TABLE Products ADD COLUMN dimensions TEXT")
+            print("Added 'dimensions' column to Products table for schema migration.")
+            altered_products = True
+        except sqlite3.Error as e_alter_dimensions:
+            print(f"Error adding 'dimensions' to Products (migration): {e_alter_dimensions}")
+
+    if altered_products:
+        print("Products table schema migration for weight/dimensions attempted.")
 
     # Create ProductDimensions table (from ca.py)
     cursor.execute("""
@@ -1034,7 +1002,9 @@ def initialize_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
             );''')
-        # Copy data, explicitly selecting columns that exist in old and new, handling new ones
+        # Copy data, explicitly selecting columns that exist in old and new, handling new ones.
+        # The CASE WHEN EXISTS checks ensure that we only try to copy thumbnail_path and metadata_json
+        # if they actually existed in the MediaItems_old_cat_mig table, preventing errors if migrating from a very old schema.
         cursor.execute('''
             INSERT INTO MediaItems (media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at, thumbnail_path, metadata_json)
             SELECT media_item_id, title, description, item_type, filepath, url, uploader_user_id, created_at, updated_at,
@@ -1045,12 +1015,6 @@ def initialize_database():
         cursor.execute("DROP TABLE MediaItems_old_cat_mig")
         print("MediaItems 'category' migration complete, table recreated.")
     elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
-        if 'thumbnail_path' not in mi_columns :
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
-             print("Added 'thumbnail_path' column to MediaItems table.")
-        if 'metadata_json' not in mi_columns:
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
-             print("Added 'metadata_json' column to MediaItems table.")
         if not mi_columns: # Table does not exist, create it
             cursor.execute('''
                 CREATE TABLE MediaItems (
@@ -1061,6 +1025,17 @@ def initialize_database():
                     FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
                 );''')
             print("Created MediaItems table with new columns.")
+            # Refresh mi_columns as the table was just created
+            cursor.execute("PRAGMA table_info(MediaItems)")
+            updated_mi_columns_info = cursor.fetchall()
+            mi_columns = [info['name'] for info in updated_mi_columns_info]
+            print("Refreshed mi_columns after table creation.") # Optional: for logging
+        if 'thumbnail_path' not in mi_columns :
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
+             print("Added 'thumbnail_path' column to MediaItems table.")
+        if 'metadata_json' not in mi_columns:
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
+             print("Added 'metadata_json' column to MediaItems table.")
 
     cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
