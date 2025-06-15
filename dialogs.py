@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import io
+from PyQt5.QtWidgets import QScrollArea
+from PyQt5.QtCore import QDir
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QFormLayout,
