@@ -20,9 +20,9 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
 import db # Added import for db module
 from db.db_seed import run_seed
-from db.cruds.companies_crud import get_all_companies, add_company # Specific imports for company check
+from db import get_all_companies, add_company # Specific imports for company check
 # from db.cruds.application_settings_crud import get_setting # Removed direct import
-from db.init_schema import initialize_database # This will be db.initialize_database after this change
+# from db.init_schema import initialize_database # This will be db.initialize_database after this change
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
