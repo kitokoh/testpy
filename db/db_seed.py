@@ -152,6 +152,33 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         else:
             logger.warning("Admin user ID not available, cannot seed admin team member.")
 
+        # Seed Default Operational User
+        DEFAULT_OPERATIONAL_USERNAME = "default_operational_user"
+        DEFAULT_OPERATIONAL_USER_ROLE = "User" # Assuming 'User' is a valid, less-privileged role
+
+        logger.info(f"Checking for default operational user '{DEFAULT_OPERATIONAL_USERNAME}'...")
+        existing_operational_user = users_crud_instance.get_user_by_username(DEFAULT_OPERATIONAL_USERNAME, conn=conn)
+
+        if existing_operational_user is None:
+            logger.info(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' not found. Creating...")
+            operational_user_data = {
+                'username': DEFAULT_OPERATIONAL_USERNAME,
+                'password': uuid.uuid4().hex, # Secure random password
+                'email': f"{DEFAULT_OPERATIONAL_USERNAME}@example.local", # Unique placeholder email
+                'role': DEFAULT_OPERATIONAL_USER_ROLE,
+                'full_name': "Default Operational User",
+                'is_active': True
+            }
+            try:
+                op_user_result = users_crud_instance.add_user(operational_user_data, conn=conn)
+                if op_user_result['success']:
+                    logger.info(f"Successfully created default operational user '{DEFAULT_OPERATIONAL_USERNAME}' with ID: {op_user_result['user_id']}.")
+                else:
+                    logger.error(f"Failed to create default operational user '{DEFAULT_OPERATIONAL_USERNAME}'. Error: {op_user_result.get('error', 'Unknown error')}")
+            except Exception as e_op_user:
+                logger.error(f"Exception during creation of default operational user '{DEFAULT_OPERATIONAL_USERNAME}': {e_op_user}", exc_info=True)
+        else:
+            logger.info(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' already exists with ID: {existing_operational_user['user_id']}. Skipping creation.")
 
         # 5. Countries
         logger.info("Seeding default countries...")
