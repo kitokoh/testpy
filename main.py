@@ -29,6 +29,8 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (alrea
 # import db as db_manager # For db initialization - already imported above, now using 'import db'
 from main_window import DocumentManager # The main application window
 from notifications import NotificationManager # Added for notifications
+from db.cruds.users_crud import users_crud_instance # Added for default operational user
+from PyQt5.QtWidgets import QMessageBox # Added for error dialog
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
@@ -397,11 +399,31 @@ def main():
                 sys.exit(1)
             proceed_to_main_app = True # Mark to proceed
         else:
-            logging.info("Login failed or cancelled by user. Exiting application.")
-            sys.exit()
+            logging.warning("Login dialog was not accepted (failed, cancelled, or closed). Attempting to use default operational user.")
+            DEFAULT_OPERATIONAL_USERNAME = "default_operational_user"
+            try:
+                # Assuming users_crud_instance does not require explicit connection management here
+                # or it handles it internally for read-only operations like get_user_by_username.
+                # If main.py initializes a global DB connection that CRUD instances can use, that's also fine.
+                default_user = users_crud_instance.get_user_by_username(DEFAULT_OPERATIONAL_USERNAME)
+                if default_user:
+                    CURRENT_USER_ID = default_user.get('user_id')
+                    CURRENT_USER_ROLE = default_user.get('role')
+                    SESSION_START_TIME = datetime.datetime.now()
+                    CURRENT_SESSION_TOKEN = "default_user_session_token" # Placeholder token
+                    logging.info(f"Proceeding with default operational user: {DEFAULT_OPERATIONAL_USERNAME} (ID: {CURRENT_USER_ID}, Role: {CURRENT_USER_ROLE})")
+                    proceed_to_main_app = True
+                else:
+                    logging.critical(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' not found in the database.")
+                    QMessageBox.critical(None, "Critical Error", f"Default operational user profile ('{DEFAULT_OPERATIONAL_USERNAME}') not found. Application cannot start. Please contact support or run database seeding.")
+                    sys.exit(1)
+            except Exception as e_default_user:
+                logging.critical(f"An error occurred while trying to fetch the default operational user '{DEFAULT_OPERATIONAL_USERNAME}': {e_default_user}", exc_info=True)
+                QMessageBox.critical(None, "Critical Database Error", f"An error occurred while accessing user data. Application cannot start. Check logs for details.")
+                sys.exit(1)
 
     if proceed_to_main_app:
-        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID)
 
         # Setup Notification Manager
         # Ensure 'app' is the QApplication instance, available in this scope
@@ -438,7 +460,7 @@ def main():
         # 11. Create and Show Main Window (only after successful login)
         # DocumentManager is imported from main_window
         # APP_ROOT_DIR is imported from app_setup
-        main_window = DocumentManager(APP_ROOT_DIR) # Pass user_id and role if needed by DocumentManager
+        main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID) # Pass user_id and role if needed by DocumentManager
         main_window.show()
         logging.info("Main window shown. Application is running.")
 
