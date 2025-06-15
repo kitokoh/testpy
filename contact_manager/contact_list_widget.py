@@ -109,45 +109,120 @@ class ContactListWidget(QWidget):
         self.contacts_table.setRowCount(0) # Clear existing rows
 
         # --- Placeholder Data ---
-        # This section will be replaced with actual data fetching logic.
+        # --- Actual Data Fetching ---
 
-        # Example 1: Dummy Platform Client Contact
-        row_position = self.contacts_table.rowCount()
-        self.contacts_table.insertRow(row_position)
-        self.contacts_table.setItem(row_position, 0, QTableWidgetItem("John Doe (Client)"))
-        self.contacts_table.setItem(row_position, 1, QTableWidgetItem("john.doe@exampleclient.com"))
-        self.contacts_table.setItem(row_position, 2, QTableWidgetItem("123-456-7890"))
-        self.contacts_table.setItem(row_position, 3, QTableWidgetItem("Platform (Client)"))
-        self.contacts_table.setItem(row_position, 4, QTableWidgetItem("Doe Corp"))
-        self.contacts_table.setItem(row_position, 5, QTableWidgetItem("CEO"))
-        self.contacts_table.setItem(row_position, 6, QTableWidgetItem("Synced"))
-        # Store raw data in a user role for later retrieval
-        self.contacts_table.item(row_position, 0).setData(Qt.UserRole, {"id": "client_1", "type": "client_contact", "source": "platform"})
+        # 1. Fetch Client Contacts
+        try:
+            clients = db_manager.clients_crud.get_all_clients()
+            if clients:
+                for client in clients:
+                    client_id = client.get('client_id')
+                    client_company_name = client.get('company_name', client.get('client_name', 'N/A'))
+                    # get_contacts_for_client is expected to return full contact details from Contacts table
+                    client_contacts = db_manager.contacts_crud.get_contacts_for_client(client_id)
+                    for contact in client_contacts:
+                        row_position = self.contacts_table.rowCount()
+                        self.contacts_table.insertRow(row_position)
+                        name_item = QTableWidgetItem(contact.get('displayName', contact.get('name', 'N/A')))
+                        item_data = {
+                            'id': contact.get('contact_id'),
+                            'type': 'client_contact',
+                            'source': 'platform',
+                            'client_id': client_id,
+                            'link_id': contact.get('client_contact_id'), # ID from ClientContacts table
+                            'full_data': contact # Store the whole dict for details view
+                        }
+                        name_item.setData(Qt.UserRole, item_data)
+                        self.contacts_table.setItem(row_position, 0, name_item)
+                        self.contacts_table.setItem(row_position, 1, QTableWidgetItem(contact.get('email', '')))
+                        self.contacts_table.setItem(row_position, 2, QTableWidgetItem(contact.get('phone', '')))
+                        self.contacts_table.setItem(row_position, 3, QTableWidgetItem("Platform (Client)"))
+                        self.contacts_table.setItem(row_position, 4, QTableWidgetItem(client_company_name))
+                        self.contacts_table.setItem(row_position, 5, QTableWidgetItem(contact.get('position', '')))
+                        self.contacts_table.setItem(row_position, 6, QTableWidgetItem(contact.get('sync_status', 'N/A'))) # Placeholder
+        except Exception as e:
+            print(f"Error loading client contacts: {e}")
+            # Optionally add an error row to the table or show a message
 
-        # Example 2: Dummy Google-Originated Contact (not yet linked)
-        row_position = self.contacts_table.rowCount()
-        self.contacts_table.insertRow(row_position)
-        self.contacts_table.setItem(row_position, 0, QTableWidgetItem("Jane Smith (Google)"))
-        self.contacts_table.setItem(row_position, 1, QTableWidgetItem("jane.smith@gmail.com"))
-        self.contacts_table.setItem(row_position, 2, QTableWidgetItem("987-654-3210"))
-        self.contacts_table.setItem(row_position, 3, QTableWidgetItem("Google"))
-        self.contacts_table.setItem(row_position, 4, QTableWidgetItem("Smith Innovations"))
-        self.contacts_table.setItem(row_position, 5, QTableWidgetItem("Lead Developer"))
-        self.contacts_table.setItem(row_position, 6, QTableWidgetItem("Pending Link"))
-        self.contacts_table.item(row_position, 0).setData(Qt.UserRole, {"google_contact_id": "people/c_google123", "type": "google_contact", "source": "google"})
+        # 2. Fetch Partner Contacts
+        try:
+            partners = db_manager.partners_crud.get_all_partners()
+            if partners:
+                for partner in partners:
+                    partner_id = partner.get('partner_id')
+                    partner_name = partner.get('partner_name', 'N/A')
+                    # get_contacts_for_partner returns contacts from Contacts table joined with PartnerContacts
+                    partner_contacts_list = db_manager.partners_crud.get_contacts_for_partner(partner_id)
+                    for contact in partner_contacts_list:
+                        row_position = self.contacts_table.rowCount()
+                        self.contacts_table.insertRow(row_position)
+                        name_item = QTableWidgetItem(contact.get('displayName', contact.get('name', 'N/A')))
+                        item_data = {
+                            'id': contact.get('contact_id'),
+                            'type': 'partner_contact',
+                            'source': 'platform',
+                            'partner_id': partner_id,
+                            'link_id': contact.get('partner_contact_id'), # ID from PartnerContacts table
+                            'full_data': contact
+                        }
+                        name_item.setData(Qt.UserRole, item_data)
+                        self.contacts_table.setItem(row_position, 0, name_item)
+                        self.contacts_table.setItem(row_position, 1, QTableWidgetItem(contact.get('email', '')))
+                        self.contacts_table.setItem(row_position, 2, QTableWidgetItem(contact.get('phone', '')))
+                        self.contacts_table.setItem(row_position, 3, QTableWidgetItem("Platform (Partner)"))
+                        self.contacts_table.setItem(row_position, 4, QTableWidgetItem(partner_name))
+                        self.contacts_table.setItem(row_position, 5, QTableWidgetItem(contact.get('position', '')))
+                        self.contacts_table.setItem(row_position, 6, QTableWidgetItem(contact.get('sync_status', 'N/A'))) # Placeholder
+        except Exception as e:
+            print(f"Error loading partner contacts: {e}")
 
-        # Actual fetching logic would involve:
-        # 1. db_manager.get_all_contacts() (for client contacts from Contacts table)
-        #    - Need to join with ClientContacts and Clients for full info.
-        # 2. db_manager.get_all_partner_contacts() (if such a function exists, or iterate partners then contacts)
-        # 3. db_manager.get_all_company_personnel() (if exists)
-        # 4. Iterate through db_manager.get_all_sync_logs_for_user(current_user_id)
-        #    - If local_contact_id is null/placeholder, it's a Google-originated contact.
-        #    - If local_contact_id is present, it's a platform contact that's also on Google.
-        #    - Get sync status and etags from the log.
-        #
-        # Populate table rows with QTableWidgetItems. Store identifiers and source type
-        # in item data (e.g., item.setData(Qt.UserRole, {'id': contact_id, 'type': 'client'})).
+        # 3. Fetch Company Personnel Contacts
+        try:
+            # Assuming get_all_company_personnel exists or is handled by iterating companies
+            # For now, let's assume direct get_all_company_personnel or simulate it.
+            all_personnel = []
+            companies = db_manager.companies_crud.get_all_companies() # Requires companies_crud access
+            if companies:
+                for company_detail in companies:
+                    company_id = company_detail.get('company_id')
+                    personnel_in_company = db_manager.company_personnel_crud.get_personnel_for_company(company_id)
+                    for p in personnel_in_company:
+                        p['company_name_for_contact_list'] = company_detail.get('company_name', 'N/A') # Add company name for display
+                        all_personnel.append(p)
+
+            if all_personnel:
+                for personnel_member in all_personnel:
+                    personnel_id = personnel_member.get('personnel_id')
+                    personnel_company_name = personnel_member.get('company_name_for_contact_list', 'N/A')
+                    # get_contacts_for_personnel returns contacts from Contacts table joined with CompanyPersonnelContacts
+                    personnel_contacts_list = db_manager.company_personnel_crud.get_contacts_for_personnel(personnel_id)
+                    for contact in personnel_contacts_list:
+                        row_position = self.contacts_table.rowCount()
+                        self.contacts_table.insertRow(row_position)
+                        name_item = QTableWidgetItem(contact.get('displayName', contact.get('name', 'N/A')))
+                        item_data = {
+                            'id': contact.get('contact_id'),
+                            'type': 'personnel_contact',
+                            'source': 'platform',
+                            'personnel_id': personnel_id,
+                            'company_id': personnel_member.get('company_id'),
+                            'link_id': contact.get('company_personnel_contact_id'), # ID from CompanyPersonnelContacts
+                            'full_data': contact
+                        }
+                        name_item.setData(Qt.UserRole, item_data)
+                        self.contacts_table.setItem(row_position, 0, name_item)
+                        self.contacts_table.setItem(row_position, 1, QTableWidgetItem(contact.get('email', '')))
+                        self.contacts_table.setItem(row_position, 2, QTableWidgetItem(contact.get('phone', '')))
+                        self.contacts_table.setItem(row_position, 3, QTableWidgetItem("Platform (Personnel)"))
+                        self.contacts_table.setItem(row_position, 4, QTableWidgetItem(personnel_company_name))
+                        self.contacts_table.setItem(row_position, 5, QTableWidgetItem(contact.get('position', '')))
+                        self.contacts_table.setItem(row_position, 6, QTableWidgetItem(contact.get('sync_status', 'N/A'))) # Placeholder
+        except Exception as e:
+            print(f"Error loading company personnel contacts: {e}")
+
+        # 4. TODO: Load Google Contacts (maintain existing logic if any, or integrate from sync logs)
+        # This part would query ContactSyncLog and potentially Google People API via sync_service
+        # For now, this is a placeholder comment based on the original file's comments.
 
         self.contacts_table.resizeColumnsToContents()
         self.filter_contacts() # Apply initial filters if any
@@ -155,30 +230,40 @@ class ContactListWidget(QWidget):
     def filter_contacts(self):
         """
         Filters the contacts displayed in the table based on search input and type filter.
-        This is a basic string matching filter. More sophisticated filtering might be needed.
         """
-        print("Placeholder: Filtering contacts...")
         search_term = self.search_input.text().lower()
         selected_type_filter = self.type_filter_combo.currentText()
 
         for row in range(self.contacts_table.rowCount()):
             row_is_visible = True
+            item = self.contacts_table.item(row, 0)
+            if not item: continue # Should not happen if table is populated correctly
 
-            # Type filter
-            item_data = self.contacts_table.item(row, 0).data(Qt.UserRole) if self.contacts_table.item(row, 0) else {}
-            contact_source_type = item_data.get("type", "").lower() # e.g., "client_contact", "google_contact"
+            item_data = item.data(Qt.UserRole)
+            if not item_data: # Should ideally not happen
+                self.contacts_table.setRowHidden(row, False) # Show if no data to filter on
+                continue
 
-            if selected_type_filter == "Client Contacts" and "client" not in contact_source_type:
-                row_is_visible = False
-            elif selected_type_filter == "Partner Contacts" and "partner" not in contact_source_type:
-                row_is_visible = False
-            elif selected_type_filter == "Company Personnel" and "personnel" not in contact_source_type: # Assuming "personnel" in type
-                row_is_visible = False
-            elif selected_type_filter == "Google Synced Only" and "google" not in contact_source_type and item_data.get("source") != "google":
-                 # This logic needs refinement: "Google Synced Only" could mean "exists in ContactSyncLog"
-                 # or "originated from Google". For now, using item_data.get("source") == "google"
-                row_is_visible = False
+            contact_actual_type = item_data.get("type", "").lower() # e.g., "client_contact", "partner_contact", "personnel_contact", "google_contact"
+            contact_source_field = item_data.get("source", "").lower() # 'platform' or 'google'
 
+            # Type Filter Logic
+            if selected_type_filter == "All":
+                pass # No type filtering
+            elif selected_type_filter == "Client Contacts":
+                if contact_actual_type != "client_contact":
+                    row_is_visible = False
+            elif selected_type_filter == "Partner Contacts":
+                if contact_actual_type != "partner_contact":
+                    row_is_visible = False
+            elif selected_type_filter == "Company Personnel":
+                if contact_actual_type != "personnel_contact":
+                    row_is_visible = False
+            elif selected_type_filter == "Google Synced Only":
+                # This means it's either a pure Google contact OR a platform contact that has a google_contact_id
+                # A more robust check might involve querying ContactSyncLog, but for UI filter:
+                if not item_data.get("google_contact_id") and contact_source_field != "google":
+                    row_is_visible = False
 
             # Search term filter (if type filter hasn't hidden it already)
             if row_is_visible and search_term:
@@ -222,54 +307,59 @@ class ContactListWidget(QWidget):
 
         print(f"Selected contact info: {self.current_selected_contact_info}")
 
-        contact_type = self.current_selected_contact_info.get("type")
-        contact_source = self.current_selected_contact_info.get("source") # 'platform' or 'google'
+        contact_actual_type = self.current_selected_contact_info.get("type", "")
+        contact_source_field = self.current_selected_contact_info.get("source", "") # 'platform' or 'google'
 
-        # View/Edit Details: Always enabled if a contact is selected, behavior depends on type.
+        # View/Edit Details: Always enabled if a contact is selected
         self.view_details_button.setEnabled(True)
 
-        # Assign Role: Enabled if it's a Google-originated contact not yet fully linked to a platform role.
-        if contact_source == "google" and contact_type == "google_contact": # i.e. not yet a platform entity
-            # More specific check: if it's in ContactSyncLog but local_contact_id is placeholder
+        # Assign Role: Enabled if it's a Google-originated contact not yet fully linked/identified as a platform entity.
+        # A simple check is if its type is 'google_contact' (meaning it's primarily known by its Google ID).
+        if contact_actual_type == "google_contact":
             self.assign_role_button.setEnabled(True)
         else:
             self.assign_role_button.setEnabled(False)
 
-        # Manual Sync: Enabled if contact has a Google presence (i.e., in ContactSyncLog or is a Google contact).
-        # And if sync_service is available.
-        if (contact_source == "google" or self.current_selected_contact_info.get("google_contact_id") or
-           (contact_source == "platform" and self.current_selected_contact_info.get("id"))): # Platform contacts can be synced
-            # Check if sync_service is available (placeholder for now)
-            # self.manual_sync_button.setEnabled(sync_service is not None)
-            self.manual_sync_button.setEnabled(True) # Placeholder: always true if selectable
-        else:
-            self.manual_sync_button.setEnabled(False)
+        # Manual Sync: Enabled if contact has a Google presence or is a platform contact.
+        # (Essentially, any contact that could potentially be part of a sync operation).
+        # A more refined logic would check if sync is actually enabled/configured for the user.
+        self.manual_sync_button.setEnabled(True) # Simplistic: enable if any contact is selected
 
 
     def handle_view_details(self):
         """
         Handles the "View/Edit Details" button click.
         Opens an appropriate dialog based on the selected contact's type.
+        For this subtask, it will show an informational QMessageBox.
         """
         if not self.current_selected_contact_info:
             QMessageBox.warning(self, "No Selection", "Please select a contact to view details.")
             return
 
-        contact_id = self.current_selected_contact_info.get("id") # Platform ID
-        google_contact_id = self.current_selected_contact_info.get("google_contact_id")
-        contact_type = self.current_selected_contact_info.get("type")
+        data = self.current_selected_contact_info
+        contact_type = data.get("type", "N/A")
+        contact_id = data.get("id", "N/A") # Central Contact ID
+        link_id = data.get("link_id", "N/A") # ID from the link table (ClientContacts, PartnerContacts, etc.)
+        source = data.get("source", "N/A")
 
-        print(f"Placeholder: View details clicked for contact type '{contact_type}', ID: '{contact_id}', Google ID: '{google_contact_id}'")
+        info_str = f"Type: {contact_type.title().replace('_', ' ')}\nSource: {source.title()}\nCentral Contact ID: {contact_id}\nLink ID: {link_id}\n\n"
 
-        # Placeholder: Logic to open different dialogs
-        if contact_type == "client_contact" and contact_id:
-            # Example: Open ClientContactDialog(contact_id)
-            QMessageBox.information(self, "View Details", f"Would open details for Platform Client Contact ID: {contact_id}")
-        elif contact_type == "google_contact" and google_contact_id:
-            # Example: Open a dialog showing Google contact details, possibly allowing linking
-            QMessageBox.information(self, "View Details", f"Would open details for Google Contact ID: {google_contact_id}")
-        else:
-            QMessageBox.information(self, "View Details", f"Viewing details for: {self.current_selected_contact_info}")
+        if contact_type == "client_contact":
+            info_str += f"Client ID: {data.get('client_id', 'N/A')}\n"
+        elif contact_type == "partner_contact":
+            info_str += f"Partner ID: {data.get('partner_id', 'N/A')}\n"
+        elif contact_type == "personnel_contact":
+            info_str += f"Personnel ID: {data.get('personnel_id', 'N/A')}\nCompany ID: {data.get('company_id', 'N/A')}\n"
+        elif contact_type == "google_contact":
+            info_str += f"Google Contact ID: {data.get('google_contact_id', 'N/A')}\n"
+
+        info_str += f"\nFull Data: {data.get('full_data', {})}"
+
+        QMessageBox.information(self, "Contact Details", info_str)
+        # In a full implementation, this would open the respective edit dialogs:
+        # if contact_type == "client_contact": # Open Client's contact editor
+        # elif contact_type == "partner_contact": # Open Partner's contact editor (EditPartnerContactDialog)
+        # elif contact_type == "personnel_contact": # Open Personnel's contact editor (EditPersonnelContactDialog)
 
 
     def handle_assign_role(self):
