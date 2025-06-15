@@ -6,41 +6,27 @@ from PyQt5.QtWidgets import (
     QGroupBox, QFormLayout, QTableWidget, QHeaderView, QTabWidget, QProgressBar,
     QTableWidgetItem
 )
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QWebChannel
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QSplitter, QHBoxLayout)
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
-import os
-import logging
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QSplitter, QHBoxLayout,
-    QGroupBox, QFormLayout, QTableWidget, QHeaderView, QTabWidget, QProgressBar,
-    QTableWidgetItem # Added QTableWidgetItem
-)
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QWebChannel
-from PyQt5.QtGui import QIcon # Added QIconfrom PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtWebChannel import QWebChannel
 
 import folium
 import pandas as pd
 
 # from db.cruds.clients_crud import clients_crud_instance # Not directly used if kpis_crud is sufficient
-from db.cruds.kpis_crud import (
+from db.cruds import (
     get_total_clients_count, get_active_clients_count_from_kpis,
     get_total_projects_count_from_kpis, get_active_projects_count_from_kpis,
     get_total_products_count_from_kpis, get_client_segmentation_by_city_from_kpis,
     get_client_segmentation_by_status_from_kpis, get_client_segmentation_by_category_from_kpis,
     get_client_counts_by_country_from_kpis
 )
-# statistics_panel import will be removed once UI is fully ported
-# from statistics_panel import CollapsibleStatisticsWidget
-from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.kpis_crud import get_total_clients_count, get_active_clients_count_from_kpis, get_total_projects_count_from_kpis, get_active_projects_count_from_kpis, get_total_products_count_from_kpis, get_client_segmentation_by_city_from_kpis, get_client_segmentation_by_status_from_kpis, get_client_segmentation_by_category_from_kpis, get_client_counts_by_country_from_kpis
 
 from app_setup import APP_ROOT_DIR
 
 
 class MapInteractionHandler(QObject): # Remains as it's used for the new interactive map
-
     country_clicked_signal = pyqtSignal(str)
     client_clicked_on_map_signal = pyqtSignal(str, str)
 
@@ -49,7 +35,6 @@ class MapInteractionHandler(QObject): # Remains as it's used for the new interac
 
     @pyqtSlot(str)
     def countryClicked(self, country_name):
-
         self.country_clicked_signal.emit(country_name)
 
     @pyqtSlot(str, str)
@@ -63,9 +48,9 @@ class StatisticsDashboard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Tableau de Bord Statistiques Interactif"))
-
+        
         main_layout = QVBoxLayout(self)
-
+        
         # Global Refresh Button
         self.global_refresh_button = QPushButton(self.tr("Rafraîchir Tout le Tableau de Bord"))
         self.global_refresh_button.setIcon(QIcon.fromTheme("view-refresh", QIcon(":/icons/refresh-cw.svg")))
@@ -74,7 +59,7 @@ class StatisticsDashboard(QWidget):
 
         # Main horizontal splitter
         main_splitter = QSplitter(Qt.Horizontal, self)
-
+        
         # Left widget for Map
         self.left_widget_for_map = QWidget()
         left_map_layout = QVBoxLayout(self.left_widget_for_map)
@@ -83,7 +68,7 @@ class StatisticsDashboard(QWidget):
         left_map_layout.addWidget(self.map_view)
         self.left_widget_for_map.setLayout(left_map_layout)
         main_splitter.addWidget(self.left_widget_for_map)
-
+        
         # Right widget for Stats
         self.right_widget_for_stats = QWidget()
         right_stats_layout = QVBoxLayout(self.right_widget_for_stats)
@@ -91,7 +76,7 @@ class StatisticsDashboard(QWidget):
         # self._setup_stats_display_ui(right_stats_layout) # This will be called later
         self.right_widget_for_stats.setLayout(right_stats_layout)
         main_splitter.addWidget(self.right_widget_for_stats)
-
+        
         main_splitter.setSizes([int(self.width() * 0.6), int(self.width() * 0.4)]) # Initial sizing
         main_layout.addWidget(main_splitter)
         self.setLayout(main_layout)
@@ -100,15 +85,15 @@ class StatisticsDashboard(QWidget):
         self.map_interaction_handler = MapInteractionHandler(self)
         self.map_interaction_handler.country_clicked_signal.connect(self._on_map_country_clicked)
         self.map_interaction_handler.client_clicked_on_map_signal.connect(self._on_map_client_clicked)
-
+        
         web_channel = QWebChannel(self.map_view.page())
         self.map_view.page().setWebChannel(web_channel)
         web_channel.registerObject("pyMapConnector", self.map_interaction_handler)
 
         # Placeholder for ported stats UI setup and initial data load
         self._setup_stats_display_ui(right_stats_layout) # Now call it
-        self.refresh_all_dashboard_content()
-
+        self.refresh_all_dashboard_content() 
+        
         logging.info("StatisticsDashboard initialized with new interactive structure.")
 
     @pyqtSlot(str)
@@ -145,7 +130,7 @@ class StatisticsDashboard(QWidget):
         # layout_to_populate.addLayout(refresh_button_layout)
 
         title_label = QLabel(self.tr("Statistiques Détaillées"))
-        title_label.setObjectName("statisticsTitleLabel")
+        title_label.setObjectName("statisticsTitleLabel") 
         title_label.setAlignment(Qt.AlignCenter)
         layout_to_populate.addWidget(title_label)
 
@@ -196,15 +181,15 @@ class StatisticsDashboard(QWidget):
         try:
             # Fetch data for choropleth
             clients_by_country_counts = get_client_counts_by_country_from_kpis() # Using KPI version
-
+            
             data_for_map = {"country_name": [], "client_count": []}
             if clients_by_country_counts:
                 for entry in clients_by_country_counts:
                     data_for_map["country_name"].append(entry["country_name"])
                     data_for_map["client_count"].append(entry["client_count"])
-
+            
             geojson_path = os.path.join(APP_ROOT_DIR, "assets", "world_countries.geojson")
-
+            
             if not os.path.exists(geojson_path):
                 logging.error(f"GeoJSON file not found at: {geojson_path}")
                 m = folium.Map(location=[20,0], zoom_start=2)
@@ -213,7 +198,7 @@ class StatisticsDashboard(QWidget):
                 return
 
             m = folium.Map(location=[20, 0], zoom_start=2, tiles="cartodb positron")
-
+            
             if data_for_map["country_name"] and data_for_map["client_count"]:
                 df = pd.DataFrame(data_for_map)
                 folium.Choropleth(
@@ -228,7 +213,7 @@ class StatisticsDashboard(QWidget):
             # For StatisticsDashboard, we might just use the same get_client_counts_by_country data
             # or fetch more detailed client data if we want to plot individual clients (can be slow).
             # For now, the popups will focus on country interaction.
-
+            
             # Interactive popups for countries
             popup_layer = folium.GeoJson(
                 geojson_path,
@@ -236,23 +221,23 @@ class StatisticsDashboard(QWidget):
                 style_function=lambda x: {'fillColor':'transparent', 'color':'transparent', 'weight':0},
                 tooltip=None # Disable default tooltip for this layer if choropleth provides enough
             )
-
+            
             js_script_content = ""
             for feature in popup_layer.data.get('features', []):
                 country_name = feature.get('properties', {}).get('name', 'N/A')
                 if country_name == 'N/A': continue
 
                 country_client_count = next((item['client_count'] for item in clients_by_country_counts if item['country_name'] == country_name), 0)
-
+                
                 # HTML for the popup
                 popup_html = f"<b>{country_name}</b><br>"
                 popup_html += f"{self.tr('Clients (Total)')}: {country_client_count}<br>"
-
+                
                 # Add client button (JS call to pyMapConnector)
                 js_safe_country_name = country_name.replace("'", "\\'")
                 button_text = self.tr('Ajouter Client Ici')
                 popup_html += f"<button onclick='pyMapConnector.countryClicked(\"{js_safe_country_name}\")'>{button_text}</button><br>"
-
+                
                 # If you want to list some clients (example, adapt as needed)
                 # active_clients_in_country = clients_crud_instance.get_clients_by_filters({'country_name': country_name, 'is_deleted': False}, limit=5) # Example
                 # if active_clients_in_country:
@@ -261,21 +246,21 @@ class StatisticsDashboard(QWidget):
                 #         js_safe_client_name = client['client_name'].replace("'", "\\'").replace('"', '\\"')
                 #         popup_html += f"<li><a href='#' onclick='pyMapConnector.clientClickedOnMap(\"{client['client_id']}\", \"{js_safe_client_name}\")'>{client['client_name']}</a></li>"
                 #     popup_html += "</ul>"
-
+                
                 feature['properties']['popup_content'] = popup_html
 
             popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content']))
             popup_layer.add_to(m)
-
+            
             if data_for_map["country_name"]: # Only add LayerControl if there's data
                 folium.LayerControl().add_to(m)
-
+            
             # The JavaScript for pyMapConnector to exist.
             # Note: folium's get_root().render() wraps the map in an IFrame.
             # Direct JS injection like this might be tricky if the context is wrong.
             # QWebChannel works by injecting objects into the page's main window.
             # The onclick handlers in popups should correctly call `window.pyMapConnector.method()`.
-
+            
             # No explicit JS script needed here as pyMapConnector is registered with QWebChannel.
             # The onclick attributes in the HTML popups will use this.
 
@@ -374,89 +359,7 @@ class StatisticsDashboard(QWidget):
         self._populate_table("city", get_client_segmentation_by_city_from_kpis, ["country_name", "city_name", "client_count"])
         self._populate_table("status", get_client_segmentation_by_status_from_kpis, ["status_name", "client_count"])
         self._populate_table("category", get_client_segmentation_by_category_from_kpis, ["category", "client_count"])
-
+        
     # --- End of Ported Methods ---
         # The old update_statistics_map method (which was the display-only map) is now removed.
         # self.update_map() is the current method for the interactive map.
-
-
-
-    def update_statistics_map(self): # This is the old display-only map, will be replaced by update_map
-        logging.warning("update_statistics_map called - this should be replaced by update_map for interactive map.")
-        # Fallback or ensure it's not called if update_map is the primary one.
-        # For now, let it call the new interactive map function.
-        self.update_map()
-
-
-            data_for_map = {"country_name": [], "client_count": []}
-            if clients_by_country_counts:
-                for entry in clients_by_country_counts:
-                    data_for_map["country_name"].append(entry["country_name"])
-                    data_for_map["client_count"].append(entry["client_count"])
-
-            geojson_path = os.path.join(APP_ROOT_DIR, "assets", "world_countries.geojson")
-
-            if not os.path.exists(geojson_path):
-                logging.error(f"GeoJSON file not found at: {geojson_path}")
-                # Display a simple map with an error message or just a blank map
-                m = folium.Map(location=[20,0], zoom_start=2)
-                folium.Marker([0,0], popup="Error: GeoJSON file for map not found.").add_to(m)
-                self.map_view.setHtml(m.get_root().render())
-                return
-
-            m = folium.Map(location=[20, 0], zoom_start=2, tiles="cartodb positron")
-
-            if data_for_map["country_name"] and data_for_map["client_count"]: # Check if there's data to plot
-                df = pd.DataFrame(data_for_map)
-
-                folium.Choropleth(
-                    geo_data=geojson_path,
-                    name="choropleth",
-                    data=df,
-                    columns=["country_name", "client_count"],
-                    key_on="feature.properties.name", # Make sure this matches your GeoJSON properties
-                    fill_color="YlGnBu",
-                    fill_opacity=0.7,
-                    line_opacity=0.2,
-                    legend_name=self.tr("Nombre de Clients par Pays"),
-                    highlight=True, # Enable highlighting of features on mouseover
-                ).add_to(m)
-
-                # Add tooltips to show country name and client count
-                style_function = lambda x: {'fillColor': '#ffffff',
-                                            'color':'#000000',
-                                            'fillOpacity': 0.1,
-                                            'weight': 0.1}
-                highlight_function = lambda x: {'fillColor': '#000000',
-                                                'color':'#000000',
-                                                'fillOpacity': 0.50,
-                                                'weight': 0.1}
-
-                tooltip_layer = folium.features.GeoJson(
-                    geojson_path,
-                    style_function=style_function,
-                    control=False,
-                    highlight_function=highlight_function,
-                    tooltip=folium.features.GeoJsonTooltip(
-                        fields=['name'], # Assuming 'name' is the property for country name in GeoJSON
-                        aliases=['Pays:'],
-                        style=("background-color: white; color: #333333; font-family: arial; font-size: 12px; padding: 10px;")
-                    )
-                )
-                m.add_child(tooltip_layer)
-                m.keep_in_front(tooltip_layer)
-                folium.LayerControl().add_to(m)
-
-            else:
-                logging.info("No client data by country to display on the map or GeoJSON is missing name property.")
-                # Add a simple marker or message if no data
-                folium.Marker([0,0], popup=self.tr("Aucune donnée client par pays disponible pour la carte.")).add_to(m)
-
-            self.map_view.setHtml(m.get_root().render())
-            logging.info("Statistics map updated successfully.")
-        except Exception as e:
-            logging.error(f"Error updating statistics map: {e}", exc_info=True)
-            # Display a simple map with an error message
-            error_map = folium.Map(location=[0,0], zoom_start=1)
-            folium.Marker([0,0], popup=f"Error generating map: {e}").add_to(error_map)
-            self.map_view.setHtml(error_map.get_root().render())
