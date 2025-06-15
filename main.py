@@ -43,6 +43,14 @@ SESSION_START_TIME = None
 # Initialize from CONFIG, providing a default if key is missing
 SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
+# --- DEVELOPMENT/TESTING FLAG ---
+# Set to True to bypass the login screen for faster testing.
+# WARNING: This will log in as the default admin user with super_admin privileges
+# and should ONLY be used for development/testing purposes.
+# Ensure this is set to False for production or normal use.
+BYPASS_LOGIN_FOR_TESTING = True
+# --- End Development/Testing: Bypass Login Flag ---
+
 # Old database initialization block removed as it's now called directly in main()
 
 def expire_session():
@@ -344,39 +352,66 @@ def main():
         except Exception as e:
             logging.critical(f"Error during company check on a subsequent launch: {e}. Application may not function correctly.", exc_info=True)
 
+    proceed_to_main_app = False # Initialize before bypass and remember me
+
+    # --- Development/Testing: Bypass Login ---
+    if BYPASS_LOGIN_FOR_TESTING:
+        logging.warning("Login screen is being bypassed due to BYPASS_LOGIN_FOR_TESTING flag.")
+        try:
+            # Ensure db operations can be performed to get admin user
+            from db.cruds.users_crud import users_crud_instance
+            # from auth.roles import SUPER_ADMIN # Make sure SUPER_ADMIN is imported if not already (it is)
+
+            admin_user = users_crud_instance.get_user_by_username("admin") # Assuming "admin" is the default admin username
+            if admin_user:
+                CURRENT_USER_ID = admin_user['user_id']
+                CURRENT_USER_ROLE = SUPER_ADMIN # Assign super_admin role
+                CURRENT_SESSION_TOKEN = "BYPASS_TOKEN_ADMIN_SUPER"
+                SESSION_START_TIME = datetime.datetime.now()
+                proceed_to_main_app = True # This sets it to True if bypass is successful
+                logging.info(f"Bypassed login. Logged in as default admin: {admin_user['username']} (ID: {CURRENT_USER_ID}), Role: {CURRENT_USER_ROLE}")
+            else:
+                logging.error("BYPASS_LOGIN_FOR_TESTING: Could not find default admin user 'admin'. Login cannot be bypassed.")
+                # proceed_to_main_app will remain False, forcing normal login
+        except Exception as e_bypass:
+            logging.error(f"BYPASS_LOGIN_FOR_TESTING: Error during login bypass: {e_bypass}", exc_info=True)
+            # proceed_to_main_app will remain False, normal login flow will occur.
+    # --- End Development/Testing: Bypass Login ---
+
     # 10. Authentication Flow
     settings = QSettings()
-    remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
-    proceed_to_main_app = False
 
-    if remember_me_active:
-        logging.info("Found active 'Remember Me' flag.")
-        stored_token = settings.value("auth/session_token", None)
-        stored_user_id = settings.value("auth/user_id", None)
-        stored_username = settings.value("auth/username", "Unknown") # Default for logging
-        stored_user_role = settings.value("auth/user_role", None)
+    # Now check "Remember Me" ONLY if bypass did not occur
+    if not proceed_to_main_app:
+        remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+        if remember_me_active:
+            logging.info("Found active 'Remember Me' flag.")
+            stored_token = settings.value("auth/session_token", None)
+            stored_user_id = settings.value("auth/user_id", None)
+            stored_username = settings.value("auth/username", "Unknown") # Default for logging
+            stored_user_role = settings.value("auth/user_role", None)
 
-        if stored_token and stored_user_id and stored_user_role:
-            logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
+            if stored_token and stored_user_id and stored_user_role:
+                logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
 
-            global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME
-            CURRENT_SESSION_TOKEN = stored_token
-            CURRENT_USER_ID = stored_user_id
-            CURRENT_USER_ROLE = stored_user_role
-            SESSION_START_TIME = datetime.datetime.now() # Reset session timer
+                # global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME # Already global
+                CURRENT_SESSION_TOKEN = stored_token
+                CURRENT_USER_ID = stored_user_id
+                CURRENT_USER_ROLE = stored_user_role
+                SESSION_START_TIME = datetime.datetime.now() # Reset session timer
 
-            logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
-            logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
-            proceed_to_main_app = True
+                logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
+                logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
+                proceed_to_main_app = True
+            else:
+                logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
+                settings.setValue("auth/remember_me_active", False)
+                settings.remove("auth/session_token")
+                settings.remove("auth/user_id")
+                settings.remove("auth/username")
+                settings.remove("auth/user_role")
         else:
-            logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
-            settings.setValue("auth/remember_me_active", False)
-            settings.remove("auth/session_token")
-            settings.remove("auth/user_id")
-            settings.remove("auth/username")
-            settings.remove("auth/user_role")
-    else:
-        logging.info("'Remember Me' is not active.")
+            logging.info("'Remember Me' is not active.")
 
     if not proceed_to_main_app:
         logging.info("Proceeding to show LoginWindow.")

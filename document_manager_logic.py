@@ -205,7 +205,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                                message=doc_manager.tr("Client créé, mais échec de la création du projet associé."),
                                type='WARNING')
 
-        client_dict_from_db = get_client_by_id(actual_new_client_id)
+        client_dict_from_db = clients_crud_instance.get_client_by_id(actual_new_client_id)
         ui_map_data = None
         if client_dict_from_db:
             country_obj = get_country_by_id(client_dict_from_db.get('country_id')) if client_dict_from_db.get('country_id') else None
@@ -359,7 +359,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue lors de la création du client ou des éléments associés."), type='ERROR')
         if new_project_id_central_db and get_project_by_id(new_project_id_central_db): # Check if project was created
             delete_project(new_project_id_central_db) # Attempt to rollback project
-        if actual_new_client_id and get_client_by_id(actual_new_client_id): # Check if client was created
+        if actual_new_client_id and clients_crud_instance.get_client_by_id(actual_new_client_id): # Check if client was created
              delete_client(actual_new_client_id) # Attempt to rollback client
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
              doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Client et projet associé annulés suite à une erreur grave."), type='INFO')

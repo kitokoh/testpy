@@ -19,9 +19,11 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 # from PyQt5.QtWebChannel import QWebChannel # QWebChannel removed as DocumentManager no longer uses its own map.
 
+
 import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.products_crud import products_crud_instance
+
 import icons_rc
 # import folium # No longer used directly by DocumentManager for its own map
 # from statistics_module import MapInteractionHandler # DocumentManager no longer has its own map handler instance
@@ -101,7 +103,7 @@ class SettingsDialog(OriginalSettingsDialog):
     def load_transporters_table(self):
         self.transporters_table.setRowCount(0); self.transporters_table.setSortingEnabled(False)
         try:
-            for r, t in enumerate(db_manager.get_all_transporters() or []):
+            for r, t in enumerate(get_all_transporters() or []):
                 self.transporters_table.insertRow(r)
                 id_item = QTableWidgetItem(t.get('transporter_id')); self.transporters_table.setItem(r,0,id_item)
                 name_item = QTableWidgetItem(t.get('name')); name_item.setData(Qt.UserRole, t.get('transporter_id')); self.transporters_table.setItem(r,1,name_item)
@@ -123,7 +125,7 @@ class SettingsDialog(OriginalSettingsDialog):
     def load_forwarders_table(self):
         self.forwarders_table.setRowCount(0); self.forwarders_table.setSortingEnabled(False)
         try:
-            for r,f in enumerate(db_manager.get_all_freight_forwarders() or []):
+            for r,f in enumerate(get_all_freight_forwarders() or []):
                 self.forwarders_table.insertRow(r)
                 id_item=QTableWidgetItem(f.get('forwarder_id')); self.forwarders_table.setItem(r,0,id_item)
                 name_item=QTableWidgetItem(f.get('name')); name_item.setData(Qt.UserRole,f.get('forwarder_id')); self.forwarders_table.setItem(r,1,name_item)

@@ -30,6 +30,7 @@ from app_setup import APP_ROOT_DIR
 
 
 class MapInteractionHandler(QObject): # Remains as it's used for the new interactive map
+
     country_clicked_signal = pyqtSignal(str)
     client_clicked_on_map_signal = pyqtSignal(str, str)
 
@@ -38,6 +39,7 @@ class MapInteractionHandler(QObject): # Remains as it's used for the new interac
 
     @pyqtSlot(str)
     def countryClicked(self, country_name):
+
         self.country_clicked_signal.emit(country_name)
 
     @pyqtSlot(str, str)
@@ -185,6 +187,7 @@ class StatisticsDashboard(QWidget):
             # Fetch data for choropleth
             clients_by_country_counts = get_client_counts_by_country()
 
+
             data_for_map = {"country_name": [], "client_count": []}
             if clients_by_country_counts:
                 for entry in clients_by_country_counts:
@@ -291,6 +294,7 @@ class StatisticsDashboard(QWidget):
             self.stats_labels["active_projects"].setText(str(active_projects))
 
             total_products = get_total_products_count()
+
             self.stats_labels["total_products"].setText(str(total_products))
         except Exception as e:
             logging.error(f"Error updating global stats: {e}", exc_info=True)
@@ -301,6 +305,7 @@ class StatisticsDashboard(QWidget):
         try:
             total_clients_count = get_total_clients_count()
             active_clients_count = get_active_clients_count()
+
 
             if total_clients_count > 0:
                 health_score = (active_clients_count / total_clients_count) * 100
