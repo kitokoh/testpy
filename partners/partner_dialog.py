@@ -414,7 +414,7 @@ class PartnerDialog(QDialog):
 
         if all_categories:
             for category in all_categories:
-                item = QListWidgetItem(category['name'])
+                item = QListWidgetItem(category['category_name'])
                 item.setData(Qt.UserRole, category['category_id'])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 if category['category_id'] in linked_category_ids:
