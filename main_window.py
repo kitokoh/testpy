@@ -142,9 +142,10 @@ class SettingsDialog(OriginalSettingsDialog):
     def update_forwarder_button_states(self): en=bool(self.forwarders_table.selectedItems()); self.edit_forwarder_btn.setEnabled(en); self.delete_forwarder_btn.setEnabled(en)
 
 class DocumentManager(QMainWindow):
-    def __init__(self, app_root_dir):
+    def __init__(self, app_root_dir, current_user_id):
         super().__init__()
         self.app_root_dir = app_root_dir
+        self.current_user_id = current_user_id
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
@@ -265,15 +266,17 @@ class DocumentManager(QMainWindow):
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self); self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
         self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product List"), self); self.product_list_action.triggered.connect(self.open_product_list_placeholder)
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self); self.partner_management_action.triggered.connect(self.show_partner_management_view)
+        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
 
     def create_menus_main(self): 
         menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addAction(self.product_equivalency_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
-        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action)
+        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
     def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
+    def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
     def execute_create_client_slot(self, client_data_dict=None):
