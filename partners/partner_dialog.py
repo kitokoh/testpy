@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPush
                              QMessageBox, QDialogButtonBox, QGroupBox, QTableWidget,
                              QTableWidgetItem, QHBoxLayout, QTextEdit, QListWidget, QListWidgetItem,
                              QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QInputDialog, QWidget) # Added QTabWidget and other necessary widgets
+import logging # Added for logging
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 
@@ -414,6 +415,7 @@ class PartnerDialog(QDialog):
 
         if all_categories:
             for category in all_categories:
+
                 item = QListWidgetItem(category['category_name'])
                 item.setData(Qt.UserRole, category['category_id'])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)

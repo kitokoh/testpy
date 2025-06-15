@@ -1,7 +1,7 @@
 # partners/partner_main_widget.py
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QTableWidget,
                              QLineEdit, QHBoxLayout, QTableWidgetItem, QHeaderView,
-                             QAbstractItemView, QMessageBox, QApplication, QComboBox) # Added QComboBox
+                             QAbstractItemView, QMessageBox, QApplication, QComboBox, QDialog)
 from PyQt5.QtCore import Qt
 from db import get_all_partner_categories, get_all_partners, get_partners_in_category, get_categories_for_partner, get_partner_by_id
 from .partner_dialog import PartnerDialog
