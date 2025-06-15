@@ -21,7 +21,7 @@ from db.cruds.products_crud import products_crud_instance
 from db.cruds.template_categories_crud import add_template_category
 from db.cruds.cover_page_templates_crud import get_cover_page_template_by_name, add_cover_page_template
 # get_user_by_username will be called via users_crud_instance if needed for seeding logic outside Users table itself
-from db.cruds.locations_crud import add_country, get_country_by_name, add_city, get_city_by_name_and_country_id
+from db.cruds.locations_crud import get_or_add_country, get_or_add_city, get_country_by_name, get_city_by_name_and_country_id
 from db.cruds.status_settings_crud import get_status_setting_by_name
 from db.cruds import partners_crud
 # Assuming company and company personnel functions will be imported if they were used via db_main_manager
@@ -186,7 +186,7 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
         ]
         for country_data in default_countries:
-            add_country(country_data) # Use imported function
+            get_or_add_country(country_data['country_name']) # Use imported function
         logger.info(f"Seeded {len(default_countries)} countries.")
 
 
@@ -199,7 +199,7 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             country_row_dict = get_country_by_name(country_name) # Use imported function
             if country_row_dict:
                 country_id = country_row_dict['country_id']
-                add_city({'country_id': country_id, 'city_name': city_name}) # Use imported function
+                get_or_add_city(city_name, country_id) # Use imported function
         logger.info(f"Seeded {len(default_cities_map)} cities.")
 
         # 7. Clients

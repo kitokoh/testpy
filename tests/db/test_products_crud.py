@@ -182,11 +182,11 @@ class TestProductsCRUD(unittest.TestCase):
         self.assertEqual(updated_prod['base_unit_price'], new_price)
 
     # --- ProductDimensions Tests ---
-    def test_add_or_update_product_dimension(self):
+    def test_add_product_dimension(self):
         product_id = self._add_product_get_id(self.product_data1)
         dim_data = {'dim_A': 10, 'dim_B': 20, 'technical_image_path': 'path/to/image.png'}
 
-        # Add
+        # Using add_or_update_product_dimension for adding initially
         res_add = self.products_crud.add_or_update_product_dimension(product_id, dim_data, conn=self.conn)
         self.assertTrue(res_add['success'])
         self.assertEqual(res_add['operation'], 'inserted')
@@ -194,32 +194,110 @@ class TestProductsCRUD(unittest.TestCase):
         db_dim = self.products_crud.get_product_dimension(product_id, conn=self.conn)
         self.assertIsNotNone(db_dim)
         self.assertEqual(db_dim['dim_A'], 10)
+        self.assertEqual(db_dim['technical_image_path'], 'path/to/image.png')
 
-        # Update
-        dim_data_update = {'dim_A': 12, 'dim_C': 30}
-        res_update = self.products_crud.add_or_update_product_dimension(product_id, dim_data_update, conn=self.conn)
+    def test_get_product_dimension(self):
+        product_id = self._add_product_get_id(self.product_data1)
+        dim_data = {'dim_A': 15, 'dim_G': 70}
+        self.products_crud.add_or_update_product_dimension(product_id, dim_data, conn=self.conn)
+
+        retrieved_dim = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertIsNotNone(retrieved_dim)
+        self.assertEqual(retrieved_dim['dim_A'], 15)
+        self.assertEqual(retrieved_dim['dim_G'], 70)
+        self.assertIsNone(retrieved_dim.get('dim_B')) # Check un-set dimension
+
+    def test_update_product_dimension(self):
+        product_id = self._add_product_get_id(self.product_data1)
+        initial_dim_data = {'dim_A': 5, 'dim_B': 10}
+        self.products_crud.add_or_update_product_dimension(product_id, initial_dim_data, conn=self.conn)
+
+        update_dim_data = {'dim_A': 7, 'technical_image_path': 'new/path.jpg'}
+        # Using add_or_update_product_dimension for updating
+        res_update = self.products_crud.add_or_update_product_dimension(product_id, update_dim_data, conn=self.conn)
         self.assertTrue(res_update['success'])
         self.assertEqual(res_update['operation'], 'updated')
 
-        db_dim_updated = self.products_crud.get_product_dimension(product_id, conn=self.conn)
-        self.assertEqual(db_dim_updated['dim_A'], 12)
-        self.assertEqual(db_dim_updated['dim_B'], 20) # Should persist
-        self.assertEqual(db_dim_updated['dim_C'], 30)
+        updated_db_dim = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertEqual(updated_db_dim['dim_A'], 7) # Updated
+        self.assertEqual(updated_db_dim['dim_B'], 10) # Original should persist
+        self.assertEqual(updated_db_dim['technical_image_path'], 'new/path.jpg') # Newly added
 
-    def test_get_product_dimension_for_soft_deleted_product(self):
+    def test_add_or_update_product_dimension_new_and_update(self): # Renamed from task, as it's the same as add then update
+        product_id = self._add_product_get_id(self.product_data1)
+        dim_data_add = {'dim_A': 10, 'technical_image_path': 'path/to/image.png'}
+
+        # Add
+        res_add = self.products_crud.add_or_update_product_dimension(product_id, dim_data_add, conn=self.conn)
+        self.assertTrue(res_add['success'])
+        self.assertEqual(res_add['operation'], 'inserted')
+        db_dim_after_add = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertEqual(db_dim_after_add['dim_A'], 10)
+
+        # Update
+        dim_data_update = {'dim_A': 12, 'dim_J': 100}
+        res_update = self.products_crud.add_or_update_product_dimension(product_id, dim_data_update, conn=self.conn)
+        self.assertTrue(res_update['success'])
+        self.assertEqual(res_update['operation'], 'updated')
+        db_dim_after_update = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertEqual(db_dim_after_update['dim_A'], 12)
+        self.assertEqual(db_dim_after_update['dim_J'], 100)
+        self.assertEqual(db_dim_after_update['technical_image_path'], 'path/to/image.png') # Persisted
+
+    def test_get_product_dimension_non_existent(self):
+        # Non-existent product ID
+        retrieved_dim = self.products_crud.get_product_dimension(999, conn=self.conn)
+        self.assertIsNone(retrieved_dim)
+
+        # Product exists, but no dimensions
+        product_id = self._add_product_get_id(self.product_data1)
+        retrieved_dim_no_dims = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertIsNone(retrieved_dim_no_dims)
+
+    def test_delete_product_dimension(self):
+        product_id = self._add_product_get_id(self.product_data1)
+        dim_data = {'dim_A': 10}
+        self.products_crud.add_or_update_product_dimension(product_id, dim_data, conn=self.conn)
+        self.assertIsNotNone(self.products_crud.get_product_dimension(product_id, conn=self.conn))
+
+        res_delete = self.products_crud.delete_product_dimension(product_id, conn=self.conn)
+        self.assertTrue(res_delete['success'])
+        self.assertIsNone(self.products_crud.get_product_dimension(product_id, conn=self.conn))
+
+        # Test deleting non-existent dimension
+        res_delete_non_existent = self.products_crud.delete_product_dimension(product_id + 1, conn=self.conn)
+        self.assertTrue(res_delete_non_existent['success']) # Should still be success, nothing to delete
+        self.assertEqual(res_delete_non_existent.get('message'), "No dimensions found for product ID, nothing to delete.")
+
+
+    def test_add_dimensions_to_soft_deleted_product(self):
+        product_id = self._add_product_get_id(self.product_data1)
+        self.products_crud.delete_product(product_id, conn=self.conn) # Soft delete
+
+        dim_data = {'dim_A': 10}
+        res = self.products_crud.add_or_update_product_dimension(product_id, dim_data, conn=self.conn)
+        self.assertFalse(res['success'])
+        self.assertIn("Product not found or is deleted", res['error'])
+
+    # The duplicated test_add_or_update_product_dimension_new_and_update (previously named test_add_or_update_product_dimension)
+    # which was here, is now correctly removed by ensuring this SEARCH block targets the end of the
+    # test_add_dimensions_to_soft_deleted_product method, and the REPLACE block starts with the corrected
+    # test_get_product_dimension_for_soft_deleted_product.
+
+    def test_get_product_dimension_for_soft_deleted_product(self): # Corrected
         product_id = self._add_product_get_id(self.product_data1)
         dim_data = {'dim_A': 5}
         self.products_crud.add_or_update_product_dimension(product_id, dim_data, conn=self.conn)
 
         self.products_crud.delete_product(product_id, conn=self.conn) # Soft delete product
 
-        self.assertIsNone(self.products_crud.get_product_dimension(product_id, conn=self.conn)) # Default no
-        dim = self.products_crud.get_product_dimension(product_id, conn=self.conn, include_deleted_product=True)
-        self.assertIsNotNone(dim)
-        self.assertEqual(dim['dim_A'], 5)
+        # get_product_dimension should implicitly not find dimensions for a soft-deleted product
+        # as it likely joins on an active Products table.
+        res_get = self.products_crud.get_product_dimension(product_id, conn=self.conn)
+        self.assertIsNone(res_get, "Should not get dimensions for a soft-deleted product.")
 
     # --- ProductEquivalencies Tests ---
-    def test_add_product_equivalence(self):
+    def test_add_product_equivalence(self): # This test already exists and is mostly fine. Will add new ones after.
         p1_id = self._add_product_get_id(self.product_data1)
         p2_id = self._add_product_get_id(self.product_data2)
 
@@ -262,6 +340,53 @@ class TestProductsCRUD(unittest.TestCase):
         found_ids_incl_deleted = {eq['product_id'] for eq in equivalents_p1_incl_deleted}
         self.assertIn(p2_id, found_ids_incl_deleted)
         self.assertIn(p3_id, found_ids_incl_deleted)
+
+    def test_get_equivalent_products_no_equivalencies(self):
+        p1_id = self._add_product_get_id(self.product_data1)
+        equivalents = self.products_crud.get_equivalent_products(p1_id, conn=self.conn)
+        self.assertEqual(len(equivalents), 0)
+
+    def test_get_all_product_equivalencies(self):
+        p1_id = self._add_product_get_id(self.product_data1)
+        p2_id = self._add_product_get_id(self.product_data2)
+        p3_id = self._add_product_get_id(self.product_data3)
+        res1 = self.products_crud.add_product_equivalence(p1_id, p2_id, conn=self.conn)
+        res2 = self.products_crud.add_product_equivalence(p1_id, p3_id, conn=self.conn)
+
+        all_eqs = self.products_crud.get_all_product_equivalencies(conn=self.conn)
+        self.assertEqual(len(all_eqs), 2)
+        eq_ids_retrieved = {eq['equivalence_id'] for eq in all_eqs}
+        self.assertIn(res1['id'], eq_ids_retrieved)
+        self.assertIn(res2['id'], eq_ids_retrieved)
+
+        # Test with product_id_filter
+        eqs_for_p1 = self.products_crud.get_all_product_equivalencies(conn=self.conn, product_id_filter=p1_id)
+        self.assertEqual(len(eqs_for_p1), 2)
+
+        eqs_for_p2 = self.products_crud.get_all_product_equivalencies(conn=self.conn, product_id_filter=p2_id)
+        self.assertEqual(len(eqs_for_p2), 1)
+        self.assertEqual(eqs_for_p2[0]['equivalence_id'], res1['id'])
+
+        # Test with non-existent product_id_filter
+        eqs_for_non_existent = self.products_crud.get_all_product_equivalencies(conn=self.conn, product_id_filter=999)
+        self.assertEqual(len(eqs_for_non_existent), 0)
+
+    def test_remove_product_equivalence_by_id(self):
+        p1_id = self._add_product_get_id(self.product_data1)
+        p2_id = self._add_product_get_id(self.product_data2)
+        res_add = self.products_crud.add_product_equivalence(p1_id, p2_id, conn=self.conn)
+        equivalence_id = res_add['id']
+
+        res_remove = self.products_crud.remove_product_equivalence(equivalence_id, conn=self.conn)
+        self.assertTrue(res_remove['success'])
+
+        db_eq_after_remove = self.cursor.execute("SELECT * FROM ProductEquivalencies WHERE equivalence_id = ?", (equivalence_id,)).fetchone()
+        self.assertIsNone(db_eq_after_remove)
+
+        # Test removing non-existent equivalence
+        res_remove_non_existent = self.products_crud.remove_product_equivalence(equivalence_id + 10, conn=self.conn)
+        self.assertTrue(res_remove_non_existent['success']) # Should be success, nothing to delete.
+        self.assertEqual(res_remove_non_existent.get('message'), "Equivalence link not found, nothing to delete.")
 
 if __name__ == '__main__':
     unittest.main()

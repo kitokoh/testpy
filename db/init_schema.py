@@ -146,6 +146,22 @@ def initialize_database():
     )
     """)
 
+    # Create CompanyPersonnelContacts table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyPersonnelContacts (
+        company_personnel_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        personnel_id INTEGER NOT NULL,
+        contact_id INTEGER NOT NULL,
+        is_primary BOOLEAN DEFAULT FALSE,
+        can_receive_documents BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel(personnel_id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES Contacts(contact_id) ON DELETE CASCADE,
+        UNIQUE (personnel_id, contact_id)
+    )
+    """)
+
     # Create TeamMembers table (base from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS TeamMembers (
@@ -983,10 +999,16 @@ def initialize_database():
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerContacts (
-            contact_id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id TEXT NOT NULL, name TEXT NOT NULL,
-            email TEXT, phone TEXT, role TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            partner_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id TEXT NOT NULL,
+            contact_id INTEGER NOT NULL,
+            is_primary BOOLEAN DEFAULT FALSE,
+            can_receive_documents BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+            FOREIGN KEY (contact_id) REFERENCES Contacts(contact_id) ON DELETE CASCADE,
+            UNIQUE (partner_id, contact_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
@@ -1205,6 +1227,9 @@ def initialize_database():
     # Client_FreightForwarders
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+    # CompanyPersonnelContacts
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_companypersonnelcontacts_personnel_id ON CompanyPersonnelContacts(personnel_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_companypersonnelcontacts_contact_id ON CompanyPersonnelContacts(contact_id)")
     # Partner Tables
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")

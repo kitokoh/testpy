@@ -1,8 +1,30 @@
+import sys
+import os
+
+# Temporarily add the parent directory to sys.path to allow importing from config.py
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+try:
+    from config import DATABASE_PATH
+finally:
+    # Remove the parent directory from sys.path
+    if parent_dir in sys.path:
+        sys.path.remove(parent_dir)
+
+DATABASE_NAME = DATABASE_PATH
+
 from .cruds.status_settings_crud import (
     get_status_setting_by_id,
     get_all_status_settings,
     get_status_setting_by_name,
 )
+from .cruds.templates_crud import get_all_templates, get_template_by_id
+from .cruds.client_documents_crud import add_client_document, get_document_by_id
+from .utils import get_document_context_data
+# For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
+# Files using proforma_invoices_crud will import it directly.
 from .cruds.application_settings_crud import get_setting, set_setting
 from .cruds.projects_crud import (
     get_all_projects,
@@ -49,6 +71,7 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
     get_total_clients_count, # Added
+
 )
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
@@ -136,15 +159,22 @@ from .cruds.locations_crud import (
     get_country_by_id, get_city_by_id,
     get_country_by_name, get_city_by_name_and_country_id # Added these
 )
+
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
 __all__ = [
+    "DATABASE_NAME",
     "get_setting",
     "set_setting",
     "get_status_setting_by_id",
     "get_all_status_settings",
     "get_status_setting_by_name",
+    "get_all_templates",
+    "get_template_by_id",
+    "add_client_document",
+    "get_document_by_id",
+    "get_document_context_data",
     "get_all_projects",
     "get_project_by_id",
     "add_project",
@@ -182,6 +212,25 @@ __all__ = [
     "get_client_segmentation_by_city", # Added
     "get_client_segmentation_by_status", # Added
     "get_client_segmentation_by_category", # Added
+    "get_contacts_for_client",
+    "add_contact",
+    "get_contact_by_id",
+    "get_contact_by_email",
+    "get_all_contacts",
+    "update_contact",
+    "delete_contact",
+    "link_contact_to_client",
+    "unlink_contact_from_client",
+    "get_contacts_for_client_count",
+    "get_clients_for_contact",
+    "get_specific_client_contact_link_details",
+    "update_client_contact_link",
+    "get_products_for_client_or_project",
+    "get_distinct_purchase_confirmed_at_for_client",
+    "add_product_to_client_or_project",
+    "update_client_project_product",
+    "remove_product_from_client_or_project",
+    "get_client_project_product_by_id",
     "get_cover_pages_for_client",
     "add_cover_page",
     "update_cover_page",
@@ -261,4 +310,14 @@ __all__ = [
     "initialize_database",
     "get_setting",
     "set_setting",
+    "get_all_transporters",
+    "add_transporter",
+    "get_transporter_by_id",
+    "update_transporter",
+    "delete_transporter",
+    "get_all_freight_forwarders",
+    "add_freight_forwarder",
+    "get_freight_forwarder_by_id",
+    "update_freight_forwarder",
+    "delete_freight_forwarder",
 ]

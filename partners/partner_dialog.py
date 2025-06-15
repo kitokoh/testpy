@@ -2,8 +2,9 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
                              QMessageBox, QDialogButtonBox, QGroupBox, QTableWidget,
                              QTableWidgetItem, QHBoxLayout, QTextEdit, QListWidget, QListWidgetItem,
-                             QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QInputDialog, QWidget) # Added QTabWidget and other necessary widgets
-import logging # Added for logging
+                             QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QInputDialog, QWidget,
+                             QCheckBox, QLabel, QScrollArea) # Added QCheckBox, QLabel, QScrollArea
+import logging
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 
@@ -11,9 +12,12 @@ from db import (
     get_partner_by_id, get_documents_for_partner, add_partner_document,
     delete_partner_document, get_contacts_for_partner, get_all_partner_categories,
     get_categories_for_partner, update_partner, add_partner,
-    update_partner_contact, add_partner_contact, delete_partner_contact,
+    # CRUDs for contacts will be called by EditPartnerContactDialog
+    # Make sure these are the updated CRUDs from previous steps
+    add_partner_contact, update_partner_contact, delete_partner_contact,
     link_partner_to_category, unlink_partner_from_category
 )
+# No direct import of central_add_contact etc. here, they are used by partners_crud
 import os
 import shutil
 from datetime import datetime
@@ -33,6 +37,233 @@ except ImportError:
             print(f"Error creating fallback documents directory: {e}")
 
 
+class EditPartnerContactDialog(QDialog):
+    def __init__(self, partner_id, partner_contact_id=None, existing_contact_data=None, parent=None):
+        super().__init__(parent)
+        self.partner_id = partner_id
+        self.partner_contact_id = partner_contact_id
+        self.existing_contact_data = existing_contact_data if existing_contact_data else {}
+
+        self.setWindowTitle(f"{'Edit' if partner_contact_id else 'Add'} Partner Contact")
+        self.setMinimumWidth(500)
+        layout = QVBoxLayout(self)
+
+        # Scroll Area for many fields
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        form_layout = QFormLayout(scroll_widget)
+
+        # --- Form Fields ---
+        # Mandatory Link Fields (always visible)
+        self.is_primary_checkbox = QCheckBox()
+        form_layout.addRow("Is Primary Contact:", self.is_primary_checkbox)
+        self.can_receive_docs_checkbox = QCheckBox()
+        form_layout.addRow("Can Receive Documents:", self.can_receive_docs_checkbox)
+
+        # Mandatory Contact Fields (always visible)
+        self.displayName_input = QLineEdit() # Name to display (mandatory)
+        form_layout.addRow("Display Name*:", self.displayName_input)
+
+        # Optional Fields Toggle
+        self.show_optional_checkbox = QCheckBox("Show Optional Fields")
+        self.show_optional_checkbox.setChecked(False) # Default to hidden
+        self.show_optional_checkbox.stateChanged.connect(self.toggle_optional_fields)
+        form_layout.addRow(self.show_optional_checkbox)
+
+        # --- Optional Fields ---
+        self.optional_fields_widgets = [] # Keep track of widgets to toggle
+
+        # Given Name
+        self.givenName_label = QLabel("Given Name:")
+        self.givenName_input = QLineEdit()
+        form_layout.addRow(self.givenName_label, self.givenName_input)
+        self.optional_fields_widgets.extend([self.givenName_label, self.givenName_input])
+
+        # Family Name
+        self.familyName_label = QLabel("Family Name:")
+        self.familyName_input = QLineEdit()
+        form_layout.addRow(self.familyName_label, self.familyName_input)
+        self.optional_fields_widgets.extend([self.familyName_label, self.familyName_input])
+
+        # Email & Type
+        self.email_label = QLabel("Email:")
+        self.email_input = QLineEdit()
+        form_layout.addRow(self.email_label, self.email_input)
+        self.optional_fields_widgets.extend([self.email_label, self.email_input])
+
+        self.email_type_label = QLabel("Email Type:")
+        self.email_type_input = QLineEdit() # Could be QComboBox if predefined types
+        form_layout.addRow(self.email_type_label, self.email_type_input)
+        self.optional_fields_widgets.extend([self.email_type_label, self.email_type_input])
+
+        # Phone & Type
+        self.phone_label = QLabel("Phone:")
+        self.phone_input = QLineEdit()
+        form_layout.addRow(self.phone_label, self.phone_input)
+        self.optional_fields_widgets.extend([self.phone_label, self.phone_input])
+
+        self.phone_type_label = QLabel("Phone Type:")
+        self.phone_type_input = QLineEdit() # Could be QComboBox
+        form_layout.addRow(self.phone_type_label, self.phone_type_input)
+        self.optional_fields_widgets.extend([self.phone_type_label, self.phone_type_input])
+
+        # Position (formerly Role)
+        self.position_label = QLabel("Position/Role:")
+        self.position_input = QLineEdit()
+        form_layout.addRow(self.position_label, self.position_input)
+        self.optional_fields_widgets.extend([self.position_label, self.position_input])
+
+        # Company Name (for the contact, if different from partner)
+        self.contact_company_name_label = QLabel("Contact's Company Name:")
+        self.contact_company_name_input = QLineEdit()
+        form_layout.addRow(self.contact_company_name_label, self.contact_company_name_input)
+        self.optional_fields_widgets.extend([self.contact_company_name_label, self.contact_company_name_input])
+
+        # Notes (for the contact)
+        self.contact_notes_label = QLabel("Contact Notes:")
+        self.contact_notes_input = QTextEdit()
+        self.contact_notes_input.setFixedHeight(60)
+        form_layout.addRow(self.contact_notes_label, self.contact_notes_input)
+        self.optional_fields_widgets.extend([self.contact_notes_label, self.contact_notes_input])
+
+        # Address Fields
+        self.address_street_label = QLabel("Street Address:")
+        self.address_street_input = QLineEdit()
+        form_layout.addRow(self.address_street_label, self.address_street_input)
+        self.optional_fields_widgets.extend([self.address_street_label, self.address_street_input])
+
+        self.address_city_label = QLabel("City:")
+        self.address_city_input = QLineEdit()
+        form_layout.addRow(self.address_city_label, self.address_city_input)
+        self.optional_fields_widgets.extend([self.address_city_label, self.address_city_input])
+
+        self.address_region_label = QLabel("Region/State:")
+        self.address_region_input = QLineEdit()
+        form_layout.addRow(self.address_region_label, self.address_region_input)
+        self.optional_fields_widgets.extend([self.address_region_label, self.address_region_input])
+
+        self.address_postalCode_label = QLabel("Postal Code:")
+        self.address_postalCode_input = QLineEdit()
+        form_layout.addRow(self.address_postalCode_label, self.address_postalCode_input)
+        self.optional_fields_widgets.extend([self.address_postalCode_label, self.address_postalCode_input])
+
+        self.address_country_label = QLabel("Country:")
+        self.address_country_input = QLineEdit()
+        form_layout.addRow(self.address_country_label, self.address_country_input)
+        self.optional_fields_widgets.extend([self.address_country_label, self.address_country_input])
+
+        # Organization Fields
+        self.org_name_label = QLabel("Organization Name:")
+        self.org_name_input = QLineEdit()
+        form_layout.addRow(self.org_name_label, self.org_name_input)
+        self.optional_fields_widgets.extend([self.org_name_label, self.org_name_input])
+
+        self.org_title_label = QLabel("Organization Title:")
+        self.org_title_input = QLineEdit()
+        form_layout.addRow(self.org_title_label, self.org_title_input)
+        self.optional_fields_widgets.extend([self.org_title_label, self.org_title_input])
+
+        # Birthday
+        self.birthday_label = QLabel("Birthday (YYYY-MM-DD):")
+        self.birthday_input = QLineEdit()
+        form_layout.addRow(self.birthday_label, self.birthday_input)
+        self.optional_fields_widgets.extend([self.birthday_label, self.birthday_input])
+
+        scroll_widget.setLayout(form_layout)
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+
+        # Dialog Buttons
+        self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.dialog_buttons.accepted.connect(self.accept)
+        self.dialog_buttons.rejected.connect(self.reject)
+        layout.addWidget(self.dialog_buttons)
+
+        self.populate_form()
+        self.toggle_optional_fields() # Initial toggle based on checkbox state
+
+    def toggle_optional_fields(self):
+        visible = self.show_optional_checkbox.isChecked()
+        for widget in self.optional_fields_widgets:
+            widget.setVisible(visible)
+
+    def populate_form(self):
+        # Link-specific fields
+        self.is_primary_checkbox.setChecked(self.existing_contact_data.get('is_primary', False))
+        self.can_receive_docs_checkbox.setChecked(self.existing_contact_data.get('can_receive_documents', True))
+
+        # Central contact fields
+        self.displayName_input.setText(self.existing_contact_data.get('displayName', self.existing_contact_data.get('name', '')))
+        self.givenName_input.setText(self.existing_contact_data.get('givenName', ''))
+        self.familyName_input.setText(self.existing_contact_data.get('familyName', ''))
+        self.email_input.setText(self.existing_contact_data.get('email', ''))
+        self.email_type_input.setText(self.existing_contact_data.get('email_type', ''))
+        self.phone_input.setText(self.existing_contact_data.get('phone', ''))
+        self.phone_type_input.setText(self.existing_contact_data.get('phone_type', ''))
+        self.position_input.setText(self.existing_contact_data.get('position', self.existing_contact_data.get('role', ''))) # Cater for 'role' from old data
+        self.contact_company_name_input.setText(self.existing_contact_data.get('company_name', '')) # This is contact's own company
+        self.contact_notes_input.setPlainText(self.existing_contact_data.get('notes', ''))
+        self.address_street_input.setText(self.existing_contact_data.get('address_streetAddress', ''))
+        self.address_city_input.setText(self.existing_contact_data.get('address_city', ''))
+        self.address_region_input.setText(self.existing_contact_data.get('address_region', ''))
+        self.address_postalCode_input.setText(self.existing_contact_data.get('address_postalCode', ''))
+        self.address_country_input.setText(self.existing_contact_data.get('address_country', ''))
+        self.org_name_input.setText(self.existing_contact_data.get('organization_name', ''))
+        self.org_title_input.setText(self.existing_contact_data.get('organization_title', ''))
+        self.birthday_input.setText(self.existing_contact_data.get('birthday_date', ''))
+
+
+    def accept(self):
+        display_name = self.displayName_input.text().strip()
+        if not display_name:
+            QMessageBox.warning(self, "Validation Error", "Display Name is required for a contact.")
+            return
+
+        contact_data = {
+            'displayName': display_name,
+            'givenName': self.givenName_input.text().strip(),
+            'familyName': self.familyName_input.text().strip(),
+            'email': self.email_input.text().strip(),
+            'email_type': self.email_type_input.text().strip(),
+            'phone': self.phone_input.text().strip(),
+            'phone_type': self.phone_type_input.text().strip(),
+            'position': self.position_input.text().strip(),
+            'company_name': self.contact_company_name_input.text().strip(),
+            'notes': self.contact_notes_input.toPlainText().strip(),
+            'address_streetAddress': self.address_street_input.text().strip(),
+            'address_city': self.address_city_input.text().strip(),
+            'address_region': self.address_region_input.text().strip(),
+            'address_postalCode': self.address_postalCode_input.text().strip(),
+            'address_country': self.address_country_input.text().strip(),
+            'organization_name': self.org_name_input.text().strip(),
+            'organization_title': self.org_title_input.text().strip(),
+            'birthday_date': self.birthday_input.text().strip(),
+            # Link-specific data
+            'is_primary': self.is_primary_checkbox.isChecked(),
+            'can_receive_documents': self.can_receive_docs_checkbox.isChecked()
+        }
+        # Filter out empty strings for optional fields to avoid overwriting with empty if not touched
+        # contact_data = {k: v for k, v in contact_data.items() if v or k in ['displayName', 'is_primary', 'can_receive_documents']}
+
+
+        if self.partner_contact_id: # Editing existing link and central contact
+            # The update_partner_contact CRUD expects all data in one dict
+            # and internally splits it for central contact and link table.
+            if update_partner_contact(self.partner_contact_id, contact_data):
+                QMessageBox.information(self, "Success", "Contact updated successfully.")
+                super().accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to update contact.")
+        else: # Adding new contact and link
+            new_link_id = add_partner_contact(self.partner_id, contact_data)
+            if new_link_id:
+                QMessageBox.information(self, "Success", "Contact added successfully.")
+                super().accept()
+            else:
+                QMessageBox.critical(self, "Error", "Failed to add contact.")
+
+
 class PartnerDialog(QDialog):
     def __init__(self, partner_id=None, parent=None):
         super().__init__(parent)
@@ -41,8 +272,8 @@ class PartnerDialog(QDialog):
         self.setMinimumWidth(700) # Increased width for tabs
         self.setMinimumHeight(500)
 
-        self.original_contacts = []
-        self.deleted_contact_ids = set()
+        # self.original_contacts = [] # No longer needed as EditPartnerContactDialog handles saves
+        # self.deleted_contact_ids = set() # No longer needed
 
         main_layout = QVBoxLayout(self)
 
@@ -77,9 +308,17 @@ class PartnerDialog(QDialog):
         contacts_group = QGroupBox("Contacts")
         contacts_layout = QVBoxLayout()
         self.contacts_table = QTableWidget()
-        self.contacts_table.setColumnCount(4)
-        self.contacts_table.setHorizontalHeaderLabels(["Name*", "Email", "Phone", "Role"])
-        self.contacts_table.horizontalHeader().setStretchLastSection(True)
+        # Adjust columns for new summary: Name (Display Name), Position, Email, Phone, Is Primary
+        self.contacts_table.setColumnCount(5)
+        self.contacts_table.setHorizontalHeaderLabels(["Display Name", "Position", "Email", "Phone", "Primary?"])
+        self.contacts_table.horizontalHeader().setStretchLastSection(False)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.contacts_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Content managed by dialog
         contacts_layout.addWidget(self.contacts_table)
         contacts_buttons_layout = QHBoxLayout()
         self.add_contact_button = QPushButton("Add Contact")
@@ -137,17 +376,21 @@ class PartnerDialog(QDialog):
         # Connect signals
         self.button_box.accepted.connect(self.accept_dialog)
         self.button_box.rejected.connect(self.reject)
-        self.add_contact_button.clicked.connect(self.add_contact_row)
-        self.remove_contact_button.clicked.connect(self.remove_contact_row)
+        self.add_contact_button.clicked.connect(self.handle_add_contact_button_clicked)
+        self.remove_contact_button.clicked.connect(self.handle_remove_contact_button_clicked)
+        self.contacts_table.doubleClicked.connect(self.handle_edit_contact_table_item_activated) # edit on double click
         self.upload_doc_button.clicked.connect(self.handle_upload_document)
         self.download_doc_button.clicked.connect(self.handle_download_document)
         self.delete_doc_button.clicked.connect(self.handle_delete_document)
 
         if self.partner_id:
-            self.load_partner_data() # This will also call load_partner_documents
-            self.load_contacts()
+            self.load_partner_data()
+            self.load_contacts() # Load contacts after partner data and docs are potentially loaded
         else:
-            # New partner, disable document buttons until partner is saved
+            # New partner, disable document and contact buttons until partner is saved
+            self.add_contact_button.setEnabled(False)
+            self.remove_contact_button.setEnabled(False)
+            self.contacts_table.setEnabled(False)
             self.upload_doc_button.setEnabled(False)
             self.download_doc_button.setEnabled(False)
             self.delete_doc_button.setEnabled(False)
@@ -166,19 +409,23 @@ class PartnerDialog(QDialog):
 
         partner = get_partner_by_id(self.partner_id)
         if partner:
-            self.name_input.setText(partner.get('name', ''))
-            self.email_input.setText(partner.get('email', ''))
-            self.phone_input.setText(partner.get('phone', ''))
-            self.address_input.setText(partner.get('address', ''))
-            self.location_input.setText(partner.get('location', ''))
-            self.notes_input.setPlainText(partner.get('notes', ''))
+            self.name_input.setText(partner.get('partner_name', partner.get('name', ''))) # Prefer partner_name if available from full partner object
+            self.email_input.setText(partner.get('email', '')) # This is partner's main email
+            self.phone_input.setText(partner.get('phone', '')) # Partner's main phone
+            self.address_input.setText(partner.get('address', '')) # Partner's main address
+            # self.location_input.setText(partner.get('location', '')) # No 'location' field in schema, use address
+            self.notes_input.setPlainText(partner.get('notes', '')) # Partner's notes
 
-            # Enable document buttons as partner exists
+            # Enable document and contact buttons as partner exists
             self.upload_doc_button.setEnabled(True)
             self.download_doc_button.setEnabled(True)
             self.delete_doc_button.setEnabled(True)
             self.documents_table.setEnabled(True)
-            self.load_partner_documents() # Load documents after partner data is loaded
+            self.load_partner_documents()
+
+            self.add_contact_button.setEnabled(True)
+            self.remove_contact_button.setEnabled(True)
+            self.contacts_table.setEnabled(True)
 
     def load_partner_documents(self):
         if not self.partner_id:
@@ -383,29 +630,37 @@ class PartnerDialog(QDialog):
 
 
     def load_contacts(self):
-        if not self.partner_id: return
-        self.original_contacts = get_contacts_for_partner(self.partner_id)
-        self.contacts_table.setRowCount(0)
-        for contact in self.original_contacts:
-            row_position = self.contacts_table.rowCount()
-            self.contacts_table.insertRow(row_position)
+        if not self.partner_id:
+            self.contacts_table.setRowCount(0)
+            return
 
-            name_item = QTableWidgetItem(contact.get('name'))
-            email_item = QTableWidgetItem(contact.get('email'))
-            phone_item = QTableWidgetItem(contact.get('phone'))
-            role_item = QTableWidgetItem(contact.get('role'))
+        contacts_data = get_contacts_for_partner(self.partner_id)
+        self.contacts_table.setRowCount(0) # Clear existing rows
+        if contacts_data:
+            for contact_item_data in contacts_data: # contact_item_data is a dict from the CRUD
+                row_position = self.contacts_table.rowCount()
+                self.contacts_table.insertRow(row_position)
 
-            # Store contact_id with the name item for later retrieval
-            name_item.setData(Qt.UserRole, contact.get('contact_id'))
+                display_name = contact_item_data.get('displayName', contact_item_data.get('name', 'N/A'))
+                name_cell_item = QTableWidgetItem(display_name)
+                # Store all data needed for editing in UserRole of the first cell item
+                name_cell_item.setData(Qt.UserRole, contact_item_data) # Store the whole dict
 
-            self.contacts_table.setItem(row_position, 0, name_item)
-            self.contacts_table.setItem(row_position, 1, email_item)
-            self.contacts_table.setItem(row_position, 2, phone_item)
-            self.contacts_table.setItem(row_position, 3, role_item)
+                position = contact_item_data.get('position', '')
+                email = contact_item_data.get('email', '')
+                phone = contact_item_data.get('phone', '')
+                is_primary_text = "Yes" if contact_item_data.get('is_primary') else "No"
+
+                self.contacts_table.setItem(row_position, 0, name_cell_item)
+                self.contacts_table.setItem(row_position, 1, QTableWidgetItem(position))
+                self.contacts_table.setItem(row_position, 2, QTableWidgetItem(email))
+                self.contacts_table.setItem(row_position, 3, QTableWidgetItem(phone))
+                self.contacts_table.setItem(row_position, 4, QTableWidgetItem(is_primary_text))
+        self.contacts_table.resizeColumnsToContents()
 
     def load_and_set_partner_categories(self):
         self.categories_list_widget.clear()
-        all_categories = get_all_partner_categories()
+        all_categories = get_all_partner_categories() # Ensure this returns list of dicts
         linked_category_ids = set()
 
         if self.partner_id:
@@ -415,6 +670,9 @@ class PartnerDialog(QDialog):
 
         if all_categories:
             for category in all_categories:
+                if 'category_id' not in category or category['category_id'] is None:
+                    logging.warning(f"PartnerDialog: Category dictionary missing 'category_id' or it's None. Category data: {category}. Skipping this category.")
+                    continue # Skip this category
 
                 item = QListWidgetItem(category['category_name'])
                 item.setData(Qt.UserRole, category['partner_category_id'])
@@ -425,115 +683,127 @@ class PartnerDialog(QDialog):
                     item.setCheckState(Qt.Unchecked)
                 self.categories_list_widget.addItem(item)
 
-    def add_contact_row(self):
-        row_position = self.contacts_table.rowCount()
-        self.contacts_table.insertRow(row_position)
-        # Cells are editable by default. Add placeholder text or leave blank.
-        # No contact_id is stored for new rows initially.
-
-    def remove_contact_row(self):
-        current_row = self.contacts_table.currentRow()
-        if current_row < 0:
-            QMessageBox.information(self, "Remove Contact", "Please select a contact to remove.")
+    def handle_add_contact_button_clicked(self):
+        if not self.partner_id:
+            QMessageBox.warning(self, "Partner Not Saved", "Please save the partner before adding contacts.")
             return
 
-        name_item = self.contacts_table.item(current_row, 0)
-        if name_item: # Check if item exists
-            contact_id = name_item.data(Qt.UserRole) # Get stored contact_id
-            if contact_id is not None: # If it's an existing contact (not a freshly added unsaved row)
-                self.deleted_contact_ids.add(contact_id)
+        dialog = EditPartnerContactDialog(partner_id=self.partner_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_contacts() # Refresh the contacts list
 
-        self.contacts_table.removeRow(current_row)
+    def handle_edit_contact_table_item_activated(self, item): # QModelIndex item
+        # This is connected to doubleClicked, item is QModelIndex
+        # Get the data from the first column's item for the clicked row
+        name_cell_item = self.contacts_table.item(item.row(), 0) # item is QTableWidgetItem from doubleClicked signal
+
+        if not name_cell_item:
+            logging.warning("No data item found in the clicked row for editing contact.")
+            return
+
+        contact_full_data = name_cell_item.data(Qt.UserRole)
+        if contact_full_data and 'partner_contact_id' in contact_full_data:
+            partner_contact_id = contact_full_data['partner_contact_id']
+            # No need to separately pass contact_id, it's in contact_full_data
+
+            dialog = EditPartnerContactDialog(partner_id=self.partner_id,
+                                              partner_contact_id=partner_contact_id,
+                                              existing_contact_data=contact_full_data,
+                                              parent=self)
+            if dialog.exec_() == QDialog.Accepted:
+                self.load_contacts() # Refresh table
+        else:
+            logging.warning(f"No partner_contact_id or full_data found in UserRole for row {item.row()}. Cannot edit.")
+
+
+    def handle_remove_contact_button_clicked(self):
+        current_row = self.contacts_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "Remove Contact", "Please select a contact to remove.")
+            return
+
+        name_cell_item = self.contacts_table.item(current_row, 0)
+        if not name_cell_item:
+            QMessageBox.warning(self, "Error", "Cannot retrieve contact data from selected row.")
+            return
+
+        contact_full_data = name_cell_item.data(Qt.UserRole)
+        if contact_full_data and 'partner_contact_id' in contact_full_data:
+            partner_contact_id_to_delete = contact_full_data['partner_contact_id']
+            contact_display_name = contact_full_data.get('displayName', contact_full_data.get('name', 'this contact'))
+
+            reply = QMessageBox.question(self, "Confirm Deletion",
+                                         f"Are you sure you want to remove the contact link for '{contact_display_name}'?",
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                if delete_partner_contact(partner_contact_id_to_delete):
+                    QMessageBox.information(self, "Success", "Contact link removed successfully.")
+                    self.load_contacts() # Refresh table
+                else:
+                    QMessageBox.critical(self, "Error", "Failed to remove contact link from database.")
+        else:
+            QMessageBox.warning(self, "Error", "Could not find contact link ID for the selected contact.")
+
 
     def accept_dialog(self):
-        partner_name = self.name_input.text().strip()
-        if not partner_name:
-            QMessageBox.warning(self, "Validation Error", "Partner name is required.")
+        # Partner's main name is 'partner_name' in DB, but input is self.name_input
+        partner_name_val = self.name_input.text().strip()
+        if not partner_name_val:
+            QMessageBox.warning(self, "Validation Error", "Partner name (Partner Details tab) is required.")
             return
 
         partner_data = {
-            'name': partner_name,
+            return
+
+        partner_data_for_db = {
+            'partner_name': partner_name_val, # Schema uses partner_name
             'email': self.email_input.text().strip(),
             'phone': self.phone_input.text().strip(),
             'address': self.address_input.text().strip(),
-            'location': self.location_input.text().strip(),
-            'notes': self.notes_input.toPlainText().strip() # Use toPlainText for QTextEdit
+            # 'location': self.location_input.text().strip(), # Not in schema, combined into address or notes
+            'notes': self.notes_input.toPlainText().strip()
+            # category_id, contact_person_name, website_url, services_offered, collaboration_start_date, status
+            # are not in this basic form, would need more fields or come from elsewhere.
         }
 
-        success = False
+        # For now, this dialog only handles a subset of Partner fields.
+        # The full partner object might have more fields like 'partner_category_id', 'status', etc.
+        # If these are managed elsewhere or need to be preserved, fetch existing partner data first.
+
+        db_op_success = False
         if self.partner_id:
-            success = update_partner(self.partner_id, partner_data)
-        else:
-            new_partner_id = add_partner(partner_data)
-            if new_partner_id:
-                self.partner_id = new_partner_id
-                success = True
-                # Now that partner is saved, enable document controls
+            # If updating, we might want to preserve other fields not directly editable here.
+            # For now, just update what's in the form.
+            db_op_success = update_partner(self.partner_id, partner_data_for_db)
+            if not db_op_success:
+                QMessageBox.critical(self, "Database Error", f"Failed to update partner {self.partner_id}.")
+                return # Stop if partner update fails
+        else: # Adding new partner
+            new_partner_id_from_db = add_partner(partner_data_for_db)
+            if new_partner_id_from_db:
+                self.partner_id = new_partner_id_from_db # Critical: update dialog's partner_id
+                db_op_success = True
+                # Enable controls that depend on partner_id
                 self.upload_doc_button.setEnabled(True)
-                # self.download_doc_button.setEnabled(False) # Will be enabled on selection
-                # self.delete_doc_button.setEnabled(False)  # Will be enabled on selection
                 self.documents_table.setEnabled(True)
-                self.load_partner_documents() # Load any (though unlikely) documents
+                self.add_contact_button.setEnabled(True)
+                self.remove_contact_button.setEnabled(True)
+                self.contacts_table.setEnabled(True)
+                self.setWindowTitle(f"Edit Partner - {partner_name_val}") # Update window title
             else:
                 QMessageBox.critical(self, "Database Error", "Failed to add new partner.")
-                return
+                return # Stop if partner add fails
 
-        if not success and self.partner_id:
-             QMessageBox.critical(self, "Database Error", f"Failed to update partner {self.partner_id}.")
-             return
+        if not db_op_success: # Should have been caught by specific messages above, but as a safeguard
+            return
 
-        # Save Contacts
+        # Contact saving is now handled by EditPartnerContactDialog.
+        # PartnerDialog no longer directly iterates table rows to save contacts.
+        # self.original_contacts and self.deleted_contact_ids are no longer used here.
+
+        # Save Category Links (this part can remain similar)
         if self.partner_id:
-            current_contact_ids_in_table = set()
-            for row in range(self.contacts_table.rowCount()):
-                name_item = self.contacts_table.item(row, 0)
-                email_item = self.contacts_table.item(row, 1)
-                phone_item = self.contacts_table.item(row, 2)
-                role_item = self.contacts_table.item(row, 3)
-
-                contact_name = name_item.text().strip() if name_item else ""
-                if not contact_name: # Basic validation for contact name
-                    # Optionally skip or warn, for now skip if name is empty
-                    continue
-
-                contact_id = name_item.data(Qt.UserRole) if name_item else None
-
-                contact_details = {
-                    'partner_id': self.partner_id,
-                    'name': contact_name,
-                    'email': email_item.text().strip() if email_item else "",
-                    'phone': phone_item.text().strip() if phone_item else "",
-                    'role': role_item.text().strip() if role_item else ""
-                }
-
-                if contact_id is not None: # Existing contact, check for updates
-                    current_contact_ids_in_table.add(contact_id)
-                    original_contact = next((c for c in self.original_contacts if c['contact_id'] == contact_id), None)
-                    if original_contact:
-                        # Simple check: if any value changed (excluding created_at/updated_at)
-                        # A more robust check would compare each field specifically.
-                        is_changed = (original_contact['name'] != contact_details['name'] or
-                                      original_contact.get('email','') != contact_details['email'] or
-                                      original_contact.get('phone','') != contact_details['phone'] or
-                                      original_contact.get('role','') != contact_details['role'])
-                        if is_changed:
-                            update_partner_contact(contact_id, contact_details)
-                else: # New contact
-                    add_partner_contact(contact_details)
-
-            # Process deletions for contacts that were in original_contacts but not in current table
-            # or explicitly marked for deletion via remove_contact_row
-            original_contact_ids = {c['contact_id'] for c in self.original_contacts}
-            ids_to_delete_from_table_absence = original_contact_ids - current_contact_ids_in_table
-
-            all_ids_to_delete = ids_to_delete_from_table_absence.union(self.deleted_contact_ids)
-
-            for contact_id_to_delete in all_ids_to_delete:
-                delete_partner_contact(contact_id_to_delete)
-
-        # Save Category Links
-        if self.partner_id: # Ensure partner_id is set
-            partner_id_to_use = self.partner_id
+            partner_id_to_use = self.partner_id # Use the now confirmed partner_id
             selected_category_ids = set()
             for i in range(self.categories_list_widget.count()):
                 item = self.categories_list_widget.item(i)

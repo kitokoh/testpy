@@ -205,7 +205,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                                message=doc_manager.tr("Client créé, mais échec de la création du projet associé."),
                                type='WARNING')
 
-        client_dict_from_db = get_client_by_id(actual_new_client_id)
+        client_dict_from_db = clients_crud_instance.get_client_by_id(actual_new_client_id)
         ui_map_data = None
         if client_dict_from_db:
             country_obj = get_country_by_id(client_dict_from_db.get('country_id')) if client_dict_from_db.get('country_id') else None
@@ -300,7 +300,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                     linked_products = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                     if linked_products is None: linked_products = []
                     calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
-                    update_client(actual_new_client_id, {'price': calculated_total_sum})
+                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
                     ui_map_data['price'] = calculated_total_sum # Update the map for CreateDocumentDialog
                     if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
 
@@ -313,7 +313,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                         linked_products_on_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                         if linked_products_on_cancel is None: linked_products_on_cancel = []
                         calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
-                        update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
+                        clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
                         ui_map_data['price'] = calculated_total_sum_on_cancel
                         if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
             else: # ContactDialog cancelled
@@ -322,7 +322,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                     linked_products_on_contact_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                     if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
                     calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
-                    update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
+                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
                     ui_map_data['price'] = calculated_total_sum_on_contact_cancel
                     if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
         else: # ui_map_data was not populated
@@ -351,7 +351,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
         doc_manager.notify(title=doc_manager.tr("Erreur Création Dossier"), message=doc_manager.tr("Erreur de création du dossier pour le client '{0}'.").format(client_name_val), type='ERROR')
         if actual_new_client_id:
-             delete_client(actual_new_client_id) # Attempt to rollback DB entry
+             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback DB entry
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
              doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Entrée client annulée suite à l'erreur de dossier."), type='INFO')
     except Exception as e_db:
@@ -359,8 +359,8 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue lors de la création du client ou des éléments associés."), type='ERROR')
         if new_project_id_central_db and get_project_by_id(new_project_id_central_db): # Check if project was created
             delete_project(new_project_id_central_db) # Attempt to rollback project
-        if actual_new_client_id and get_client_by_id(actual_new_client_id): # Check if client was created
-             delete_client(actual_new_client_id) # Attempt to rollback client
+        if actual_new_client_id and clients_crud_instance.get_client_by_id(actual_new_client_id): # Check if client was created
+             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback client
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
              doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Client et projet associé annulés suite à une erreur grave."), type='INFO')
         # Rollback for add_client would ideally be handled within add_client or by a transaction manager

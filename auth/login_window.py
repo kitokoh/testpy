@@ -5,8 +5,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, QSettings
-# import db # Import the db.py from the root directory - No longer needed for user auth
-from db.cruds.users_crud import users_crud_instance # Import the UsersCRUD instance
+from db import verify_user_password # Import the db.py from the root directory - No longer needed for user auth
+# from db.cruds.users_crud import users_crud_instance # Import the UsersCRUD instance
 import uuid
 import logging # Added for logging
 import random # Added for promotional text
@@ -163,7 +163,7 @@ class LoginWindow(QDialog):
         password = self.password_input.text()
 
         # Use the new users_crud_instance for verification
-        user_verification_result = users_crud_instance.verify_user_password(username=username, password=password)
+        user_verification_result = verify_user_password(username=username, password=password)
 
         if user_verification_result:
             self.current_user = user_verification_result # verify_user_password returns the user dict

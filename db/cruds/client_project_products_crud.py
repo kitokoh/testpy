@@ -150,3 +150,25 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None, c
     except sqlite3.Error as e:
         logger.error(f"DB error in get_products_for_client_or_project (client: {client_id}, project: {project_id}): {e}")
         return []
+
+@_manage_conn
+def get_distinct_purchase_confirmed_at_for_client(client_id: str, conn: sqlite3.Connection = None) -> list[str]:
+    """
+    Retrieves distinct purchase_confirmed_at timestamps for a given client.
+    Returns a list of strings (timestamps).
+    """
+    cursor = conn.cursor()
+    sql = """
+        SELECT DISTINCT purchase_confirmed_at
+        FROM ClientProjectProducts
+        WHERE client_id = ? AND purchase_confirmed_at IS NOT NULL
+        ORDER BY purchase_confirmed_at DESC
+    """
+    try:
+        cursor.execute(sql, (client_id,))
+        # Fetches list of tuples, e.g., [('2023-01-01T10:00:00Z',), ('2023-01-15T12:00:00Z',)]
+        # Convert to list of strings
+        return [row[0] for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logger.error(f"DB error in get_distinct_purchase_confirmed_at_for_client for client ID {client_id}: {e}")
+        return []
