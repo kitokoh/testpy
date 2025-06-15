@@ -21,7 +21,16 @@ from .cruds.status_settings_crud import (
     get_status_setting_by_name,
 )
 from .cruds.templates_crud import get_all_templates, get_template_by_id
-from .cruds.client_documents_crud import add_client_document, get_document_by_id, get_documents_for_client
+from .cruds.client_documents_crud import (
+    add_client_document,
+    get_document_by_id,
+    get_documents_for_client,
+    get_client_document_notes,
+    add_client_document_note,
+    update_client_document_note,
+    delete_client_document_note,
+    get_client_document_note_by_id,
+)
 from .utils import get_document_context_data
 # For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
 # Files using proforma_invoices_crud will import it directly.
@@ -67,6 +76,7 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
     get_total_clients_count, # Added
+    update_client, # Added
 )
 from .cruds.contacts_crud import (
     get_contacts_for_client,
@@ -174,6 +184,22 @@ from .cruds.partners_crud import (
 from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id, get_country_by_name, get_city_by_name_and_country_id
 from .cruds.transporters_crud import get_all_transporters, add_transporter, get_transporter_by_id, update_transporter, delete_transporter
 from .cruds.freight_forwarders_crud import get_all_freight_forwarders, add_freight_forwarder, get_freight_forwarder_by_id, update_freight_forwarder, delete_freight_forwarder
+from .cruds.client_assigned_personnel_crud import (
+    get_assigned_personnel_for_client,
+    assign_personnel_to_client,
+    unassign_personnel_from_client,
+)
+from .cruds.client_transporters_crud import (
+    get_assigned_transporters_for_client,
+    assign_transporter_to_client,
+    unassign_transporter_from_client,
+    update_client_transporter_email_status,
+)
+from .cruds.client_freight_forwarders_crud import (
+    get_assigned_forwarders_for_client,
+    assign_forwarder_to_client,
+    unassign_forwarder_from_client,
+)
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
@@ -189,6 +215,11 @@ __all__ = [
     "add_client_document",
     "get_document_by_id",
     "get_documents_for_client",
+    "get_client_document_notes",
+    "add_client_document_note",
+    "update_client_document_note",
+    "delete_client_document_note",
+    "get_client_document_note_by_id",
     "get_document_context_data",
     "get_all_projects",
     "get_project_by_id",
@@ -223,6 +254,7 @@ __all__ = [
     "get_client_segmentation_by_city", # Added
     "get_client_segmentation_by_status", # Added
     "get_client_segmentation_by_category", # Added
+    "update_client", # Added
     "get_contacts_for_client",
     "add_contact",
     "get_contact_by_id",
@@ -331,4 +363,14 @@ __all__ = [
     "get_freight_forwarder_by_id",
     "update_freight_forwarder",
     "delete_freight_forwarder",
+    "get_assigned_personnel_for_client",
+    "assign_personnel_to_client",
+    "unassign_personnel_from_client",
+    "get_assigned_transporters_for_client",
+    "assign_transporter_to_client",
+    "unassign_transporter_from_client",
+    "update_client_transporter_email_status",
+    "get_assigned_forwarders_for_client",
+    "assign_forwarder_to_client",
+    "unassign_forwarder_from_client",
 ]
