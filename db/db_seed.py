@@ -288,11 +288,11 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 logger.info("Seeded generic contact.")
 
         # 10. Products
-        logger.info("Seeding default product...")
+        logger.info("Seeding default and sample products...")
         # Using products_crud_instance for product seeding
-        cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = 'Default Product'")
-        if cursor.fetchone()[0] == 0:
-            product_data_seed = {
+
+        sample_products = [
+            {
                 "product_name": "Default Product",
                 "description": "This is a default product for testing and demonstration.",
                 "category": "General",
@@ -300,12 +300,61 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "base_unit_price": 10.00,
                 "unit_of_measure": "unit",
                 "is_active": True
+            },
+            {
+                "product_name": "Industrial Widget",
+                "description": "A robust widget for industrial applications.",
+                "category": "Widgets",
+                "language_code": "en",
+                "base_unit_price": 100.00,
+                "unit_of_measure": "piece",
+                "is_active": True
+            },
+            {
+                "product_name": "Gadget Standard",
+                "description": "Un gadget standard pour diverses utilisations.",
+                "category": "Gadgets",
+                "language_code": "fr",
+                "base_unit_price": 50.00,
+                "unit_of_measure": "unité",
+                "is_active": True
+            },
+            {
+                "product_name": "Advanced Gizmo",
+                "description": "High-performance gizmo with advanced features.",
+                "category": "Gizmos",
+                "language_code": "en",
+                "base_unit_price": 250.00,
+                "unit_of_measure": "item",
+                "is_active": True
             }
-            add_product_result = products_crud_instance.add_product(product_data_seed, conn=conn)
-            if add_product_result['success']:
-                logger.info(f"Seeded default product with ID: {add_product_result['id']}")
+        ]
+
+        for product_data_seed in sample_products:
+            # Check if product already exists (by name and language_code to be more specific)
+            # products_crud_instance.get_product_by_name expects name and optional language_code
+            # Assuming get_products (plural) or a more specific getter might be better,
+            # but let's use what's likely available and simple.
+            # For now, we'll rely on a simple name check as per the original code for "Default Product".
+            # A more robust check would be:
+            # existing_product = products_crud_instance.get_product_by_name_and_lang(
+            #    product_data_seed["product_name"], product_data_seed["language_code"], conn=conn
+            # )
+            # if existing_product:
+            #    logger.info(f"Product '{product_data_seed['product_name']}' ({product_data_seed['language_code']}) already exists. Skipping.")
+            #    continue
+
+            # Simpler check based on original pattern:
+            cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = ? AND language_code = ?",
+                           (product_data_seed["product_name"], product_data_seed["language_code"]))
+            if cursor.fetchone()[0] == 0:
+                add_product_result = products_crud_instance.add_product(product_data_seed, conn=conn)
+                if add_product_result['success']:
+                    logger.info(f"Seeded product '{product_data_seed['product_name']}' with ID: {add_product_result['id']}")
+                else:
+                    logger.error(f"Failed to seed product '{product_data_seed['product_name']}': {add_product_result.get('error')}")
             else:
-                logger.error(f"Failed to seed default product: {add_product_result.get('error')}")
+                logger.info(f"Product '{product_data_seed['product_name']}' ({product_data_seed['language_code']}) already exists. Skipping.")
 
         # 11. SmtpConfigs (direct cursor - assuming smtp_configs_crud not yet refactored)
         logger.info("Seeding placeholder SMTP config...")
