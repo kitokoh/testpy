@@ -1,3 +1,20 @@
+import sys
+import os
+
+# Temporarily add the parent directory to sys.path to allow importing from config.py
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+try:
+    from config import DATABASE_PATH
+finally:
+    # Remove the parent directory from sys.path
+    if parent_dir in sys.path:
+        sys.path.remove(parent_dir)
+
+DATABASE_NAME = DATABASE_PATH
+
 from .cruds.status_settings_crud import (
     get_status_setting_by_id,
     get_all_status_settings,
@@ -134,6 +151,7 @@ from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
 __all__ = [
+    "DATABASE_NAME",
     "get_setting",
     "set_setting",
     "get_status_setting_by_id",
