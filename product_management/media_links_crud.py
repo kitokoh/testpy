@@ -3,11 +3,7 @@ from datetime import datetime
 import logging
 from typing import List, Dict, Optional, Any
 
-try:
-    from .generic_crud import _manage_conn, get_db_connection
-except ImportError:
-    logging.warning("Could not import from .generic_crud, attempting direct import (may fail in package).")
-    from generic_crud import _manage_conn, get_db_connection
+from ..db.cruds.generic_crud import _manage_conn, get_db_connection # Corrected relative import
 
 
 @_manage_conn

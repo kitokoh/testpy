@@ -11,10 +11,10 @@ from PyQt5.QtGui import QPixmap, QIcon
 # Assuming db.cruds is accessible. Adjust import path if necessary.
 # Example: from ..db.cruds import products_crud, product_media_links_crud
 # For this subtask, direct import if files are in expected locations.
-import db.cruds.products_crud as products_crud
-import db.cruds.product_media_links_crud as product_media_links_crud
-import media_manager.operations as media_ops
-from db.cruds.users_crud import get_user_by_username # To get a placeholder uploader_id
+from . import crud
+from . import media_links_crud
+from ..media_manager import operations as media_ops
+from ..db.cruds.users_crud import get_user_by_username # To get a placeholder uploader_id
 import asyncio # For running async functions
 from config import MEDIA_FILES_BASE_PATH # For resolving image paths
 import os
@@ -106,7 +106,7 @@ class ProductEditDialog(QDialog):
             # Potentially initialize fields for a new product
             return
 
-        self.db_product_data = products_crud.get_product_by_id(self.product_id)
+        self.db_product_data = crud.get_product_by_id(self.product_id)
 
         if not self.db_product_data:
             QMessageBox.critical(self, self.tr("Error"), self.tr("Product not found."))
@@ -248,13 +248,13 @@ class ProductEditDialog(QDialog):
 
         if self.product_id is not None: # Editing existing product
             try:
-                success = products_crud.update_product(product_id=self.product_id, data=updated_product_data)
+                success = crud.update_product(product_id=self.product_id, data=updated_product_data)
                 if success:
                     QMessageBox.information(self, self.tr("Success"), self.tr("Product details saved successfully."))
                     self.accept() # Close the dialog
                 else:
                     # Check if product still exists, maybe it was deleted by another user?
-                    check_prod = products_crud.get_product_by_id(self.product_id)
+                    check_prod = crud.get_product_by_id(self.product_id)
                     if not check_prod:
                          QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to save product details. The product may have been deleted."))
                     else:
@@ -269,7 +269,7 @@ class ProductEditDialog(QDialog):
             # And then, after adding, self.product_id should be set to the new ID.
             # Image management buttons would typically be disabled until product is first saved.
             try:
-                new_id = products_crud.add_product(product_data=updated_product_data)
+                new_id = crud.add_product(product_data=updated_product_data)
                 if new_id:
                     self.product_id = new_id # Store the new ID
                     self.setWindowTitle(self.tr("Edit Product") + f" (ID: {new_id})") # Update title
@@ -375,7 +375,7 @@ class ProductEditDialog(QDialog):
                             display_order=next_display_order,
                             alt_text=title # Use title as initial alt_text
                         )
-                        if link_id:
+                        if link_id: # crud.link_media_to_product returns the link_id or None
                             successful_uploads += 1
                         else:
                             failed_uploads += 1
@@ -423,7 +423,7 @@ class ProductEditDialog(QDialog):
 
         if reply == QMessageBox.Yes:
             try:
-                success = product_media_links_crud.unlink_media_from_product(link_id=link_id)
+                success = media_links_crud.unlink_media_from_product(link_id=link_id)
                 if success:
                     QMessageBox.information(self, self.tr("Image Unlinked"),
                                             self.tr(f"The image '{image_title}' has been successfully unlinked from this product."))
@@ -463,7 +463,7 @@ class ProductEditDialog(QDialog):
         if ok: # User clicked OK
             if new_alt_text != current_alt_text:
                 try:
-                    success = product_media_links_crud.update_media_link(
+                    success = media_links_crud.update_media_link(
                         link_id=link_id,
                         alt_text=new_alt_text
                         # display_order is not changed here, so pass None or omit
@@ -528,7 +528,7 @@ class ProductEditDialog(QDialog):
              pass # No valid media IDs to save order for.
 
         try:
-            success = product_media_links_crud.update_product_media_display_orders(
+            success = media_links_crud.update_product_media_display_orders(
                 product_id=self.product_id,
                 ordered_media_item_ids=ordered_media_item_ids
             )
@@ -570,10 +570,10 @@ if __name__ == '__main__':
 
     try:
         # Check if product exists for testing
-        if products_crud.get_product_by_id(TEST_PRODUCT_ID) is None:
+        if crud.get_product_by_id(TEST_PRODUCT_ID) is None: # Updated here for testing
             print(f"Test Product ID {TEST_PRODUCT_ID} not found. Add it to your database for full dialog testing.")
             # Optionally, create a dummy product for testing this dialog
-            # products_crud.add_product({'product_name': 'Test Product 1', 'base_unit_price': 10.0, 'product_id': TEST_PRODUCT_ID}) # If ID can be set
+            # crud.add_product({'product_name': 'Test Product 1', 'base_unit_price': 10.0, 'product_id': TEST_PRODUCT_ID}) # If ID can be set
             # Or just proceed and let the dialog show "Product not found"
     except Exception as e:
         print(f"Error checking for test product: {e}. Ensure DB is accessible and schema is initialized.")

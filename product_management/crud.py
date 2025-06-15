@@ -1,13 +1,13 @@
 import sqlite3
 from datetime import datetime
-from .generic_crud import GenericCRUD, _manage_conn, get_db_connection # Updated import
+from ..db.cruds.generic_crud import GenericCRUD, _manage_conn, get_db_connection # Corrected relative import
 import logging
 from typing import Dict, Any, Optional, List # Added List for type hinting
 
 # product_media_links_crud is likely needed, ensure it's available.
 # If it's in the same directory, the import should be fine.
 # Otherwise, adjust the import path as necessary.
-from . import product_media_links_crud
+from . import media_links_crud # Renamed module
 import os
 
 class ProductsCRUD(GenericCRUD):
@@ -26,7 +26,7 @@ class ProductsCRUD(GenericCRUD):
         self.id_column = "product_id"
         # Assuming product_media_links_crud is a module with functions.
         # If it were a class, instantiation might be `product_media_links_crud.ProductMediaLinksCRUD()`.
-        self.media_links_crud = product_media_links_crud
+        self.media_links_crud = media_links_crud # Use renamed module
 
     @_manage_conn
     def add_product(self, product_data: dict, conn: sqlite3.Connection = None) -> dict:

@@ -15,7 +15,7 @@ from db.cruds.generic_crud import get_db_connection
 # Import CRUD instances for refactored modules
 from db.cruds.users_crud import users_crud_instance
 from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.products_crud import products_crud_instance
+from product_management.crud import products_crud_instance # Updated import
 
 # Imports for non-refactored or utility functions used in seeding
 from db.cruds.template_categories_crud import add_template_category

@@ -5,10 +5,10 @@ import os # For URL construction if base URL comes from env
 # Assuming db is structured to allow from db import cruds or similar
 # Or from ..db import cruds if api is a subdir of a main app package
 # For this subtask, let's assume db.cruds gives access to modules
-import db.cruds.products_crud as products_crud
-import db.cruds.product_media_links_crud as product_media_links_crud
+from product_management import crud as products_crud_module
+from product_management import media_links_crud as product_media_links_crud_module
 from ..models import ( # Relative import from parent models.py
-    ProductResponse, ProductCreate, ProductUpdate,
+    ProductResponse, ProductCreate, ProductUpdate, ProductBase, # Added ProductBase for clarity if used directly
     LinkMediaToProductRequest, ProductImageLinkResponse, ProductImageLinkUpdateRequest,
     ReorderProductMediaLinksRequest,
     UserInDB # For authentication
@@ -75,11 +75,17 @@ async def create_product_api(
 ):
     # product_data should not contain product_id as it's auto-generated
     product_dict = product.dict(exclude_unset=True)
-    db_product_id = products_crud.add_product(product_data=product_dict)
-    if db_product_id is None:
-        raise HTTPException(status_code=400, detail="Failed to create product. Check for duplicate name/language or invalid data.")
+    # add_product from product_management.crud returns a dict {'success': True/False, 'id': new_id}
+    result = products_crud_module.add_product(product_data=product_dict)
+    if not result.get('success'):
+        raise HTTPException(status_code=400, detail=f"Failed to create product: {result.get('error', 'Unknown error')}")
 
-    created_product = products_crud.get_product_by_id(id=db_product_id)
+    db_product_id = result.get('id')
+    if db_product_id is None : # Should not happen if success is True
+        raise HTTPException(status_code=500, detail="Product creation succeeded but no ID returned.")
+
+
+    created_product = products_crud_module.get_product_by_id(product_id=db_product_id)
     if not created_product:
         raise HTTPException(status_code=500, detail="Product created but could not be retrieved.") # Should not happen
     return format_product_response(created_product, request)
@@ -90,7 +96,7 @@ async def get_product_api(
     request: Request,
     current_user: UserInDB = Depends(get_current_active_user) # Optional auth
 ):
-    db_product = products_crud.get_product_by_id(id=product_id)
+    db_product = products_crud_module.get_product_by_id(product_id=product_id)
     if db_product is None:
         raise HTTPException(status_code=404, detail="Product not found")
     return format_product_response(db_product, request)
@@ -108,7 +114,7 @@ async def get_all_products_api(
     if language_code is not None: filters['language_code'] = language_code
     if is_active is not None: filters['is_active'] = is_active
 
-    db_products = products_crud.get_all_products(filters=filters)
+    db_products = products_crud_module.get_all_products(filters=filters)
     # For list view, media_links are typically not included for performance.
     # The format_product_response will handle empty media_links if the CRUD doesn't add them for list views.
     # products_crud.get_all_products currently does NOT fetch media_links.
@@ -127,15 +133,15 @@ async def update_product_api(
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided.")
 
-    success = products_crud.update_product(product_id=product_id, data=update_data)
-    if not success:
+    update_result = products_crud_module.update_product(product_id=product_id, data=update_data)
+    if not update_result.get('success'):
         # Could be product not found or DB error
-        existing_product = products_crud.get_product_by_id(id=product_id) # Check if it's a 404
+        existing_product = products_crud_module.get_product_by_id(product_id=product_id) # Check if it's a 404
         if not existing_product:
             raise HTTPException(status_code=404, detail="Product not found")
-        raise HTTPException(status_code=500, detail="Failed to update product.")
+        raise HTTPException(status_code=500, detail=f"Failed to update product: {update_result.get('error', 'Unknown error')}")
 
-    updated_product = products_crud.get_product_by_id(id=product_id)
+    updated_product = products_crud_module.get_product_by_id(product_id=product_id)
     if not updated_product:
          raise HTTPException(status_code=500, detail="Product updated but could not be retrieved.")
     return format_product_response(updated_product, request)
@@ -148,13 +154,13 @@ async def delete_product_api(
     # Consider implications: what happens to linked media items?
     # The DB schema for ProductMediaLinks has ON DELETE CASCADE for product_id,
     # so links will be auto-deleted. MediaItems themselves are not deleted.
-    existing_product = products_crud.get_product_by_id(id=product_id)
+    existing_product = products_crud_module.get_product_by_id(product_id=product_id)
     if not existing_product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    success = products_crud.delete_product(product_id=product_id)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete product.")
+    delete_result = products_crud_module.delete_product(product_id=product_id)
+    if not delete_result.get('success'):
+        raise HTTPException(status_code=500, detail=f"Failed to delete product: {delete_result.get('error', 'Unknown error')}")
     return # No content for 204
 
 
@@ -168,13 +174,13 @@ async def link_media_to_product_api(
     current_user: UserInDB = Depends(get_current_active_user)
 ):
     # Check if product exists
-    db_product = products_crud.get_product_by_id(id=product_id)
+    db_product = products_crud_module.get_product_by_id(product_id=product_id)
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
 
     # TODO: Check if media_item_id exists in MediaItems table (optional, for robustness)
 
-    link_id = product_media_links_crud.link_media_to_product(
+    link_id = product_media_links_crud_module.link_media_to_product(
         product_id=product_id,
         media_item_id=link_request.media_item_id,
         display_order=link_request.display_order,
@@ -187,14 +193,14 @@ async def link_media_to_product_api(
     # Need a CRUD function like get_media_link_details_by_link_id that joins with MediaItems
     # For now, let's use get_media_links_for_product and find the one we just added.
     # This is not ideal. A direct fetch of the created link with media details would be better.
-    # Let's assume get_media_link_by_link_id exists in product_media_links_crud
+    # Let's assume get_media_link_by_link_id exists in product_media_links_crud_module
     # and we enhance it or add another to fetch joined data.
     # The `get_media_links_for_product` returns a list, we need one item.
     # A new function `get_detailed_media_link_by_id(link_id)` would be good.
     # For now, let's construct the response manually or from get_media_link_by_ids if sufficient.
 
     # Simplified: refetch all and find by media_item_id (assuming it's unique for the product)
-    all_links = product_media_links_crud.get_media_links_for_product(product_id)
+    all_links = product_media_links_crud_module.get_media_links_for_product(product_id)
     newly_linked_info = next((l for l in all_links if l['media_item_id'] == link_request.media_item_id and l['link_id'] == link_id), None)
 
     if not newly_linked_info:
@@ -226,11 +232,11 @@ async def update_product_media_link_api(
         raise HTTPException(status_code=400, detail="No update data provided (display_order or alt_text).")
 
     # Check if link exists
-    existing_link = product_media_links_crud.get_media_link_by_link_id(link_id=link_id)
+    existing_link = product_media_links_crud_module.get_media_link_by_link_id(link_id=link_id)
     if not existing_link:
         raise HTTPException(status_code=404, detail="Product media link not found.")
 
-    success = product_media_links_crud.update_media_link(
+    success = product_media_links_crud_module.update_media_link(
         link_id=link_id,
         display_order=update_request.display_order,
         alt_text=update_request.alt_text
@@ -242,7 +248,7 @@ async def update_product_media_link_api(
     # Again, a specific CRUD function get_detailed_media_link_by_id(link_id) would be best.
     # For now, use get_media_links_for_product with the product_id from existing_link
     product_id = existing_link['product_id']
-    all_product_links = product_media_links_crud.get_media_links_for_product(product_id)
+    all_product_links = product_media_links_crud_module.get_media_links_for_product(product_id)
     updated_link_info = next((l for l in all_product_links if l['link_id'] == link_id), None)
 
     if not updated_link_info:
@@ -263,11 +269,11 @@ async def unlink_media_from_product_api(
     link_id: int,
     current_user: UserInDB = Depends(get_current_active_user)
 ):
-    existing_link = product_media_links_crud.get_media_link_by_link_id(link_id=link_id)
+    existing_link = product_media_links_crud_module.get_media_link_by_link_id(link_id=link_id)
     if not existing_link:
         raise HTTPException(status_code=404, detail="Product media link not found.")
 
-    success = product_media_links_crud.unlink_media_from_product(link_id=link_id)
+    success = product_media_links_crud_module.unlink_media_from_product(link_id=link_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to unlink media from product.")
     return # No content
@@ -280,11 +286,11 @@ async def reorder_product_media_links_api(
     current_user: UserInDB = Depends(get_current_active_user)
 ):
     # Check if product exists
-    db_product = products_crud.get_product_by_id(id=product_id)
+    db_product = products_crud_module.get_product_by_id(product_id=product_id)
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    success = product_media_links_crud.update_product_media_display_orders(
+    success = product_media_links_crud_module.update_product_media_display_orders(
         product_id=product_id,
         ordered_media_item_ids=reorder_request.ordered_media_item_ids
     )
@@ -292,7 +298,7 @@ async def reorder_product_media_links_api(
         raise HTTPException(status_code=400, detail="Failed to reorder media links. Ensure all media IDs are valid and linked to the product.")
 
     # Return the new order
-    updated_links_raw = product_media_links_crud.get_media_links_for_product(product_id)
+    updated_links_raw = product_media_links_crud_module.get_media_links_for_product(product_id)
 
     response_links = []
     for link_data in updated_links_raw:

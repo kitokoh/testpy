@@ -20,7 +20,7 @@ from PyQt5.QtWebChannel import QWebChannel
 
 import db as db_manager # Keep for non-refactored CRUDs and general utils
 from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.products_crud import products_crud_instance # Import products instance
+from product_management.crud import products_crud_instance # Updated import
 from db.cruds.transporters_crud import get_all_transporters # Added import
 from db.cruds.freight_forwarders_crud import get_all_freight_forwarders # Added import
 import icons_rc
@@ -44,7 +44,7 @@ from dialogs import (
     TransporterDialog,
     FreightForwarderDialog
 )
-from product_list_dialog import ProductListDialog
+from product_management.list_dialog import ProductListDialog # Updated import
 
 from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard
