@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
                              QGraphicsOpacityEffect, QApplication, QMainWindow, QSpacerItem, QSizePolicy,
                              QStyle) # Added QStyle here
-from PyQt5.QtCore import QObject, QTimer, QPropertyAnimation, Qt, pyqtSignal, QRect
+from PyQt5.QtCore import QObject, QTimer, QPropertyAnimation, Qt, pyqtSignal, QRect, QSize
 from PyQt5.QtGui import QIcon, QFont, QColor, QPixmap, QScreen
 import os # For joining paths if needed for icons
 
@@ -166,7 +166,7 @@ class NotificationWidget(QWidget):
             elif os.path.exists(icon_source_path): # It's a file path
                  icon = QIcon(icon_source_path)
                  if not icon.isNull():
-                    pixmap = icon.pixmap(self.ICON_SIZE, self.ICON_SIZE, QIcon.Normal, QIcon.Off)
+                    pixmap = icon.pixmap(QSize(self.ICON_SIZE, self.ICON_SIZE), QIcon.Normal, QIcon.Off)
             else: # Not an SP_ enum and path doesn't exist, try default SP_ for type
                 pass # Will fall through to next block
 

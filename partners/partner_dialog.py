@@ -410,14 +410,14 @@ class PartnerDialog(QDialog):
         if self.partner_id:
             linked_categories = get_categories_for_partner(self.partner_id)
             if linked_categories:
-                linked_category_ids = {cat['category_id'] for cat in linked_categories}
+                linked_category_ids = {cat['partner_category_id'] for cat in linked_categories}
 
         if all_categories:
             for category in all_categories:
                 item = QListWidgetItem(category['category_name'])
-                item.setData(Qt.UserRole, category['category_id'])
+                item.setData(Qt.UserRole, category['partner_category_id'])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                if category['category_id'] in linked_category_ids:
+                if category['partner_category_id'] in linked_category_ids:
                     item.setCheckState(Qt.Checked)
                 else:
                     item.setCheckState(Qt.Unchecked)
@@ -539,7 +539,7 @@ class PartnerDialog(QDialog):
                     selected_category_ids.add(item.data(Qt.UserRole))
 
             current_linked_categories_list = get_categories_for_partner(partner_id_to_use)
-            current_linked_ids = {cat['category_id'] for cat in current_linked_categories_list} if current_linked_categories_list else set()
+            current_linked_ids = {cat['partner_category_id'] for cat in current_linked_categories_list} if current_linked_categories_list else set()
 
             categories_to_link = selected_category_ids - current_linked_ids
             for cat_id in categories_to_link:

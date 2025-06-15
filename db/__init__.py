@@ -56,7 +56,13 @@ from .cruds.cover_pages_crud import (
     delete_cover_page,
     get_cover_page_by_id,
 )
-from .cruds.templates_crud import get_all_file_based_templates
+from .cruds.template_categories_crud import get_all_template_categories # Added
+from .cruds.templates_crud import ( # Modified
+    get_all_file_based_templates,
+    get_distinct_template_languages,
+    get_distinct_template_types,
+    get_filtered_templates
+)
 from .cruds.cover_page_templates_crud import get_cover_page_template_by_id
 from .cruds.milestones_crud import (
     get_milestones_for_project,
@@ -174,7 +180,11 @@ __all__ = [
     "update_cover_page",
     "delete_cover_page",
     "get_cover_page_by_id",
+    "get_all_template_categories", # Added from template_categories_crud.py
     "get_all_file_based_templates", # From templates_crud
+    "get_distinct_template_languages", # Added from templates_crud.py
+    "get_distinct_template_types", # Added from templates_crud.py
+    "get_filtered_templates", # Added from templates_crud.py
     "get_cover_page_template_by_id", # Now from cover_page_templates_crud
     "get_milestones_for_project",
     "add_milestone",
