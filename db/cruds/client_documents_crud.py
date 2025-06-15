@@ -200,8 +200,40 @@ def get_client_document_notes(client_id: str, document_type: str = None, languag
 
 @_manage_conn
 def add_client_document_note(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    logging.warning(f"Called stub function add_client_document_note with data {data}. Full implementation is missing.")
-    return None
+    """
+    Adds a new client document note.
+    Handles UNIQUE constraint (client_id, document_type, language_code).
+    """
+    cursor = conn.cursor()
+    sql = """
+        INSERT INTO ClientDocumentNotes (
+            client_id, document_type, language_code, note_content, is_active
+        ) VALUES (?, ?, ?, ?, ?)
+    """
+    params = (
+        data.get('client_id'),
+        data.get('document_type'),
+        data.get('language_code'),
+        data.get('note_content'),
+        data.get('is_active', True) # Default to True if not provided
+    )
+    try:
+        cursor.execute(sql, params)
+        # conn.commit() # Handled by _manage_conn
+        last_id = cursor.lastrowid
+        logging.info(f"Client document note added with ID: {last_id} for client {data.get('client_id')}")
+        return last_id
+    except sqlite3.IntegrityError:
+        logging.warning(
+            f"Failed to add client document note due to UNIQUE constraint violation "
+            f"(client_id: {data.get('client_id')}, "
+            f"document_type: {data.get('document_type')}, "
+            f"language_code: {data.get('language_code')})."
+        )
+        return None # Indicates failure, possibly due to duplicate
+    except sqlite3.Error as e:
+        logging.error(f"Database error adding client document note for client {data.get('client_id')}: {e}")
+        return None
 
 @_manage_conn
 def update_client_document_note(note_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:

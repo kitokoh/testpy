@@ -28,8 +28,17 @@ from docx import Document
 from PyPDF2 import PdfMerger
 from reportlab.pdfgen import canvas
 
-import db as db_manager
+import db as db_manager # Keep for now
+from db.cruds.clients_crud import clients_crud_instance
+from db.cruds.templates_crud import templates_crud_instance
 from db.cruds.template_categories_crud import get_all_template_categories
+# templates_crud functions get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+# are likely class methods on templates_crud_instance or static methods.
+# If they are module-level functions in templates_crud.py, they should be imported directly.
+# For now, assuming they might be available via the instance or need specific import if error occurs.
+# Let's check if they are used directly by db_manager or need to be instance calls.
+# Upon review, get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+# are module-level in templates_crud.py, so direct import is fine.
 from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
@@ -1113,7 +1122,12 @@ class ProductDialog(QDialog):
         self.current_selected_global_product_id = None
         self.setWindowTitle(self.tr("Ajouter Produits au Client"))
         self.setMinimumSize(900,800)
-        self.client_info=db_manager.get_client_by_id(self.client_id)
+        # self.client_info=db_manager.get_client_by_id(self.client_id) # Original line
+        try:
+            self.client_info = clients_crud_instance.get_client_by_id(self.client_id)
+        except Exception as e:
+            print(f"Error fetching client_info in ProductDialog: {e}")
+            self.client_info = {} # Fallback to empty dict
         self.setup_ui()
         self._set_initial_language_filter()
         self._filter_products_by_language_and_search()
@@ -2060,7 +2074,8 @@ class SendEmailDialog(QDialog):
         self.client_info = None
         if self.client_id:
             try:
-                self.client_info = db_manager.get_client_by_id(self.client_id)
+                # self.client_info = db_manager.get_client_by_id(self.client_id) # Original line
+                self.client_info = clients_crud_instance.get_client_by_id(self.client_id)
             except Exception as e:
                 print(f"Error fetching client_info in SendEmailDialog: {e}")
                 # Optionally, show a non-critical error to the user or log it
@@ -2183,7 +2198,11 @@ class SendEmailDialog(QDialog):
             all_templates_for_lang = []
             for template_type in self.email_template_types:
                 # Corrected function call: get_templates_by_type
-                templates = db_manager.get_templates_by_type(
+                # templates = db_manager.get_templates_by_type( # Original line
+                #     template_type=template_type,
+                #     language_code=language_code
+                # )
+                templates = templates_crud_instance.get_templates_by_type_and_language(
                     template_type=template_type,
                     language_code=language_code
                 )

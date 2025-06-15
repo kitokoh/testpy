@@ -24,7 +24,7 @@ from PyQt5.QtGui import QPixmap
 import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
-from dialogs import ClientProductDimensionDialog # Added import
+from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
 

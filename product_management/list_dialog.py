@@ -33,30 +33,43 @@ class ProductListDialog(QDialog):
 
         # Filters (Language, Category, Search, Deleted)
         filter_group_box = QGroupBox(self.tr("Filters"))
-        filter_form_layout = QFormLayout(filter_group_box)
+        # filter_form_layout = QFormLayout(filter_group_box) # Old QFormLayout
 
+        filter_controls_layout = QHBoxLayout() # New QHBoxLayout for single-line filters
+
+        # Language Filter
+        filter_controls_layout.addWidget(QLabel(self.tr("Language:")))
         self.language_combo = QComboBox()
-        # Populate with actual languages from DB or a predefined list
-        # For now, placeholder. Real population would be dynamic.
         self.language_combo.addItems([self.tr("All Languages"), "fr", "en", "ar", "tr", "pt"])
         self.language_combo.setCurrentIndex(0)
         self.language_combo.currentIndexChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Language:"), self.language_combo)
+        filter_controls_layout.addWidget(self.language_combo)
+        filter_controls_layout.addSpacing(10) # Add some spacing
 
+        # Category Filter
+        filter_controls_layout.addWidget(QLabel(self.tr("Category:")))
         self.category_filter_input = QLineEdit()
         self.category_filter_input.setPlaceholderText(self.tr("Filter by category..."))
         self.category_filter_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Category:"), self.category_filter_input)
+        filter_controls_layout.addWidget(self.category_filter_input)
+        filter_controls_layout.addSpacing(10)
 
+        # Search Name Filter
+        filter_controls_layout.addWidget(QLabel(self.tr("Search Name:")))
         self.search_product_input = QLineEdit()
         self.search_product_input.setPlaceholderText(self.tr("Search by product name..."))
         self.search_product_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Search Name:"), self.search_product_input)
+        filter_controls_layout.addWidget(self.search_product_input)
+        filter_controls_layout.addSpacing(10)
 
+        # Include Deleted Checkbox
         self.include_deleted_checkbox = QCheckBox(self.tr("Include Deleted Products"))
         self.include_deleted_checkbox.stateChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.include_deleted_checkbox)
+        filter_controls_layout.addWidget(self.include_deleted_checkbox)
 
+        filter_controls_layout.addStretch() # Push controls to the left
+
+        filter_group_box.setLayout(filter_controls_layout) # Set the new QHBoxLayout for the group box
         main_layout.addWidget(filter_group_box)
 
 
