@@ -52,10 +52,12 @@ def get_template_category_by_name(category_name: str, conn: sqlite3.Connection =
 
 @_manage_conn
 def get_all_template_categories(conn: sqlite3.Connection = None) -> list[dict]:
+    logging.info("Attempting to fetch all template categories.")
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM TemplateCategories ORDER BY category_name")
         rows = cursor.fetchall()
+        logging.info(f"Found {len(rows)} template categories.")
         return [dict(row) for row in rows]
     except sqlite3.Error as e:
         logging.error(f"Failed to get all template categories: {e}")
