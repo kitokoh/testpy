@@ -527,12 +527,27 @@ class TemplateDialog(QDialog):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
         try:
             categories = get_all_template_categories()
-            if categories:
-                for category in categories:
-                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+            if not categories:
+                logging.critical("TemplateDialog: populate_category_filter: No template categories found in the database. This is unexpected as categories should be seeded. Check database initialization and seeding process.")
+                QMessageBox.critical(self, self.tr("Critical Error"),
+                                     self.tr("No template categories could be loaded. This is essential for managing templates. Please check the application logs and ensure the database is correctly initialized. The template management dialog may not function correctly."))
+                self.category_filter_combo.setEnabled(False)
+                # Consider disabling other parts of the dialog or preventing full display
+                return # Stop further processing in this method
+
+            # If categories were found (even if it's an empty list, though 'if not categories' handles that)
+            # The original 'if categories:' check is slightly redundant now but harmless.
+            for category in categories: # This loop won't run if categories is empty or None
+                self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+
         except Exception as e:
-            print(f"Error populating category filter: {e}") # Log error
-            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template categories for filtering."))
+            # This block now specifically handles errors during the fetching process itself,
+            # not the case of "successfully fetched but no categories".
+            logging.error(f"TemplateDialog: populate_category_filter: Failed to load template categories: {e}")
+            QMessageBox.warning(self, self.tr("Filter Error"),
+                                self.tr("An error occurred while trying to load template categories for filtering. Please check logs for details."))
+            # Optionally, disable the combo here too, or let it be usable if some categories were added before exception.
+            # self.category_filter_combo.setEnabled(False)
 
     def populate_language_filter(self):
         self.language_filter_combo.addItem(self.tr("All Languages"), "all")
