@@ -415,9 +415,7 @@ class PartnerDialog(QDialog):
 
         if all_categories:
             for category in all_categories:
-                if 'category_id' not in category or category['category_id'] is None:
-                    logging.warning(f"PartnerDialog: Category dictionary missing 'category_id' or it's None. Category data: {category}. Skipping this category.")
-                    continue # Skip this category
+
                 item = QListWidgetItem(category['category_name'])
                 item.setData(Qt.UserRole, category['category_id'])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
