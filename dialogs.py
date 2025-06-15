@@ -26,8 +26,17 @@ from docx import Document
 from PyPDF2 import PdfMerger
 from reportlab.pdfgen import canvas
 
-import db as db_manager
+import db as db_manager # Keep for now
+from db.cruds.clients_crud import clients_crud_instance
+from db.cruds.templates_crud import templates_crud_instance
 from db.cruds.template_categories_crud import get_all_template_categories
+# templates_crud functions get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+# are likely class methods on templates_crud_instance or static methods.
+# If they are module-level functions in templates_crud.py, they should be imported directly.
+# For now, assuming they might be available via the instance or need specific import if error occurs.
+# Let's check if they are used directly by db_manager or need to be instance calls.
+# Upon review, get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+# are module-level in templates_crud.py, so direct import is fine.
 from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
@@ -1111,7 +1120,12 @@ class ProductDialog(QDialog):
         self.current_selected_global_product_id = None
         self.setWindowTitle(self.tr("Ajouter Produits au Client"))
         self.setMinimumSize(900,800)
-        self.client_info=db_manager.get_client_by_id(self.client_id)
+        # self.client_info=db_manager.get_client_by_id(self.client_id) # Original line
+        try:
+            self.client_info = clients_crud_instance.get_client_by_id(self.client_id)
+        except Exception as e:
+            print(f"Error fetching client_info in ProductDialog: {e}")
+            self.client_info = {} # Fallback to empty dict
         self.setup_ui()
         self._set_initial_language_filter()
         self._filter_products_by_language_and_search()
@@ -1296,7 +1310,10 @@ class ProductDialog(QDialog):
                 "language_code":language_code,
                 "weight": float(retrieved_weight) if retrieved_weight is not None else 0.0, # Add weight to dict
                 "dimensions": str(retrieved_dimensions) if retrieved_dimensions is not None else "", # Add dimensions to dict
-                "product_id": retrieved_global_product_id # Add global product_id (can be None)
+                "product_id": retrieved_global_product_id, # Add global product_id (can be None)
+                # Add client's location information, in case it's needed downstream implicitly
+                "client_country_id": self.client_info.get('country_id') if self.client_info else None,
+                "client_city_id": self.client_info.get('city_id') if self.client_info else None
             })
         return products_list
 
@@ -1389,20 +1406,47 @@ class CreateDocumentDialog(QDialog):
         return widget
 
     def setup_ui(self):
-        main_layout = QVBoxLayout(self); main_layout.setSpacing(15)
-        header_label = QLabel(self.tr("Sélectionner Documents à Créer")); header_label.setObjectName("dialogHeaderLabel")
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(15, 15, 15, 15) # Add overall dialog margins
+        main_layout.setSpacing(10) # Consistent spacing
+
+        header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
+        header_label.setObjectName("dialogHeaderLabel")
         main_layout.addWidget(header_label)
-        # self.setStyleSheet("QComboBox, QListWidget, QLineEdit { padding: 3px; } QListWidget::item:hover { background-color: #e6f7ff; }") # Prefer global styles
-        filters_layout = QGridLayout(); filters_layout.setSpacing(10)
-        self.language_filter_label = QLabel(self.tr("Langue:")); self.language_filter_combo = QComboBox()
-        self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"]); self.language_filter_combo.setCurrentText(self.tr("All"))
-        filters_layout.addWidget(self.language_filter_label, 0, 0); filters_layout.addWidget(self.language_filter_combo, 0, 1)
-        self.extension_filter_label = QLabel(self.tr("Extension:")); self.extension_filter_combo = QComboBox()
-        self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"]); self.extension_filter_combo.setCurrentText("HTML")
-        filters_layout.addWidget(self.extension_filter_label, 0, 2); filters_layout.addWidget(self.extension_filter_combo, 0, 3)
-        self.search_bar_label = QLabel(self.tr("Rechercher:")); self.search_bar = QLineEdit(); self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
-        filters_layout.addWidget(self.search_bar_label, 1, 0); filters_layout.addWidget(self.search_bar, 1, 1, 1, 3)
-        main_layout.addLayout(filters_layout)
+
+        # Filters Group
+        filters_group = QGroupBox(self.tr("Filtres"))
+        filters_group_layout = QVBoxLayout(filters_group) # Use QVBoxLayout for vertical arrangement of filter rows
+        filters_group_layout.setSpacing(10)
+
+        # Filter Row 1 (Language and Extension)
+        filter_row1_layout = QHBoxLayout()
+        self.language_filter_label = QLabel(self.tr("Langue:"))
+        filter_row1_layout.addWidget(self.language_filter_label)
+        self.language_filter_combo = QComboBox()
+        self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"])
+        self.language_filter_combo.setCurrentText(self.tr("All"))
+        filter_row1_layout.addWidget(self.language_filter_combo)
+        filter_row1_layout.addSpacing(20) # Spacing between filter groups
+        self.extension_filter_label = QLabel(self.tr("Extension:"))
+        filter_row1_layout.addWidget(self.extension_filter_label)
+        self.extension_filter_combo = QComboBox()
+        self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
+        self.extension_filter_combo.setCurrentText("HTML")
+        filter_row1_layout.addWidget(self.extension_filter_combo)
+        filter_row1_layout.addStretch()
+        filters_group_layout.addLayout(filter_row1_layout)
+
+        # Filter Row 2 (Search)
+        filter_row2_layout = QHBoxLayout()
+        self.search_bar_label = QLabel(self.tr("Rechercher:"))
+        filter_row2_layout.addWidget(self.search_bar_label)
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
+        filter_row2_layout.addWidget(self.search_bar)
+        filters_group_layout.addLayout(filter_row2_layout)
+
+        main_layout.addWidget(filters_group)
 
         # Order Identifier ComboBox
         self.order_select_combo = None
@@ -1415,9 +1459,12 @@ class CreateDocumentDialog(QDialog):
             has_multiple_events = self.has_multiple_purchase_events()
 
         if client_category == 'Distributeur' or has_multiple_events:
+            order_group = QGroupBox(self.tr("Association Commande"))
+            order_group_layout = QHBoxLayout(order_group) # Use QHBoxLayout for single line
+
             self.order_select_combo = QComboBox()
-            self.order_select_combo.addItem(self.tr("Document Général (pas de commande spécifique)"), "NONE") # Use "NONE" as userData for no order
-            if client_id_for_events: # Check again, as it might be None if client_info was incomplete
+            self.order_select_combo.addItem(self.tr("Document Général (pas de commande spécifique)"), "NONE")
+            if client_id_for_events:
                 purchase_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id_for_events)
                 if purchase_events:
                     for event_ts in purchase_events:
@@ -1430,25 +1477,45 @@ class CreateDocumentDialog(QDialog):
                                 print(f"Warning: Could not parse purchase event timestamp: {event_ts}")
                                 self.order_select_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
 
-            order_select_layout = QHBoxLayout()
-            order_select_layout.addWidget(QLabel(self.tr("Associer à la Commande:")))
-            order_select_layout.addWidget(self.order_select_combo)
-            main_layout.addLayout(order_select_layout)
+            order_group_layout.addWidget(QLabel(self.tr("Associer à la Commande:")))
+            order_group_layout.addWidget(self.order_select_combo)
+            order_group_layout.addStretch()
+            main_layout.addWidget(order_group)
 
+        # Templates List Group
+        templates_group = QGroupBox(self.tr("Modèles Disponibles"))
+        templates_group_layout = QVBoxLayout(templates_group)
+        # templates_list_label = self._create_icon_label_widget("document-multiple", self.tr("Modèles disponibles:"))
+        # templates_group_layout.addWidget(templates_list_label) # Label can be part of GroupBox title
+        self.templates_list = QListWidget()
+        self.templates_list.setSelectionMode(QListWidget.MultiSelection)
+        self.templates_list.setAlternatingRowColors(True) # Improve readability
+        self.templates_list.setStyleSheet("QListWidget::item:hover { background-color: #e6f7ff; }") # Hover effect
+        templates_group_layout.addWidget(self.templates_list)
+        main_layout.addWidget(templates_group)
 
-        templates_list_label = self._create_icon_label_widget("document-multiple", self.tr("Modèles disponibles:")); main_layout.addWidget(templates_list_label)
-        self.templates_list = QListWidget(); self.templates_list.setSelectionMode(QListWidget.MultiSelection); main_layout.addWidget(self.templates_list)
         self.language_filter_combo.currentTextChanged.connect(self.load_templates)
         self.extension_filter_combo.currentTextChanged.connect(self.load_templates)
         self.search_bar.textChanged.connect(self.load_templates)
-        self.load_templates(); main_layout.addStretch()
-        button_frame = QFrame(self); button_frame.setObjectName("buttonFrame") # Style in QSS
-        button_frame_layout = QHBoxLayout(button_frame); button_frame_layout.setContentsMargins(0,0,0,0)
-        create_btn = QPushButton(self.tr("Créer Documents")); create_btn.setIcon(QIcon(":/icons/file-plus.svg")); create_btn.setObjectName("primaryButton")
-        create_btn.clicked.connect(self.create_documents); button_frame_layout.addWidget(create_btn)
-        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
-        cancel_btn.clicked.connect(self.reject); button_frame_layout.addWidget(cancel_btn)
-        main_layout.addWidget(button_frame)
+
+        self.load_templates()
+
+        main_layout.addStretch(1) # Ensure list can expand, push buttons to bottom
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        create_btn = button_box.button(QDialogButtonBox.Ok)
+        create_btn.setText(self.tr("Créer Documents"))
+        create_btn.setIcon(QIcon(":/icons/file-plus.svg"))
+        create_btn.setObjectName("primaryButton")
+
+        cancel_btn = button_box.button(QDialogButtonBox.Cancel)
+        cancel_btn.setText(self.tr("Annuler"))
+        cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg"))
+
+        button_box.accepted.connect(self.create_documents)
+        button_box.rejected.connect(self.reject)
+        main_layout.addWidget(button_box)
 
     def has_multiple_purchase_events(self):
         """Checks if the client has more than one distinct purchase_confirmed_at event."""
@@ -1475,23 +1542,65 @@ class CreateDocumentDialog(QDialog):
         selected_lang = self.language_filter_combo.currentText(); selected_ext_display = self.extension_filter_combo.currentText(); search_text = self.search_bar.text().lower()
         ext_map = {"HTML": ".html", "XLSX": ".xlsx", "DOCX": ".docx"}; selected_ext = ext_map.get(selected_ext_display)
         try:
-            all_file_templates = db_manager.get_all_file_based_templates();
+            all_file_templates = db_manager.get_all_file_based_templates()
             if all_file_templates is None: all_file_templates = []
-            filtered_templates = []
+
+            default_templates = []
+            other_templates = []
+
             for template_dict in all_file_templates:
-                name = template_dict.get('template_name', 'N/A'); lang_code = template_dict.get('language_code', 'N/A'); base_file_name = template_dict.get('base_file_name', 'N/A')
-                if selected_lang != self.tr("All") and lang_code != selected_lang: continue
-                file_actual_ext = os.path.splitext(base_file_name)[1].lower()
-                if selected_ext_display != self.tr("All"):
-                    if not selected_ext or file_actual_ext != selected_ext: continue
-                if search_text and search_text not in name.lower(): continue
-                filtered_templates.append(template_dict)
-            for template_dict in filtered_templates:
-                name = template_dict.get('template_name', 'N/A'); lang = template_dict.get('language_code', 'N/A'); base_file_name = template_dict.get('base_file_name', 'N/A')
-                item_text = f"{name} ({lang}) - {base_file_name}"; item = QListWidgetItem(item_text)
-                # Store the whole template_dict for richer data access later
-                item.setData(Qt.UserRole, template_dict); self.templates_list.addItem(item)
-        except Exception as e: QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
+                if template_dict.get('is_default_for_type_lang'):
+                    default_templates.append(template_dict)
+                else:
+                    other_templates.append(template_dict)
+
+            # Process default templates first, then other templates
+            # Both lists will be filtered identically.
+
+            processed_templates = []
+            for template_list_segment in [default_templates, other_templates]:
+                for template_dict in template_list_segment:
+                    name = template_dict.get('template_name', 'N/A')
+                    lang_code = template_dict.get('language_code', 'N/A')
+                    base_file_name = template_dict.get('base_file_name', 'N/A')
+
+                    # Apply filters
+                    if selected_lang != self.tr("All") and lang_code != selected_lang:
+                        continue
+
+                    file_actual_ext = os.path.splitext(base_file_name)[1].lower()
+                    if selected_ext_display != self.tr("All"):
+                        if not selected_ext or file_actual_ext != selected_ext:
+                            continue
+
+                    if search_text and search_text not in name.lower():
+                        continue
+
+                    processed_templates.append(template_dict)
+
+            for template_dict in processed_templates:
+                name = template_dict.get('template_name', 'N/A')
+                lang = template_dict.get('language_code', 'N/A')
+                base_file_name = template_dict.get('base_file_name', 'N/A')
+                is_default = template_dict.get('is_default_for_type_lang', False)
+
+                item_text = f"{name} ({lang}) - {base_file_name}"
+                if is_default:
+                    item_text = f"[D] {item_text}" # Mark default templates
+
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, template_dict)
+
+                if is_default:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                    # item.setBackground(QColor("#E0F0E0")) # Optional: Light green background for defaults
+
+                self.templates_list.addItem(item)
+
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):
         selected_items = self.templates_list.selectedItems()
@@ -1963,7 +2072,8 @@ class SendEmailDialog(QDialog):
         self.client_info = None
         if self.client_id:
             try:
-                self.client_info = db_manager.get_client_by_id(self.client_id)
+                # self.client_info = db_manager.get_client_by_id(self.client_id) # Original line
+                self.client_info = clients_crud_instance.get_client_by_id(self.client_id)
             except Exception as e:
                 print(f"Error fetching client_info in SendEmailDialog: {e}")
                 # Optionally, show a non-critical error to the user or log it
@@ -2086,7 +2196,11 @@ class SendEmailDialog(QDialog):
             all_templates_for_lang = []
             for template_type in self.email_template_types:
                 # Corrected function call: get_templates_by_type
-                templates = db_manager.get_templates_by_type(
+                # templates = db_manager.get_templates_by_type( # Original line
+                #     template_type=template_type,
+                #     language_code=language_code
+                # )
+                templates = templates_crud_instance.get_templates_by_type_and_language(
                     template_type=template_type,
                     language_code=language_code
                 )
