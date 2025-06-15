@@ -46,7 +46,7 @@ from dialogs import (
     TransporterDialog,
     FreightForwarderDialog
 )
-from product_list_dialog import ProductListDialog
+from product_management.list_dialog import ProductListDialog
 
 from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard

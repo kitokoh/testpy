@@ -5,8 +5,9 @@ from PyQt5.QtWidgets import (
     QHeaderView, QMessageBox, QFileDialog, QCheckBox, QGroupBox, QFormLayout
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon # Added for indicators
 from PyQt5.QtWidgets import QDialog # Already imported but good to ensure QDialog is recognized if separated
-from product_edit_dialog import ProductEditDialog # Added import
+from .edit_dialog import ProductEditDialog # Added import
 # import db as db_manager # No longer needed for product functions
 from db.cruds.products_crud import products_crud_instance
 import html_to_pdf_util # Import the PDF utility
@@ -61,12 +62,17 @@ class ProductListDialog(QDialog):
 
         # Product Table
         self.product_table = QTableWidget()
-        self.product_table.setColumnCount(4) # Added ID column (hidden)
+        self.product_table.setColumnCount(7) # ID, Name, Desc, Price, Lang, TechSpecs, Translations
         self.product_table.setHorizontalHeaderLabels([
-            "ID", self.tr("Product Name"), self.tr("Description"), self.tr("Price")
+            "ID", self.tr("Product Name"), self.tr("Description"), self.tr("Price"),
+            self.tr("Language"), self.tr("Tech Specs"), self.tr("Translations")
         ])
         self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
         self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
+        self.product_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Interactive) # Price
+        self.product_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Language
+        self.product_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Tech Specs
+        self.product_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents) # Translations
         self.product_table.hideColumn(0) # Hide ID
         self.product_table.itemChanged.connect(self.handle_price_change)
         self.product_table.itemSelectionChanged.connect(self._update_button_states)
@@ -248,6 +254,31 @@ class ProductListDialog(QDialog):
                     # Price column is editable by default, flags are fine
                     self.product_table.setItem(row, 3, price_item) # Price col (index 3)
 
+                    product_id = product_data.get("product_id")
+
+                    # Language Code
+                    lang_code = product_data.get("language_code", "")
+                    lang_item = QTableWidgetItem(lang_code)
+                    lang_item.setFlags(lang_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, 4, lang_item) # Language col (index 4)
+
+                    # Technical Specs Indicator
+                    tech_specs_data = products_crud_instance.get_product_dimension(product_id)
+                    has_tech_specs_bool = bool(tech_specs_data and (tech_specs_data.get('technical_image_path') or any(str(tech_specs_data.get(f'dim_{chr(ord("A")+i)}','')).strip() for i in range(10))))
+                    has_tech_specs = self.tr("Yes") if has_tech_specs_bool else self.tr("No")
+                    tech_specs_item = QTableWidgetItem(has_tech_specs)
+                    tech_specs_item.setFlags(tech_specs_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, 5, tech_specs_item) # Tech Specs col (index 5)
+
+                    # Translations Indicator
+                    equivalent_products = products_crud_instance.get_equivalent_products(product_id, include_deleted=False)
+                    translations_count = len(equivalent_products) if equivalent_products else 0
+                    translations_indicator = str(translations_count) if translations_count > 0 else self.tr("No")
+                    translations_item = QTableWidgetItem(translations_indicator)
+                    translations_item.setFlags(translations_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, 6, translations_item) # Translations col (index 6)
+
+
             self.update_pagination_controls(len(products))
 
         except Exception as e:
@@ -356,6 +387,9 @@ class ProductListDialog(QDialog):
                             <th>Product Name</th>
                             <th>Description</th>
                             <th>Price</th>
+                            <th>Language</th>
+                            <th>Tech Specs</th>
+                            <th>Translations</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -363,12 +397,15 @@ class ProductListDialog(QDialog):
                         <tr>
                             <td>{{ this.product_name }}</td>
                             <td>{{ this.description }}</td>
-                            <td>{{ this.base_unit_price }}</td> {# Assuming base_unit_price is directly usable #}
+                            <td>{{ this.base_unit_price }}</td>
+                            <td>{{ this.language_code_display }}</td>
+                            <td>{{ this.tech_specs_indicator }}</td>
+                            <td>{{ this.translations_indicator }}</td>
                         </tr>
                         {{/each}}
-                        {{#if products_empty}} {# A way to show if list is empty, though get_products might return empty list handled above #}
+                        {{#if products_empty}}
                         <tr>
-                            <td colspan="3" style="text-align: center;">No products to display for the selected language.</td>
+                            <td colspan="6" style="text-align: center;">No products to display for the selected criteria.</td>
                         </tr>
                         {{/if}}
                     </tbody>
@@ -377,10 +414,25 @@ class ProductListDialog(QDialog):
             </html>
             """
 
+
+            # Augment product_list for PDF context
+            for product_in_list in product_list:
+                product_id_for_pdf = product_in_list.get("product_id")
+                product_in_list['language_code_display'] = product_in_list.get("language_code", "")
+
+                tech_specs_data_pdf = products_crud_instance.get_product_dimension(product_id_for_pdf)
+                has_tech_specs_bool_pdf = bool(tech_specs_data_pdf and (tech_specs_data_pdf.get('technical_image_path') or any(str(tech_specs_data_pdf.get(f'dim_{chr(ord("A")+i)}','')).strip() for i in range(10))))
+                product_in_list['tech_specs_indicator'] = self.tr("Yes") if has_tech_specs_bool_pdf else self.tr("No")
+
+                equivalent_products_pdf = products_crud_instance.get_equivalent_products(product_id_for_pdf, include_deleted=False)
+                translations_count_pdf = len(equivalent_products_pdf) if equivalent_products_pdf else 0
+                product_in_list['translations_indicator'] = str(translations_count_pdf) if translations_count_pdf > 0 else self.tr("No")
+
+
             context = {
                 'title': dialog_title,
                 'products': product_list,
-                'products_empty': not bool(product_list) # For {{#if products_empty}}
+                'products_empty': not bool(product_list)
             }
 
             rendered_html = html_to_pdf_util.render_html_template(html_template_string, context)
