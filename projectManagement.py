@@ -30,8 +30,7 @@ from db import (
     get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name,
     get_all_projects, get_project_by_id, add_project, update_project, delete_project,
     get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
-    get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency,
-    get_tasks_by_project_id_ordered_by_sequence, # Added this function
+    get_tasks_by_assignee_id,
     get_kpis_for_project,
     add_activity_log, get_activity_logs,
     get_user_by_id, get_all_users, update_user, verify_user_password,

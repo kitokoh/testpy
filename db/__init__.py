@@ -43,10 +43,6 @@ from .cruds.tasks_crud import (
     delete_task,
     get_task_by_id,
     get_tasks_by_assignee_id,
-    get_predecessor_tasks,
-    add_task_dependency,
-    remove_task_dependency,
-    get_tasks_by_project_id_ordered_by_sequence,
 )
 from .cruds.kpis_crud import get_kpis_for_project
 from .cruds.activity_logs_crud import add_activity_log, get_activity_logs
@@ -71,7 +67,29 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
     get_total_clients_count, # Added
-
+)
+from .cruds.contacts_crud import (
+    get_contacts_for_client,
+    add_contact,
+    get_contact_by_id,
+    get_contact_by_email,
+    get_all_contacts,
+    update_contact,
+    delete_contact,
+    link_contact_to_client,
+    unlink_contact_from_client,
+    get_contacts_for_client_count,
+    get_clients_for_contact,
+    get_specific_client_contact_link_details,
+    update_client_contact_link
+)
+from .cruds.client_project_products_crud import (
+    get_products_for_client_or_project,
+    get_distinct_purchase_confirmed_at_for_client,
+    add_product_to_client_or_project,
+    update_client_project_product,
+    remove_product_from_client_or_project,
+    get_client_project_product_by_id
 )
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
@@ -153,13 +171,9 @@ from .cruds.partners_crud import (
     update_partner_category,
     get_partner_category_by_id, # Added
 )
-from .cruds.locations_crud import (
-    get_all_countries, add_country, get_or_add_country,
-    get_all_cities, add_city, get_or_add_city,
-    get_country_by_id, get_city_by_id,
-    get_country_by_name, get_city_by_name_and_country_id # Added these
-)
-
+from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id, get_country_by_name, get_city_by_name_and_country_id
+from .cruds.transporters_crud import get_all_transporters, add_transporter, get_transporter_by_id, update_transporter, delete_transporter
+from .cruds.freight_forwarders_crud import get_all_freight_forwarders, add_freight_forwarder, get_freight_forwarder_by_id, update_freight_forwarder, delete_freight_forwarder
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
@@ -189,10 +203,6 @@ __all__ = [
     "delete_task",
     "get_task_by_id",
     "get_tasks_by_assignee_id",
-    "get_predecessor_tasks",
-    "add_task_dependency",
-    "remove_task_dependency",
-    "get_tasks_by_project_id_ordered_by_sequence",
     "get_kpis_for_project",
     "add_activity_log",
     "get_activity_logs",
@@ -305,8 +315,8 @@ __all__ = [
     "get_or_add_city",
     "get_country_by_id",
     "get_city_by_id",
-    "get_country_by_name", # Added
-    "get_city_by_name_and_country_id", # Added
+    "get_country_by_name",
+    "get_city_by_name_and_country_id",
     "initialize_database",
     "get_setting",
     "set_setting",

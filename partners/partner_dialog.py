@@ -752,8 +752,8 @@ class PartnerDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Partner name (Partner Details tab) is required.")
             return
 
-        partner_data = {
-            return
+        # partner_data = {
+        #     return
 
         partner_data_for_db = {
             'partner_name': partner_name_val, # Schema uses partner_name

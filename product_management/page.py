@@ -339,4 +339,4 @@ class ProductManagementPage(QWidget):
         self.apply_filters_and_reload()
         print("ProductManagementPage view refreshed.")
 
-```
+
