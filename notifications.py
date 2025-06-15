@@ -166,7 +166,7 @@ class NotificationWidget(QWidget):
             elif os.path.exists(icon_source_path): # It's a file path
                  icon = QIcon(icon_source_path)
                  if not icon.isNull():
-                    pixmap = icon.pixmap(self.ICON_SIZE, self.ICON_SIZE, mode=Qt.KeepAspectRatio, state=Qt.OnState)
+                    pixmap = icon.pixmap(self.ICON_SIZE, self.ICON_SIZE, QIcon.Normal, QIcon.Off)
             else: # Not an SP_ enum and path doesn't exist, try default SP_ for type
                 pass # Will fall through to next block
 
