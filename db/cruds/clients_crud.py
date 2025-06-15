@@ -253,12 +253,13 @@ class ClientsCRUD(GenericCRUD):
             return {'success': False, 'error': str(e)}
 
     @_manage_conn
-    def get_all_clients_with_details(self, conn: sqlite3.Connection = None, limit: int = None, offset: int = 0, include_deleted: bool = False) -> list[dict]:
+    def get_all_clients_with_details(self, filters: dict = None, conn: sqlite3.Connection = None, limit: int = None, offset: int = 0, include_deleted: bool = False) -> list[dict]:
         """
         Retrieves all clients along with details from joined tables (Countries, Cities, StatusSettings).
         Supports pagination and filtering of soft-deleted records.
 
         Args:
+            filters (dict, optional): A dictionary of filters to apply.
             conn (sqlite3.Connection, optional): Database connection.
             limit (int, optional): Maximum number of records for pagination.
             offset (int, optional): Offset for pagination.
@@ -285,6 +286,26 @@ class ClientsCRUD(GenericCRUD):
         conditions = []
         if not include_deleted:
             conditions.append("(c.is_deleted IS NULL OR c.is_deleted = 0)")
+
+        if filters:
+            if 'status_id' in filters and filters['status_id'] is not None:
+                conditions.append("c.status_id = ?")
+                q_params.append(filters['status_id'])
+            if 'client_name' in filters and filters['client_name']:
+                conditions.append("c.client_name LIKE ?")
+                q_params.append(f"%{filters['client_name']}%")
+            if 'company_name' in filters and filters['company_name']:
+                conditions.append("c.company_name LIKE ?")
+                q_params.append(f"%{filters['company_name']}%")
+            if 'category' in filters and filters['category']:
+                conditions.append("c.category LIKE ?")
+                q_params.append(f"%{filters['category']}%")
+            if 'country_id' in filters and filters['country_id'] is not None:
+                conditions.append("c.country_id = ?")
+                q_params.append(filters['country_id'])
+            if 'city_id' in filters and filters['city_id'] is not None:
+                conditions.append("c.city_id = ?")
+                q_params.append(filters['city_id'])
 
         if conditions:
             query += " WHERE " + " AND ".join(conditions)

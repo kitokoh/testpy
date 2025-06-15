@@ -123,6 +123,7 @@ from .cruds.partners_crud import (
     update_partner_category,
     get_partner_category_by_id, # Added
 )
+from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
@@ -230,6 +231,14 @@ __all__ = [
     "delete_partner_category",
     "update_partner_category",
     "get_partner_category_by_id", # Added
+    "get_all_countries",
+    "add_country",
+    "get_or_add_country",
+    "get_all_cities",
+    "add_city",
+    "get_or_add_city",
+    "get_country_by_id",
+    "get_city_by_id",
     "initialize_database",
     "get_setting",
     "set_setting",

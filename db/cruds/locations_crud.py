@@ -185,16 +185,20 @@ def get_or_add_city(city_name: str, country_id: int, conn: sqlite3.Connection = 
         return None
 
 @_manage_conn
-def get_all_cities(conn: sqlite3.Connection = None) -> list[dict]:
+def get_all_cities(country_id: int = None, conn: sqlite3.Connection = None) -> list[dict]:
     """
-    Retrieves all cities.
-    STUB FUNCTION - Original was a stub.
+    Retrieves all cities, optionally filtered by country_id.
     """
-    logging.warning("Called stub function get_all_cities. Providing basic implementation.")
     cursor = conn.cursor()
+    sql = "SELECT * FROM Cities"
+    params = []
+    if country_id is not None:
+        sql += " WHERE country_id = ?"
+        params.append(country_id)
+    sql += " ORDER BY city_name" # Or country_id, city_name
     try:
-        cursor.execute("SELECT * FROM Cities ORDER BY country_id, city_name")
+        cursor.execute(sql, params)
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Database error in get_all_cities: {e}")
+        logging.error(f"Database error in get_all_cities (country_id={country_id}): {e}")
         return []

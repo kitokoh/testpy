@@ -120,6 +120,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         'status_id': default_status_id,
         'category': 'Standard',
         'notes': '',
+        'created_by_user_id': "system_user_placeholder_001" # Added placeholder
     }
 
     actual_new_client_id = None
