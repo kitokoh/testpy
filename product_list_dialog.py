@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QTableWidget, QTableWidgetItem, QPushButton, QComboBox,
-    QHeaderView, QMessageBox, QFileDialog, QCheckBox
+    QHeaderView, QMessageBox, QFileDialog, QCheckBox, QGroupBox, QFormLayout
 )
 from PyQt5.QtCore import Qt
 # import db as db_manager # No longer needed for product functions
