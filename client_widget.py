@@ -1797,7 +1797,7 @@ class ClientWidget(QWidget):
         has_multiple_orders = order_events and len(order_events) > 1
         show_order_filter = is_distributor_type or has_multiple_orders
 
-        self.doc_filter_layout_widget.setVisible(show_order_filter)
+        self.doc_filter_layout_widget.setVisible(bool(show_order_filter))
 
         current_order_filter_selection = None
         if show_order_filter:
