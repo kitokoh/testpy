@@ -48,6 +48,7 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_city,
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
+    get_total_clients_count, # Added
 )
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
@@ -129,7 +130,12 @@ from .cruds.partners_crud import (
     update_partner_category,
     get_partner_category_by_id, # Added
 )
-from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id
+from .cruds.locations_crud import (
+    get_all_countries, add_country, get_or_add_country,
+    get_all_cities, add_city, get_or_add_city,
+    get_country_by_id, get_city_by_id,
+    get_country_by_name, get_city_by_name_and_country_id # Added these
+)
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
@@ -171,6 +177,7 @@ __all__ = [
     "delete_team_member",
     "get_all_clients",
     "get_active_clients_count",
+    "get_total_clients_count", # Added
     "get_client_counts_by_country", # Added
     "get_client_segmentation_by_city", # Added
     "get_client_segmentation_by_status", # Added
@@ -249,6 +256,8 @@ __all__ = [
     "get_or_add_city",
     "get_country_by_id",
     "get_city_by_id",
+    "get_country_by_name", # Added
+    "get_city_by_name_and_country_id", # Added
     "initialize_database",
     "get_setting",
     "set_setting",
