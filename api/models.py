@@ -147,6 +147,37 @@ class ProformaInvoiceItem(Base):
     product = relationship("Product") # No back_populates needed on Product for this item
 
 
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    contact_id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=True)
+    phone = Column(String, nullable=True)
+    position = Column(String, nullable=True)
+    company_name = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    givenName = Column(String, nullable=True)
+    familyName = Column(String, nullable=True)
+    displayName = Column(String, nullable=True)
+    phone_type = Column(String, nullable=True)
+    email_type = Column(String, nullable=True)
+    address_formattedValue = Column(String, nullable=True)
+    address_streetAddress = Column(String, nullable=True)
+    address_city = Column(String, nullable=True)
+    address_region = Column(String, nullable=True)
+    address_postalCode = Column(String, nullable=True)
+    address_country = Column(String, nullable=True)
+    organization_name = Column(String, nullable=True)
+    organization_title = Column(String, nullable=True)
+    birthday_date = Column(String, nullable=True) # SQLite stores dates as TEXT
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<Contact(contact_id={self.contact_id}, name='{self.name}', email='{self.email}')>"
+
+
 # --- Existing Pydantic Models Below ---
 # It's unusual to mix SQLAlchemy and Pydantic models in the same file this way,
 # but adhering to the subtask's request to modify api/models.py.
