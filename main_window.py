@@ -41,12 +41,12 @@ from document_manager_logic import (
 )
 from dialogs import (
     SettingsDialog as OriginalSettingsDialog, TemplateDialog, AddNewClientDialog,
-    ProductEquivalencyDialog,
     ManageProductMasterDialog,
     TransporterDialog,
     FreightForwarderDialog
 )
-from product_list_dialog import ProductListDialog
+# from product_management.list_dialog import ProductListDialog # Removed
+from product_management.page import ProductManagementPage # Added
 
 from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard
@@ -178,6 +178,9 @@ class DocumentManager(QMainWindow):
 
         self.partner_management_widget_instance = PartnerMainWidget(parent=self)
         self.main_area_stack.addWidget(self.partner_management_widget_instance)
+
+        self.product_management_page_instance = ProductManagementPage(self) # Create instance
+        self.main_area_stack.addWidget(self.product_management_page_instance) # Add to stack
 
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         self.create_actions_main(); self.create_menus_main()
@@ -325,13 +328,12 @@ class DocumentManager(QMainWindow):
         self.exit_action = QAction(QIcon(":/icons/log-out.svg"), self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
         self.project_management_action = QAction(QIcon(":/icons/modern/dashboard.svg"), self.tr("Gestion de Projet"), self); self.project_management_action.triggered.connect(self.show_project_management_view)
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self); self.documents_view_action.triggered.connect(self.show_documents_view)
-        self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self); self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
-        self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product List"), self); self.product_list_action.triggered.connect(self.open_product_list_placeholder)
+        self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product Management"), self); self.product_list_action.triggered.connect(self.show_product_management_page) # Connect to new method
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self); self.partner_management_action.triggered.connect(self.show_partner_management_view)
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
 
     def create_menus_main(self): 
-        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addAction(self.product_equivalency_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
+        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
         modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
@@ -339,6 +341,7 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
     def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+    def show_product_management_page(self): self.main_area_stack.setCurrentWidget(self.product_management_page_instance) # New method
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
     def execute_create_client_slot(self, client_data_dict=None):
@@ -515,8 +518,7 @@ class DocumentManager(QMainWindow):
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
     def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
-    def open_product_equivalency_dialog(self): ProductEquivalencyDialog(self).exec_()
-    def open_product_list_placeholder(self): ProductListDialog(self).exec_()
+    # def open_product_list_placeholder(self): ProductListDialog(self).exec_() # Removed
     def closeEvent(self, event): save_config(self.config); super().closeEvent(event)
 
     # process_client_map_selection and prepare_new_client_for_country removed as they were for the integrated map.
