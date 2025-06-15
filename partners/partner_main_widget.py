@@ -81,7 +81,7 @@ class PartnerMainWidget(QWidget):
             categories = get_all_partner_categories()
             if categories:
                 for category in categories:
-                    self.category_filter_combo.addItem(category['name'], category['category_id'])
+                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
 
             # Restore selection
             if current_category_id is not None:

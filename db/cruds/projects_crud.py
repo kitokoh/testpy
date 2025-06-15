@@ -1,3 +1,6 @@
+import sqlite3 # Added for type hinting
+from .generic_crud import _manage_conn, get_db_connection # Added for decorator
+
 # Placeholder functions to allow imports to succeed for testing purposes.
 # These do not interact with the database.
 
@@ -26,20 +29,23 @@ def update_project(project_id, project_data):
     print(f"Placeholder: update_project called with {project_id} and {project_data}")
     return True
 
-def get_all_projects(db_session, skip: int = 0, limit: int = 100):
-    print(f"Placeholder: get_all_projects called with session={db_session}, skip={skip}, limit={limit}")
+@_manage_conn
+def get_all_projects(skip: int = 0, limit: int = 100, conn: sqlite3.Connection = None):
+    print(f"Placeholder: get_all_projects called with conn={conn}, skip={skip}, limit={limit}")
     # In a real scenario, you'd query the database here.
-    # Example: return db_session.query(Project).offset(skip).limit(limit).all()
+    # Example: return conn.execute("SELECT * FROM projects LIMIT ? OFFSET ?", (limit, skip,)).fetchall()
     return []
 
-def get_total_projects_count(db_session):
-    print(f"Placeholder: get_total_projects_count called with session={db_session}")
-    # Example: return db_session.query(Project).count()
+@_manage_conn
+def get_total_projects_count(conn: sqlite3.Connection = None):
+    print(f"Placeholder: get_total_projects_count called with conn={conn}")
+    # Example: return conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
     return 0
 
-def get_active_projects_count(db_session):
-    print(f"Placeholder: get_active_projects_count called with session={db_session}")
-    # Example: return db_session.query(Project).filter(Project.status == 'active').count()
+@_manage_conn
+def get_active_projects_count(conn: sqlite3.Connection = None):
+    print(f"Placeholder: get_active_projects_count called with conn={conn}")
+    # Example: return conn.execute("SELECT COUNT(*) FROM projects WHERE status = 'active'").fetchone()[0]
     return 0
 
 # Add any other functions that might be imported from this module by other parts of the application
