@@ -21,7 +21,7 @@ from .cruds.status_settings_crud import (
     get_status_setting_by_name,
 )
 from .cruds.templates_crud import get_all_templates, get_template_by_id
-from .cruds.client_documents_crud import add_client_document, get_document_by_id
+from .cruds.client_documents_crud import add_client_document, get_document_by_id, get_documents_for_client
 from .utils import get_document_context_data
 # For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
 # Files using proforma_invoices_crud will import it directly.
@@ -188,6 +188,7 @@ __all__ = [
     "get_template_by_id",
     "add_client_document",
     "get_document_by_id",
+    "get_documents_for_client",
     "get_document_context_data",
     "get_all_projects",
     "get_project_by_id",
