@@ -15,16 +15,15 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
-from PyQt5.QtWebEngineWidgets import QWebEngineView # Retain for ClientWidget if it uses it, or remove if not. Map is removed from DocMan.
-from PyQt5.QtWebChannel import QWebChannel # Retain for ClientWidget if it uses it.
+# QWebEngineView might still be used by ClientWidget or other parts, so keep for now unless confirmed unused.
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+# from PyQt5.QtWebChannel import QWebChannel # QWebChannel removed as DocumentManager no longer uses its own map.
+
 
 import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.products_crud import products_crud_instance
 
-from db.cruds.products_crud import products_crud_instance # Import products instance
-from db.cruds.transporters_crud import get_all_transporters # Added import
-from db.cruds.freight_forwarders_crud import get_all_freight_forwarders # Added import
 import icons_rc
 # import folium # No longer used directly by DocumentManager for its own map
 # from statistics_module import MapInteractionHandler # DocumentManager no longer has its own map handler instance
