@@ -27,6 +27,8 @@ from PyPDF2 import PdfMerger
 from reportlab.pdfgen import canvas
 
 import db as db_manager
+from db.cruds.template_categories_crud import get_all_template_categories
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -34,6 +36,7 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 from utils import populate_docx_template, load_config as utils_load_config, save_config as utils_save_config
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
+import icons_rc # Import for Qt resource file
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
 # from main import get_notification_manager # Line removed
@@ -512,7 +515,7 @@ class TemplateDialog(QDialog):
     def populate_category_filter(self):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
         try:
-            categories = db_manager.get_all_template_categories()
+            categories = get_all_template_categories()
             if categories:
                 for category in categories:
                     self.category_filter_combo.addItem(category['category_name'], category['category_id'])
@@ -523,8 +526,8 @@ class TemplateDialog(QDialog):
     def populate_language_filter(self):
         self.language_filter_combo.addItem(self.tr("All Languages"), "all")
         try:
-            # Assuming db_manager.get_distinct_template_languages() returns a list of language code strings
-            languages = db_manager.get_distinct_template_languages()
+            # Assuming get_distinct_template_languages() returns a list of language code strings
+            languages = get_distinct_template_languages()
             if languages:
                 for lang_code_tuple in languages: # get_distinct_template_languages might return list of tuples
                     lang_code = lang_code_tuple[0]
@@ -544,8 +547,8 @@ class TemplateDialog(QDialog):
             # Add more types as needed
         }
         try:
-            # Assuming db_manager.get_distinct_template_types() returns a list of type strings
-            doc_types = db_manager.get_distinct_template_types()
+            # Assuming get_distinct_template_types() returns a list of type strings
+            doc_types = get_distinct_template_types()
             if doc_types:
                 for type_tuple in doc_types: # get_distinct_template_types might return list of tuples
                     db_type = type_tuple[0]
@@ -595,7 +598,7 @@ class TemplateDialog(QDialog):
         effective_language_code = language_filter if language_filter != "all" else None
         effective_template_type = type_filter if type_filter != "all" else None
 
-        all_templates_from_db = db_manager.get_filtered_templates(
+        all_templates_from_db = get_filtered_templates(
             category_id=effective_category_id,
             language_code=effective_language_code,
             template_type=effective_template_type
