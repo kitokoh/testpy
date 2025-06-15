@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import (
     QHeaderView, QMessageBox, QFileDialog, QCheckBox, QGroupBox, QFormLayout
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDialog # Already imported but good to ensure QDialog is recognized if separated
+from product_edit_dialog import ProductEditDialog # Added import
 # import db as db_manager # No longer needed for product functions
 from db.cruds.products_crud import products_crud_instance
 import html_to_pdf_util # Import the PDF utility
@@ -67,6 +69,8 @@ class ProductListDialog(QDialog):
         self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch) # Description
         self.product_table.hideColumn(0) # Hide ID
         self.product_table.itemChanged.connect(self.handle_price_change)
+        self.product_table.itemSelectionChanged.connect(self._update_button_states)
+        self.product_table.itemDoubleClicked.connect(self._open_edit_product_dialog_from_item)
         main_layout.addWidget(self.product_table)
 
         # Pagination controls
@@ -85,15 +89,106 @@ class ProductListDialog(QDialog):
 
         # Action Buttons
         button_layout = QHBoxLayout()
-        # Add/Edit/Delete buttons can be added here if direct product management is desired from this dialog
-        # For now, keeping it as a list display and export tool.
+
+        # Add Product button
+        self.add_product_button = QPushButton(self.tr("Add Product"))
+        self.add_product_button.clicked.connect(self._open_add_product_dialog)
+        button_layout.addWidget(self.add_product_button)
+
+        # Edit Product button
+        self.edit_product_button = QPushButton(self.tr("Edit Product"))
+        self.edit_product_button.clicked.connect(self._open_edit_product_dialog)
+        self.edit_product_button.setEnabled(False) # Initially disabled
+        button_layout.addWidget(self.edit_product_button)
+
+        # Delete Product button
+        self.delete_product_button = QPushButton(self.tr("Delete Product"))
+        self.delete_product_button.clicked.connect(self._delete_selected_product)
+        self.delete_product_button.setEnabled(False) # Initially disabled
+        button_layout.addWidget(self.delete_product_button)
+
+        button_layout.addStretch() # Pushes subsequent buttons to the right
+
         self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
         self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder)
-        button_layout.addStretch()
-        button_layout.addWidget(self.export_pdf_button)
+        button_layout.addWidget(self.export_pdf_button) # Add to the right of stretch
         main_layout.addLayout(button_layout)
 
         self.setLayout(main_layout)
+        self._update_button_states() # Initial call
+
+    def _open_add_product_dialog(self):
+        add_dialog = ProductEditDialog(product_id=None, parent=self)
+        if add_dialog.exec_() == QDialog.Accepted:
+            self.apply_filters_and_reload() # Reload data to reflect additions
+
+    def _open_edit_product_dialog(self):
+        current_row = self.product_table.currentRow()
+        if current_row < 0:
+            QMessageBox.information(self, self.tr("No Selection"), self.tr("Please select a product to edit."))
+            return
+
+        product_id_item = self.product_table.item(current_row, 0) # ID from hidden column 0
+        if product_id_item:
+            try:
+                product_id = int(product_id_item.text())
+                edit_dialog = ProductEditDialog(product_id=product_id, parent=self)
+                if edit_dialog.exec_() == QDialog.Accepted:
+                    self.apply_filters_and_reload()
+            except ValueError:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Invalid product ID format."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"An error occurred: {e}"))
+        else:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("Could not retrieve product ID for the selected row."))
+
+    def _open_edit_product_dialog_from_item(self, item):
+        # Double-clicking an item implies its row is selected.
+        # No need to check item if _open_edit_product_dialog uses currentRow()
+        if item: # Ensure an item was actually double-clicked
+             self._open_edit_product_dialog()
+
+    def _update_button_states(self):
+        has_selection = bool(self.product_table.selectedItems())
+        self.edit_product_button.setEnabled(has_selection)
+        self.delete_product_button.setEnabled(has_selection)
+
+    def _delete_selected_product(self):
+        current_row = self.product_table.currentRow()
+        if current_row < 0:
+            # Should not happen if button is enabled correctly, but good practice
+            QMessageBox.information(self, self.tr("No Selection"), self.tr("Please select a product to delete."))
+            return
+
+        product_id_item = self.product_table.item(current_row, 0)
+        product_name_item = self.product_table.item(current_row, 1)
+
+        if product_id_item and product_name_item:
+            try:
+                product_id = int(product_id_item.text())
+                product_name = product_name_item.text()
+
+                reply = QMessageBox.question(self, self.tr("Confirm Delete"),
+                                             self.tr(f"Are you sure you want to delete the product '{product_name}' (ID: {product_id})?\nThis action will mark the product as deleted."),
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+                if reply == QMessageBox.Yes:
+                    delete_result = products_crud_instance.delete_product(product_id=product_id)
+                    if delete_result.get('success'):
+                        QMessageBox.information(self, self.tr("Product Deleted"),
+                                                self.tr(f"Product '{product_name}' (ID: {product_id}) has been marked as deleted."))
+                        self.apply_filters_and_reload() # Refresh list
+                    else:
+                        error_msg = delete_result.get('error', self.tr("Unknown error"))
+                        QMessageBox.critical(self, self.tr("Delete Failed"),
+                                             self.tr(f"Failed to delete product: {error_msg}"))
+            except ValueError:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Invalid product ID format."))
+            except Exception as e: # Catch any other unexpected errors during deletion
+                QMessageBox.critical(self, self.tr("Error"), self.tr(f"An unexpected error occurred: {e}"))
+        else:
+            QMessageBox.warning(self, self.tr("Error"), self.tr("Could not retrieve product details for the selected row."))
+
 
     def apply_filters_and_reload(self):
         self.current_offset = 0 # Reset to first page when filters change
@@ -160,6 +255,7 @@ class ProductListDialog(QDialog):
             QMessageBox.critical(self, self.tr("Load Error"), self.tr(f"Failed to load products: {e}"))
         finally:
             self.product_table.blockSignals(False)
+            self._update_button_states() # Update button states after loading
 
     def update_pagination_controls(self, current_page_item_count: int):
         self.prev_page_button.setEnabled(self.current_offset > 0)

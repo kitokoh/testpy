@@ -26,6 +26,7 @@ from app_setup import APP_ROOT_DIR
 
 
 class MapInteractionHandler(QObject): # Remains as it's used for the new interactive map
+
     country_clicked_signal = pyqtSignal(str)
     client_clicked_on_map_signal = pyqtSignal(str, str)
 
@@ -34,6 +35,7 @@ class MapInteractionHandler(QObject): # Remains as it's used for the new interac
 
     @pyqtSlot(str)
     def countryClicked(self, country_name):
+
         self.country_clicked_signal.emit(country_name)
 
     @pyqtSlot(str, str)
@@ -366,6 +368,7 @@ class StatisticsDashboard(QWidget):
         # Fallback or ensure it's not called if update_map is the primary one.
         # For now, let it call the new interactive map function.
         self.update_map()
+
 
             data_for_map = {"country_name": [], "client_count": []}
             if clients_by_country_counts:
