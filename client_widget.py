@@ -1645,7 +1645,7 @@ class ClientWidget(QWidget):
     def load_statuses(self):
         try:
             # Assuming 'Client' is the status_type for this context
-            client_statuses = db_manager.get_all_status_settings(status_type='Client')
+            client_statuses = db_manager.get_all_status_settings(type_filter='Client')
             if client_statuses is None: client_statuses = [] # Handle case where db_manager returns None
 
             self.status_combo.clear() # Clear before populating
