@@ -4,12 +4,15 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext # For password hashing if we were creating them here, not needed for verify_user_password
 from datetime import datetime, timedelta, timezone # Ensure timezone is imported
 from typing import Optional
+import os # Added import
 
 import db as db_manager # To access user verification
 from .models import TokenData, UserInDB # Import UserInDB from local models
 
 # Configuration (replace with your actual secret key and algorithm)
-SECRET_KEY = "YOUR_VERY_SECRET_KEY_CHANGE_THIS_NOW" # IMPORTANT: Change this in a real app!
+SECRET_KEY = os.getenv("API_SECRET_KEY") # IMPORTANT: Change this in a real app!
+if not SECRET_KEY:
+    raise RuntimeError("API_SECRET_KEY environment variable not set. Application cannot start securely.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

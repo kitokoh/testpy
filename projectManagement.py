@@ -23,21 +23,25 @@ from PyQt5.QtWidgets import QDoubleSpinBox
 from PyQt5.QtWidgets import QMenu
 from PyQt5.QtCore import QSize, QRect
 from PyQt5.QtWidgets import QLabel, QPushButton, QFrame, QHBoxLayout, QVBoxLayout, QSpacerItem, QSizePolicy, QAbstractItemView
+import logging # Added logging import
 
-# Import necessary functions directly from their new CRUD module locations
-from db.cruds.status_settings_crud import get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name
-from db.cruds.projects_crud import get_all_projects, get_project_by_id, add_project, update_project, delete_project
-from db.cruds.tasks_crud import (get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
-                                 get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency)
-from db.cruds.kpis_crud import get_kpis_for_project # add_kpi_to_project, update_kpi, delete_kpi (if needed later)
-from db.cruds.activity_logs_crud import add_activity_log, get_activity_logs
-from db.cruds.users_crud import get_user_by_id, get_all_users, update_user, verify_user_password
-from db.cruds.team_members_crud import get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member
-from db.cruds.clients_crud import get_all_clients
-from db.cruds.cover_pages_crud import get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id
-from db.cruds.cover_page_templates_crud import get_all_cover_page_templates, get_cover_page_template_by_id
-from db.cruds.milestones_crud import get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone
-from db.ca import initialize_database # For main block
+# Import necessary functions from the db facade
+from db import (
+    get_status_setting_by_id, get_all_status_settings, get_status_setting_by_name,
+    get_all_projects, get_project_by_id, add_project, update_project, delete_project,
+    get_tasks_by_project_id, add_task, update_task, delete_task, get_task_by_id,
+    get_tasks_by_assignee_id, get_predecessor_tasks, add_task_dependency, remove_task_dependency,
+    get_tasks_by_project_id_ordered_by_sequence, # Added this function
+    get_kpis_for_project,
+    add_activity_log, get_activity_logs,
+    get_user_by_id, get_all_users, update_user, verify_user_password,
+    get_all_team_members, get_team_member_by_id, add_team_member, update_team_member, delete_team_member,
+    get_all_clients,
+    get_cover_pages_for_client, add_cover_page, update_cover_page, delete_cover_page, get_cover_page_by_id,
+    get_all_file_based_templates, get_cover_page_template_by_id,
+    get_milestones_for_project, add_milestone, get_milestone_by_id, update_milestone, delete_milestone,
+    initialize_database
+)
 
 from PyQt5.QtWidgets import QAbstractItemView # Ensure this is imported
 import math # Added for pagination
@@ -117,8 +121,8 @@ class NotificationManager:
         notifications_found = []
 
         # Get all relevant statuses to avoid multiple DB calls for status properties
-        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Project')}
-        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(status_type='Task')}
+        all_project_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Project')}
+        all_task_statuses = {s['status_id']: s for s in get_all_status_settings(type_filter='Task')}
 
         try:
             all_projects_list = get_all_projects() # Use direct import
@@ -215,7 +219,10 @@ class NotificationManager:
         # Auto-hide after 7 seconds
         QTimer.singleShot(7000, self.notification_banner.hide)
         print(f"Showing custom notification: {title} - {message}") # For debugging
-
+    def check_notification(self, title, message):
+        """Check if a notification with the same title and message already exists."""
+        # This is a simple check; you might want to implement a more robust system
+        return self.notification_banner.message_label.text() == f"<b>{title}</b><br>{message}"
 
 class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
     def __init__(self, parent=None, current_user=None): # Added current_user parameter
@@ -405,14 +412,14 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
 
         # Product Management Menu
         product_management_btn = QPushButton("Gestion Produits")
-        product_management_btn.setIcon(QIcon(":/icons/package.svg")) # Suggestion: package.svg or similar
+        product_management_btn.setIcon(QIcon(":/icons/briefcase.svg")) # Suggestion: package.svg or similar
         product_management_btn.setObjectName("menu_button")
 
         product_menu = QMenu(product_management_btn)
-        manage_global_products_action = product_menu.addAction(QIcon(":/icons/box.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
+        manage_global_products_action = product_menu.addAction(QIcon(":/icons/plus-square.svg"), "Gérer Produits Globaux") # Suggestion: box.svg
         manage_global_products_action.triggered.connect(self.open_manage_global_products_dialog)
 
-        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/shuffle.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
+        manage_equivalencies_action = product_menu.addAction(QIcon(":/icons/refresh-cw.svg"), "Gérer Équivalences Produits") # Suggestion: shuffle.svg or link.svg
         manage_equivalencies_action.triggered.connect(self.open_product_equivalency_dialog)
 
         product_management_btn.setMenu(product_menu)
@@ -442,7 +449,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             lambda: self.change_page(6)
         )
         projects_menu.addAction(
-            QIcon(":/icons/tool.svg"), # Placeholder icon
+            QIcon(":/icons/settings.svg"), # Placeholder icon
             "Production Orders",
             lambda: self.change_page(7)
         )
@@ -655,7 +662,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         title.setObjectName("pageTitleLabel")
 
         self.add_member_btn = QPushButton("Add Member")
-        self.add_member_btn.setIcon(QIcon(":/icons/user-plus.svg"))
+        self.add_member_btn.setIcon(QIcon(":/icons/user-add.svg"))
         self.add_member_btn.setObjectName("primaryButton")
         # Global style applies
         self.add_member_btn.clicked.connect(self.show_add_member_dialog)
@@ -2294,6 +2301,16 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             else:
                 QMessageBox.warning(self, "Error", f"Failed to delete team member {member_name}.")
 
+    def show_add_task_dialog(self):
+        # Placeholder for showing a dialog to add a new task
+        # For now, just show a message or print to console
+        print("DEBUG: show_add_task_dialog called. UI for adding task not yet implemented.")
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Add Task", "Functionality to add a new task is under development.")
+        except Exception as e:
+            print(f"Error showing QMessageBox in placeholder: {e}")
+
     def show_add_project_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("New Project")
@@ -2320,7 +2337,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         budget_spin.setValue(10000)
 
         status_combo = QComboBox()
-        project_statuses_list = get_all_status_settings(status_type='Project') # Use direct import
+        project_statuses_list = get_all_status_settings(type_filter='Project') # Use direct import
         if project_statuses_list:
             for ps in project_statuses_list: # Iterate over fetched list
                 status_combo.addItem(ps['status_name'], ps['status_id'])
@@ -2479,7 +2496,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             budget_spin.setValue(project_data_dict.get('budget', 0.0))
 
             status_combo = QComboBox()
-            project_statuses_list_edit = get_all_status_settings(status_type='Project') # Use direct import
+            project_statuses_list_edit = get_all_status_settings(type_filter='Project') # Use direct import
             current_status_id = project_data_dict.get('status_id')
             if project_statuses_list_edit:
                 for idx, ps in enumerate(project_statuses_list_edit): # Iterate over fetched list
@@ -3087,7 +3104,24 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         dialog = ProductionOrderDetailDialog(project_id_str, parent=self)
         dialog.exec_() # Show as a modal dialog
     # --- End Production Order Management Methods ---
-
+    def save_account_settings(self, settings_dict):
+        # This method should save the account settings to the database or a config file
+        # For now, we will just print the settings to console
+        print("Saving account settings:", settings_dict)
+    def save_preferences(self, preferences_dict):
+        # This method should save the user preferences to the database or a config file
+        # For now, we will just print the preferences to console
+        print("Saving user preferences:", preferences_dict)
+    def log_activity(self, message):
+        # This method should log the activity to a file or database
+        # For now, we will just print the message to console
+        print(f"Activity Log: {message}")
+    def get_primary_button_style(self):
+        return "background-color: #007bff; color: white; border-radius: 4px; padding: 6px 12px;"
+    def setup_cover_page_management_page(self):
+        # This method should set up the cover page management UI
+        # For now, we will just print a message to console
+        print("Setting up cover page management UI")    
 
 class ProductionOrderDetailDialog(QDialog):
     def __init__(self, project_id, parent=None):
@@ -3253,7 +3287,7 @@ class EditProductionStepDialog(QDialog):
         self.description_edit.setFixedHeight(80)
 
         self.status_combo = QComboBox()
-        task_statuses = get_all_status_settings(status_type='Task')
+        task_statuses = get_all_status_settings(type_filter='Task')
         current_status_id = self.task_data.get('status_id')
         if task_statuses:
             for idx, ts in enumerate(task_statuses):
@@ -3375,7 +3409,7 @@ class EditProductionOrderDialog(QDialog):
         self.budget_spin.setValue(self.order_data.get('budget', 0.0))
 
         self.status_combo = QComboBox()
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         current_status_id = self.order_data.get('status_id')
         if project_statuses:
             for idx, ps in enumerate(project_statuses):
@@ -3717,7 +3751,7 @@ class AddProductionOrderDialog(QDialog):
         self.status_combo = QComboBox()
         # TODO: Populate with relevant statuses for 'ProductionOrder' type if different from 'Project'
         # For now, using common project statuses
-        project_statuses = get_all_status_settings(status_type='Project')
+        project_statuses = get_all_status_settings(type_filter='Project')
         if project_statuses:
             for ps in project_statuses:
                 if not ps.get('is_archival_status') and not ps.get('is_completion_status'): # Only show active statuses
@@ -3885,7 +3919,7 @@ class AddProductionOrderDialog(QDialog):
         desc_edit.setMinimumHeight(80)
 
         status_combo = QComboBox()
-        task_statuses_list = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list:
             for ts in task_statuses_list: # Iterate over fetched list
                 if not ts.get('is_completion_status') and not ts.get('is_archival_status'): # Do not allow setting to completed/archived initially
@@ -4040,7 +4074,7 @@ class AddProductionOrderDialog(QDialog):
             desc_edit.setMinimumHeight(80)
 
             status_combo = QComboBox()
-            task_statuses_list_edit = get_all_status_settings(status_type='Task') # Use direct import
+            task_statuses_list_edit = get_all_status_settings(type_filter='Task') # Use direct import
             current_status_id_for_task = task_data_dict.get('status_id')
             if task_statuses_list_edit:
                 for idx, ts in enumerate(task_statuses_list_edit): # Iterate over fetched list
@@ -4173,7 +4207,7 @@ class AddProductionOrderDialog(QDialog):
         task_name = task_to_complete.get('task_name', 'Unknown Task')
 
         completed_status_id = None
-        task_statuses_list_comp = get_all_status_settings(status_type='Task') # Use direct import
+        task_statuses_list_comp = get_all_status_settings(type_filter='Task') # Use direct import
         if task_statuses_list_comp:
             for ts in task_statuses_list_comp: # Iterate over fetched list
                 if ts.get('is_completion_status'):
@@ -4292,69 +4326,110 @@ class AddProductionOrderDialog(QDialog):
                     else:
                         QMessageBox.warning(self, "Error", f"Failed to update role for {user_data_edit_access.get('full_name')}")
 
-
     def save_account_settings(self):
-        if not self.current_user or 'id' not in self.current_user:
-            QMessageBox.warning(self, "Error", "You must be logged in to modify your settings.")
+        if not self.current_user or not self.current_user.get('user_id'):
+            QMessageBox.warning(self, self.tr("Error"), self.tr("No user logged in or user ID is missing."))
             return
 
-        user_id_to_update = self.current_user['id']
-        current_username = self.current_user['username'] # Needed for password verification
+        user_id = self.current_user.get('user_id')
+        username = self.current_user.get('username') # Needed for password verification
 
-        full_name = self.name_edit.text()
-        email = self.email_edit.text()
-        phone = self.phone_edit.text()
-        current_pwd = self.current_pwd_edit.text()
-        new_pwd = self.new_pwd_edit.text()
-        confirm_pwd = self.confirm_pwd_edit.text()
+        name_val = self.name_edit.text().strip()
+        email_val = self.email_edit.text().strip()
+        # Phone is not directly part of the Users table in db.py schema, so skipping phone_val for now
+        # phone_val = self.phone_edit.text().strip()
 
-        if not full_name or not email:
-            QMessageBox.warning(self, "Error", "Full name and email are required.")
-            return
+        current_pwd_val = self.current_pwd_edit.text()
+        new_pwd_val = self.new_pwd_edit.text()
+        confirm_pwd_val = self.confirm_pwd_edit.text()
 
-        if new_pwd and (new_pwd != confirm_pwd):
-            QMessageBox.warning(self, "Error", "New passwords do not match.")
-            return
+        user_data_to_update = {}
+        log_messages = []
 
-        update_data = { # Reverted rename as it's local to this function.
-            'full_name': full_name,
-            'email': email,
-            'phone': phone if phone else None
-        }
+        # Check current user data from db to see if basic info changed
+        # This assumes self.current_user might be stale, safer to re-fetch or compare with initial load.
+        # For simplicity, directly compare with self.current_user fields.
+        if name_val and name_val != self.current_user.get('full_name'):
+            user_data_to_update['full_name'] = name_val
+            log_messages.append(self.tr("Full name updated."))
 
-        # Verify current password if a new one is provided
-        if new_pwd:
-            if not current_pwd:
-                QMessageBox.warning(self, "Error", "Current password is required to set a new password.")
+        if email_val and email_val != self.current_user.get('email'):
+            user_data_to_update['email'] = email_val
+            log_messages.append(self.tr("Email updated."))
+
+        password_changed_successfully = False
+        if new_pwd_val: # User intends to change password
+            if not current_pwd_val:
+                QMessageBox.warning(self, self.tr("Password Error"), self.tr("Please enter your current password to set a new one."))
+                self.current_pwd_edit.setFocus()
+                return
+            if new_pwd_val != confirm_pwd_val:
+                QMessageBox.warning(self, self.tr("Password Error"), self.tr("New passwords do not match."))
+                self.new_pwd_edit.clear()
+                self.confirm_pwd_edit.clear()
+                self.new_pwd_edit.setFocus()
                 return
 
-            verified_user = verify_user_password(current_username, current_pwd)
-            if not verified_user or verified_user['user_id'] != user_id_to_update:
-                QMessageBox.warning(self, "Error", "Current password is incorrect.")
+            # Verify current password
+            if not verify_user_password(username, current_pwd_val):
+                QMessageBox.warning(self, self.tr("Password Error"), self.tr("Incorrect current password."))
+                self.current_pwd_edit.clear()
+                self.current_pwd_edit.setFocus()
                 return
-            update_data['password'] = new_pwd
 
-        success = update_user(user_id_to_update, update_data)
+            # Hash new password
+            salt = os.urandom(16).hex()
+            password_hash = hashlib.sha256((new_pwd_val + salt).encode('utf-8')).hexdigest()
+            user_data_to_update['password_hash'] = password_hash
+            user_data_to_update['salt'] = salt
+            password_changed_successfully = True
+            log_messages.append(self.tr("Password updated."))
 
-        if success:
-            # Update current user information in the session
-            self.current_user['full_name'] = full_name
-            self.current_user['email'] = email
-            # self.current_user['phone'] = phone # If you store it in self.current_user
-            self.user_name.setText(full_name) # Update UI
-
-            self.log_activity("Updated account information")
-            QMessageBox.information(self, "Success", "Changes have been saved.")
-
-            # Clear password fields
+        if not user_data_to_update:
+            if new_pwd_val and not password_changed_successfully:
+                # This case should be handled by earlier returns, but as a safeguard:
+                QMessageBox.information(self, self.tr("No Changes"), self.tr("Password change attempted but failed. No other changes detected."))
+            else:
+                QMessageBox.information(self, self.tr("No Changes"), self.tr("No changes detected to save."))
             self.current_pwd_edit.clear()
             self.new_pwd_edit.clear()
             self.confirm_pwd_edit.clear()
-        else:
-            QMessageBox.warning(self, "Error", "Failed to update account information.")
+            return
+
+        try:
+            success = update_user(user_id, user_data_to_update)
+            if success:
+                # Update self.current_user with new details if changes were made
+                if 'full_name' in user_data_to_update:
+                    self.current_user['full_name'] = user_data_to_update['full_name']
+                    self.user_name.setText(self.current_user['full_name']) # Update display name in topbar
+                if 'email' in user_data_to_update:
+                    self.current_user['email'] = user_data_to_update['email']
+
+                # Log specific changes
+                activity_details = "; ".join(log_messages)
+                self.log_activity(self.tr("Updated account settings"), details=activity_details)
+
+                QMessageBox.information(self, self.tr("Success"), self.tr("Account settings updated successfully."))
+
+                if password_changed_successfully:
+                    # Inform user about password change success, separate from general success if needed.
+                    # For now, it's part of the general success message context.
+                    pass
+
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update account settings. Check application logs."))
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("An unexpected error occurred: {0}").format(str(e)))
+            print(f"Error saving account settings: {e}")
+        finally:
+            # Always clear password fields after any operation attempt
+            self.current_pwd_edit.clear()
+            self.new_pwd_edit.clear()
+            self.confirm_pwd_edit.clear()
 
     def save_preferences(self):
-        if not self.current_user or 'id' not in self.current_user: # Check for id too
+        if not self.current_user or not self.current_user.get('user_id'): # Check user_id specifically
             QMessageBox.warning(self, "Error", "You must be logged in to modify your preferences.")
             return
 
@@ -4381,6 +4456,15 @@ class AddProductionOrderDialog(QDialog):
         )
 
         self.log_activity("Updated user preferences")
+
+    def save_account_settings(self):
+        # TODO: Implement account settings saving logic
+        logging.info("Placeholder for save_account_settings called in MainDashboard.")
+        # Depending on UI, might want to show a message to the user
+        # from PyQt5.QtWidgets import QMessageBox
+        # QMessageBox.information(self, "Settings", "Account settings saving not yet implemented.")
+        pass
+
 
     def add_on_page(self):
         from Installsweb.installmodules import InstallerDialog
@@ -4996,7 +5080,7 @@ class CoverPageEditorDialog(QDialog):
 
     def populate_templates_combo(self):
         self.cp_template_combo.addItem("None (Custom)", None)
-        templates_list = get_all_cover_page_templates() # Use direct import
+        templates_list = get_all_file_based_templates() # Use direct import
         if templates_list:
             for tpl in templates_list: # Iterate over fetched list
                 self.cp_template_combo.addItem(tpl['template_name'], tpl['template_id'])
@@ -5180,6 +5264,110 @@ if __name__ == "__main__":
     test_host_window.show()
 
     sys.exit(app.exec_())
+
+# The following 'save_account_settings' method was originally outside the MainDashboard class.
+# It is being removed from here as it's now correctly placed inside the MainDashboard class.
+# def save_account_settings(self):
+#     if not self.current_user or not self.current_user.get('user_id'):
+#         QMessageBox.warning(self, self.tr("Error"), self.tr("No user logged in or user ID is missing."))
+#         return
+#
+#     user_id = self.current_user.get('user_id')
+#     username = self.current_user.get('username') # Needed for password verification
+#
+#     name_val = self.name_edit.text().strip()
+#     email_val = self.email_edit.text().strip()
+#     # Phone is not directly part of the Users table in db.py schema, so skipping phone_val for now
+#     # phone_val = self.phone_edit.text().strip()
+#
+#     current_pwd_val = self.current_pwd_edit.text()
+#     new_pwd_val = self.new_pwd_edit.text()
+#     confirm_pwd_val = self.confirm_pwd_edit.text()
+#
+#     user_data_to_update = {}
+#     log_messages = []
+#
+#     # Check current user data from db to see if basic info changed
+#     # This assumes self.current_user might be stale, safer to re-fetch or compare with initial load.
+#     # For simplicity, directly compare with self.current_user fields.
+#     if name_val and name_val != self.current_user.get('full_name'):
+#         user_data_to_update['full_name'] = name_val
+#         log_messages.append(self.tr("Full name updated."))
+#
+#     if email_val and email_val != self.current_user.get('email'):
+#         user_data_to_update['email'] = email_val
+#         log_messages.append(self.tr("Email updated."))
+#
+#     password_changed_successfully = False
+#     if new_pwd_val: # User intends to change password
+#         if not current_pwd_val:
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("Please enter your current password to set a new one."))
+#             self.current_pwd_edit.setFocus()
+#             return
+#         if new_pwd_val != confirm_pwd_val:
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("New passwords do not match."))
+#             self.new_pwd_edit.clear()
+#             self.confirm_pwd_edit.clear()
+#             self.new_pwd_edit.setFocus()
+#             return
+#
+#         # Verify current password
+#         if not verify_user_password(username, current_pwd_val):
+#             QMessageBox.warning(self, self.tr("Password Error"), self.tr("Incorrect current password."))
+#             self.current_pwd_edit.clear()
+#             self.current_pwd_edit.setFocus()
+#             return
+#
+#         # Hash new password
+#         salt = os.urandom(16).hex()
+#         password_hash = hashlib.sha256((new_pwd_val + salt).encode('utf-8')).hexdigest()
+#         user_data_to_update['password_hash'] = password_hash
+#         user_data_to_update['salt'] = salt
+#         password_changed_successfully = True
+#         log_messages.append(self.tr("Password updated."))
+#
+#     if not user_data_to_update:
+#         if new_pwd_val and not password_changed_successfully:
+#             # This case should be handled by earlier returns, but as a safeguard:
+#             QMessageBox.information(self, self.tr("No Changes"), self.tr("Password change attempted but failed. No other changes detected."))
+#         else:
+#             QMessageBox.information(self, self.tr("No Changes"), self.tr("No changes detected to save."))
+#         self.current_pwd_edit.clear()
+#         self.new_pwd_edit.clear()
+#         self.confirm_pwd_edit.clear()
+#         return
+#
+#     try:
+#         success = update_user(user_id, user_data_to_update)
+#         if success:
+#             # Update self.current_user with new details if changes were made
+#             if 'full_name' in user_data_to_update:
+#                 self.current_user['full_name'] = user_data_to_update['full_name']
+#                 self.user_name.setText(self.current_user['full_name']) # Update display name in topbar
+#             if 'email' in user_data_to_update:
+#                 self.current_user['email'] = user_data_to_update['email']
+#
+#             # Log specific changes
+#             activity_details = "; ".join(log_messages)
+#             self.log_activity(self.tr("Updated account settings"), details=activity_details)
+#
+#             QMessageBox.information(self, self.tr("Success"), self.tr("Account settings updated successfully."))
+#
+#             if password_changed_successfully:
+#                 # Inform user about password change success, separate from general success if needed.
+#                 # For now, it's part of the general success message context.
+#                 pass
+#
+#         else:
+#             QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update account settings. Check application logs."))
+#     except Exception as e:
+#         QMessageBox.critical(self, self.tr("Error"), self.tr("An unexpected error occurred: {0}").format(str(e)))
+#         print(f"Error saving account settings: {e}")
+#     finally:
+#         # Always clear password fields after any operation attempt
+#         self.current_pwd_edit.clear()
+#         self.new_pwd_edit.clear()
+#         self.confirm_pwd_edit.clear()
 
     def focus_on_project(self, project_id_to_focus):
         # Switch to the projects page/tab

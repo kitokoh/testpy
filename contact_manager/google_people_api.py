@@ -10,7 +10,7 @@ import json
 # --- Application-specific imports ---
 try:
     from . import google_auth # For getting authenticated session
-    from ..db import crud as db_manager # For potential direct DB access if needed (e.g., logging, user details)
+    # db_manager import removed as it's not used by core API functions
 except (ImportError, ValueError):
     # Fallback for potential execution context issues (e.g. running script directly)
     import sys
@@ -21,11 +21,11 @@ except (ImportError, ValueError):
         sys.path.append(app_root_dir)
     try:
         import google_auth # Assuming google_auth.py is in the same directory
-        from db import crud as db_manager
+        # db_manager import removed
     except ImportError:
         google_auth = None
-        db_manager = None
-        print("Warning: Could not import google_auth or db_manager for Google People API. API calls will fail.")
+        # db_manager = None # Removed
+        print("Warning: Could not import google_auth for Google People API. API calls will fail if google_auth is None.")
 
 
 PEOPLE_API_BASE_URL = "https://people.googleapis.com/v1/"
@@ -227,13 +227,13 @@ if __name__ == '__main__':
     print("Google People API Module (Placeholder)")
 
     # This requires google_auth.py to be runnable and configured to some extent,
-    # or for db_manager and google_auth to be mocked/stubbed if testing logic here.
+    # or for google_auth to be mocked/stubbed if testing logic here.
 
     # Example test flow (highly dependent on dummy_user_id having valid placeholder creds):
     dummy_user_id_for_api_test = "test_user_123" # Assume this user has placeholder creds set up via google_auth.py logic
 
-    if not google_auth or not db_manager:
-        print("Skipping People API tests as google_auth or db_manager is not properly imported/initialized.")
+    if not google_auth: # db_manager check removed
+        print("Skipping People API tests as google_auth is not properly imported/initialized.")
     else:
         print(f"\n--- Testing with User ID: {dummy_user_id_for_api_test} ---")
 

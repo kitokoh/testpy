@@ -1,9 +1,9 @@
 # partners/partner_main_widget.py
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QTableWidget,
                              QLineEdit, QHBoxLayout, QTableWidgetItem, QHeaderView,
-                             QAbstractItemView, QMessageBox, QApplication, QComboBox) # Added QComboBox
+                             QAbstractItemView, QMessageBox, QApplication, QComboBox, QDialog)
 from PyQt5.QtCore import Qt
-import db.crud as db_manager
+from db import get_all_partner_categories, get_all_partners, get_partners_in_category, get_categories_for_partner, get_partner_by_id
 from .partner_dialog import PartnerDialog
 from .partner_category_dialog import PartnerCategoryDialog
 from contact_manager.sync_service import handle_contact_change_from_platform # For Google Sync
@@ -78,10 +78,10 @@ class PartnerMainWidget(QWidget):
         self.category_filter_combo.clear()
         self.category_filter_combo.addItem("All Categories", None)
         try:
-            categories = db_manager.get_all_partner_categories()
+            categories = get_all_partner_categories()
             if categories:
                 for category in categories:
-                    self.category_filter_combo.addItem(category['name'], category['category_id'])
+                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
 
             # Restore selection
             if current_category_id is not None:
@@ -115,7 +115,7 @@ class PartnerMainWidget(QWidget):
         if not partner_id:
             QMessageBox.warning(self, "Send Email", "No partner selected.")
             return
-        partner = db_manager.get_partner_by_id(partner_id)
+        partner = get_partner_by_id(partner_id)
         if partner and partner.get('email'):
             # ... (email sending logic)
             QMessageBox.information(self, "Send Email", f"Email dialog for {partner['email']} would open here.")
@@ -129,7 +129,7 @@ class PartnerMainWidget(QWidget):
         if not partner_id:
             QMessageBox.warning(self, "Send WhatsApp", "No partner selected.")
             return
-        partner = db_manager.get_partner_by_id(partner_id)
+        partner = get_partner_by_id(partner_id)
         if partner and partner.get('phone'):
             # ... (whatsapp logic)
             QMessageBox.information(self, "Send WhatsApp", f"WhatsApp for {partner['phone']} would open here.")
@@ -146,11 +146,11 @@ class PartnerMainWidget(QWidget):
     def load_partners(self, search_term=None, category_id_filter=None):
         self.partners_table.setRowCount(0)
         try:
-            all_partners = db_manager.get_all_partners()
+            all_partners = get_all_partners()
             if all_partners is None: all_partners = []
             partners_to_display = []
             if category_id_filter is not None:
-                partner_ids_in_category_list = db_manager.get_partners_in_category(category_id_filter)
+                partner_ids_in_category_list = get_partners_in_category(category_id_filter)
                 if partner_ids_in_category_list is not None:
                     ids_in_category = {p['partner_id'] for p in partner_ids_in_category_list}
                     partners_to_display = [p for p in all_partners if p['partner_id'] in ids_in_category]
@@ -178,7 +178,7 @@ class PartnerMainWidget(QWidget):
                 self.partners_table.setItem(row_position, 1, QTableWidgetItem(partner.get('email')))
                 self.partners_table.setItem(row_position, 2, QTableWidgetItem(partner.get('phone')))
                 self.partners_table.setItem(row_position, 3, QTableWidgetItem(partner.get('location')))
-                categories_list = db_manager.get_categories_for_partner(partner.get('partner_id'))
+                categories_list = get_categories_for_partner(partner.get('partner_id'))
                 categories_str = ", ".join([cat.get('name') for cat in categories_list]) if categories_list else ""
                 self.partners_table.setItem(row_position, 4, QTableWidgetItem(categories_str))
             self.partners_table.setSortingEnabled(True)

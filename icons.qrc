@@ -19,6 +19,7 @@
     <file alias="document.svg">icons/document.svg</file>
     <file alias="preferences-system.svg">icons/preferences-system.svg</file>
     <file alias="folder-documents.svg">icons/folder-documents.svg</file>
+    <file alias="modern/folder-docs.svg">icons/folder-documents.svg</file>
     <file alias="trend_up.svg">icons/trend_up.svg</file>
     <file alias="trend_down.svg">icons/trend_down.svg</file>
     <file alias="trend_stable.svg">icons/trend_stable.svg</file>
@@ -52,5 +53,7 @@
     <file alias="file-plus.svg">icons/file-plus.svg</file>
     <file alias="edit-2.svg">icons/edit-2.svg</file>
     <file alias="plus-square.svg">icons/plus-square.svg</file>
+    <file alias="modern/templates.svg">icons/placeholder_icon.svg</file>
+    <file alias="modern/link.svg">icons/placeholder_icon.svg</file>
 </qresource>
 </RCC>

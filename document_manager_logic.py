@@ -6,13 +6,21 @@ from datetime import datetime, timedelta
 from PyQt5.QtWidgets import QMessageBox, QDialog, QInputDialog # QInputDialog was used in add_new_country/city, not directly in moved methods but good to keep context
 # from PyQt5.QtCore import QStandardPaths # Removed as not used by these functions
 
+# -*- coding: utf-8 -*-
+import os
+import shutil
+import sqlite3 # Should be checked if still needed directly, db_manager should handle most
+from datetime import datetime, timedelta
+from PyQt5.QtWidgets import QMessageBox, QDialog, QInputDialog # QInputDialog was used in add_new_country/city, not directly in moved methods but good to keep context
+# from PyQt5.QtCore import QStandardPaths # Removed as not used by these functions
+
 # Import necessary functions directly from their new CRUD module locations
-from db.cruds.locations_crud import get_country_by_id, get_city_by_id
-from db.cruds.status_settings_crud import get_status_setting_by_name, get_status_setting_by_id
-from db.cruds.clients_crud import add_client, get_client_by_id, update_client, delete_client, get_all_clients
-from db.cruds.projects_crud import add_project, get_project_by_id, delete_project
-from db.cruds.tasks_crud import add_task
-from db.cruds.contacts_crud import get_contact_by_email, add_contact, update_contact, link_contact_to_client, get_contacts_for_client, update_client_contact_link
+from db.cruds.locations_crud import get_country_by_id, get_city_by_id # These are fine as locations_crud is not refactored to class yet
+from db.cruds.status_settings_crud import get_status_setting_by_name, get_status_setting_by_id # Fine
+from db.cruds.clients_crud import clients_crud_instance # Import the instance
+from db.cruds.projects_crud import add_project, get_project_by_id, delete_project # Fine
+from db.cruds.tasks_crud import add_task # Fine
+from db.cruds.contacts_crud import get_contact_by_email, add_contact, update_contact, link_contact_to_client, get_contacts_for_client, update_client_contact_link # Fine
 from db.cruds.products_crud import get_product_by_name, add_product
 from db.cruds.client_project_products_crud import add_product_to_client_or_project, get_products_for_client_or_project
 
@@ -112,21 +120,25 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         'status_id': default_status_id,
         'category': 'Standard',
         'notes': '',
+        'created_by_user_id': doc_manager.current_user_id
     }
 
     actual_new_client_id = None
     new_project_id_central_db = None
 
     try:
-        actual_new_client_id = add_client(client_data_for_db)
-        if not actual_new_client_id:
+        # Use clients_crud_instance.add_client
+        create_result = clients_crud_instance.add_client(client_data_for_db) # conn is handled by decorator
+        if not create_result['success']:
+            error_message = create_result.get('error', doc_manager.tr("Une erreur inconnue est survenue."))
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
-                                 doc_manager.tr("Impossible de créer le client. L'ID de projet ou le chemin du dossier existe peut-être déjà, ou autre erreur de contrainte DB."))
-            # Added notification
+                                 doc_manager.tr("Impossible de créer le client: {0}").format(error_message))
             doc_manager.notify(title=doc_manager.tr("Erreur Création Client DB"),
-                               message=doc_manager.tr("Impossible de créer le client dans la base de données."),
+                               message=doc_manager.tr("Impossible de créer le client dans la base de données: {0}").format(error_message),
                                type='ERROR')
             return
+
+        actual_new_client_id = create_result['client_id']
 
         os.makedirs(base_folder_full_path, exist_ok=True)
         # selected_langs_list is already a list of strings
@@ -193,7 +205,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                                message=doc_manager.tr("Client créé, mais échec de la création du projet associé."),
                                type='WARNING')
 
-        client_dict_from_db = get_client_by_id(actual_new_client_id)
+        client_dict_from_db = clients_crud_instance.get_client_by_id(actual_new_client_id)
         ui_map_data = None
         if client_dict_from_db:
             country_obj = get_country_by_id(client_dict_from_db.get('country_id')) if client_dict_from_db.get('country_id') else None
@@ -288,7 +300,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                     linked_products = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                     if linked_products is None: linked_products = []
                     calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
-                    update_client(actual_new_client_id, {'price': calculated_total_sum})
+                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
                     ui_map_data['price'] = calculated_total_sum # Update the map for CreateDocumentDialog
                     if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
 
@@ -301,7 +313,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                         linked_products_on_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                         if linked_products_on_cancel is None: linked_products_on_cancel = []
                         calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
-                        update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
+                        clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
                         ui_map_data['price'] = calculated_total_sum_on_cancel
                         if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
             else: # ContactDialog cancelled
@@ -310,7 +322,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                     linked_products_on_contact_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
                     if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
                     calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
-                    update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
+                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
                     ui_map_data['price'] = calculated_total_sum_on_contact_cancel
                     if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
         else: # ui_map_data was not populated
@@ -339,7 +351,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
         doc_manager.notify(title=doc_manager.tr("Erreur Création Dossier"), message=doc_manager.tr("Erreur de création du dossier pour le client '{0}'.").format(client_name_val), type='ERROR')
         if actual_new_client_id:
-             delete_client(actual_new_client_id) # Attempt to rollback DB entry
+             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback DB entry
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
              doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Entrée client annulée suite à l'erreur de dossier."), type='INFO')
     except Exception as e_db:
@@ -347,18 +359,40 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
         doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue lors de la création du client ou des éléments associés."), type='ERROR')
         if new_project_id_central_db and get_project_by_id(new_project_id_central_db): # Check if project was created
             delete_project(new_project_id_central_db) # Attempt to rollback project
-        if actual_new_client_id and get_client_by_id(actual_new_client_id): # Check if client was created
-             delete_client(actual_new_client_id) # Attempt to rollback client
+        if actual_new_client_id and clients_crud_instance.get_client_by_id(actual_new_client_id): # Check if client was created
+             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback client
              QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
              doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Client et projet associé annulés suite à une erreur grave."), type='INFO')
+        # Rollback for add_client would ideally be handled within add_client or by a transaction manager
+        # if folder creation fails after DB entry. For now, this manual rollback is kept.
+        if actual_new_client_id and not os.path.exists(base_folder_full_path): # If DB succeeded but folder failed
+            logging.warning(f"Folder creation failed for {actual_new_client_id} after DB entry. Attempting to soft delete client.")
+            clients_crud_instance.delete_client(actual_new_client_id) # Soft delete
+            doc_manager.notify(title=doc_manager.tr("Rollback Partiel"),
+                               message=doc_manager.tr("Client '{0}' marqué comme supprimé car la création du dossier a échoué.").format(client_name_val),
+                               type='WARNING')
 
-def load_and_display_clients(doc_manager):
+
+def load_and_display_clients(doc_manager, filters: dict = None, limit: int = None, offset: int = 0, include_deleted: bool = False):
+    """
+    Loads client data from the database and displays it in the UI.
+    Now accepts filters, pagination, and include_deleted parameters.
+    """
     doc_manager.clients_data_map.clear()
     doc_manager.client_list_widget.clear()
     try:
-        all_clients_dicts = get_all_clients()
-        if all_clients_dicts is None: all_clients_dicts = []
-        all_clients_dicts.sort(key=lambda c: c.get('client_name', ''))
+        # Use get_all_clients_with_details for richer data for UI map
+        # The 'filters' dict here is for the CRUD method, not the UI search term yet.
+        # UI search term will be applied on top of this loaded data or by refining the filters dict.
+        all_clients_dicts = clients_crud_instance.get_all_clients_with_details(
+            filters=filters,
+            limit=limit,
+            offset=offset,
+            include_deleted=include_deleted
+        )
+        # get_all_clients_with_details already sorts by client_name
+        # if all_clients_dicts is None: all_clients_dicts = [] # Already returns list
+        # all_clients_dicts.sort(key=lambda c: c.get('client_name', '')) # Sorting done by CRUD
 
         for client_data in all_clients_dicts:
             country_name = "N/A"
@@ -415,8 +449,9 @@ def perform_old_clients_check(doc_manager):
         s_complete_obj = get_status_setting_by_name('Complété', 'Client')
         s_complete_id = s_complete_obj['status_id'] if s_complete_obj else -2
 
-        all_clients = get_all_clients()
-        if all_clients is None: all_clients = []
+        # Get all non-deleted clients for this check by default
+        all_clients = clients_crud_instance.get_all_clients(include_deleted=False)
+        # if all_clients is None: all_clients = [] # get_all_clients returns list
         old_clients_to_notify = []
         cutoff_date = datetime.now() - timedelta(days=reminder_days_val)
 
@@ -472,10 +507,16 @@ def handle_open_edit_client_dialog(doc_manager, client_id):
             'selected_languages': updated_form_data.get('selected_languages'), 'status_id': updated_form_data.get('status_id'),
             'notes': updated_form_data.get('notes'), 'category': updated_form_data.get('category')
         }
-        success = update_client(client_id, data_for_db_update)
-        if success:
-            # QMessageBox.information(doc_manager, doc_manager.tr("Succès"), doc_manager.tr("Client mis à jour avec succès."))
-            load_and_display_clients(doc_manager) # Refresh map and list widget
+        # Use clients_crud_instance.update_client
+        update_result = clients_crud_instance.update_client(client_id, data_for_db_update)
+        if update_result['success']:
+            # load_and_display_clients needs to be called with current filters/pagination
+            # This might require main_window to handle the refresh.
+            # For now, assume a simple refresh.
+            doc_manager.load_clients_from_db_slot() # Call the slot in main_window for full refresh logic
+            # The following lines might be redundant if load_clients_from_db_slot updates clients_data_map
+            # and refreshes tabs correctly.
+            # load_and_display_clients(doc_manager) # Refresh map and list widget
             updated_client_data_for_tab = doc_manager.clients_data_map.get(client_id) # Get fresh data after load_and_display_clients
             client_name_for_notify = updated_client_data_for_tab.get('client_name', str(client_id)) if updated_client_data_for_tab else str(client_id)
             doc_manager.notify(title=doc_manager.tr("Client Mis à Jour"),
@@ -511,10 +552,25 @@ def archive_client_status(doc_manager, client_id):
             return
         archived_status_id = status_archived_obj['status_id']
         client_name_for_notify = doc_manager.clients_data_map[client_id].get('client_name', str(client_id))
-        updated = update_client(client_id, {'status_id': archived_status_id})
-        if updated:
-            doc_manager.clients_data_map[client_id]["status"] = "Archivé"
-            doc_manager.clients_data_map[client_id]["status_id"] = archived_status_id
+
+        # Update client to archived status and also set soft delete flags
+        update_data = {
+            'status_id': archived_status_id,
+            'is_deleted': True, # Explicitly mark as soft-deleted
+            'deleted_at': datetime.utcnow().isoformat() + "Z"
+        }
+        update_result = clients_crud_instance.update_client(client_id, update_data)
+
+        if update_result['success'] and update_result.get('updated_count', 0) > 0:
+            # Update local map, though a full refresh might be better
+            if client_id in doc_manager.clients_data_map:
+                doc_manager.clients_data_map[client_id]["status"] = status_archived_obj['status_name'] # "Archivé"
+                doc_manager.clients_data_map[client_id]["status_id"] = archived_status_id
+                doc_manager.clients_data_map[client_id]["is_deleted"] = True # Reflect soft delete in map
+
+            # Refresh display considering current filters (especially include_deleted)
+            doc_manager.filter_client_list_display_slot() # Use the main_window slot
+            # load_and_display_clients(doc_manager) # Or call with current filters
             filter_and_display_clients(doc_manager) # Refresh list display
             for i in range(doc_manager.client_tabs_widget.count()):
                 tab_w = doc_manager.client_tabs_widget.widget(i)
@@ -552,12 +608,28 @@ def permanently_delete_client(doc_manager, client_id):
     )
     if reply == QMessageBox.Yes:
         try:
-            deleted_from_db = delete_client(client_id)
-            if deleted_from_db:
+            # Use clients_crud_instance.delete_client for soft delete
+            logging.info("INFO: permanently_delete_client now performs a SOFT delete due to CRUD changes. For hard delete, a new CRUD method is needed.")
+            delete_result = clients_crud_instance.delete_client(client_id)
+
+            if delete_result['success']:
+                # Folder removal logic might be re-evaluated.
+                # For soft delete, typically data isn't removed from filesystem immediately.
+                # For now, keeping the rmtree logic but it's less common with soft delete.
+                # Consider making folder archival a separate process or based on a longer-term policy.
                 if os.path.exists(client_folder_path):
-                    shutil.rmtree(client_folder_path, ignore_errors=True)
-                del doc_manager.clients_data_map[client_id]
-                filter_and_display_clients(doc_manager) # Refresh list display
+                    # shutil.rmtree(client_folder_path, ignore_errors=True) # Reconsider this line for soft delete
+                    logging.warning(f"Client {client_id} soft-deleted. Folder {client_folder_path} was NOT removed as part of soft delete.")
+
+                # Update UI: remove from active list (if not showing deleted), update map
+                if client_id in doc_manager.clients_data_map:
+                    # If not showing deleted items, remove from map. Otherwise, update its state.
+                    # A full refresh via load_and_display_clients with current filters is better.
+                    del doc_manager.clients_data_map[client_id] # Or mark as deleted if map handles it
+
+                # Refresh display considering current filters (especially include_deleted)
+                doc_manager.filter_client_list_display_slot() # Use the main_window slot
+                # load_and_display_clients(doc_manager)
                 for i in range(doc_manager.client_tabs_widget.count()):
                     if hasattr(doc_manager.client_tabs_widget.widget(i), 'client_info') and \
                        doc_manager.client_tabs_widget.widget(i).client_info["client_id"] == client_id:
@@ -569,20 +641,23 @@ def permanently_delete_client(doc_manager, client_id):
                                    message=doc_manager.tr("Client '{0}' supprimé avec succès.").format(client_name_val),
                                    type='SUCCESS')
             else:
+                error_message = delete_result.get('error', doc_manager.tr("Erreur inconnue."))
                 QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
-                                     doc_manager.tr("Erreur lors de la suppression du client de la base de données. Le dossier n'a pas été supprimé."))
-                doc_manager.notify(title=doc_manager.tr("Erreur Suppression DB"),
-                                   message=doc_manager.tr("Erreur de suppression du client '{0}' de la DB.").format(client_name_val),
+                                     doc_manager.tr("Erreur lors de la suppression (soft) du client: {0}").format(error_message))
+                doc_manager.notify(title=doc_manager.tr("Erreur Suppression (Soft)"),
+                                   message=doc_manager.tr("Erreur de suppression (soft) du client '{0}': {1}").format(client_name_val, error_message),
                                    type='ERROR')
-        except OSError as e_os:
+        except OSError as e_os: # This error is now less likely if rmtree is removed for soft delete
             QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"),
-                                 doc_manager.tr("Le client a été supprimé de la base de données, mais une erreur est survenue lors de la suppression de son dossier:\n{0}").format(str(e_os)))
-            doc_manager.notify(title=doc_manager.tr("Erreur Suppression Dossier"),
-                               message=doc_manager.tr("Client '{0}' supprimé de la DB, mais erreur de suppression du dossier.").format(client_name_val),
-                               type='WARNING') # Warning because part of it succeeded
-            if client_id in doc_manager.clients_data_map: # Check if still in map before attempting del
-                 del doc_manager.clients_data_map[client_id]
-            filter_and_display_clients(doc_manager)
+                                 doc_manager.tr("Le client a été marqué comme supprimé, mais une erreur est survenue lors d'une opération sur son dossier:\n{0}").format(str(e_os)))
+            doc_manager.notify(title=doc_manager.tr("Erreur Opération Dossier"),
+                               message=doc_manager.tr("Client '{0}' marqué supprimé, mais erreur d'opération sur dossier.").format(client_name_val),
+                               type='WARNING')
+            # Refresh client list even if folder operation had issues
+            if client_id in doc_manager.clients_data_map:
+                 del doc_manager.clients_data_map[client_id] # Or mark deleted
+            doc_manager.filter_client_list_display_slot()
+            # load_and_display_clients(doc_manager)
             for i in range(doc_manager.client_tabs_widget.count()):
                 if hasattr(doc_manager.client_tabs_widget.widget(i), 'client_info') and \
                    doc_manager.client_tabs_widget.widget(i).client_info["client_id"] == client_id:

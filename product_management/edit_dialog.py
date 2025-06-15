@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QTextEdit,
     QPushButton, QCheckBox, QListWidget, QListWidgetItem, QMessageBox, QFileDialog,
-    QInputDialog # Add QInputDialog
+    QInputDialog, QGroupBox, QScrollArea, QGridLayout, QComboBox
 )
 from PyQt5.QtCore import Qt, QSize
 
@@ -11,32 +11,59 @@ from PyQt5.QtGui import QPixmap, QIcon
 # Assuming db.cruds is accessible. Adjust import path if necessary.
 # Example: from ..db.cruds import products_crud, product_media_links_crud
 # For this subtask, direct import if files are in expected locations.
-import db.cruds.products_crud as products_crud
-import db.cruds.product_media_links_crud as product_media_links_crud
-import media_manager.operations as media_ops
+from db.cruds import products_crud
+from db.cruds import product_media_links_crud
+from media_manager import operations as media_ops
 from db.cruds.users_crud import get_user_by_username # To get a placeholder uploader_id
 import asyncio # For running async functions
 from config import MEDIA_FILES_BASE_PATH # For resolving image paths
 import os
+
+SUPPORTED_LANGUAGES = [
+    ("English", "en"),
+    ("French", "fr"),
+    ("Arabic", "ar"),
+    ("Turkish", "tr"),
+    ("Spanish", "es")
+]
 
 class ProductEditDialog(QDialog):
     def __init__(self, product_id, parent=None):
         super().__init__(parent)
         self.product_id = product_id
         self.setWindowTitle(self.tr("Edit Product"))
-        self.setGeometry(150, 150, 700, 500) # Adjusted size
+        self.setGeometry(150, 150, 750, 800) # Adjusted size for new sections
 
         self.db_product_data = None # To store initially loaded product data
+        self.db_tech_specs_data = None # To store technical specifications
+        self.equivalent_products = [] # To store equivalent products
         self.media_links = [] # To store loaded media links
 
-        main_layout = QVBoxLayout(self)
+        # Main scroll area
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        main_widget_for_scroll = QWidget()
+        main_layout = QVBoxLayout(main_widget_for_scroll) # Main layout is inside the scrollable widget
+
         form_layout = QFormLayout()
 
         self.name_edit = QLineEdit()
         self.description_edit = QTextEdit()
         self.description_edit.setFixedHeight(80)
         self.category_edit = QLineEdit()
-        self.language_code_edit = QLineEdit()
+
+        if self.product_id is None: # New product
+            self.language_code_combo = QComboBox()
+            for lang_name, lang_code in SUPPORTED_LANGUAGES:
+                self.language_code_combo.addItem(self.tr(lang_name), lang_code)
+            form_layout.addRow(self.tr("Language Code:"), self.language_code_combo)
+            self.language_code_edit = None # No QLineEdit if new
+        else: # Existing product
+            self.language_code_edit = QLineEdit()
+            self.language_code_edit.setReadOnly(True)
+            form_layout.addRow(self.tr("Language Code:"), self.language_code_edit)
+            self.language_code_combo = None # No QComboBox if editing
+
         self.price_edit = QLineEdit()
         self.unit_edit = QLineEdit()
         self.weight_edit = QLineEdit()
@@ -46,7 +73,6 @@ class ProductEditDialog(QDialog):
         form_layout.addRow(self.tr("Name:"), self.name_edit)
         form_layout.addRow(self.tr("Description:"), self.description_edit)
         form_layout.addRow(self.tr("Category:"), self.category_edit)
-        form_layout.addRow(self.tr("Language Code:"), self.language_code_edit)
         form_layout.addRow(self.tr("Base Unit Price:"), self.price_edit)
         form_layout.addRow(self.tr("Unit of Measure:"), self.unit_edit)
         form_layout.addRow(self.tr("Weight:"), self.weight_edit)
@@ -56,14 +82,11 @@ class ProductEditDialog(QDialog):
         main_layout.addLayout(form_layout)
 
         # Image Gallery Section
-        gallery_label = QLabel(self.tr("Product Images:"))
-        main_layout.addWidget(gallery_label)
+        gallery_group = QGroupBox(self.tr("Product Images"))
+        gallery_layout = QVBoxLayout(gallery_group)
         self.image_gallery_list = QListWidget()
-        self.image_gallery_list.setFixedHeight(150) # Placeholder size
-        # In a later step, this will show thumbnails. For now, filepaths or titles.
-        main_layout.addWidget(self.image_gallery_list)
-
-        # Image Management Buttons
+        self.image_gallery_list.setFixedHeight(150)
+        gallery_layout.addWidget(self.image_gallery_list)
         image_buttons_layout = QHBoxLayout()
         self.add_image_button = QPushButton(self.tr("Add Image..."))
         self.add_image_button.clicked.connect(self._add_image)
@@ -77,15 +100,78 @@ class ProductEditDialog(QDialog):
         self.move_image_down_button = QPushButton(self.tr("Move Down"))
         self.move_image_down_button.clicked.connect(self._move_image_down)
 
+        image_buttons_layout = QHBoxLayout()
+        self.add_image_button = QPushButton(self.tr("Add Image..."))
+        self.add_image_button.clicked.connect(self._add_image)
+        self.remove_image_button = QPushButton(self.tr("Remove Selected Image"))
+        self.remove_image_button.clicked.connect(self._remove_image)
+        self.edit_image_button = QPushButton(self.tr("Edit Image Details..."))
+        self.edit_image_button.clicked.connect(self._edit_image_details)
+        self.move_image_up_button = QPushButton(self.tr("Move Up"))
+        self.move_image_up_button.clicked.connect(self._move_image_up)
+        self.move_image_down_button = QPushButton(self.tr("Move Down"))
+        self.move_image_down_button.clicked.connect(self._move_image_down)
         image_buttons_layout.addWidget(self.add_image_button)
         image_buttons_layout.addWidget(self.remove_image_button)
         image_buttons_layout.addWidget(self.edit_image_button)
-        image_buttons_layout.addSpacing(20) # Add some space before move buttons
+        image_buttons_layout.addSpacing(20)
         image_buttons_layout.addWidget(self.move_image_up_button)
         image_buttons_layout.addWidget(self.move_image_down_button)
-
         image_buttons_layout.addStretch()
-        main_layout.addLayout(image_buttons_layout)
+        gallery_layout.addLayout(image_buttons_layout)
+        main_layout.addWidget(gallery_group)
+
+        # Technical Specifications Section
+        tech_specs_group = QGroupBox(self.tr("Technical Specifications"))
+        tech_specs_layout = QFormLayout(tech_specs_group) # Using QFormLayout for consistency
+        self.dim_A_edit = QLineEdit()
+        self.dim_B_edit = QLineEdit()
+        self.dim_C_edit = QLineEdit()
+        self.dim_D_edit = QLineEdit()
+        self.dim_E_edit = QLineEdit()
+        self.dim_F_edit = QLineEdit()
+        self.dim_G_edit = QLineEdit()
+        self.dim_H_edit = QLineEdit()
+        self.dim_I_edit = QLineEdit()
+        self.dim_J_edit = QLineEdit()
+        tech_specs_layout.addRow("Dimension A:", self.dim_A_edit)
+        tech_specs_layout.addRow("Dimension B:", self.dim_B_edit)
+        tech_specs_layout.addRow("Dimension C:", self.dim_C_edit)
+        tech_specs_layout.addRow("Dimension D:", self.dim_D_edit)
+        tech_specs_layout.addRow("Dimension E:", self.dim_E_edit)
+        tech_specs_layout.addRow("Dimension F:", self.dim_F_edit)
+        tech_specs_layout.addRow("Dimension G:", self.dim_G_edit)
+        tech_specs_layout.addRow("Dimension H:", self.dim_H_edit)
+        tech_specs_layout.addRow("Dimension I:", self.dim_I_edit)
+        tech_specs_layout.addRow("Dimension J:", self.dim_J_edit)
+
+        tech_image_layout = QHBoxLayout()
+        self.tech_image_path_edit = QLineEdit()
+        self.tech_image_path_edit.setReadOnly(True)
+        self.browse_tech_image_button = QPushButton(self.tr("Browse..."))
+        self.browse_tech_image_button.clicked.connect(self._browse_technical_image)
+        tech_image_layout.addWidget(self.tech_image_path_edit)
+        tech_image_layout.addWidget(self.browse_tech_image_button)
+        tech_specs_layout.addRow(self.tr("Technical Image:"), tech_image_layout)
+        main_layout.addWidget(tech_specs_group)
+
+        # Product Equivalencies (Translations) Section
+        equivalencies_group = QGroupBox(self.tr("Translations / Equivalent Products"))
+        equivalencies_main_layout = QVBoxLayout(equivalencies_group)
+        self.equivalencies_list = QListWidget()
+        self.equivalencies_list.setFixedHeight(100)
+        equivalencies_main_layout.addWidget(self.equivalencies_list)
+        equiv_buttons_layout = QHBoxLayout()
+        self.add_equivalence_button = QPushButton(self.tr("Add Translation..."))
+        self.add_equivalence_button.clicked.connect(self._add_product_equivalence)
+        self.remove_equivalence_button = QPushButton(self.tr("Remove Selected Translation"))
+        self.remove_equivalence_button.clicked.connect(self._remove_product_equivalence)
+        equiv_buttons_layout.addWidget(self.add_equivalence_button)
+        equiv_buttons_layout.addWidget(self.remove_equivalence_button)
+        equiv_buttons_layout.addStretch()
+        equivalencies_main_layout.addLayout(equiv_buttons_layout)
+        main_layout.addWidget(equivalencies_group)
+
 
         # Dialog Action Buttons
         action_buttons_layout = QHBoxLayout()
@@ -98,33 +184,144 @@ class ProductEditDialog(QDialog):
         action_buttons_layout.addWidget(self.cancel_button)
         main_layout.addLayout(action_buttons_layout)
 
+        scroll_area.setWidget(main_widget_for_scroll)
+        outer_layout = QVBoxLayout(self) # This is the dialog's actual layout
+        outer_layout.addWidget(scroll_area)
+        self.setLayout(outer_layout) # Set the dialog's layout
+
         self.load_product_data()
+        self._update_ui_for_product_id_state()
+
+
+    def _update_ui_for_product_id_state(self):
+        """Enable/disable sections based on whether product_id exists."""
+        has_product_id = self.product_id is not None
+        # Image gallery, tech specs, and equivalencies should be enabled only if product exists
+        # Assuming gallery_group, tech_specs_group, equivalencies_group are defined
+        if hasattr(self, 'gallery_group'): self.gallery_group.setEnabled(has_product_id)
+        if hasattr(self, 'tech_specs_group'): self.tech_specs_group.setEnabled(has_product_id)
+        if hasattr(self, 'equivalencies_group'): self.equivalencies_group.setEnabled(has_product_id)
+
 
     def load_product_data(self):
         if self.product_id is None:
-            self.setWindowTitle(self.tr("Add New Product")) # Or handle as error
-            # Potentially initialize fields for a new product
+            self.setWindowTitle(self.tr("Add New Product"))
+            # Clear fields for new product entry
+            self.name_edit.clear()
+            self.description_edit.clear()
+            self.category_edit.clear()
+            if self.language_code_combo: # If it's a new product, combo is used
+                self.language_code_combo.setCurrentIndex(0) # Default to first language
+            elif self.language_code_edit: # Should not happen if product_id is None
+                 self.language_code_edit.clear()
+            self.price_edit.clear()
+            self.unit_edit.clear()
+            self.weight_edit.clear()
+            self.dimensions_edit.clear()
+            self.is_active_check.setChecked(True) # Default to active
+
+            # Clear tech specs fields
+            self.dim_A_edit.clear(); self.dim_B_edit.clear(); self.dim_C_edit.clear(); self.dim_D_edit.clear();
+            self.dim_E_edit.clear(); self.dim_F_edit.clear(); self.dim_G_edit.clear(); self.dim_H_edit.clear();
+            self.dim_I_edit.clear(); self.dim_J_edit.clear();
+            self.tech_image_path_edit.clear();
+
+            self.media_links = []
+            self._populate_image_gallery()
+            self.equivalent_products = []
+            self._populate_equivalencies_list()
+            self._update_ui_for_product_id_state() # Disable sections
             return
 
         self.db_product_data = products_crud.get_product_by_id(self.product_id)
 
         if not self.db_product_data:
             QMessageBox.critical(self, self.tr("Error"), self.tr("Product not found."))
-            # self.reject() # Close dialog if product not found
+            self.reject() # Close dialog if product not found
             return
 
         self.name_edit.setText(self.db_product_data.get('product_name', ''))
         self.description_edit.setPlainText(self.db_product_data.get('description', ''))
         self.category_edit.setText(self.db_product_data.get('category', ''))
-        self.language_code_edit.setText(self.db_product_data.get('language_code', ''))
+
+        # Handle language_code display based on whether it's a QLineEdit or QComboBox scenario
+        # This method is called for existing products, so language_code_edit should be active
+        if self.language_code_edit:
+            self.language_code_edit.setText(self.db_product_data.get('language_code', ''))
+        # If it were a combo (which it isn't for existing products as per current __init__ logic):
+        # elif self.language_code_combo:
+        #     lang_code_to_set = self.db_product_data.get('language_code', '')
+        #     index = self.language_code_combo.findData(lang_code_to_set)
+        #     if index >= 0:
+        #         self.language_code_combo.setCurrentIndex(index)
+
         self.price_edit.setText(str(self.db_product_data.get('base_unit_price', '')))
         self.unit_edit.setText(self.db_product_data.get('unit_of_measure', ''))
         self.weight_edit.setText(str(self.db_product_data.get('weight', '')))
-        self.dimensions_edit.setText(self.db_product_data.get('dimensions', ''))
+        self.dimensions_edit.setText(self.db_product_data.get('dimensions', '')) # This is general dimensions
         self.is_active_check.setChecked(self.db_product_data.get('is_active', True))
 
-        self.media_links = self.db_product_data.get('media_links', [])
+        self.media_links = self.db_product_data.get('media_links', []) # Assuming media_links are part of product data
         self._populate_image_gallery()
+
+        # Load Technical Specifications
+        self.db_tech_specs_data = products_crud.get_product_dimension(self.product_id) # conn=None is default
+        if self.db_tech_specs_data:
+            self.dim_A_edit.setText(str(self.db_tech_specs_data.get('dim_A', '')))
+            self.dim_B_edit.setText(str(self.db_tech_specs_data.get('dim_B', '')))
+            self.dim_C_edit.setText(str(self.db_tech_specs_data.get('dim_C', '')))
+            self.dim_D_edit.setText(str(self.db_tech_specs_data.get('dim_D', '')))
+            self.dim_E_edit.setText(str(self.db_tech_specs_data.get('dim_E', '')))
+            self.dim_F_edit.setText(str(self.db_tech_specs_data.get('dim_F', '')))
+            self.dim_G_edit.setText(str(self.db_tech_specs_data.get('dim_G', '')))
+            self.dim_H_edit.setText(str(self.db_tech_specs_data.get('dim_H', '')))
+            self.dim_I_edit.setText(str(self.db_tech_specs_data.get('dim_I', '')))
+            self.dim_J_edit.setText(str(self.db_tech_specs_data.get('dim_J', '')))
+            self.tech_image_path_edit.setText(self.db_tech_specs_data.get('technical_image_path', ''))
+        else:
+            # Clear fields if no tech specs found
+            self.dim_A_edit.clear(); self.dim_B_edit.clear(); self.dim_C_edit.clear(); self.dim_D_edit.clear();
+            self.dim_E_edit.clear(); self.dim_F_edit.clear(); self.dim_G_edit.clear(); self.dim_H_edit.clear();
+            self.dim_I_edit.clear(); self.dim_J_edit.clear();
+            self.tech_image_path_edit.clear();
+
+        # Load Product Equivalencies
+        # We need equivalence_id for removal, so get_all_product_equivalencies is better
+        all_equivalencies = products_crud.get_all_product_equivalencies(product_id_filter=self.product_id)
+        self.equivalent_products = [] # Reset
+        if all_equivalencies:
+            for eq_link in all_equivalencies:
+                # Determine the "other" product ID in the link
+                other_product_id = None
+                if eq_link.get('product_id_a') == self.product_id:
+                    other_product_id = eq_link.get('product_id_b')
+                elif eq_link.get('product_id_b') == self.product_id:
+                    other_product_id = eq_link.get('product_id_a')
+
+                if other_product_id:
+                    # Fetch details of the other product
+                    eq_prod_details = products_crud.get_product_by_id(other_product_id)
+                    if eq_prod_details:
+                        # Add the equivalence_id to the details for use in removal
+                        eq_prod_details['equivalence_id'] = eq_link.get('equivalence_id')
+                        self.equivalent_products.append(eq_prod_details)
+
+        self._populate_equivalencies_list()
+        self._update_ui_for_product_id_state() # Ensure sections are enabled
+
+    def _populate_equivalencies_list(self):
+        self.equivalencies_list.clear()
+        if not self.equivalent_products:
+            self.equivalencies_list.addItem(self.tr("No equivalent products linked."))
+            return
+
+        for eq_prod in self.equivalent_products:
+            display_text = f"{eq_prod.get('product_name', 'N/A')} ({eq_prod.get('language_code', 'N/A')}) - ID: {eq_prod.get('product_id')}"
+            item = QListWidgetItem(display_text)
+            # Store both product_id of the equivalent and the equivalence_id for removal
+            item.setData(Qt.UserRole, {"equivalent_product_id": eq_prod.get('product_id'),
+                                       "equivalence_id": eq_prod.get('equivalence_id')})
+            self.equivalencies_list.addItem(item)
 
     def _populate_image_gallery(self):
         self.image_gallery_list.clear()
@@ -187,7 +384,15 @@ class ProductEditDialog(QDialog):
 
             description = self.description_edit.toPlainText().strip()
             category = self.category_edit.text().strip()
-            language_code = self.language_code_edit.text().strip()
+
+            if self.product_id is None and self.language_code_combo: # New product
+                language_code = self.language_code_combo.currentData()
+            elif self.language_code_edit : # Existing product
+                language_code = self.language_code_edit.text().strip()
+            else: # Fallback or error
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Could not determine language code."))
+                return
+
 
             base_unit_price_str = self.price_edit.text().strip()
             base_unit_price = None
@@ -215,7 +420,7 @@ class ProductEditDialog(QDialog):
                     QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Invalid weight format."))
                     return
 
-            dimensions = self.dimensions_edit.text().strip()
+            dimensions = self.dimensions_edit.text().strip() # General dimensions
             is_active = self.is_active_check.isChecked()
 
         except Exception as e:
@@ -230,30 +435,21 @@ class ProductEditDialog(QDialog):
             'base_unit_price': base_unit_price,
             'unit_of_measure': unit_of_measure,
             'weight': weight,
-            'dimensions': dimensions,
+            'dimensions': dimensions, # General dimensions
             'is_active': is_active
         }
 
-        # Remove keys with None values if the CRUD update function handles partial updates
-        # based on key presence rather than None values, or if None means "set to NULL".
-        # products_crud.update_product is designed to only update fields present in the data dict.
-        # However, explicit None might try to set DB to NULL.
-        # For safety, let's filter out Nones if the intent is "no change" for that field.
-        # But if the field was cleared in UI, None *should* be passed to clear it in DB.
-        # The current products_crud.update_product builds SET clauses for keys present in `data`.
-        # So, if a field is cleared in UI and results in None, and we want to set it to NULL in DB,
-        # it should be included. If it means "no change", it should be excluded.
-        # For this implementation, we'll pass the data as is.
-        # If a field is optional in DB and user clears it, it should become NULL.
+        product_saved_successfully = False
+        new_product_created_id = None
 
         if self.product_id is not None: # Editing existing product
             try:
                 success = products_crud.update_product(product_id=self.product_id, data=updated_product_data)
                 if success:
-                    QMessageBox.information(self, self.tr("Success"), self.tr("Product details saved successfully."))
-                    self.accept() # Close the dialog
+                    # QMessageBox.information(self, self.tr("Success"), self.tr("Product details saved successfully."))
+                    product_saved_successfully = True
+                    # self.accept() # Close the dialog - moved to end
                 else:
-                    # Check if product still exists, maybe it was deleted by another user?
                     check_prod = products_crud.get_product_by_id(self.product_id)
                     if not check_prod:
                          QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to save product details. The product may have been deleted."))
@@ -262,52 +458,188 @@ class ProductEditDialog(QDialog):
             except Exception as e:
                 print(f"Error updating product {self.product_id}: {e}")
                 QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred while saving: {e}"))
-        else:
-            # This is "Add New Product" mode.
-            # The current dialog is designed for editing an existing product_id.
-            # To support "Add New", the dialog would need to be opened with product_id=None.
-            # And then, after adding, self.product_id should be set to the new ID.
-            # Image management buttons would typically be disabled until product is first saved.
+        else: # Adding new product
             try:
                 new_id = products_crud.add_product(product_data=updated_product_data)
                 if new_id:
-                    self.product_id = new_id # Store the new ID
-                    self.setWindowTitle(self.tr("Edit Product") + f" (ID: {new_id})") # Update title
-                    QMessageBox.information(self, self.tr("Success"),
-                                            self.tr(f"Product '{product_name}' added successfully with ID {new_id}. You can now add images."))
-                    # Dialog remains open, image buttons would now be enabled if they depend on self.product_id
-                    self.load_product_data() # Reload to ensure consistency and enable image ops if any
-                    # Or self.accept() if we want to close after adding.
-                    # For now, let's assume we want to keep it open to add images.
+                    self.product_id = new_id
+                    new_product_created_id = new_id # Keep track of new ID
+                    self.setWindowTitle(self.tr("Edit Product") + f" (ID: {new_id})")
+                    # QMessageBox.information(self, self.tr("Success"),
+                    #                         self.tr(f"Product '{product_name}' added successfully with ID {new_id}. You can now manage other details."))
+                    product_saved_successfully = True
+                    if self.language_code_combo: # Switch from ComboBox to read-only QLineEdit
+                        current_lang_code = self.language_code_combo.currentData()
+                        # Find the form layout row for language_code_combo and replace widget
+                        # This is a bit tricky as QFormLayout doesn't have a simple replaceWidgetAtRow
+                        # For simplicity, we might just inform user and rely on reload.
+                        # Or, better, reconstruct that part of the form if essential.
+                        # For now, we'll rely on load_product_data to fix UI if it's called.
+                        # The __init__ logic for language_code_edit vs combo handles this on next open.
+                        pass
+
+                    self.load_product_data() # Reload to ensure consistency and enable other sections
+                    self._update_ui_for_product_id_state() # Enable sections
                 else:
                     QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add new product."))
             except Exception as e:
                 print(f"Error adding new product: {e}")
                 QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred while adding product: {e}"))
 
+        if product_saved_successfully and self.product_id is not None:
+            # Save Technical Specifications
+            tech_spec_data = {
+                'dim_A': self.dim_A_edit.text() or None, 'dim_B': self.dim_B_edit.text() or None,
+                'dim_C': self.dim_C_edit.text() or None, 'dim_D': self.dim_D_edit.text() or None,
+                'dim_E': self.dim_E_edit.text() or None, 'dim_F': self.dim_F_edit.text() or None,
+                'dim_G': self.dim_G_edit.text() or None, 'dim_H': self.dim_H_edit.text() or None,
+                'dim_I': self.dim_I_edit.text() or None, 'dim_J': self.dim_J_edit.text() or None,
+                'technical_image_path': self.tech_image_path_edit.text() or None
+            }
+            # Filter out keys where value is None if CRUD expects only changed fields
+            # For add_or_update, sending None should be fine to clear fields
 
-        # Placeholder for now. Actual save logic will update product and media links.
-        updated_data = {
-            'product_name': self.name_edit.text(),
-            'description': self.description_edit.toPlainText(),
-            'category': self.category_edit.text(),
-            'language_code': self.language_code_edit.text(),
-            'base_unit_price': float(self.price_edit.text()) if self.price_edit.text() else None,
-            'unit_of_measure': self.unit_edit.text(),
-            'weight': float(self.weight_edit.text()) if self.weight_edit.text() else None,
-            'dimensions': self.dimensions_edit.text(),
-            'is_active': self.is_active_check.isChecked()
-        }
-        print(f"Attempting to save product ID {self.product_id} with data: {updated_data}")
+            try:
+                tech_spec_success = products_crud.add_or_update_product_dimension(self.product_id, tech_spec_data)
+                if tech_spec_success:
+                    # Optional: specific success message for tech specs
+                    print(f"Technical specifications for product ID {self.product_id} saved.")
+                else:
+                    QMessageBox.warning(self, self.tr("Tech Spec Save Warning"), self.tr("Could not save technical specifications."))
+            except Exception as e:
+                print(f"Error saving technical specifications for product {self.product_id}: {e}")
+                QMessageBox.critical(self, self.tr("Tech Spec Error"), self.tr(f"An error occurred while saving technical specifications: {e}"))
 
-        # Call products_crud.update_product(self.product_id, updated_data)
-        # Handle media links changes (additions, removals, reordering, alt text updates)
-        # This will involve product_media_links_crud functions.
+            # Equivalencies are handled by their own buttons directly.
+            # No explicit save step here for equivalencies.
 
-        # QMessageBox.information(self, self.tr("Save"), self.tr("Changes would be saved here."))
-        # self.accept() # If save is successful
+            if new_product_created_id: # If it was a new product
+                 QMessageBox.information(self, self.tr("Product Added"),
+                                        self.tr(f"Product '{updated_product_data['product_name']}' (ID: {new_product_created_id}) and its details have been saved."))
+                 # Keep dialog open for further edits (images, etc.)
+            else: # Existing product updated
+                 QMessageBox.information(self, self.tr("Product Updated"), self.tr("Product and its details have been updated successfully."))
+                 self.accept() # Close dialog only if an existing product was updated.
 
-    # Placeholder for _add_image, _remove_image, _edit_image_details
+        elif product_saved_successfully and new_product_created_id is None:
+             # This case should ideally not be hit if logic is correct (product_id should be set)
+             print("Warning: Product saved but product_id is still None.")
+
+        # The old print and placeholder comments are removed as full save logic is above.
+
+
+    def _browse_technical_image(self):
+        if self.product_id is None: # Should be disabled if no product_id
+            QMessageBox.warning(self, self.tr("Save Product First"), self.tr("Please save the product before adding a technical image."))
+            return
+
+        options = QFileDialog.Options()
+        fileName, _ = QFileDialog.getOpenFileName(self, self.tr("Select Technical Image"), "",
+                                                  self.tr("Images (*.png *.jpg *.jpeg *.bmp *.gif)"), options=options)
+        if fileName:
+            # For now, just set the path. Actual copy to media folder is a TODO.
+            # Ideally, this would copy the file to a managed location and store a relative path.
+            # e.g., target_folder = os.path.join(MEDIA_FILES_BASE_PATH, "technical_schematics", str(self.product_id))
+            # And then copy file there, store "technical_schematics/product_id/filename.ext"
+            # This is complex due to potential for media_manager interaction.
+            # For subtask: display selected path. Actual saving of this path happens in _save_changes.
+
+            # Simplification: Assume MEDIA_FILES_BASE_PATH is the root for these too.
+            # Try to make it relative if it's under MEDIA_FILES_BASE_PATH, otherwise store absolute (not ideal)
+            try:
+                relative_path = os.path.relpath(fileName, MEDIA_FILES_BASE_PATH)
+                # If relpath starts with '..', it's outside, so use absolute or handle error
+                if relative_path.startswith(".."):
+                    # For now, let's store the absolute path if outside MEDIA_FILES_BASE_PATH.
+                    # This is not robust. A copy operation is needed.
+                    QMessageBox.warning(self, self.tr("Path Warning"),
+                                        self.tr("Image is outside the media base path. Storing absolute path. Consider moving it to the media library."))
+                    self.tech_image_path_edit.setText(fileName)
+                else:
+                    self.tech_image_path_edit.setText(relative_path)
+            except ValueError: # Handles case where paths are on different drives (Windows)
+                QMessageBox.warning(self, self.tr("Path Warning"),
+                                    self.tr("Image is on a different drive from the media base path. Storing absolute path. Consider moving it."))
+                self.tech_image_path_edit.setText(fileName)
+
+
+    def _add_product_equivalence(self):
+        if self.product_id is None:
+            QMessageBox.warning(self, self.tr("Save Product First"), self.tr("Please save the main product before adding equivalencies."))
+            return
+
+        equivalent_product_id, ok = QInputDialog.getInt(self, self.tr("Add Equivalent Product"),
+                                                        self.tr("Enter the Product ID of the equivalent product:"))
+        if ok and equivalent_product_id:
+            if equivalent_product_id == self.product_id:
+                QMessageBox.warning(self, self.tr("Invalid ID"), self.tr("Cannot link a product to itself."))
+                return
+
+            try:
+                # Check if the target product exists
+                target_prod = products_crud.get_product_by_id(equivalent_product_id)
+                if not target_prod:
+                    QMessageBox.warning(self, self.tr("Not Found"), self.tr(f"Product with ID {equivalent_product_id} not found."))
+                    return
+
+                # Check if this equivalence already exists
+                # get_all_product_equivalencies returns list of dicts like {'equivalence_id': X, 'product_id_a': Y, 'product_id_b': Z}
+                existing_equivalencies = products_crud.get_all_product_equivalencies(product_id_filter=self.product_id)
+                is_already_linked = False
+                if existing_equivalencies:
+                    for eq_link in existing_equivalencies:
+                        if (eq_link['product_id_a'] == equivalent_product_id and eq_link['product_id_b'] == self.product_id) or \
+                           (eq_link['product_id_b'] == equivalent_product_id and eq_link['product_id_a'] == self.product_id):
+                            is_already_linked = True
+                            break
+                if is_already_linked:
+                    QMessageBox.information(self, self.tr("Already Linked"), self.tr(f"This product is already linked with product ID {equivalent_product_id}."))
+                    return
+
+                link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
+                if link_id:
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))
+                    self.load_product_data()  # Refresh list
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add product equivalence."))
+            except Exception as e:
+                print(f"Error adding product equivalence: {e}")
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
+
+    def _remove_product_equivalence(self):
+        if self.product_id is None: return # Should be disabled
+
+        selected_items = self.equivalencies_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, self.tr("No Selection"), self.tr("Please select an equivalent product to remove."))
+            return
+
+        selected_item = selected_items[0]
+        data = selected_item.data(Qt.UserRole)
+        equivalence_id_to_remove = data.get("equivalence_id")
+
+        if equivalence_id_to_remove is None:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not find equivalence ID for selected item."))
+            return
+
+        product_name_display = selected_item.text().split(" - ID:")[0] # Get name part for message
+
+        reply = QMessageBox.question(self, self.tr("Confirm Removal"),
+                                     self.tr(f"Are you sure you want to remove the equivalence with '{product_name_display}'?"),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            try:
+                success = products_crud.remove_product_equivalence(equivalence_id_to_remove)
+                if success:
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Equivalence removed successfully."))
+                    self.load_product_data() # Refresh list
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to remove equivalence."))
+            except Exception as e:
+                print(f"Error removing product equivalence: {e}")
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
+
     def _get_placeholder_uploader_id(self):
         # Attempt to get 'admin' user_id as a placeholder
         # This assumes an 'admin' user exists as per db_config or schema seeding.

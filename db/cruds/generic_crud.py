@@ -3,43 +3,19 @@ import uuid # Required by some CRUD functions, even if not directly in generic
 import hashlib # Required by some CRUD functions, even if not directly in generic
 from datetime import datetime # Required by some CRUD functions, even if not directly in generic
 import json # Required by some CRUD functions, even if not directly in generic
-import os
+import os # Keep os if used by other parts of the file, but not for path manipulation for config.
 import logging
 
 # Configuration and Utilities
 try:
-    from ... import db_config # For db_config.py in app/
-    from ... import config    # For config.py in app/
-    from ..utils import get_db_connection
-except (ImportError, ValueError) as e_import_primary:
-    import sys
-    # Determine the /app directory path relative to this file (db/cruds/generic_crud.py)
-    # generic_crud.py -> cruds/ -> db/ -> app/
-    app_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-
-    # Path to the 'db' directory, which contains 'utils.py'
-    db_dir_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # This should be /app/db
-    if db_dir_path not in sys.path:
-         sys.path.append(db_dir_path)
-
-    try:
-        import db_config
-        from utils import get_db_connection # utils is in db/
-    except ImportError as e:
-        print(f"CRITICAL: db_config.py or utils.py (for get_db_connection) not found in generic_crud.py. Using fallbacks. Error: {e}")
-        class db_config: # Minimal fallback for db_config
-            DATABASE_NAME = "app_data_fallback_generic.db"
-            APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # app/
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback_generic"
-
-        def get_db_connection(db_name=None): # Fallback get_db_connection
-            name_to_connect = db_name if db_name else db_config.DATABASE_NAME
-            db_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, name_to_connect)
-            conn_fallback = sqlite3.connect(db_path)
-            conn_fallback.row_factory = sqlite3.Row
-            return conn_fallback
+    # This is the primary and now should be the ONLY way it gets get_db_connection
+    from ..connection import get_db_connection
+except ImportError as e:
+    # If this import fails, it's a problem with db.connection or the package structure.
+    # generic_crud.py should not try to work around it with its own config loading.
+    logging.critical(f"CRITICAL: Failed to import get_db_connection from ..connection in generic_crud.py. Error: {e}")
+    # Re-raise the error as the CRUD operations cannot function without a db connection.
+    raise ImportError(f"Essential import get_db_connection from ..connection failed in generic_crud.py") from e
 
 # Helper to manage connection lifecycle for CRUD functions
 def _manage_conn(func):
@@ -76,3 +52,101 @@ def _manage_conn(func):
             if not conn_is_external and conn_to_use:
                 conn_to_use.close()
     return wrapper
+
+
+# Generic CRUD Base Class
+class GenericCRUD:
+    """
+    A base class providing generic CRUD (Create, Read, Update, Delete) operations
+    that can be inherited by specific CRUD classes for different database tables.
+
+    This class is designed to work with SQLite and uses a connection management
+    decorator (`@_manage_conn`) for its methods. Child classes should typically
+    define `table_name` and `id_column` attributes in their `__init__` method
+    if they intend to use these generic methods directly without overriding or
+    if they call super() to these methods.
+    """
+    @_manage_conn
+    def get_by_id(self, table_name: str, id_column: str, item_id: any, conn: sqlite3.Connection) -> dict | None:
+        """
+        Fetches a single record from a specified table by its ID.
+
+        Args:
+            table_name (str): The name of the table to query.
+            id_column (str): The name of the ID column in the table.
+            item_id (any): The ID of the item to fetch.
+            conn (sqlite3.Connection): The database connection object.
+
+        Returns:
+            dict | None: A dictionary representing the record if found, otherwise None.
+        """
+        query = f"SELECT * FROM {table_name} WHERE {id_column} = ?"
+        cursor = conn.execute(query, (item_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    @_manage_conn
+    def delete_by_id(self, table_name: str, id_column: str, item_id: any, conn: sqlite3.Connection) -> bool:
+        """
+        Deletes a record from a specified table by its ID.
+        This performs a hard delete.
+
+        Args:
+            table_name (str): The name of the table.
+            id_column (str): The name of the ID column.
+            item_id (any): The ID of the item to delete.
+            conn (sqlite3.Connection): The database connection object.
+
+        Returns:
+            bool: True if a record was deleted, False otherwise.
+        """
+        query = f"DELETE FROM {table_name} WHERE {id_column} = ?"
+        cursor = conn.execute(query, (item_id,))
+        return cursor.rowcount > 0
+
+    @_manage_conn
+    def exists_by_id(self, table_name: str, id_column: str, item_id: any, conn: sqlite3.Connection) -> bool:
+        """
+        Checks if a record exists in a specified table by its ID.
+
+        Args:
+            table_name (str): The name of the table.
+            id_column (str): The name of the ID column.
+            item_id (any): The ID of the item to check for.
+            conn (sqlite3.Connection): The database connection object.
+
+        Returns:
+            bool: True if the record exists, False otherwise.
+        """
+        query = f"SELECT 1 FROM {table_name} WHERE {id_column} = ?"
+        cursor = conn.execute(query, (item_id,))
+        return cursor.fetchone() is not None
+
+    @_manage_conn
+    def get_all(self, table_name: str, conn: sqlite3.Connection, order_by: str = None) -> list[dict]:
+        """
+        Fetches all records from a specified table, with optional ordering.
+
+        Args:
+            table_name (str): The name of the table.
+            conn (sqlite3.Connection): The database connection object.
+            order_by (str, optional): A string to use for the ORDER BY clause
+                                      (e.g., "column_name ASC"). Defaults to None.
+
+        Returns:
+            list[dict]: A list of dictionaries, where each dictionary represents a record.
+                        Returns an empty list if the table is empty or not found.
+        """
+        query = f"SELECT * FROM {table_name}"
+        if order_by:
+            query += f" ORDER BY {order_by}"
+        cursor = conn.execute(query)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    # Placeholder for query construction helper
+    # def _build_query(self, query_type: str, **kwargs) -> str:
+    #     """Helper method to construct SQL queries dynamically."""
+    #     # This method would handle more complex query building logic
+    #     # For example, handling multiple conditions, joins, etc.
+    #     pass

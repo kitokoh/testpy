@@ -131,3 +131,12 @@ def delete_cover_page_template(template_id: str, conn: sqlite3.Connection = None
     except sqlite3.Error as e:
         logging.error(f"Failed to delete cover page template {template_id}: {e}")
         return False
+
+__all__ = [
+    "add_cover_page_template",
+    "get_cover_page_template_by_name",
+    "get_cover_page_template_by_id",
+    "get_all_cover_page_templates",
+    "update_cover_page_template",
+    "delete_cover_page_template",
+]

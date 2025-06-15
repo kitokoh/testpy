@@ -4,29 +4,25 @@ import json
 from datetime import datetime
 import uuid
 import hashlib
+import sys # Ensure sys is imported for path manipulation
 
-# Imports from db_config.py (taken from db/schema.py)
+# Get the project root directory
+# This allows importing config.py from the root
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 try:
-    from .. import db_config # For package structure: db/init_schema.py importing from /app/db_config.py
-except (ImportError, ValueError):
-    # Fallback for running script directly or if db_config is not found in parent
-    import sys
-    # Assuming this script is in /app/db/, so parent is /app/
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-    except ImportError:
-        print("CRITICAL: db_config.py not found. Using fallback DATABASE_PATH.")
-        # Minimal fallback if db_config.py is crucial and not found
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_data_fallback.db")
-            APP_ROOT_DIR_CONTEXT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
-            DEFAULT_ADMIN_USERNAME = "admin_fallback"
-            DEFAULT_ADMIN_PASSWORD = "password_fallback" # Ensure this is a secure default if used
-        db_config = db_config_fallback
+    import config
+except ImportError:
+    print("CRITICAL: config.py not found at project root by db/init_schema.py. Using fallback configurations.")
+    class config_fallback:
+        DATABASE_PATH = os.path.join(project_root, "app_data_fallback_init.db")
+        DEFAULT_ADMIN_USERNAME = "admin_fallback_init"
+        DEFAULT_ADMIN_PASSWORD = "password_fallback_init"
+        # Add other necessary fallbacks if init_schema.py uses them directly
+        # For example, APP_ROOT_DIR if it were used directly for paths here.
+    config = config_fallback
 
 from auth.roles import SUPER_ADMIN
 
@@ -97,8 +93,8 @@ def initialize_database():
     Initializes the database by creating tables if they don't already exist.
     Combines schema from db/ca.py and db/schema.py.
     """
-    # Use DATABASE_PATH from db_config (imported at the top)
-    conn = sqlite3.connect(db_config.DATABASE_PATH)
+    # Use DATABASE_PATH from config (imported at the top)
+    conn = sqlite3.connect(config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row # Essential for accessing columns by name
     cursor = conn.cursor()
 
@@ -108,10 +104,13 @@ def initialize_database():
         user_id TEXT PRIMARY KEY,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL, -- Added for password salting
         full_name TEXT,
         email TEXT NOT NULL UNIQUE,
         role TEXT NOT NULL, -- e.g., 'admin', 'manager', 'member'
         is_active BOOLEAN DEFAULT TRUE,
+        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+        deleted_at TEXT, -- Added for soft delete
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login_at TIMESTAMP
@@ -147,6 +146,22 @@ def initialize_database():
     )
     """)
 
+    # Create CompanyPersonnelContacts table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyPersonnelContacts (
+        company_personnel_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        personnel_id INTEGER NOT NULL,
+        contact_id INTEGER NOT NULL,
+        is_primary BOOLEAN DEFAULT FALSE,
+        can_receive_documents BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel(personnel_id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES Contacts(contact_id) ON DELETE CASCADE,
+        UNIQUE (personnel_id, contact_id)
+    )
+    """)
+
     # Create TeamMembers table (base from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS TeamMembers (
@@ -173,9 +188,30 @@ def initialize_database():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Countries (
         country_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        country_name TEXT NOT NULL UNIQUE
+        country_name TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    # Ensure created_at and updated_at columns exist in Countries
+    cursor.execute("PRAGMA table_info(Countries)")
+    countries_columns_info = cursor.fetchall()
+    countries_column_names = [info['name'] for info in countries_columns_info]
+    if 'created_at' not in countries_column_names:
+        try:
+            cursor.execute("ALTER TABLE Countries ADD COLUMN created_at TIMESTAMP")
+
+            print("Added 'created_at' column to Countries table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'created_at' to Countries: {e_alter}")
+    if 'updated_at' not in countries_column_names:
+        try:
+            cursor.execute("ALTER TABLE Countries ADD COLUMN updated_at TIMESTAMP")
+
+            print("Added 'updated_at' column to Countries table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'updated_at' to Countries: {e_alter}")
 
     # Create Cities table (base from ca.py)
     cursor.execute("""
@@ -183,9 +219,30 @@ def initialize_database():
         city_id INTEGER PRIMARY KEY AUTOINCREMENT,
         country_id INTEGER NOT NULL,
         city_name TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (country_id) REFERENCES Countries (country_id)
     )
     """)
+
+    # Ensure created_at and updated_at columns exist in Cities
+    cursor.execute("PRAGMA table_info(Cities)")
+    cities_columns_info = cursor.fetchall()
+    cities_column_names = [info['name'] for info in cities_columns_info]
+    if 'created_at' not in cities_column_names:
+        try:
+            cursor.execute("ALTER TABLE Cities ADD COLUMN created_at TIMESTAMP")
+
+            print("Added 'created_at' column to Cities table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'created_at' to Cities: {e_alter}")
+    if 'updated_at' not in cities_column_names:
+        try:
+            cursor.execute("ALTER TABLE Cities ADD COLUMN updated_at TIMESTAMP")
+
+            print("Added 'updated_at' column to Cities table.")
+        except sqlite3.Error as e_alter:
+            print(f"Error adding 'updated_at' to Cities: {e_alter}")
 
     # StatusSettings Table (logic from ca.py to add icon_name if missing)
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='StatusSettings'")
@@ -210,49 +267,66 @@ def initialize_database():
         default_duration_days INTEGER,
         is_archival_status BOOLEAN DEFAULT FALSE,
         is_completion_status BOOLEAN DEFAULT FALSE,
+        sort_order INTEGER DEFAULT 0,  -- Added column
         UNIQUE (status_name, status_type)
     )
     """)
 
+    # Ensure StatusSettings table has sort_order if it already existed
+    cursor.execute("PRAGMA table_info(StatusSettings)")
+    status_settings_columns = [info['name'] for info in cursor.fetchall()]
+    if 'sort_order' not in status_settings_columns:
+        try:
+            cursor.execute("ALTER TABLE StatusSettings ADD COLUMN sort_order INTEGER DEFAULT 0")
+            print("DEBUG_INIT_DB: Added missing 'sort_order' column to existing StatusSettings table.")
+            # No commit here, it will be part of the main transaction commit
+        except sqlite3.Error as e_alter_ss:
+            print(f"DEBUG_INIT_DB: Error trying to ALTER StatusSettings to add sort_order: {e_alter_ss}")
+            # If altering fails, this might be a critical issue.
+            # The subsequent INSERTs will likely fail if this was needed and failed.
+    else:
+        print("DEBUG_INIT_DB: 'sort_order' column already exists in StatusSettings table.")
+
     # Pre-populate StatusSettings (full list from ca.py)
     default_statuses = [
-        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True},
-        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False},
-        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False},
-        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True}
+        {'status_name': 'En cours', 'status_type': 'Client', 'color_hex': '#3498db', 'icon_name': 'dialog-information', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Prospect', 'status_type': 'Client', 'color_hex': '#f1c40f', 'icon_name': 'user-status-pending', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Prospect (Proforma Envoyé)', 'status_type': 'Client', 'color_hex': '#e67e22', 'icon_name': 'document-send', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Actif', 'status_type': 'Client', 'color_hex': '#2ecc71', 'icon_name': 'user-available', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Vendu', 'status_type': 'Client', 'color_hex': '#5cb85c', 'icon_name': 'emblem-ok', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Inactif', 'status_type': 'Client', 'color_hex': '#95a5a6', 'icon_name': 'user-offline', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+        {'status_name': 'Complété', 'status_type': 'Client', 'color_hex': '#27ae60', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
+        {'status_name': 'Archivé', 'status_type': 'Client', 'color_hex': '#7f8c8d', 'icon_name': 'archive', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 7},
+        {'status_name': 'Urgent', 'status_type': 'Client', 'color_hex': '#e74c3c', 'icon_name': 'dialog-warning', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 8},
+        {'status_name': 'Planning', 'status_type': 'Project', 'color_hex': '#1abc9c', 'icon_name': 'view-list-bullet', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'En cours', 'status_type': 'Project', 'color_hex': '#3498db', 'icon_name': 'view-list-ordered', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'En attente', 'status_type': 'Project', 'color_hex': '#f39c12', 'icon_name': 'view-list-remove', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Terminé', 'status_type': 'Project', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Annulé', 'status_type': 'Project', 'color_hex': '#c0392b', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 4},
+        {'status_name': 'En pause', 'status_type': 'Project', 'color_hex': '#8e44ad', 'icon_name': 'media-playback-pause', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
+        {'status_name': 'To Do', 'status_type': 'Task', 'color_hex': '#bdc3c7', 'icon_name': 'view-list-todo', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'In Progress', 'status_type': 'Task', 'color_hex': '#3498db', 'icon_name': 'view-list-progress', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Done', 'status_type': 'Task', 'color_hex': '#2ecc71', 'icon_name': 'task-complete', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Blocked', 'status_type': 'Task', 'color_hex': '#e74c3c', 'icon_name': 'dialog-error', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Review', 'status_type': 'Task', 'color_hex': '#f1c40f', 'icon_name': 'view-list-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Cancelled', 'status_type': 'Task', 'color_hex': '#7f8c8d', 'icon_name': 'dialog-cancel', 'is_completion_status': False, 'is_archival_status': True, 'sort_order': 5},
+        {'status_name': 'Ouvert', 'status_type': 'SAVTicket', 'color_hex': '#d35400', 'icon_name': 'folder-new', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
     ]
     for status in default_statuses:
         cursor.execute("""
             INSERT OR REPLACE INTO StatusSettings (
                 status_name, status_type, color_hex, icon_name,
-                is_completion_status, is_archival_status, default_duration_days
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                is_completion_status, is_archival_status, default_duration_days, sort_order
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             status['status_name'], status['status_type'], status['color_hex'],
             status.get('icon_name'), status.get('is_completion_status', False),
-            status.get('is_archival_status', False), status.get('default_duration_days')
+            status.get('is_archival_status', False), status.get('default_duration_days'),
+            status.get('sort_order', 0)
         ))
 
     # Create Clients table (base from ca.py, includes distributor_specific_info logic)
@@ -275,6 +349,8 @@ def initialize_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_by_user_id TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
@@ -291,6 +367,25 @@ def initialize_database():
             # No commit here, part of larger transaction
         except sqlite3.Error as e:
             print(f"Error adding 'distributor_specific_info' column to Clients table: {e}")
+
+    # Ensure is_deleted and deleted_at columns exist for soft delete
+    cursor.execute("PRAGMA table_info(Clients)")
+    clients_columns_info = cursor.fetchall()
+    clients_column_names = [info['name'] for info in clients_columns_info]
+
+    if 'is_deleted' not in clients_column_names:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            print("Added 'is_deleted' column to Clients table.")
+        except sqlite3.Error as e_alter_is_deleted:
+            print(f"Error adding 'is_deleted' column to Clients table: {e_alter_is_deleted}")
+
+    if 'deleted_at' not in clients_column_names:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN deleted_at TEXT")
+            print("Added 'deleted_at' column to Clients table.")
+        except sqlite3.Error as e_alter_deleted_at:
+            print(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}")
 
 
     # Create ClientNotes table (base from ca.py)
@@ -409,6 +504,8 @@ def initialize_database():
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0, -- Added for soft delete
+        deleted_at TEXT, -- Added for soft delete
         UNIQUE (product_name, language_code)
     )
     """)
@@ -780,6 +877,52 @@ def initialize_database():
         FOREIGN KEY (email_template_id) REFERENCES Templates (template_id) ON DELETE SET NULL
     )""")
 
+    # Create ProformaInvoices table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS proforma_invoices (
+        id TEXT PRIMARY KEY,
+        proforma_invoice_number TEXT UNIQUE NOT NULL,
+        client_id TEXT NOT NULL,
+        project_id TEXT,
+        company_id TEXT NOT NULL,
+        created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        sent_date TIMESTAMP,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        currency TEXT NOT NULL DEFAULT 'USD',
+        subtotal_amount REAL NOT NULL DEFAULT 0.0,
+        discount_amount REAL DEFAULT 0.0,
+        vat_amount REAL NOT NULL DEFAULT 0.0,
+        grand_total_amount REAL NOT NULL DEFAULT 0.0,
+        payment_terms TEXT,
+        delivery_terms TEXT,
+        incoterms TEXT,
+        named_place_of_delivery TEXT,
+        notes TEXT,
+        linked_document_id TEXT,
+        generated_invoice_id TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+        FOREIGN KEY (company_id) REFERENCES Companies (company_id) ON DELETE CASCADE,
+        FOREIGN KEY (linked_document_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL,
+        FOREIGN KEY (generated_invoice_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL
+    )
+    """)
+
+    # Create ProformaInvoiceItems table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS proforma_invoice_items (
+        id TEXT PRIMARY KEY,
+        proforma_invoice_id TEXT NOT NULL,
+        product_id INTEGER,
+        description TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        total_price REAL NOT NULL,
+        FOREIGN KEY (proforma_invoice_id) REFERENCES proforma_invoices (id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES Products (product_id) ON DELETE SET NULL
+    )
+    """)
+
     # Create Transporters table (from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Transporters (
@@ -881,10 +1024,16 @@ def initialize_database():
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerContacts (
-            contact_id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id TEXT NOT NULL, name TEXT NOT NULL,
-            email TEXT, phone TEXT, role TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            partner_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id TEXT NOT NULL,
+            contact_id INTEGER NOT NULL,
+            is_primary BOOLEAN DEFAULT FALSE,
+            can_receive_documents BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE
+            FOREIGN KEY (partner_id) REFERENCES Partners(partner_id) ON DELETE CASCADE,
+            FOREIGN KEY (contact_id) REFERENCES Contacts(contact_id) ON DELETE CASCADE,
+            UNIQUE (partner_id, contact_id)
         )""")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategoryLink (
@@ -956,12 +1105,6 @@ def initialize_database():
         cursor.execute("DROP TABLE MediaItems_old_cat_mig")
         print("MediaItems 'category' migration complete, table recreated.")
     elif mi_needs_alter : # Table does not exist or exists but needs new columns (no category column)
-        if 'thumbnail_path' not in mi_columns :
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
-             print("Added 'thumbnail_path' column to MediaItems table.")
-        if 'metadata_json' not in mi_columns:
-             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
-             print("Added 'metadata_json' column to MediaItems table.")
         if not mi_columns: # Table does not exist, create it
             cursor.execute('''
                 CREATE TABLE MediaItems (
@@ -972,6 +1115,18 @@ def initialize_database():
                     FOREIGN KEY (uploader_user_id) REFERENCES Users(user_id) ON DELETE SET NULL
                 );''')
             print("Created MediaItems table with new columns.")
+            # Refresh mi_columns as the table was just created
+            cursor.execute("PRAGMA table_info(MediaItems)")
+            updated_mi_columns_info = cursor.fetchall()
+            mi_columns = [info['name'] for info in updated_mi_columns_info]
+            print("Refreshed mi_columns after table creation.") # Optional: for logging
+
+        if 'thumbnail_path' not in mi_columns :
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN thumbnail_path TEXT;")
+             print("Added 'thumbnail_path' column to MediaItems table.")
+        if 'metadata_json' not in mi_columns:
+             cursor.execute("ALTER TABLE MediaItems ADD COLUMN metadata_json TEXT;")
+             print("Added 'metadata_json' column to MediaItems table.")
 
     cursor.execute('''CREATE TABLE IF NOT EXISTS Tags (tag_id INTEGER PRIMARY KEY AUTOINCREMENT, tag_name TEXT NOT NULL UNIQUE);''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS MediaItemTags (media_item_tag_id INTEGER PRIMARY KEY AUTOINCREMENT, media_item_id TEXT NOT NULL, tag_id INTEGER NOT NULL, FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE, FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE, UNIQUE (media_item_id, tag_id));''')
@@ -1103,6 +1258,9 @@ def initialize_database():
     # Client_FreightForwarders
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_client_id ON Client_FreightForwarders(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientfreightforwarders_forwarder_id ON Client_FreightForwarders(forwarder_id)")
+    # CompanyPersonnelContacts
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_companypersonnelcontacts_personnel_id ON CompanyPersonnelContacts(personnel_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_companypersonnelcontacts_contact_id ON CompanyPersonnelContacts(contact_id)")
     # Partner Tables
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partners_email ON Partners(email)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_partnercontacts_partner_id ON PartnerContacts(partner_id)")
@@ -1122,6 +1280,19 @@ def initialize_database():
     # ProductMediaLinks
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
+
+    # ProformaInvoices
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_client_id ON proforma_invoices(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_project_id ON proforma_invoices(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_company_id ON proforma_invoices(company_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_status ON proforma_invoices(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_created_date ON proforma_invoices(created_date)")
+
+    # ProformaInvoiceItems
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoice_items_proforma_invoice_id ON proforma_invoice_items(proforma_invoice_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoice_items_product_id ON proforma_invoice_items(product_id)")
+
     # Google Contact Sync Tables
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_user_id ON UserGoogleAccounts(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_usergoogleaccounts_email ON UserGoogleAccounts(email)")
@@ -1131,33 +1302,52 @@ def initialize_database():
 
     # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
     try:
+        print("DEBUG_INIT_DB: Starting data seeding phase.")
+
         # User Seeding (Admin user)
+        print("DEBUG_INIT_DB: Checking/Seeding Users...")
         cursor.execute("SELECT COUNT(*) FROM Users")
         if cursor.fetchone()['COUNT(*)'] == 0: # Use dict access due to row_factory
             admin_uid = str(uuid.uuid4())
-            admin_pass_hash = hashlib.sha256(db_config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')).hexdigest()
-            cursor.execute("INSERT OR IGNORE INTO Users (user_id, username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?, ?)",
-                           (admin_uid, db_config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, 'Default Admin', f'{db_config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN))
-            print(f"Admin user '{db_config.DEFAULT_ADMIN_USERNAME}' seeded.")
+            # Generate salt and hash for default admin - direct SQL insertion for bootstrap
+            admin_salt = os.urandom(16).hex()
+            admin_password_bytes = config.DEFAULT_ADMIN_PASSWORD.encode('utf-8')
+            admin_salt_bytes = bytes.fromhex(admin_salt)
+            admin_pass_hash = hashlib.sha256(admin_salt_bytes + admin_password_bytes).hexdigest()
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO Users
+                    (user_id, username, password_hash, salt, full_name, email, role, is_deleted, deleted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (admin_uid, config.DEFAULT_ADMIN_USERNAME, admin_pass_hash, admin_salt,
+                  'Default Admin', f'{config.DEFAULT_ADMIN_USERNAME}@example.com', SUPER_ADMIN, 0, None))
+            print(f"Admin user '{config.DEFAULT_ADMIN_USERNAME}' seeded with salt and hash.")
+            print("DEBUG_INIT_DB: Admin user potentially seeded.")
+        print("DEBUG_INIT_DB: User seeding check complete.")
 
         # Application Settings Seeding
+        print("DEBUG_INIT_DB: Seeding Application Settings...")
         # Using the imported set_setting CRUD function, passing the connection
-        set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn)
-        set_setting('default_app_language', 'en', conn=conn)
-        print("Default application settings seeded.")
+        set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
+        set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        print("DEBUG_INIT_DB: Application settings seeded.")
 
         # Populate Default Cover Page Templates
+        print("DEBUG_INIT_DB: Populating Default Cover Page Templates...")
         _populate_default_cover_page_templates(conn_passed=conn) # Uses CRUDs internally
+        print("DEBUG_INIT_DB: Default Cover Page Templates population attempt finished.")
 
         conn.commit() # Commit all schema changes and seeding
+        print("DEBUG_INIT_DB: Data seeding phase committed successfully.")
         print("Database schema initialized and initial data seeded successfully.")
     except Exception as e_seed:
-        print(f"Error during data seeding: {e_seed}")
+        print(f"DEBUG_INIT_DB: Error during data seeding: {e_seed}") # Existing error print
         conn.rollback() # Rollback in case of error during seeding
+        print("DEBUG_INIT_DB: Rollback due to seeding error.")
     finally:
         conn.close()
 
 if __name__ == '__main__':
-    print(f"Running init_schema.py directly. Using database path: {db_config.DATABASE_PATH}")
+    print(f"Running init_schema.py directly. Using database path: {config.DATABASE_PATH}")
     initialize_database()
     print("Schema initialization complete (called from init_schema.py __main__).")

@@ -27,6 +27,7 @@ from docx import Document # Added for Word preview (already here but good to not
 
 # Imports from other project files
 import db as db_manager # Assuming db.py is accessible
+from db.cruds.clients_crud import clients_crud_instance
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 from html_to_pdf_util import render_html_template, convert_html_to_pdf # Added
@@ -1077,7 +1078,7 @@ class ClientWidget(QWidget):
             return # No client_id, cannot load notes
 
         try:
-            notes = db_manager.get_client_notes(self.client_info['client_id'])
+            notes = clients_crud_instance.get_client_notes(client_id=self.client_info['client_id'])
             for note in notes:
                 timestamp_str = note.get('timestamp', '')
                 note_text = note.get('note_text', '')
@@ -1126,17 +1127,18 @@ class ClientWidget(QWidget):
             # Example: current_user_id = self.main_window.get_current_user_id() if self.main_window else None
             current_user_id = None # Placeholder for now
 
-            new_note_id = db_manager.add_client_note(
+            new_note_result = clients_crud_instance.add_client_note(
                 client_id=self.client_info['client_id'],
                 note_text=note_text,
                 user_id=current_user_id # Pass None or actual user_id
             )
 
-            if new_note_id is not None:
+            if new_note_result.get('success'):
                 self.new_note_input.clear()
                 self.load_client_notes() # Refresh the list
             else:
-                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Failed to add note to the database."))
+                error_message = new_note_result.get('error', self.tr("Failed to add note to the database."))
+                QMessageBox.warning(self, self.tr("Database Error"), error_message)
         except sqlite3.Error as db_err:
             QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error adding note: {0}").format(str(db_err)))
         except Exception as e:

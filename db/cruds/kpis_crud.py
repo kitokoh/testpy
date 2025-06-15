@@ -29,3 +29,22 @@ def delete_kpi(kpi_id: int, conn: sqlite3.Connection = None) -> bool:
     logging.warning(f"STUB: delete_kpi called for kpi_id {kpi_id}")
     # Example: DELETE FROM ProjectKPIs WHERE kpi_id = ?
     return False # Placeholder
+
+@_manage_conn
+def add_kpi(kpi_data: dict, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Placeholder for adding a generic KPI.
+    The actual table and fields would depend on the schema design for generic KPIs
+    if they are different from project-specific KPIs.
+    """
+    logging.warning(f"STUB: add_kpi called with data {kpi_data}. This is a generic KPI addition.")
+    # Example: INSERT INTO KPIs (name, description, value_type) VALUES (?, ?, ?)
+    # For now, returning a dummy ID or None
+    return None # Placeholder
+
+@_manage_conn
+def get_kpi_by_id(kpi_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    logging.warning(f"STUB: get_kpi_by_id called for kpi_id {kpi_id}")
+    # Example: SELECT * FROM ProjectKPIs WHERE kpi_id = ? OR SELECT * FROM GeneralKPIs WHERE kpi_id = ?
+    # This stub returns None.
+    return None

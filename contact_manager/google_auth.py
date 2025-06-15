@@ -12,27 +12,14 @@ import uuid
 # from google.auth.transport.requests import Request
 # import requests # For direct HTTP calls
 
-# --- Database Imports ---
-# Attempt to import from the application's structure
-try:
-    from ..db import crud as db_manager
-    from .. import db_config # If needed for paths or other constants
-except (ImportError, ValueError):
-    # Fallback for running script standalone or if path issues occur
-    import sys
-    # Assuming the script is in /app/contact_manager/
-    # Adjust if script location is different relative to 'db' and 'db_config'
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    app_root_dir = os.path.dirname(current_dir) # Moves up to /app
-    if app_root_dir not in sys.path:
-        sys.path.append(app_root_dir)
-    try:
-        from db import crud as db_manager
-        import db_config # db_config.py in /app
-    except ImportError:
-        db_manager = None # Graceful degradation
-        db_config = None
-        print("Warning: Could not import db_manager or db_config. Database operations will fail.")
+from db import (
+    get_user_google_account_by_google_account_id,
+    update_user_google_account,
+    add_user_google_account,
+    get_user_google_account_by_user_id,
+    get_user_google_account_by_id,
+    delete_user_google_account
+)
 
 # --- Configuration Placeholders ---
 # These should be loaded from environment variables, a config file, or a secure vault.
@@ -110,9 +97,8 @@ def store_google_account_creds(user_id: str, google_account_id: str, email: str,
     Stores or updates Google account credentials (tokens) in the UserGoogleAccounts table.
     Calculates token_expiry based on 'expires_in'.
     """
-    if not db_manager:
-        print("Error: db_manager not available in store_google_account_creds.")
-        return None
+    # Removed db_manager check as it's no longer used.
+    # Functions are now imported directly. If they fail, they'll raise Python errors.
 
     if not all([user_id, google_account_id, email, tokens]):
         print("Error: Missing required arguments for store_google_account_creds.")
@@ -145,12 +131,12 @@ def store_google_account_creds(user_id: str, google_account_id: str, email: str,
         account_data['token_expiry'] = token_expiry_datetime.isoformat() + "Z"
 
     # Check if account already exists by google_account_id
-    existing_account = db_manager.get_user_google_account_by_google_account_id(google_account_id)
+    existing_account = get_user_google_account_by_google_account_id(google_account_id)
 
     if existing_account:
         # Update existing account
         user_google_account_id = existing_account['user_google_account_id']
-        if db_manager.update_user_google_account(user_google_account_id, account_data):
+        if update_user_google_account(user_google_account_id, account_data):
             print(f"Successfully updated Google account {email} (ID: {user_google_account_id}) for user {user_id}.")
             return user_google_account_id
         else:
@@ -159,7 +145,7 @@ def store_google_account_creds(user_id: str, google_account_id: str, email: str,
     else:
         # Add new account
         # Ensure created_at is handled by add_user_google_account or add it here if needed
-        user_google_account_id = db_manager.add_user_google_account(account_data)
+        user_google_account_id = add_user_google_account(account_data)
         if user_google_account_id:
             print(f"Successfully stored new Google account {email} (ID: {user_google_account_id}) for user {user_id}.")
             return user_google_account_id
@@ -173,14 +159,12 @@ def get_google_account_creds(user_id: str) -> dict | None:
     Retrieves stored Google account credentials for a user.
     This would typically fetch from UserGoogleAccounts table.
     """
-    if not db_manager:
-        print("Error: db_manager not available in get_google_account_creds.")
-        return None
+    # Removed db_manager check.
     if not user_id: return None
 
     # In a multi-account scenario per user, this might need to be more specific.
     # For now, assume one Google account link per platform user_id.
-    account_info = db_manager.get_user_google_account_by_user_id(user_id)
+    account_info = get_user_google_account_by_user_id(user_id)
 
     if account_info:
         # Convert to a dictionary format that might be expected by google-auth library or similar
@@ -208,9 +192,7 @@ def get_authenticated_session(user_id: str): # -> requests.Session | google.auth
     The actual return type would depend on the HTTP library used (e.g., requests.Session or
     a Google-specific authorized session object).
     """
-    if not db_manager:
-        print("Error: db_manager not available in get_authenticated_session.")
-        return None
+    # Removed db_manager check.
 
     creds_dict = get_google_account_creds(user_id)
     if not creds_dict:
@@ -278,12 +260,10 @@ def revoke_google_tokens(user_google_account_id: str) -> bool:
     """
     Revokes Google OAuth tokens (typically the refresh token) and deletes the account record.
     """
-    if not db_manager:
-        print("Error: db_manager not available in revoke_google_tokens.")
-        return False
+    # Removed db_manager check.
     if not user_google_account_id: return False
 
-    account_info = db_manager.get_user_google_account_by_id(user_google_account_id)
+    account_info = get_user_google_account_by_id(user_google_account_id)
     if not account_info:
         print(f"No Google account found with ID {user_google_account_id} to revoke.")
         return False
@@ -312,7 +292,7 @@ def revoke_google_tokens(user_google_account_id: str) -> bool:
     print(f"DEBUG: Placeholder for revoking token: {refresh_token or access_token} for account {user_google_account_id}")
 
     # If revocation call is successful (or if proceeding regardless for placeholder):
-    if db_manager.delete_user_google_account(user_google_account_id):
+    if delete_user_google_account(user_google_account_id):
         print(f"Successfully deleted Google account record {user_google_account_id} from database after (placeholder) revocation.")
         return True
     else:

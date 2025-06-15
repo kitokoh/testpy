@@ -129,12 +129,17 @@ class StatisticsWidget(QWidget):
 
 class StatusDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
-        status_name_for_delegate = index.data(Qt.UserRole) # This is the status name (text)
+        client_data_for_delegate = index.data(Qt.UserRole)
+        status_name_for_delegate = None
+        if isinstance(client_data_for_delegate, dict):
+            status_name_for_delegate = client_data_for_delegate.get('status') # 'status' is the key holding the status name string
+
         bg_color_hex = "#95a5a6" # Default color
         icon_name = None
 
-        if status_name_for_delegate:
+        if status_name_for_delegate: # This condition now correctly uses the string
             try:
+                # Ensure 'Client' is the correct status_type context here
                 status_setting = db_manager.get_status_setting_by_name(status_name_for_delegate, 'Client')
                 if status_setting:
                     if status_setting.get('color_hex'):

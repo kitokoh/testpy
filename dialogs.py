@@ -27,6 +27,8 @@ from PyPDF2 import PdfMerger
 from reportlab.pdfgen import canvas
 
 import db as db_manager
+from db.cruds.template_categories_crud import get_all_template_categories
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -34,9 +36,10 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 from utils import populate_docx_template, load_config as utils_load_config, save_config as utils_save_config
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
+import icons_rc # Import for Qt resource file
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
-from main import get_notification_manager # Added for notifications
+# from main import get_notification_manager # Line removed
 
 # The global import from main is removed.
 
@@ -354,7 +357,7 @@ class SettingsDialog(QDialog):
         self.setup_ui_settings()
 
     def setup_ui_settings(self):
-        layout = QVBoxLayout(self); tabs_widget = QTabWidget(); layout.addWidget(tabs_widget)
+        layout = QVBoxLayout(self); self.tabs_widget = QTabWidget(); layout.addWidget(self.tabs_widget)
         general_tab_widget = QWidget(); general_form_layout = QFormLayout(general_tab_widget)
         self.templates_dir_input = QLineEdit(self.current_config_data["templates_dir"])
         templates_browse_btn = QPushButton(self.tr("Parcourir...")); templates_browse_btn.clicked.connect(lambda: self.browse_directory_for_input(self.templates_dir_input, self.tr("Sélectionner dossier modèles")))
@@ -400,7 +403,7 @@ class SettingsDialog(QDialog):
         self.google_maps_url_input.setPlaceholderText(self.tr("Entrez l'URL complète pour les avis Google Maps"))
         general_form_layout.addRow(self.tr("Lien Avis Google Maps:"), self.google_maps_url_input)
 
-        tabs_widget.addTab(general_tab_widget, self.tr("Général"))
+        self.tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
         email_form_layout.addRow(self.tr("Serveur SMTP:"), self.smtp_server_input_field)
@@ -410,8 +413,8 @@ class SettingsDialog(QDialog):
         email_form_layout.addRow(self.tr("Utilisateur SMTP:"), self.smtp_user_input_field)
         self.smtp_pass_input_field = QLineEdit(self.current_config_data.get("smtp_password", "")); self.smtp_pass_input_field.setEchoMode(QLineEdit.Password)
         email_form_layout.addRow(self.tr("Mot de passe SMTP:"), self.smtp_pass_input_field)
-        tabs_widget.addTab(email_tab_widget, self.tr("Email"))
-        self.company_tab = CompanyTabWidget(self); tabs_widget.addTab(self.company_tab, self.tr("Company Details"))
+        self.tabs_widget.addTab(email_tab_widget, self.tr("Email"))
+        self.company_tab = CompanyTabWidget(self); self.tabs_widget.addTab(self.company_tab, self.tr("Company Details"))
         dialog_button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         ok_settings_button = dialog_button_box.button(QDialogButtonBox.Ok); ok_settings_button.setText(self.tr("OK")); ok_settings_button.setObjectName("primaryButton")
         cancel_settings_button = dialog_button_box.button(QDialogButtonBox.Cancel); cancel_settings_button.setText(self.tr("Annuler"))
@@ -512,7 +515,7 @@ class TemplateDialog(QDialog):
     def populate_category_filter(self):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
         try:
-            categories = db_manager.get_all_template_categories()
+            categories = get_all_template_categories()
             if categories:
                 for category in categories:
                     self.category_filter_combo.addItem(category['category_name'], category['category_id'])
@@ -523,8 +526,8 @@ class TemplateDialog(QDialog):
     def populate_language_filter(self):
         self.language_filter_combo.addItem(self.tr("All Languages"), "all")
         try:
-            # Assuming db_manager.get_distinct_template_languages() returns a list of language code strings
-            languages = db_manager.get_distinct_template_languages()
+            # Assuming get_distinct_template_languages() returns a list of language code strings
+            languages = get_distinct_template_languages()
             if languages:
                 for lang_code_tuple in languages: # get_distinct_template_languages might return list of tuples
                     lang_code = lang_code_tuple[0]
@@ -544,8 +547,8 @@ class TemplateDialog(QDialog):
             # Add more types as needed
         }
         try:
-            # Assuming db_manager.get_distinct_template_types() returns a list of type strings
-            doc_types = db_manager.get_distinct_template_types()
+            # Assuming get_distinct_template_types() returns a list of type strings
+            doc_types = get_distinct_template_types()
             if doc_types:
                 for type_tuple in doc_types: # get_distinct_template_types might return list of tuples
                     db_type = type_tuple[0]
@@ -595,7 +598,7 @@ class TemplateDialog(QDialog):
         effective_language_code = language_filter if language_filter != "all" else None
         effective_template_type = type_filter if type_filter != "all" else None
 
-        all_templates_from_db = db_manager.get_filtered_templates(
+        all_templates_from_db = get_filtered_templates(
             category_id=effective_category_id,
             language_code=effective_language_code,
             template_type=effective_template_type
@@ -691,12 +694,15 @@ class TemplateDialog(QDialog):
             shutil.copy(file_path,target_path); new_template_id=db_manager.add_template(template_metadata)
             if new_template_id:
                 self.load_templates()
+                from main import get_notification_manager # Local import
                 # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle ajouté avec succès."))
                 get_notification_manager().show(title=self.tr("Modèle Ajouté"), message=self.tr("Modèle '{0}' ajouté avec succès.").format(name.strip()), type='SUCCESS')
             else:
+                from main import get_notification_manager # Local import
                 # QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur lors de l'enregistrement du modèle dans la base de données."))
                 get_notification_manager().show(title=self.tr("Erreur Ajout Modèle DB"), message=self.tr("Erreur DB lors de l'ajout du modèle '{0}'.").format(name.strip()), type='ERROR')
         except Exception as e:
+            from main import get_notification_manager # Local import
             # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de l'ajout du modèle (fichier ou DB):\n{0}").format(str(e)))
             get_notification_manager().show(title=self.tr("Erreur Ajout Modèle"), message=self.tr("Erreur lors de l'ajout du modèle '{0}' (fichier ou DB): {1}").format(name.strip(), str(e)), type='ERROR')
 
@@ -724,12 +730,15 @@ class TemplateDialog(QDialog):
                     file_path_to_delete=os.path.join(self.config["templates_dir"],file_info['language'],file_info['file_name'])
                     if os.path.exists(file_path_to_delete):os.remove(file_path_to_delete)
                     self.load_templates()
+                    from main import get_notification_manager # Local import
                     # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle supprimé avec succès."))
                     get_notification_manager().show(title=self.tr("Modèle Supprimé"), message=self.tr("Modèle supprimé avec succès."), type='SUCCESS')
                 else:
+                    from main import get_notification_manager # Local import
                     # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle."))
                     get_notification_manager().show(title=self.tr("Erreur Suppression Modèle"), message=self.tr("Erreur de suppression du modèle."), type='ERROR')
             except Exception as e:
+                from main import get_notification_manager # Local import
                 # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur de suppression du modèle:\n{0}").format(str(e)))
                 get_notification_manager().show(title=self.tr("Erreur Suppression Modèle"), message=self.tr("Erreur de suppression du modèle: {0}").format(str(e)), type='ERROR')
 
@@ -742,12 +751,15 @@ class TemplateDialog(QDialog):
             success=db_manager.set_default_template_by_id(template_id)
             if success:
                 self.load_templates()
+                from main import get_notification_manager # Local import
                 # QMessageBox.information(self,self.tr("Succès"),self.tr("Modèle défini comme modèle par défaut."))
                 get_notification_manager().show(title=self.tr("Modèle par Défaut Mis à Jour"), message=self.tr("Modèle défini comme modèle par défaut."), type='SUCCESS')
             else:
+                from main import get_notification_manager # Local import
                 # QMessageBox.critical(self,self.tr("Erreur DB"),self.tr("Erreur de mise à jour du modèle."))
                 get_notification_manager().show(title=self.tr("Erreur Modèle par Défaut"), message=self.tr("Erreur de mise à jour du modèle par défaut."), type='ERROR')
         except Exception as e:
+            from main import get_notification_manager # Local import
             # QMessageBox.critical(self,self.tr("Erreur"),self.tr("Erreur lors de la définition du modèle par défaut:\n{0}").format(str(e)))
             get_notification_manager().show(title=self.tr("Erreur Modèle par Défaut"), message=self.tr("Erreur lors de la définition du modèle par défaut: {0}").format(str(e)), type='ERROR')
 
@@ -756,89 +768,194 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
-        self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
+        self.setMinimumSize(450,300); # Adjusted initial min height, will grow with optional fields
+        self.setup_ui()
 
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
 
     def setup_ui(self):
-        main_layout=QVBoxLayout(self);main_layout.setSpacing(15)
+        main_layout=QVBoxLayout(self);main_layout.setSpacing(10) # Reduced main spacing a bit
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
-        form_layout=QFormLayout();form_layout.setSpacing(10);form_layout.setContentsMargins(10,0,10,0)
-        # self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }") # Prefer global styles
-        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet (ou affichage):")),self.name_input) # Changed label slightly
-        self.email_input=QLineEdit(self.contact_data.get("email",""));form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
-        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone (principal):")),self.phone_input) # Changed label slightly
-        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste (général):")),self.position_input) # Changed label slightly
-        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
-        main_layout.addLayout(form_layout)
 
-        # Additional Fields GroupBox
-        self.additional_fields_group = QGroupBox(self.tr("Champs supplémentaires"))
-        self.additional_fields_group.setCheckable(True)
-        self.additional_fields_group.setChecked(False) # Default to collapsed
-        additional_form_layout = QFormLayout(self.additional_fields_group)
-        additional_form_layout.setSpacing(10)
+        # Scroll Area for many fields
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget) # Main layout for scrollable content
 
+        # --- Mandatory Fields ---
+        mandatory_group = QGroupBox(self.tr("Informations Principales"))
+        form_layout=QFormLayout(mandatory_group);form_layout.setSpacing(8)
+
+        self.name_input=QLineEdit(self.contact_data.get("name", self.contact_data.get("displayName", ""))) # Use displayName as fallback
+        form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom Affichage (ou Nom Complet)*:")),self.name_input)
+
+        self.email_input=QLineEdit(self.contact_data.get("email",""))
+        form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
+
+        self.phone_input=QLineEdit(self.contact_data.get("phone",""))
+        form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone:")),self.phone_input)
+
+        self.position_input=QLineEdit(self.contact_data.get("position",""))
+        form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste/Fonction:")),self.position_input)
+
+        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"))
+        self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))))
+        self.primary_check.stateChanged.connect(self.update_primary_contact_visuals)
+        form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
+
+        self.can_receive_docs_checkbox = QCheckBox(self.tr("Peut recevoir des documents"))
+        self.can_receive_docs_checkbox.setChecked(self.contact_data.get("can_receive_documents", True)) # Default true
+        form_layout.addRow(self._create_icon_label_widget("document-send", self.tr("Autorisations Docs:")), self.can_receive_docs_checkbox)
+
+        scroll_layout.addWidget(mandatory_group)
+
+        # --- "Show Optional Fields" Checkbox ---
+        self.show_optional_fields_checkbox = QCheckBox(self.tr("Afficher les champs optionnels"))
+        self.show_optional_fields_checkbox.setChecked(False) # Default to hidden
+        self.show_optional_fields_checkbox.toggled.connect(self.toggle_optional_fields_visibility)
+        scroll_layout.addWidget(self.show_optional_fields_checkbox)
+
+        # --- Optional Fields GroupBox ---
+        self.optional_fields_container = QWidget() # Container for all optional groups
+        optional_fields_main_layout = QVBoxLayout(self.optional_fields_container)
+        optional_fields_main_layout.setContentsMargins(0,0,0,0)
+
+        # Optional: Detailed Name parts
+        name_details_group = QGroupBox(self.tr("Noms Détaillés"))
+        name_details_form_layout = QFormLayout(name_details_group)
         self.givenName_input = QLineEdit(self.contact_data.get("givenName", ""))
-        additional_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
+        name_details_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
         self.familyName_input = QLineEdit(self.contact_data.get("familyName", ""))
-        additional_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
-        self.displayName_input = QLineEdit(self.contact_data.get("displayName", ""))
-        additional_form_layout.addRow(self.tr("Nom affiché:"), self.displayName_input)
+        name_details_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
+        self.displayName_input = QLineEdit(self.contact_data.get("displayName", "")) # If different from 'name'
+        name_details_form_layout.addRow(self.tr("Nom Affiché (alternatif):"), self.displayName_input)
+        optional_fields_main_layout.addWidget(name_details_group)
+
+        # Optional: Contact Types
+        contact_types_group = QGroupBox(self.tr("Types Contact"))
+        contact_types_form_layout = QFormLayout(contact_types_group)
         self.phone_type_input = QLineEdit(self.contact_data.get("phone_type", ""))
-        additional_form_layout.addRow(self.tr("Type téléphone (principal):"), self.phone_type_input)
+        contact_types_form_layout.addRow(self.tr("Type téléphone:"), self.phone_type_input)
         self.email_type_input = QLineEdit(self.contact_data.get("email_type", ""))
-        additional_form_layout.addRow(self.tr("Type email (principal):"), self.email_type_input)
-        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
-        additional_form_layout.addRow(self.tr("Adresse complète formatée:"), self.address_formattedValue_input)
+        contact_types_form_layout.addRow(self.tr("Type email:"), self.email_type_input)
+        optional_fields_main_layout.addWidget(contact_types_group)
+
+        # Optional: Address
+        address_group = QGroupBox(self.tr("Adresse"))
+        address_form_layout = QFormLayout(address_group)
         self.address_streetAddress_input = QLineEdit(self.contact_data.get("address_streetAddress", ""))
-        additional_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
+        address_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
         self.address_city_input = QLineEdit(self.contact_data.get("address_city", ""))
-        additional_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
+        address_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
         self.address_region_input = QLineEdit(self.contact_data.get("address_region", ""))
-        additional_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
+        address_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
         self.address_postalCode_input = QLineEdit(self.contact_data.get("address_postalCode", ""))
-        additional_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
+        address_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
         self.address_country_input = QLineEdit(self.contact_data.get("address_country", ""))
-        additional_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
-        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", self.contact_data.get("company_name", ""))) # Fallback to general company_name
-        additional_form_layout.addRow(self.tr("Nom Organisation:"), self.organization_name_input)
-        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", self.contact_data.get("position", ""))) # Fallback to general position
-        additional_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
-        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", "")) # Using QLineEdit for now
-        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ ou MM-JJ"))
-        additional_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
+        address_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
+        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
+        address_form_layout.addRow(self.tr("Adresse complète (si unique champ):"), self.address_formattedValue_input)
+        optional_fields_main_layout.addWidget(address_group)
 
+        # Optional: Organization
+        org_group = QGroupBox(self.tr("Organisation (Contact)"))
+        org_form_layout = QFormLayout(org_group)
+        self.contact_company_name_input = QLineEdit(self.contact_data.get("company_name", "")) # Contact's specific company
+        org_form_layout.addRow(self.tr("Société (Contact):"), self.contact_company_name_input)
+        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", ""))
+        org_form_layout.addRow(self.tr("Nom Organisation (détaillé):"), self.organization_name_input)
+        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", ""))
+        org_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
+        optional_fields_main_layout.addWidget(org_group)
+
+        # Optional: Other Details
+        other_details_group = QGroupBox(self.tr("Autres Détails"))
+        other_details_form_layout = QFormLayout(other_details_group)
+        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", ""))
+        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ"))
+        other_details_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
         self.notes_input = QTextEdit(self.contact_data.get("notes", ""))
-        self.notes_input.setFixedHeight(60)
-        additional_form_layout.addRow(self.tr("Notes:"), self.notes_input)
+        self.notes_input.setFixedHeight(80)
+        other_details_form_layout.addRow(self.tr("Notes (Contact):"), self.notes_input)
+        optional_fields_main_layout.addWidget(other_details_group)
 
-        main_layout.addWidget(self.additional_fields_group)
+        scroll_layout.addWidget(self.optional_fields_container)
+        self.optional_fields_container.setVisible(False) # Initially hidden
 
-        # Check if any additional field has data to expand the group box
-        additional_fields_keys = [
-            "givenName", "familyName", "displayName", "phone_type", "email_type",
-            "address_formattedValue", "address_streetAddress", "address_city",
-            "address_region", "address_postalCode", "address_country",
-            "organization_name", "organization_title", "birthday_date", "notes"
-        ]
-        # Also consider company_name and position if they were used as fallbacks and are different
-        # from the main company_name/position fields, or if the specific fields are present.
-        if any(self.contact_data.get(key) for key in additional_fields_keys) or \
-           (self.contact_data.get("company_name") and self.organization_name_input.text() != self.contact_data.get("company_name")) or \
-           (self.contact_data.get("position") and self.organization_title_input.text() != self.contact_data.get("position")):
-            self.additional_fields_group.setChecked(True)
+        scroll_area.setWidget(scroll_widget) # Set the widget containing the form layout into the scroll area
+        main_layout.addWidget(scroll_area) # Add scroll area to main layout
 
-        main_layout.addStretch()
-        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame") # Style in QSS
+        # Auto-check "Show Optional Fields" if any optional data exists
+        self.check_and_show_optional_fields()
+        self.update_primary_contact_visuals(self.primary_check.checkState()) # Initial visual state for primary contact
+
+        main_layout.addStretch(1) # Add stretch after scroll area
+        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame")
         button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton")
         cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
         self.update_primary_contact_visuals(self.primary_check.checkState())
+
+    def toggle_optional_fields_visibility(self, checked):
+        self.optional_fields_container.setVisible(checked)
+
+    def check_and_show_optional_fields(self):
+        # List of keys for optional fields
+        optional_field_keys = [
+            "givenName", "familyName", "displayName", # displayName might be considered optional if 'name' is primary
+            "phone_type", "email_type", "company_name", # company_name refers to contact's own company
+            "address_formattedValue", "address_streetAddress", "address_city",
+            "address_region", "address_postalCode", "address_country",
+            "organization_name", "organization_title", "birthday_date", "notes"
+        ]
+        # Check if any optional field has data
+        show = False
+        for key in optional_field_keys:
+            if self.contact_data.get(key, "").strip(): # If any optional field has non-empty data
+                show = True
+                break
+
+        if show:
+            self.show_optional_fields_checkbox.setChecked(True)
+            # self.optional_fields_container.setVisible(True) # This will be handled by the signal
+
+    def populate_form(self): # Added to populate all fields
+        # Mandatory fields are already populated by QLineEdit constructor or set directly
+        self.name_input.setText(self.contact_data.get("name", self.contact_data.get("displayName", "")))
+        self.email_input.setText(self.contact_data.get("email",""))
+        self.phone_input.setText(self.contact_data.get("phone",""))
+        self.position_input.setText(self.contact_data.get("position",""))
+        self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))))
+        self.can_receive_docs_checkbox.setChecked(self.contact_data.get("can_receive_documents", True))
+
+        # Optional fields
+        self.givenName_input.setText(self.contact_data.get("givenName", ""))
+        self.familyName_input.setText(self.contact_data.get("familyName", ""))
+        self.displayName_input.setText(self.contact_data.get("displayName", "")) # Could be same as name_input initially
+        self.phone_type_input.setText(self.contact_data.get("phone_type", ""))
+        self.email_type_input.setText(self.contact_data.get("email_type", ""))
+        self.contact_company_name_input.setText(self.contact_data.get("company_name", ""))
+
+        self.address_formattedValue_input.setText(self.contact_data.get("address_formattedValue", ""))
+        self.address_streetAddress_input.setText(self.contact_data.get("address_streetAddress", ""))
+        self.address_city_input.setText(self.contact_data.get("address_city", ""))
+        self.address_region_input.setText(self.contact_data.get("address_region", ""))
+        self.address_postalCode_input.setText(self.contact_data.get("address_postalCode", ""))
+        self.address_country_input.setText(self.contact_data.get("address_country", ""))
+
+        self.organization_name_input.setText(self.contact_data.get("organization_name", ""))
+        self.organization_title_input.setText(self.contact_data.get("organization_title", ""))
+        self.birthday_date_input.setText(self.contact_data.get("birthday_date", ""))
+        self.notes_input.setPlainText(self.contact_data.get("notes", ""))
+
+        self.check_and_show_optional_fields() # Ensure visibility is correct based on data
+        self.update_primary_contact_visuals(self.primary_check.checkState())
+
 
     def update_primary_contact_visuals(self,state):
         # Dynamic style based on state - kept inline
@@ -850,108 +967,138 @@ class ContactDialog(QDialog):
 
     def get_data(self):
         data = {
-            "name": self.name_input.text().strip(), # Fallback name or displayName
+            "name": self.name_input.text().strip(),
             "email": self.email_input.text().strip(),
-            "phone": self.phone_input.text().strip(), # Primary phone
-            "position": self.position_input.text().strip(), # General position
+            "phone": self.phone_input.text().strip(),
+            "position": self.position_input.text().strip(),
             "is_primary_for_client": 1 if self.primary_check.isChecked() else 0,
-            # notes from main dialog is not here, assumed to be handled by ClientWidget's direct save for general notes.
-            # If notes were part of this dialog, it would be: "notes": self.notes_input.toPlainText().strip(),
+            "can_receive_documents": self.can_receive_docs_checkbox.isChecked(),
         }
-        if self.additional_fields_group.isChecked():
-            data.update({
-                "givenName": self.givenName_input.text().strip(),
-                "familyName": self.familyName_input.text().strip(),
-                "displayName": self.displayName_input.text().strip(),
-                "phone_type": self.phone_type_input.text().strip(),
-                "email_type": self.email_type_input.text().strip(),
-                "address_formattedValue": self.address_formattedValue_input.text().strip(),
-                "address_streetAddress": self.address_streetAddress_input.text().strip(),
-                "address_city": self.address_city_input.text().strip(),
-                "address_region": self.address_region_input.text().strip(),
-                "address_postalCode": self.address_postalCode_input.text().strip(),
-                "address_country": self.address_country_input.text().strip(),
-                "organization_name": self.organization_name_input.text().strip(),
-                "organization_title": self.organization_title_input.text().strip(),
-                "birthday_date": self.birthday_date_input.text().strip(),
-                "notes": self.notes_input.toPlainText().strip(),
-            })
-            # If displayName has content and main 'name' is different or empty, prioritize displayName for 'name' field in DB
-            if data.get("displayName") and data.get("displayName") != data.get("name"):
-                data["name"] = data["displayName"]
-            elif not data.get("name") and data.get("displayName"): # if name was empty but displayname is not
-                 data["name"] = data["displayName"]
 
+        # Add optional fields only if the container is visible (meaning user intended to use them)
+        # or even better, add them if they have content, regardless of visibility,
+        # as user might hide group after filling some.
+        # The simplest is to always get all, and let DB/contacts_crud handle empty strings if needed.
+        data.update({
+            "givenName": self.givenName_input.text().strip(),
+            "familyName": self.familyName_input.text().strip(),
+            "displayName": self.displayName_input.text().strip(), # This is the specific "Display Name" field
+            "phone_type": self.phone_type_input.text().strip(),
+            "email_type": self.email_type_input.text().strip(),
+            "company_name": self.contact_company_name_input.text().strip(), # Contact's own company
+            "address_formattedValue": self.address_formattedValue_input.text().strip(),
+            "address_streetAddress": self.address_streetAddress_input.text().strip(),
+            "address_city": self.address_city_input.text().strip(),
+            "address_region": self.address_region_input.text().strip(),
+            "address_postalCode": self.address_postalCode_input.text().strip(),
+            "address_country": self.address_country_input.text().strip(),
+            "organization_name": self.organization_name_input.text().strip(),
+            "organization_title": self.organization_title_input.text().strip(),
+            "birthday_date": self.birthday_date_input.text().strip(),
+            "notes": self.notes_input.toPlainText().strip(),
+        })
 
-        # If the group is not checked, we might still want to save specific fields if they were pre-filled
-        # and are now different from their original values (e.g. user unchecked after editing).
-        # However, current logic is simpler: if unchecked, only main fields are saved.
-        # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
+        # Ensure 'name' field (used as primary display/fallback) is appropriately set
+        # If main 'name_input' is empty but 'displayName_input' (optional) has value, use it for 'name'.
+        if not data["name"] and data["displayName"]:
+            data["name"] = data["displayName"]
+        # If 'name_input' has value but 'displayName' (optional) is empty, ensure 'displayName' gets 'name_input' value
+        # because 'displayName' is preferred by central Contacts table if available.
+        elif data["name"] and not data["displayName"]:
+            data["displayName"] = data["name"]
+        # If both are filled, 'name' takes 'name_input', 'displayName' takes 'displayName_input'.
+        # The central contacts_crud.add_contact uses 'displayName' if 'name' is not also present or prefers 'displayName'.
+        # Let's ensure the 'name' field for the DB is the one from self.name_input,
+        # and 'displayName' is from self.displayName_input.
+        # The contacts_crud.add_contact has logic: name=data.get('displayName', data.get('name'))
+        # This means if 'displayName' is present, it will be used as 'name' by add_contact if 'name' is not.
+        # To be explicit for saving:
+        # The 'name' field in the DB's Contacts table is NOT NULL.
+        # self.name_input is the primary input for this.
+        # Let's ensure contact_details_to_save['name'] is never empty if displayName has value.
+
+        # Final check for the 'name' field to be saved to DB:
+        # It should be from self.name_input. If that's empty, use self.displayName_input.
+        # The 'displayName' field in the dict should be from self.displayName_input.
+        final_name_for_db = self.name_input.text().strip()
+        optional_display_name = self.displayName_input.text().strip()
+
+        if not final_name_for_db and optional_display_name:
+            data["name"] = optional_display_name
+        # data["displayName"] is already set from self.displayName_input
+
         return data
 
     def accept(self):
         contact_details_to_save = self.get_data()
-        if not contact_details_to_save.get("name") and not contact_details_to_save.get("displayName"): # Either name or displayName must be present
-            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom complet ou le nom affiché du contact est requis."))
-            self.name_input.setFocus()
+
+        # Validation: 'name' is crucial as it's NOT NULL in DB.
+        # get_data() ensures 'name' is populated from 'displayName' if 'name_input' was empty.
+        if not contact_details_to_save.get("name"):
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le Nom Affichage (ou Nom Complet) du contact est requis."))
+            self.name_input.setFocus() # Focus the primary name input
             return
 
-        # If displayName is provided and name is empty, use displayName for name.
-        if contact_details_to_save.get("displayName") and not contact_details_to_save.get("name"):
-            contact_details_to_save["name"] = contact_details_to_save["displayName"]
-
+        is_primary_from_form = bool(contact_details_to_save.get("is_primary_for_client", False))
+        can_receive_docs_from_form = bool(contact_details_to_save.get("can_receive_documents", True))
 
         if self.contact_data and self.contact_data.get('contact_id'): # Editing existing contact
-            success = db_manager.update_contact(self.contact_data['contact_id'], contact_details_to_save)
-            if success:
-                # If client_id is present, also update the link details (is_primary)
-                if self.client_id:
-                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, self.contact_data['contact_id'])
-                    if link_details:
-                        client_contact_id = link_details['client_contact_id']
-                        update_link_data = {'is_primary_for_client': contact_details_to_save.get("is_primary_for_client", False)}
-                        db_manager.update_client_contact_link(client_contact_id, update_link_data)
-                    # Else: If no link exists, should we create one? Current behavior is no.
-                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
-                get_notification_manager().show(title=self.tr("Contact Mis à Jour"), message=self.tr("Les détails du contact ont été mis à jour."), type='SUCCESS')
-            else:
-                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
-                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible de mettre à jour le contact."), type='ERROR')
-                return # Do not accept dialog if update failed
-        else: # Adding new contact
-            new_contact_id = db_manager.add_contact(contact_details_to_save)
-            if new_contact_id and self.client_id:
-                # Link the contact to the client
-                is_primary_from_form = contact_details_to_save.get("is_primary_for_client", False)
-                link_contact_to_client_result = db_manager.link_contact_to_client(
-                    self.client_id,
-                    new_contact_id, # The ID of the contact just added
-                    is_primary=is_primary_from_form,
-                    can_receive_documents=True # Default or from form
-                )
+            central_contact_id = self.contact_data['contact_id']
+            success_central_update = db_manager.update_contact(central_contact_id, contact_details_to_save)
 
-                if link_contact_to_client_result:
-                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
-                    if contact_count == 1:
-                        # If it's the only contact, ensure it's primary, overriding form if it was false
-                        db_manager.update_client_contact_link(
-                            link_contact_to_client_result,
-                            {'is_primary_for_client': True}
-                        )
-                        print(f"Contact {new_contact_id} set as primary for client {self.client_id} as it's the only contact.")
-                    # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
-                    get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté et lié au client avec succès."), type='SUCCESS')
-                else:
-                     # QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
-                     get_notification_manager().show(title=self.tr("Erreur Liaison Contact"), message=self.tr("Contact ajouté mais échec de la liaison avec le client."), type='WARNING')
-            elif new_contact_id:
-                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
-                get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté avec succès (non lié à un client)."), type='SUCCESS')
+            if success_central_update:
+                if self.client_id: # If this dialog is associated with a client context
+                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, central_contact_id)
+                    if link_details:
+                        client_contact_link_id = link_details['client_contact_id']
+                        update_link_payload = {
+                            'is_primary_for_client': is_primary_from_form,
+                            'can_receive_documents': can_receive_docs_from_form
+                        }
+                        db_manager.update_client_contact_link(client_contact_link_id, update_link_payload)
+                    # else: If no link, it means this contact was edited from a context not client-specific, or link was deleted.
+
+                from main import get_notification_manager # Local import
+                get_notification_manager().show(title=self.tr("Contact Mis à Jour"), message=self.tr("Les détails du contact ont été mis à jour."), type='SUCCESS')
+                super().accept() # Close dialog
             else:
-                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                from main import get_notification_manager # Local import
+                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible de mettre à jour le contact."), type='ERROR')
+                return
+        else: # Adding new contact
+            # Remove link-specific fields before sending to central_add_contact
+            central_contact_payload = {k: v for k, v in contact_details_to_save.items() if k not in ['is_primary_for_client', 'can_receive_documents']}
+            new_central_contact_id = db_manager.add_contact(central_contact_payload)
+
+            if new_central_contact_id and self.client_id:
+                link_id = db_manager.link_contact_to_client(
+                    self.client_id,
+                    new_central_contact_id,
+                    is_primary=is_primary_from_form,
+                    can_receive_documents=can_receive_docs_from_form
+                )
+                if link_id:
+                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
+                    if contact_count == 1: # This is the first contact for this client
+                        db_manager.update_client_contact_link(link_id, {'is_primary_for_client': True, 'can_receive_documents': True}) # Ensure first is primary and can receive docs
+                        print(f"Contact {new_central_contact_id} set as primary for client {self.client_id} as it's the only contact.")
+                    from main import get_notification_manager
+                    get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté et lié au client avec succès."), type='SUCCESS')
+                    super().accept()
+                else:
+                     from main import get_notification_manager
+                     get_notification_manager().show(title=self.tr("Erreur Liaison Contact"), message=self.tr("Contact ajouté mais échec de la liaison avec le client."), type='WARNING')
+                     # Optionally delete the central contact if linking is critical: db_manager.delete_contact(new_central_contact_id)
+                     return
+            elif new_central_contact_id: # Added to central but no client_id to link
+                from main import get_notification_manager
+                get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté avec succès (non lié à un client)."), type='SUCCESS')
+                super().accept()
+            else: # Failed to add to central Contacts table
+                from main import get_notification_manager
                 get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible d'ajouter le contact."), type='ERROR')
-                return # Do not accept dialog if add failed
-        super().accept() # Proceed to close dialog
+                return
+        # super().accept() # Moved into success paths
 
 
 class ProductDialog(QDialog):
@@ -2378,8 +2525,9 @@ class ProductEquivalencyDialog(QDialog):
     def load_equivalencies(self):
         self.equivalencies_table.setRowCount(0)
         try:
-            equivalencies = db_manager.get_all_product_equivalencies()
-            if equivalencies is None: equivalencies = []
+            # Use products_crud_instance, default to not showing equivalencies involving deleted products
+            equivalencies = products_crud_instance.get_all_product_equivalencies(include_deleted_products=False)
+            # if equivalencies is None: equivalencies = [] # Already returns list
 
             for eq_data in equivalencies:
                 row_pos = self.equivalencies_table.rowCount()
@@ -2414,10 +2562,12 @@ class ProductEquivalencyDialog(QDialog):
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             try:
-                if db_manager.remove_product_equivalence(equivalence_id):
+                # Use products_crud_instance
+                remove_result = products_crud_instance.remove_product_equivalence(equivalence_id)
+                if remove_result['success']:
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Équivalence supprimée avec succès."))
                 else:
-                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la suppression de l'équivalence."))
+                    QMessageBox.warning(self, self.tr("Erreur DB"), remove_result.get('error', self.tr("Échec de la suppression de l'équivalence.")))
             except Exception as e:
                  QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la suppression: {0}").format(str(e)))
             finally:
@@ -2429,9 +2579,9 @@ class ProductEquivalencyDialog(QDialog):
             return
 
         try:
-            # Using get_all_products_for_selection_filtered for a broader search
-            products = db_manager.get_all_products_for_selection_filtered(name_pattern=f"%{search_text}%")
-            if products is None: products = []
+            # Use products_crud_instance, ensure only active products are searchable
+            products = products_crud_instance.get_all_products_for_selection_filtered(name_pattern=f"%{search_text}%", include_deleted=False)
+            # if products is None: products = [] # Already returns list
             for prod in products:
                 item_text = f"{prod.get('product_name')} ({prod.get('language_code')}) - ID: {prod.get('product_id')}"
                 list_item = QListWidgetItem(item_text)
@@ -2475,10 +2625,15 @@ class ProductEquivalencyDialog(QDialog):
             return
 
         try:
-            new_eq_id = db_manager.add_product_equivalence(self.current_selected_product_a_id, self.current_selected_product_b_id)
-            if new_eq_id:
+            # Use products_crud_instance.add_product_equivalence
+            # This method in ProductsCRUD already checks if products exist and are not soft-deleted.
+            add_eq_result = products_crud_instance.add_product_equivalence(
+                self.current_selected_product_a_id,
+                self.current_selected_product_b_id
+            )
+            if add_eq_result['success']:
                 QMessageBox.information(self, self.tr("Succès"),
-                                        self.tr("Équivalence ajoutée avec succès (ID: {0}).").format(new_eq_id))
+                                        self.tr("Équivalence ajoutée avec succès (ID: {0}).").format(add_eq_result.get('id', 'N/A')))
                 self.load_equivalencies()
                 # Clear selections
                 self.current_selected_product_a_id = None
@@ -2856,21 +3011,42 @@ class ManageProductMasterDialog(QDialog):
 
     def load_products(self):
         current_selection_product_id = self.selected_product_id
-        if self.load_products_triggered_by_text_change: # If search triggered load, don't keep old selection
+        if self.load_products_triggered_by_text_change:
             current_selection_product_id = None
 
-        self.products_table.setSortingEnabled(False) # Disable sorting during population
+        self.products_table.setSortingEnabled(False)
         self.products_table.clearContents()
         self.products_table.setRowCount(0)
 
         search_text = self.search_product_input.text().strip()
-        filters = None
+        filters = {} # Initialize empty dict for filters
         if search_text:
-            filters = {'product_name': f'%{search_text}%'} # Search by name containing text
+            filters['product_name'] = f'%{search_text}%'
+
+        # Add category filter from UI if it exists in this dialog
+        # Assuming self.category_filter_input for consistency if added:
+        # if hasattr(self, 'category_filter_input') and self.category_filter_input.text().strip():
+        #     filters['category'] = self.category_filter_input.text().strip()
+
+        # Add language filter from UI if it exists
+        # if hasattr(self, 'language_code_filter_combo') and self.language_code_filter_combo.currentData() is not None:
+        #    filters['language_code'] = self.language_code_filter_combo.currentData()
+
+        include_deleted = False # Default for this dialog unless a checkbox is added
+        if hasattr(self, 'include_deleted_checkbox_master') and self.include_deleted_checkbox_master.isChecked():
+            include_deleted = True
 
         try:
-            products = db_manager.get_all_products(filters=filters)
-            products = products if products else []
+            # Use products_crud_instance with pagination (not yet fully implemented in UI here) and soft delete
+            # For now, limit/offset are not used in this specific dialog's load_products.
+            # Add them if pagination is added to ManageProductMasterDialog UI.
+            products = products_crud_instance.get_all_products(
+                filters=filters,
+                include_deleted=include_deleted
+                # limit=self.limit_per_page, # Add if UI supports pagination
+                # offset=self.current_offset  # Add if UI supports pagination
+            )
+            # products = products if products else [] # get_all_products returns list
 
             for row_idx, product_data in enumerate(products):
                 self.products_table.insertRow(row_idx)
@@ -2914,7 +3090,8 @@ class ManageProductMasterDialog(QDialog):
         self.selected_product_id = product_id_item.data(Qt.UserRole)
 
         try:
-            product_data = db_manager.get_product_by_id(self.selected_product_id)
+            # Use products_crud_instance, allow fetching soft-deleted for editing
+            product_data = products_crud_instance.get_product_by_id(self.selected_product_id, include_deleted=True)
             if product_data:
                 self.product_form_group.setDisabled(False)
                 self.name_input.setText(product_data.get('product_name', ''))
@@ -2985,11 +3162,11 @@ class ManageProductMasterDialog(QDialog):
 
         try:
             if self.selected_product_id is None: # Add mode
-                new_id = db_manager.add_product(product_data_dict)
-                if new_id:
+                add_result = products_crud_instance.add_product(product_data_dict)
+                if add_result['success']:
+                    new_id = add_result['id']
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit ajouté avec succès (ID: {0}).").format(new_id))
                     self.load_products() # Refresh list
-                    # Try to select the newly added product
                     for r in range(self.products_table.rowCount()):
                         if self.products_table.item(r, 0).data(Qt.UserRole) == new_id:
                             self.products_table.selectRow(r)
@@ -2997,20 +3174,19 @@ class ManageProductMasterDialog(QDialog):
                     if not self.products_table.selectedItems(): # Fallback if not found or selection failed
                          self._clear_form_and_disable_buttons()
                 else:
-                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le produit. Vérifiez les logs (doublon nom/langue?)."))
+                    QMessageBox.warning(self, self.tr("Échec"), add_result.get('error', self.tr("Impossible d'ajouter le produit.")))
             else: # Edit mode
-                success = db_manager.update_product(self.selected_product_id, product_data_dict)
-                if success:
+                update_result = products_crud_instance.update_product(self.selected_product_id, product_data_dict)
+                if update_result['success']:
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))
                     current_selected_row = self.products_table.currentRow()
                     self.load_products() # Refresh list
                     if current_selected_row >= 0 and current_selected_row < self.products_table.rowCount():
                          self.products_table.selectRow(current_selected_row) # Try to re-select
-                    if not self.products_table.selectedItems():
+                    if not self.products_table.selectedItems(): # If selection lost (e.g. due to sort/filter change on load)
                         self._clear_form_and_disable_buttons()
-
                 else:
-                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le produit."))
+                    QMessageBox.warning(self, self.tr("Échec"), update_result.get('error', self.tr("Impossible de mettre à jour le produit.")))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Une erreur est survenue: {0}").format(str(e)))
 
@@ -3218,7 +3394,8 @@ class ProductDimensionUIDialog(QDialog):
         """Loads existing dimensions from the database and populates the form fields."""
         print(f"INFO: ProductDimensionUIDialog.load_dimensions() called for product_id: {self.product_id}.")
         try:
-            dimension_data = db_manager.get_product_dimension(self.product_id)
+            # Use products_crud_instance, allow viewing dimensions of soft-deleted product if dialog is opened for it
+            dimension_data = products_crud_instance.get_product_dimension(self.product_id, include_deleted_product=True)
             if dimension_data:
                 for dim_ui_key, input_widget in self.dimension_inputs.items():
                     db_key = dim_ui_key.lower()
@@ -3354,15 +3531,15 @@ class ProductDimensionUIDialog(QDialog):
             return
 
         try:
-            success = db_manager.add_or_update_product_dimension(self.product_id, dimension_data_to_save)
-            if success:
+            # Use products_crud_instance
+            result = products_crud_instance.add_or_update_product_dimension(self.product_id, dimension_data_to_save)
+            if result['success']:
                 QMessageBox.information(self, self.tr("Succès"), self.tr("Dimensions du produit enregistrées avec succès."))
-                super().accept() # Call QDialog's accept to close the dialog
+                super().accept()
             else:
-                QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'enregistrer les dimensions du produit. Vérifiez les logs."))
+                QMessageBox.warning(self, self.tr("Échec"), result.get('error', self.tr("Impossible d'enregistrer les dimensions.")))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de l'enregistrement des dimensions:\n{0}").format(str(e)))
-            # Do not call super().accept() on error, so dialog stays open
 
 
 class SelectUtilityAttachmentDialog(QDialog):
