@@ -200,5 +200,145 @@ class TestProductList(unittest.TestCase):
         dialog.close()
         print("test_pdf_export_creates_file PASSED.")
 
+    @patch('product_list_dialog.ProductListDialog.apply_filters_and_reload')
+    @patch('product_list_dialog.ProductEditDialog')
+    def test_add_product_button_opens_dialog(self, MockProductEditDialog, mock_apply_filters_and_reload):
+        print("\nRunning test_add_product_button_opens_dialog...")
+        dialog = ProductListDialog()
+
+        # Configure the mock dialog instance
+        mock_edit_dialog_instance = MockProductEditDialog.return_value
+        mock_edit_dialog_instance.exec_.return_value = QDialog.Accepted # Simulate "OK" clicked
+
+        # Simulate Add Product button click
+        dialog.add_product_button.click()
+
+        MockProductEditDialog.assert_called_once_with(product_id=None, parent=dialog)
+        mock_edit_dialog_instance.exec_.assert_called_once()
+        mock_apply_filters_and_reload.assert_called_once()
+
+        dialog.close()
+        print("test_add_product_button_opens_dialog PASSED.")
+
+    @patch('product_list_dialog.ProductListDialog.apply_filters_and_reload')
+    @patch('product_list_dialog.ProductEditDialog')
+    def test_edit_product_opens_dialog(self, MockProductEditDialog, mock_apply_filters_and_reload):
+        print("\nRunning test_edit_product_opens_dialog...")
+        # Add a product to be edited
+        test_product = self._add_test_product("EditTest", "en", price=30.0)
+        test_product_id = test_product['product_id']
+
+        dialog = ProductListDialog() # This will load products
+
+        # Select the product in the table
+        # Assuming it's the first product if DB is clean or products are sorted predictably
+        # For more robustness, iterate and find by name/ID if needed.
+        # Here, we add one product, then reload the dialog, so it should be row 0.
+        # We need to reload the dialog or ensure it loads this specific product.
+        # Re-instantiating dialog ensures it loads the product added.
+
+        # Find the row for the test product
+        found_row = -1
+        for r in range(dialog.product_table.rowCount()):
+            item = dialog.product_table.item(r, 0) # ID column
+            if item and item.text() == str(test_product_id):
+                found_row = r
+                break
+        self.assertNotEqual(found_row, -1, f"Test product ID {test_product_id} not found in table.")
+        dialog.product_table.setCurrentCell(found_row, 1) # Select name column of the found row
+
+        self.assertTrue(dialog.edit_product_button.isEnabled(), "Edit button should be enabled after selection.")
+
+        # Configure the mock dialog instance for button click
+        mock_edit_dialog_instance_btn = MockProductEditDialog.return_value
+        mock_edit_dialog_instance_btn.exec_.return_value = QDialog.Accepted
+
+        # Test 1: Edit button click
+        dialog.edit_product_button.click()
+        MockProductEditDialog.assert_called_with(product_id=test_product_id, parent=dialog)
+        mock_edit_dialog_instance_btn.exec_.assert_called_once()
+        mock_apply_filters_and_reload.assert_called_once()
+
+        # Reset mocks for double-click test
+        MockProductEditDialog.reset_mock()
+        mock_apply_filters_and_reload.reset_mock()
+        # Re-configure mock instance for double-click
+        mock_edit_dialog_instance_dbl = MockProductEditDialog.return_value
+        mock_edit_dialog_instance_dbl.exec_.return_value = QDialog.Accepted
+
+        # Test 2: Double-click
+        # Ensure the correct item is selected for double click.
+        # The selection should still be on found_row from previous setCurrentCell.
+        item_to_double_click = dialog.product_table.item(found_row, 1) # Name item
+        self.assertIsNotNone(item_to_double_click, "Item to double click not found.")
+
+        dialog.product_table.itemDoubleClicked.emit(item_to_double_click)
+
+        MockProductEditDialog.assert_called_with(product_id=test_product_id, parent=dialog)
+        mock_edit_dialog_instance_dbl.exec_.assert_called_once()
+        mock_apply_filters_and_reload.assert_called_once()
+
+        dialog.close()
+        print("test_edit_product_opens_dialog PASSED.")
+
+    @patch('product_list_dialog.ProductListDialog.apply_filters_and_reload')
+    @patch('product_list_dialog.products_crud_instance.delete_product')
+    @patch('product_list_dialog.QMessageBox.question')
+    def test_delete_product_button(self, mock_qmessagebox_question, mock_crud_delete_product, mock_apply_filters_and_reload):
+        print("\nRunning test_delete_product_button...")
+        # Add a product to be deleted
+        test_product = self._add_test_product("DeleteTest", "en", price=40.0)
+        test_product_id = test_product['product_id']
+        test_product_name = test_product['product_name']
+
+        dialog = ProductListDialog()
+
+        # Find and select the product in the table
+        found_row = -1
+        for r in range(dialog.product_table.rowCount()):
+            item_id_col = dialog.product_table.item(r, 0) # ID column
+            if item_id_col and item_id_col.text() == str(test_product_id):
+                found_row = r
+                break
+        self.assertNotEqual(found_row, -1, f"Test product ID {test_product_id} not found in table for deletion.")
+        dialog.product_table.setCurrentCell(found_row, 1) # Select the name column
+
+        self.assertTrue(dialog.delete_product_button.isEnabled(), "Delete button should be enabled after selection.")
+
+        # Test 1: Confirm Delete
+        mock_qmessagebox_question.return_value = QMessageBox.Yes
+        mock_crud_delete_product.return_value = {'success': True}
+
+        dialog.delete_product_button.click()
+
+        mock_qmessagebox_question.assert_called_once()
+        # Check that the question dialog shows the correct product name and ID
+        args, _ = mock_qmessagebox_question.call_args
+        self.assertIn(test_product_name, args[1]) # args[1] is the message string
+        self.assertIn(str(test_product_id), args[1])
+
+        mock_crud_delete_product.assert_called_once_with(product_id=test_product_id)
+        mock_apply_filters_and_reload.assert_called_once()
+
+        # Reset mocks for Test 2
+        mock_qmessagebox_question.reset_mock()
+        mock_crud_delete_product.reset_mock()
+        mock_apply_filters_and_reload.reset_mock()
+
+        # Test 2: Cancel Delete
+        mock_qmessagebox_question.return_value = QMessageBox.No
+        # Ensure selection is still valid for button to be clickable
+        dialog.product_table.setCurrentCell(found_row, 1)
+
+        dialog.delete_product_button.click()
+
+        mock_qmessagebox_question.assert_called_once()
+        mock_crud_delete_product.assert_not_called()
+        mock_apply_filters_and_reload.assert_not_called()
+
+        dialog.close()
+        print("test_delete_product_button PASSED.")
+
+
 if __name__ == '__main__':
     unittest.main(argv=['first-arg-is-ignored'], exit=False)

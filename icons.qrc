@@ -15,15 +15,16 @@
     <file alias="x.svg">icons/x.svg</file>
     <file alias="chevron-down-light.svg">icons/chevron-down-light.svg</file>
     <file alias="user-plus.svg">icons/user-plus.svg</file>
-    <file alias="settings.svg">icons/settings.svg</file>
+    <file alias="modern/settings.svg">icons/settings.svg</file>
     <file alias="document.svg">icons/document.svg</file>
     <file alias="preferences-system.svg">icons/preferences-system.svg</file>
     <file alias="folder-documents.svg">icons/folder-documents.svg</file>
+    <file alias="modern/folder-docs.svg">icons/folder-documents.svg</file>
     <file alias="trend_up.svg">icons/trend_up.svg</file>
     <file alias="trend_down.svg">icons/trend_down.svg</file>
     <file alias="trend_stable.svg">icons/trend_stable.svg</file>
     <file alias="logo.svg">icons/logo.svg</file>
-    <file alias="dashboard.svg">icons/dashboard.svg</file>
+    <file alias="modern/dashboard.svg">icons/dashboard.svg</file>
     <file alias="team.svg">icons/team.svg</file>
     <file alias="bell.svg">icons/bell.svg</file>
     <file alias="help-circle.svg">icons/help-circle.svg</file>
@@ -52,5 +53,7 @@
     <file alias="file-plus.svg">icons/file-plus.svg</file>
     <file alias="edit-2.svg">icons/edit-2.svg</file>
     <file alias="plus-square.svg">icons/plus-square.svg</file>
+    <file alias="modern/templates.svg">icons/placeholder_icon.svg</file>
+    <file alias="modern/link.svg">icons/placeholder_icon.svg</file>
 </qresource>
 </RCC>
