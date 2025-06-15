@@ -48,6 +48,7 @@ from dialogs import (
 # from product_management.list_dialog import ProductListDialog # Removed
 from product_management.page import ProductManagementPage # Added
 
+
 from client_widget import ClientWidget
 from projectManagement import MainDashboard as ProjectManagementDashboard
 from statistics_module import StatisticsDashboard
@@ -103,7 +104,7 @@ class SettingsDialog(OriginalSettingsDialog):
     def load_transporters_table(self):
         self.transporters_table.setRowCount(0); self.transporters_table.setSortingEnabled(False)
         try:
-            for r, t in enumerate(get_all_transporters() or []):
+            for r, t in enumerate(db_manager.get_all_transporters() or []):
                 self.transporters_table.insertRow(r)
                 id_item = QTableWidgetItem(t.get('transporter_id')); self.transporters_table.setItem(r,0,id_item)
                 name_item = QTableWidgetItem(t.get('name')); name_item.setData(Qt.UserRole, t.get('transporter_id')); self.transporters_table.setItem(r,1,name_item)
@@ -120,12 +121,12 @@ class SettingsDialog(OriginalSettingsDialog):
         if not self.transporters_table.selectedItems(): return
         t_id=self.transporters_table.item(self.transporters_table.currentRow(),0).text()
         if QMessageBox.question(self,self.tr("Confirmer Suppression"),self.tr("Supprimer ce transporteur?"),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes and db_manager.delete_transporter(t_id): self.load_transporters_table()
-        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer."))
+        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer le transporteur."))
     def update_transporter_button_states(self): en=bool(self.transporters_table.selectedItems()); self.edit_transporter_btn.setEnabled(en); self.delete_transporter_btn.setEnabled(en)
     def load_forwarders_table(self):
         self.forwarders_table.setRowCount(0); self.forwarders_table.setSortingEnabled(False)
         try:
-            for r,f in enumerate(get_all_freight_forwarders() or []):
+            for r,f in enumerate(db_manager.get_all_freight_forwarders() or []):
                 self.forwarders_table.insertRow(r)
                 id_item=QTableWidgetItem(f.get('forwarder_id')); self.forwarders_table.setItem(r,0,id_item)
                 name_item=QTableWidgetItem(f.get('name')); name_item.setData(Qt.UserRole,f.get('forwarder_id')); self.forwarders_table.setItem(r,1,name_item)
@@ -142,7 +143,7 @@ class SettingsDialog(OriginalSettingsDialog):
         if not self.forwarders_table.selectedItems(): return
         f_id=self.forwarders_table.item(self.forwarders_table.currentRow(),0).text()
         if QMessageBox.question(self,self.tr("Confirmer Suppression"),self.tr("Supprimer ce transitaire?"),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes and db_manager.delete_freight_forwarder(f_id): self.load_forwarders_table()
-        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer."))
+        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer le transitaire."))
     def update_forwarder_button_states(self): en=bool(self.forwarders_table.selectedItems()); self.edit_forwarder_btn.setEnabled(en); self.delete_forwarder_btn.setEnabled(en)
 
 class DocumentManager(QMainWindow):

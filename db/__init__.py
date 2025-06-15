@@ -20,6 +20,11 @@ from .cruds.status_settings_crud import (
     get_all_status_settings,
     get_status_setting_by_name,
 )
+from .cruds.templates_crud import get_all_templates, get_template_by_id
+from .cruds.client_documents_crud import add_client_document, get_document_by_id
+from .utils import get_document_context_data
+# For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
+# Files using proforma_invoices_crud will import it directly.
 from .cruds.application_settings_crud import get_setting, set_setting
 from .cruds.projects_crud import (
     get_all_projects,
@@ -171,6 +176,8 @@ from .cruds.partners_crud import (
     get_partner_category_by_id, # Added
 )
 from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id
+from .cruds.transporters_crud import get_all_transporters, add_transporter, get_transporter_by_id, update_transporter, delete_transporter
+from .cruds.freight_forwarders_crud import get_all_freight_forwarders, add_freight_forwarder, get_freight_forwarder_by_id, update_freight_forwarder, delete_freight_forwarder
 from .cruds.application_settings_crud import get_setting, set_setting
 from .init_schema import initialize_database
 
@@ -181,6 +188,11 @@ __all__ = [
     "get_status_setting_by_id",
     "get_all_status_settings",
     "get_status_setting_by_name",
+    "get_all_templates",
+    "get_template_by_id",
+    "add_client_document",
+    "get_document_by_id",
+    "get_document_context_data",
     "get_all_projects",
     "get_project_by_id",
     "add_project",
@@ -314,4 +326,14 @@ __all__ = [
     "initialize_database",
     "get_setting",
     "set_setting",
+    "get_all_transporters",
+    "add_transporter",
+    "get_transporter_by_id",
+    "update_transporter",
+    "delete_transporter",
+    "get_all_freight_forwarders",
+    "add_freight_forwarder",
+    "get_freight_forwarder_by_id",
+    "update_freight_forwarder",
+    "delete_freight_forwarder",
 ]

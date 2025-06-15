@@ -768,89 +768,194 @@ class ContactDialog(QDialog):
         super().__init__(parent)
         self.client_id = client_id; self.contact_data = contact_data or {}
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data else self.tr("Ajouter Contact"))
-        self.setMinimumSize(450,550); self.setup_ui() # Increased min height for new group
+        self.setMinimumSize(450,300); # Adjusted initial min height, will grow with optional fields
+        self.setup_ui()
 
     def _create_icon_label_widget(self,icon_name,label_text):
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
 
     def setup_ui(self):
-        main_layout=QVBoxLayout(self);main_layout.setSpacing(15)
+        main_layout=QVBoxLayout(self);main_layout.setSpacing(10) # Reduced main spacing a bit
         header_label=QLabel(self.tr("Ajouter Nouveau Contact") if not self.contact_data else self.tr("Modifier Détails Contact")); header_label.setObjectName("dialogHeaderLabel"); main_layout.addWidget(header_label)
-        form_layout=QFormLayout();form_layout.setSpacing(10);form_layout.setContentsMargins(10,0,10,0)
-        # self.setStyleSheet("QLineEdit, QCheckBox { padding: 3px; }") # Prefer global styles
-        self.name_input=QLineEdit(self.contact_data.get("name",""));form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom complet (ou affichage):")),self.name_input) # Changed label slightly
-        self.email_input=QLineEdit(self.contact_data.get("email",""));form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
-        self.phone_input=QLineEdit(self.contact_data.get("phone",""));form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone (principal):")),self.phone_input) # Changed label slightly
-        self.position_input=QLineEdit(self.contact_data.get("position",""));form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste (général):")),self.position_input) # Changed label slightly
-        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"));self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))));self.primary_check.stateChanged.connect(self.update_primary_contact_visuals);form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
-        main_layout.addLayout(form_layout)
 
-        # Additional Fields GroupBox
-        self.additional_fields_group = QGroupBox(self.tr("Champs supplémentaires"))
-        self.additional_fields_group.setCheckable(True)
-        self.additional_fields_group.setChecked(False) # Default to collapsed
-        additional_form_layout = QFormLayout(self.additional_fields_group)
-        additional_form_layout.setSpacing(10)
+        # Scroll Area for many fields
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget) # Main layout for scrollable content
 
+        # --- Mandatory Fields ---
+        mandatory_group = QGroupBox(self.tr("Informations Principales"))
+        form_layout=QFormLayout(mandatory_group);form_layout.setSpacing(8)
+
+        self.name_input=QLineEdit(self.contact_data.get("name", self.contact_data.get("displayName", ""))) # Use displayName as fallback
+        form_layout.addRow(self._create_icon_label_widget("user",self.tr("Nom Affichage (ou Nom Complet)*:")),self.name_input)
+
+        self.email_input=QLineEdit(self.contact_data.get("email",""))
+        form_layout.addRow(self._create_icon_label_widget("mail-message-new",self.tr("Email:")),self.email_input)
+
+        self.phone_input=QLineEdit(self.contact_data.get("phone",""))
+        form_layout.addRow(self._create_icon_label_widget("phone",self.tr("Téléphone:")),self.phone_input)
+
+        self.position_input=QLineEdit(self.contact_data.get("position",""))
+        form_layout.addRow(self._create_icon_label_widget("preferences-desktop-user",self.tr("Poste/Fonction:")),self.position_input)
+
+        self.primary_check=QCheckBox(self.tr("Contact principal pour le client"))
+        self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))))
+        self.primary_check.stateChanged.connect(self.update_primary_contact_visuals)
+        form_layout.addRow(self._create_icon_label_widget("emblem-important",self.tr("Principal:")),self.primary_check)
+
+        self.can_receive_docs_checkbox = QCheckBox(self.tr("Peut recevoir des documents"))
+        self.can_receive_docs_checkbox.setChecked(self.contact_data.get("can_receive_documents", True)) # Default true
+        form_layout.addRow(self._create_icon_label_widget("document-send", self.tr("Autorisations Docs:")), self.can_receive_docs_checkbox)
+
+        scroll_layout.addWidget(mandatory_group)
+
+        # --- "Show Optional Fields" Checkbox ---
+        self.show_optional_fields_checkbox = QCheckBox(self.tr("Afficher les champs optionnels"))
+        self.show_optional_fields_checkbox.setChecked(False) # Default to hidden
+        self.show_optional_fields_checkbox.toggled.connect(self.toggle_optional_fields_visibility)
+        scroll_layout.addWidget(self.show_optional_fields_checkbox)
+
+        # --- Optional Fields GroupBox ---
+        self.optional_fields_container = QWidget() # Container for all optional groups
+        optional_fields_main_layout = QVBoxLayout(self.optional_fields_container)
+        optional_fields_main_layout.setContentsMargins(0,0,0,0)
+
+        # Optional: Detailed Name parts
+        name_details_group = QGroupBox(self.tr("Noms Détaillés"))
+        name_details_form_layout = QFormLayout(name_details_group)
         self.givenName_input = QLineEdit(self.contact_data.get("givenName", ""))
-        additional_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
+        name_details_form_layout.addRow(self.tr("Prénom:"), self.givenName_input)
         self.familyName_input = QLineEdit(self.contact_data.get("familyName", ""))
-        additional_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
-        self.displayName_input = QLineEdit(self.contact_data.get("displayName", ""))
-        additional_form_layout.addRow(self.tr("Nom affiché:"), self.displayName_input)
+        name_details_form_layout.addRow(self.tr("Nom de famille:"), self.familyName_input)
+        self.displayName_input = QLineEdit(self.contact_data.get("displayName", "")) # If different from 'name'
+        name_details_form_layout.addRow(self.tr("Nom Affiché (alternatif):"), self.displayName_input)
+        optional_fields_main_layout.addWidget(name_details_group)
+
+        # Optional: Contact Types
+        contact_types_group = QGroupBox(self.tr("Types Contact"))
+        contact_types_form_layout = QFormLayout(contact_types_group)
         self.phone_type_input = QLineEdit(self.contact_data.get("phone_type", ""))
-        additional_form_layout.addRow(self.tr("Type téléphone (principal):"), self.phone_type_input)
+        contact_types_form_layout.addRow(self.tr("Type téléphone:"), self.phone_type_input)
         self.email_type_input = QLineEdit(self.contact_data.get("email_type", ""))
-        additional_form_layout.addRow(self.tr("Type email (principal):"), self.email_type_input)
-        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
-        additional_form_layout.addRow(self.tr("Adresse complète formatée:"), self.address_formattedValue_input)
+        contact_types_form_layout.addRow(self.tr("Type email:"), self.email_type_input)
+        optional_fields_main_layout.addWidget(contact_types_group)
+
+        # Optional: Address
+        address_group = QGroupBox(self.tr("Adresse"))
+        address_form_layout = QFormLayout(address_group)
         self.address_streetAddress_input = QLineEdit(self.contact_data.get("address_streetAddress", ""))
-        additional_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
+        address_form_layout.addRow(self.tr("Rue:"), self.address_streetAddress_input)
         self.address_city_input = QLineEdit(self.contact_data.get("address_city", ""))
-        additional_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
+        address_form_layout.addRow(self.tr("Ville:"), self.address_city_input)
         self.address_region_input = QLineEdit(self.contact_data.get("address_region", ""))
-        additional_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
+        address_form_layout.addRow(self.tr("Région/État:"), self.address_region_input)
         self.address_postalCode_input = QLineEdit(self.contact_data.get("address_postalCode", ""))
-        additional_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
+        address_form_layout.addRow(self.tr("Code Postal:"), self.address_postalCode_input)
         self.address_country_input = QLineEdit(self.contact_data.get("address_country", ""))
-        additional_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
-        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", self.contact_data.get("company_name", ""))) # Fallback to general company_name
-        additional_form_layout.addRow(self.tr("Nom Organisation:"), self.organization_name_input)
-        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", self.contact_data.get("position", ""))) # Fallback to general position
-        additional_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
-        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", "")) # Using QLineEdit for now
-        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ ou MM-JJ"))
-        additional_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
+        address_form_layout.addRow(self.tr("Pays:"), self.address_country_input)
+        self.address_formattedValue_input = QLineEdit(self.contact_data.get("address_formattedValue", ""))
+        address_form_layout.addRow(self.tr("Adresse complète (si unique champ):"), self.address_formattedValue_input)
+        optional_fields_main_layout.addWidget(address_group)
 
+        # Optional: Organization
+        org_group = QGroupBox(self.tr("Organisation (Contact)"))
+        org_form_layout = QFormLayout(org_group)
+        self.contact_company_name_input = QLineEdit(self.contact_data.get("company_name", "")) # Contact's specific company
+        org_form_layout.addRow(self.tr("Société (Contact):"), self.contact_company_name_input)
+        self.organization_name_input = QLineEdit(self.contact_data.get("organization_name", ""))
+        org_form_layout.addRow(self.tr("Nom Organisation (détaillé):"), self.organization_name_input)
+        self.organization_title_input = QLineEdit(self.contact_data.get("organization_title", ""))
+        org_form_layout.addRow(self.tr("Titre dans l'organisation:"), self.organization_title_input)
+        optional_fields_main_layout.addWidget(org_group)
+
+        # Optional: Other Details
+        other_details_group = QGroupBox(self.tr("Autres Détails"))
+        other_details_form_layout = QFormLayout(other_details_group)
+        self.birthday_date_input = QLineEdit(self.contact_data.get("birthday_date", ""))
+        self.birthday_date_input.setPlaceholderText(self.tr("AAAA-MM-JJ"))
+        other_details_form_layout.addRow(self.tr("Date de naissance:"), self.birthday_date_input)
         self.notes_input = QTextEdit(self.contact_data.get("notes", ""))
-        self.notes_input.setFixedHeight(60)
-        additional_form_layout.addRow(self.tr("Notes:"), self.notes_input)
+        self.notes_input.setFixedHeight(80)
+        other_details_form_layout.addRow(self.tr("Notes (Contact):"), self.notes_input)
+        optional_fields_main_layout.addWidget(other_details_group)
 
-        main_layout.addWidget(self.additional_fields_group)
+        scroll_layout.addWidget(self.optional_fields_container)
+        self.optional_fields_container.setVisible(False) # Initially hidden
 
-        # Check if any additional field has data to expand the group box
-        additional_fields_keys = [
-            "givenName", "familyName", "displayName", "phone_type", "email_type",
-            "address_formattedValue", "address_streetAddress", "address_city",
-            "address_region", "address_postalCode", "address_country",
-            "organization_name", "organization_title", "birthday_date", "notes"
-        ]
-        # Also consider company_name and position if they were used as fallbacks and are different
-        # from the main company_name/position fields, or if the specific fields are present.
-        if any(self.contact_data.get(key) for key in additional_fields_keys) or \
-           (self.contact_data.get("company_name") and self.organization_name_input.text() != self.contact_data.get("company_name")) or \
-           (self.contact_data.get("position") and self.organization_title_input.text() != self.contact_data.get("position")):
-            self.additional_fields_group.setChecked(True)
+        scroll_area.setWidget(scroll_widget) # Set the widget containing the form layout into the scroll area
+        main_layout.addWidget(scroll_area) # Add scroll area to main layout
 
-        main_layout.addStretch()
-        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame") # Style in QSS
+        # Auto-check "Show Optional Fields" if any optional data exists
+        self.check_and_show_optional_fields()
+        self.update_primary_contact_visuals(self.primary_check.checkState()) # Initial visual state for primary contact
+
+        main_layout.addStretch(1) # Add stretch after scroll area
+        button_frame=QFrame(self);button_frame.setObjectName("buttonFrame")
         button_frame_layout=QHBoxLayout(button_frame);button_frame_layout.setContentsMargins(0,0,0,0)
         button_box=QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         ok_button=button_box.button(QDialogButtonBox.Ok);ok_button.setText(self.tr("OK"));ok_button.setIcon(QIcon(":/icons/dialog-ok-apply.svg"));ok_button.setObjectName("primaryButton")
         cancel_button=button_box.button(QDialogButtonBox.Cancel);cancel_button.setText(self.tr("Annuler"));cancel_button.setIcon(QIcon(":/icons/dialog-cancel.svg"))
         button_box.accepted.connect(self.accept);button_box.rejected.connect(self.reject);button_frame_layout.addWidget(button_box);main_layout.addWidget(button_frame)
         self.update_primary_contact_visuals(self.primary_check.checkState())
+
+    def toggle_optional_fields_visibility(self, checked):
+        self.optional_fields_container.setVisible(checked)
+
+    def check_and_show_optional_fields(self):
+        # List of keys for optional fields
+        optional_field_keys = [
+            "givenName", "familyName", "displayName", # displayName might be considered optional if 'name' is primary
+            "phone_type", "email_type", "company_name", # company_name refers to contact's own company
+            "address_formattedValue", "address_streetAddress", "address_city",
+            "address_region", "address_postalCode", "address_country",
+            "organization_name", "organization_title", "birthday_date", "notes"
+        ]
+        # Check if any optional field has data
+        show = False
+        for key in optional_field_keys:
+            if self.contact_data.get(key, "").strip(): # If any optional field has non-empty data
+                show = True
+                break
+
+        if show:
+            self.show_optional_fields_checkbox.setChecked(True)
+            # self.optional_fields_container.setVisible(True) # This will be handled by the signal
+
+    def populate_form(self): # Added to populate all fields
+        # Mandatory fields are already populated by QLineEdit constructor or set directly
+        self.name_input.setText(self.contact_data.get("name", self.contact_data.get("displayName", "")))
+        self.email_input.setText(self.contact_data.get("email",""))
+        self.phone_input.setText(self.contact_data.get("phone",""))
+        self.position_input.setText(self.contact_data.get("position",""))
+        self.primary_check.setChecked(bool(self.contact_data.get("is_primary_for_client", self.contact_data.get("is_primary",0))))
+        self.can_receive_docs_checkbox.setChecked(self.contact_data.get("can_receive_documents", True))
+
+        # Optional fields
+        self.givenName_input.setText(self.contact_data.get("givenName", ""))
+        self.familyName_input.setText(self.contact_data.get("familyName", ""))
+        self.displayName_input.setText(self.contact_data.get("displayName", "")) # Could be same as name_input initially
+        self.phone_type_input.setText(self.contact_data.get("phone_type", ""))
+        self.email_type_input.setText(self.contact_data.get("email_type", ""))
+        self.contact_company_name_input.setText(self.contact_data.get("company_name", ""))
+
+        self.address_formattedValue_input.setText(self.contact_data.get("address_formattedValue", ""))
+        self.address_streetAddress_input.setText(self.contact_data.get("address_streetAddress", ""))
+        self.address_city_input.setText(self.contact_data.get("address_city", ""))
+        self.address_region_input.setText(self.contact_data.get("address_region", ""))
+        self.address_postalCode_input.setText(self.contact_data.get("address_postalCode", ""))
+        self.address_country_input.setText(self.contact_data.get("address_country", ""))
+
+        self.organization_name_input.setText(self.contact_data.get("organization_name", ""))
+        self.organization_title_input.setText(self.contact_data.get("organization_title", ""))
+        self.birthday_date_input.setText(self.contact_data.get("birthday_date", ""))
+        self.notes_input.setPlainText(self.contact_data.get("notes", ""))
+
+        self.check_and_show_optional_fields() # Ensure visibility is correct based on data
+        self.update_primary_contact_visuals(self.primary_check.checkState())
+
 
     def update_primary_contact_visuals(self,state):
         # Dynamic style based on state - kept inline
@@ -862,114 +967,138 @@ class ContactDialog(QDialog):
 
     def get_data(self):
         data = {
-            "name": self.name_input.text().strip(), # Fallback name or displayName
+            "name": self.name_input.text().strip(),
             "email": self.email_input.text().strip(),
-            "phone": self.phone_input.text().strip(), # Primary phone
-            "position": self.position_input.text().strip(), # General position
+            "phone": self.phone_input.text().strip(),
+            "position": self.position_input.text().strip(),
             "is_primary_for_client": 1 if self.primary_check.isChecked() else 0,
-            # notes from main dialog is not here, assumed to be handled by ClientWidget's direct save for general notes.
-            # If notes were part of this dialog, it would be: "notes": self.notes_input.toPlainText().strip(),
+            "can_receive_documents": self.can_receive_docs_checkbox.isChecked(),
         }
-        if self.additional_fields_group.isChecked():
-            data.update({
-                "givenName": self.givenName_input.text().strip(),
-                "familyName": self.familyName_input.text().strip(),
-                "displayName": self.displayName_input.text().strip(),
-                "phone_type": self.phone_type_input.text().strip(),
-                "email_type": self.email_type_input.text().strip(),
-                "address_formattedValue": self.address_formattedValue_input.text().strip(),
-                "address_streetAddress": self.address_streetAddress_input.text().strip(),
-                "address_city": self.address_city_input.text().strip(),
-                "address_region": self.address_region_input.text().strip(),
-                "address_postalCode": self.address_postalCode_input.text().strip(),
-                "address_country": self.address_country_input.text().strip(),
-                "organization_name": self.organization_name_input.text().strip(),
-                "organization_title": self.organization_title_input.text().strip(),
-                "birthday_date": self.birthday_date_input.text().strip(),
-                "notes": self.notes_input.toPlainText().strip(),
-            })
-            # If displayName has content and main 'name' is different or empty, prioritize displayName for 'name' field in DB
-            if data.get("displayName") and data.get("displayName") != data.get("name"):
-                data["name"] = data["displayName"]
-            elif not data.get("name") and data.get("displayName"): # if name was empty but displayname is not
-                 data["name"] = data["displayName"]
 
+        # Add optional fields only if the container is visible (meaning user intended to use them)
+        # or even better, add them if they have content, regardless of visibility,
+        # as user might hide group after filling some.
+        # The simplest is to always get all, and let DB/contacts_crud handle empty strings if needed.
+        data.update({
+            "givenName": self.givenName_input.text().strip(),
+            "familyName": self.familyName_input.text().strip(),
+            "displayName": self.displayName_input.text().strip(), # This is the specific "Display Name" field
+            "phone_type": self.phone_type_input.text().strip(),
+            "email_type": self.email_type_input.text().strip(),
+            "company_name": self.contact_company_name_input.text().strip(), # Contact's own company
+            "address_formattedValue": self.address_formattedValue_input.text().strip(),
+            "address_streetAddress": self.address_streetAddress_input.text().strip(),
+            "address_city": self.address_city_input.text().strip(),
+            "address_region": self.address_region_input.text().strip(),
+            "address_postalCode": self.address_postalCode_input.text().strip(),
+            "address_country": self.address_country_input.text().strip(),
+            "organization_name": self.organization_name_input.text().strip(),
+            "organization_title": self.organization_title_input.text().strip(),
+            "birthday_date": self.birthday_date_input.text().strip(),
+            "notes": self.notes_input.toPlainText().strip(),
+        })
 
-        # If the group is not checked, we might still want to save specific fields if they were pre-filled
-        # and are now different from their original values (e.g. user unchecked after editing).
-        # However, current logic is simpler: if unchecked, only main fields are saved.
-        # If a more nuanced save is needed (e.g. save if field ever had data), this logic would need expansion.
+        # Ensure 'name' field (used as primary display/fallback) is appropriately set
+        # If main 'name_input' is empty but 'displayName_input' (optional) has value, use it for 'name'.
+        if not data["name"] and data["displayName"]:
+            data["name"] = data["displayName"]
+        # If 'name_input' has value but 'displayName' (optional) is empty, ensure 'displayName' gets 'name_input' value
+        # because 'displayName' is preferred by central Contacts table if available.
+        elif data["name"] and not data["displayName"]:
+            data["displayName"] = data["name"]
+        # If both are filled, 'name' takes 'name_input', 'displayName' takes 'displayName_input'.
+        # The central contacts_crud.add_contact uses 'displayName' if 'name' is not also present or prefers 'displayName'.
+        # Let's ensure the 'name' field for the DB is the one from self.name_input,
+        # and 'displayName' is from self.displayName_input.
+        # The contacts_crud.add_contact has logic: name=data.get('displayName', data.get('name'))
+        # This means if 'displayName' is present, it will be used as 'name' by add_contact if 'name' is not.
+        # To be explicit for saving:
+        # The 'name' field in the DB's Contacts table is NOT NULL.
+        # self.name_input is the primary input for this.
+        # Let's ensure contact_details_to_save['name'] is never empty if displayName has value.
+
+        # Final check for the 'name' field to be saved to DB:
+        # It should be from self.name_input. If that's empty, use self.displayName_input.
+        # The 'displayName' field in the dict should be from self.displayName_input.
+        final_name_for_db = self.name_input.text().strip()
+        optional_display_name = self.displayName_input.text().strip()
+
+        if not final_name_for_db and optional_display_name:
+            data["name"] = optional_display_name
+        # data["displayName"] is already set from self.displayName_input
+
         return data
 
     def accept(self):
         contact_details_to_save = self.get_data()
-        if not contact_details_to_save.get("name") and not contact_details_to_save.get("displayName"): # Either name or displayName must be present
-            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom complet ou le nom affiché du contact est requis."))
-            self.name_input.setFocus()
+
+        # Validation: 'name' is crucial as it's NOT NULL in DB.
+        # get_data() ensures 'name' is populated from 'displayName' if 'name_input' was empty.
+        if not contact_details_to_save.get("name"):
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le Nom Affichage (ou Nom Complet) du contact est requis."))
+            self.name_input.setFocus() # Focus the primary name input
             return
 
-        # If displayName is provided and name is empty, use displayName for name.
-        if contact_details_to_save.get("displayName") and not contact_details_to_save.get("name"):
-            contact_details_to_save["name"] = contact_details_to_save["displayName"]
-
+        is_primary_from_form = bool(contact_details_to_save.get("is_primary_for_client", False))
+        can_receive_docs_from_form = bool(contact_details_to_save.get("can_receive_documents", True))
 
         if self.contact_data and self.contact_data.get('contact_id'): # Editing existing contact
-            success = db_manager.update_contact(self.contact_data['contact_id'], contact_details_to_save)
-            if success:
-                # If client_id is present, also update the link details (is_primary)
-                if self.client_id:
-                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, self.contact_data['contact_id'])
-                    if link_details:
-                        client_contact_id = link_details['client_contact_id']
-                        update_link_data = {'is_primary_for_client': contact_details_to_save.get("is_primary_for_client", False)}
-                        db_manager.update_client_contact_link(client_contact_id, update_link_data)
-                    # Else: If no link exists, should we create one? Current behavior is no.
-                from main import get_notification_manager # Local import
-                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact mis à jour avec succès."))
-                get_notification_manager().show(title=self.tr("Contact Mis à Jour"), message=self.tr("Les détails du contact ont été mis à jour."), type='SUCCESS')
-            else:
-                from main import get_notification_manager # Local import
-                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de mettre à jour le contact."))
-                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible de mettre à jour le contact."), type='ERROR')
-                return # Do not accept dialog if update failed
-        else: # Adding new contact
-            new_contact_id = db_manager.add_contact(contact_details_to_save)
-            if new_contact_id and self.client_id:
-                # Link the contact to the client
-                is_primary_from_form = contact_details_to_save.get("is_primary_for_client", False)
-                link_contact_to_client_result = db_manager.link_contact_to_client(
-                    self.client_id,
-                    new_contact_id, # The ID of the contact just added
-                    is_primary=is_primary_from_form,
-                    can_receive_documents=True # Default or from form
-                )
+            central_contact_id = self.contact_data['contact_id']
+            success_central_update = db_manager.update_contact(central_contact_id, contact_details_to_save)
 
-                if link_contact_to_client_result:
-                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
-                    if contact_count == 1:
-                        # If it's the only contact, ensure it's primary, overriding form if it was false
-                        db_manager.update_client_contact_link(
-                            link_contact_to_client_result,
-                            {'is_primary_for_client': True}
-                        )
-                        print(f"Contact {new_contact_id} set as primary for client {self.client_id} as it's the only contact.")
-                    from main import get_notification_manager # Local import
-                    # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté et lié au client avec succès."))
-                    get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté et lié au client avec succès."), type='SUCCESS')
-                else:
-                     from main import get_notification_manager # Local import
-                     # QMessageBox.warning(self, self.tr("Échec"), self.tr("Contact ajouté mais échec de la liaison avec le client."))
-                     get_notification_manager().show(title=self.tr("Erreur Liaison Contact"), message=self.tr("Contact ajouté mais échec de la liaison avec le client."), type='WARNING')
-            elif new_contact_id:
+            if success_central_update:
+                if self.client_id: # If this dialog is associated with a client context
+                    link_details = db_manager.get_specific_client_contact_link_details(self.client_id, central_contact_id)
+                    if link_details:
+                        client_contact_link_id = link_details['client_contact_id']
+                        update_link_payload = {
+                            'is_primary_for_client': is_primary_from_form,
+                            'can_receive_documents': can_receive_docs_from_form
+                        }
+                        db_manager.update_client_contact_link(client_contact_link_id, update_link_payload)
+                    # else: If no link, it means this contact was edited from a context not client-specific, or link was deleted.
+
                 from main import get_notification_manager # Local import
-                # QMessageBox.information(self, self.tr("Succès"), self.tr("Contact ajouté avec succès (non lié à un client)."))
-                get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté avec succès (non lié à un client)."), type='SUCCESS')
+                get_notification_manager().show(title=self.tr("Contact Mis à Jour"), message=self.tr("Les détails du contact ont été mis à jour."), type='SUCCESS')
+                super().accept() # Close dialog
             else:
                 from main import get_notification_manager # Local import
-                # QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible d'ajouter le contact."))
+                get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible de mettre à jour le contact."), type='ERROR')
+                return
+        else: # Adding new contact
+            # Remove link-specific fields before sending to central_add_contact
+            central_contact_payload = {k: v for k, v in contact_details_to_save.items() if k not in ['is_primary_for_client', 'can_receive_documents']}
+            new_central_contact_id = db_manager.add_contact(central_contact_payload)
+
+            if new_central_contact_id and self.client_id:
+                link_id = db_manager.link_contact_to_client(
+                    self.client_id,
+                    new_central_contact_id,
+                    is_primary=is_primary_from_form,
+                    can_receive_documents=can_receive_docs_from_form
+                )
+                if link_id:
+                    contact_count = db_manager.get_contacts_for_client_count(self.client_id)
+                    if contact_count == 1: # This is the first contact for this client
+                        db_manager.update_client_contact_link(link_id, {'is_primary_for_client': True, 'can_receive_documents': True}) # Ensure first is primary and can receive docs
+                        print(f"Contact {new_central_contact_id} set as primary for client {self.client_id} as it's the only contact.")
+                    from main import get_notification_manager
+                    get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté et lié au client avec succès."), type='SUCCESS')
+                    super().accept()
+                else:
+                     from main import get_notification_manager
+                     get_notification_manager().show(title=self.tr("Erreur Liaison Contact"), message=self.tr("Contact ajouté mais échec de la liaison avec le client."), type='WARNING')
+                     # Optionally delete the central contact if linking is critical: db_manager.delete_contact(new_central_contact_id)
+                     return
+            elif new_central_contact_id: # Added to central but no client_id to link
+                from main import get_notification_manager
+                get_notification_manager().show(title=self.tr("Contact Ajouté"), message=self.tr("Contact ajouté avec succès (non lié à un client)."), type='SUCCESS')
+                super().accept()
+            else: # Failed to add to central Contacts table
+                from main import get_notification_manager
                 get_notification_manager().show(title=self.tr("Erreur Contact"), message=self.tr("Impossible d'ajouter le contact."), type='ERROR')
-                return # Do not accept dialog if add failed
-        super().accept() # Proceed to close dialog
+                return
+        # super().accept() # Moved into success paths
 
 
 class ProductDialog(QDialog):

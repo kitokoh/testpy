@@ -9,11 +9,17 @@ from sqlalchemy import func # Added for func.now()
 
 # Assuming db managing and models are structured as previously discussed
 # Adjust paths if your project structure is different
-import db
+from db.cruds import proforma_invoices_crud
+# For other db operations (like fetching client, company, or adding ClientDocument)
+# that use the main sqlite3-based 'db' facade:
+from db import get_client_by_id as get_client_by_id_sqlite
+from db import add_client_document as add_client_document_sqlite
+from db import get_company_by_id as get_company_by_id_sqlite
+from db.utils import get_proforma_invoice_context_data # Assuming this is sqlite based
 from api.models import ProformaInvoiceStatusEnum, User # Assuming User model for auth
 # from api import models as api_models # Not explicitly used, can be removed if ProformaInvoice Pydantic models are self-contained here
 # Assuming proforma_invoice_utils.py will exist or be created later
-from proforma_invoice_utils import get_proforma_invoice_context_data
+# from proforma_invoice_utils import get_proforma_invoice_context_data # Replaced by direct import from db.utils
 from html_to_pdf_util import render_html_template, convert_html_to_pdf, WeasyPrintError
 # Placeholder for current_user and db session dependency
 from .dependencies import get_db, get_current_active_user # Assuming these exist
@@ -94,20 +100,26 @@ def _internal_save_pdf_and_create_document_record(
     # company_id: str # If ClientDocument needs company_id
 ) -> Optional[str]:
     try:
-        project_root_dir = os.path.abspath(os.path.join(os.path.dirname(db.__file__), ".."))
+        # Determine project_root_dir without db.__file__ as db is no longer directly imported
+        # This might require passing APP_ROOT_DIR or using a configuration setting
+        # For now, let's assume a relative path structure or that this helper will be updated
+        # to receive such configuration.
+        # Placeholder:
+        project_root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")) # Assuming api/proformas.py
         clients_base_storage_dir = os.path.join(project_root_dir, "clients")
 
-        client_info = db.get_client_by_id(db_session, client_id)
-        if not client_info or not getattr(client_info, 'default_base_folder_path', None):
+        client_info = get_client_by_id_sqlite(client_id) # Uses sqlite connection
+        # client_info is a dict from sqlite, not an ORM object, so access via get()
+        if not client_info or not client_info.get('default_base_folder_path'):
             client_folder_name_safe = str(client_id).replace('-', '')
             target_dir_base = os.path.join(clients_base_storage_dir, client_folder_name_safe)
         else:
-            # Ensure client_info.default_base_folder_path is treated as relative to project_root_dir
-            # if it's stored like "clients/client_xyz_folder"
-            if client_info.default_base_folder_path.startswith("clients" + os.sep):
-                 target_dir_base = os.path.join(project_root_dir, client_info.default_base_folder_path)
-            else: # Or if it's an absolute path already (less likely for this field)
-                 target_dir_base = client_info.default_base_folder_path
+            # Ensure client_info['default_base_folder_path'] is treated as relative to project_root_dir
+            client_base_path = client_info['default_base_folder_path']
+            if client_base_path.startswith("clients" + os.sep):
+                 target_dir_base = os.path.join(project_root_dir, client_base_path)
+            else: # Or if it's an absolute path already
+                 target_dir_base = client_base_path
 
 
         generated_docs_subfolder = "generated_documents"
@@ -154,17 +166,18 @@ def _internal_save_pdf_and_create_document_record(
                 # print(f"Warning: template_id_source '{doc_metadata['source_template_id']}' is not an integer. Setting to None for ClientDocument.")
                 doc_metadata['source_template_id'] = None
 
-        # Use the db facade for add_client_document
-        db_document_obj = db.add_client_document(db_session, doc_metadata)
+        # Use the new sqlite function for add_client_document
+        # add_client_document_sqlite returns an ID directly
+        db_document_id = add_client_document_sqlite(doc_metadata)
 
-        if not db_document_obj or not getattr(db_document_obj, 'id', None): # Check actual ID attribute
+        if not db_document_id:
             # print(f"Error: Failed to save ClientDocument metadata for {generated_file_name}")
             # Consider os.remove(file_path_on_disk) # Cleanup if DB record fails
             return None
-        return getattr(db_document_obj, 'id') # Return the actual ID attribute
+        return db_document_id
     except Exception as e:
         # print(f"Error in _internal_save_pdf_and_create_document_record: {e}")
-        # import traceback; traceback.print_exc(); # For debugging
+        # import traceback; traceback.print_exc();
         return None
 
 
@@ -191,7 +204,7 @@ def create_proforma_api(
     items_dict_list = [item.model_dump() for item in proforma_create.items]
 
     try:
-        db_proforma = db.create_proforma_invoice(db_session, proforma_data=proforma_dict, items_data=items_dict_list)
+        db_proforma = proforma_invoices_crud.create_proforma_invoice(db_session, proforma_data=proforma_dict, items_data=items_dict_list)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create proforma invoice in DB: {str(e)}")
 
@@ -204,11 +217,13 @@ def create_proforma_api(
             "product_id": item.product_id, "name": item.description, "description": item.description,
             "quantity": item.quantity, "unit_price_override": item.unit_price
         } for item in db_proforma.items],
-        "db_session": db_session
+        # "db_session": db_session # db_session (SQLAlchemy) should not be passed to context for sqlite utils
     }
 
     try:
-        app_root_for_templates = os.path.abspath(os.path.join(os.path.dirname(db.__file__), "..", "templates"))
+        # app_root_for_templates determination needs to be independent of 'db' module import
+        project_root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        app_root_for_templates = os.path.join(project_root_dir, "templates")
         template_file_path = os.path.join(app_root_for_templates, proforma_create.target_language_code, "proforma_invoice_template.html")
 
         if not os.path.exists(template_file_path):
@@ -246,7 +261,7 @@ def create_proforma_api(
 
         if generated_doc_id:
             # Use the CRUD function for update, ensuring Session is the first argument if needed
-            db.update_proforma_invoice(db_session, db_proforma.id, {"linked_document_id": generated_doc_id})
+            proforma_invoices_crud.update_proforma_invoice(db_session, db_proforma.id, {"linked_document_id": generated_doc_id})
             db_proforma.linked_document_id = generated_doc_id # Update the instance for the response
             db_session.refresh(db_proforma) # Refresh to get the updated state if update_proforma_invoice doesn't
     except WeasyPrintError as wpe:
@@ -279,7 +294,7 @@ def list_proformas_api(
             valid_statuses = [s.value for s in ProformaInvoiceStatusEnum]
             raise HTTPException(status_code=400, detail=f"Invalid status value: {status}. Valid are: {valid_statuses}")
 
-    proformas = db.list_proforma_invoices(
+    proformas = proforma_invoices_crud.list_proforma_invoices(
         db_session, client_id=client_id, project_id=project_id,
         company_id=company_id, status=status_enum, skip=skip, limit=limit
     )
@@ -299,7 +314,7 @@ def get_proforma_api(
     proforma_id: str, db_session: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    db_proforma = db.get_proforma_invoice_by_id(db_session, proforma_id)
+    db_proforma = proforma_invoices_crud.get_proforma_invoice_by_id(db_session, proforma_id)
     if not db_proforma:
         raise HTTPException(status_code=404, detail="Proforma Invoice not found")
 
@@ -326,10 +341,15 @@ def update_proforma_status_api(
 
     update_data = {"status": new_status_enum}
     # Using sqlalchemy.func for server-side timestamp
-    if new_status_enum == ProformaInvoiceStatusEnum.SENT and not db.get_proforma_invoice_by_id(db_session, proforma_id).sent_date:
+    # Need to fetch the proforma again to check sent_date, using the CRUD
+    existing_proforma_for_check = proforma_invoices_crud.get_proforma_invoice_by_id(db_session, proforma_id)
+    if not existing_proforma_for_check:
+        raise HTTPException(status_code=404, detail="Proforma Invoice not found for status update check")
+
+    if new_status_enum == ProformaInvoiceStatusEnum.SENT and not existing_proforma_for_check.sent_date:
         update_data["sent_date"] = func.now()
 
-    updated_proforma = db.update_proforma_invoice(db_session, proforma_id, update_data)
+    updated_proforma = proforma_invoices_crud.update_proforma_invoice(db_session, proforma_id, update_data)
     if not updated_proforma:
         raise HTTPException(status_code=404, detail="Proforma Invoice not found for status update")
 
@@ -352,7 +372,7 @@ def generate_final_invoice_api(
     proforma_id: str, request_data: Optional[GenerateInvoiceRequest] = Body(None),
     db_session: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)
 ):
-    db_proforma = db.get_proforma_invoice_by_id(db_session, proforma_id)
+    db_proforma = proforma_invoices_crud.get_proforma_invoice_by_id(db_session, proforma_id)
     if not db_proforma:
         raise HTTPException(status_code=404, detail="Proforma Invoice not found")
     if db_proforma.status != ProformaInvoiceStatusEnum.ACCEPTED:
@@ -398,11 +418,13 @@ def generate_final_invoice_api(
             "product_id": item.product_id, "name": item.description, "description": item.description,
             "quantity": item.quantity, "unit_price_override": item.unit_price
         } for item in db_proforma.items],
-        "db_session": db_session, "payment_terms": db_proforma.payment_terms,
+        # "db_session": db_session, # Removed for sqlite context
+        "payment_terms": db_proforma.payment_terms,
     }
 
     try:
-        app_root_for_templates = os.path.abspath(os.path.join(os.path.dirname(db.__file__), "..", "templates"))
+        project_root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        app_root_for_templates = os.path.join(project_root_dir, "templates")
         invoice_template_file_path = os.path.join(app_root_for_templates, target_lang, "invoice_template.html")
 
         if not os.path.exists(invoice_template_file_path): # Fallback to EN
@@ -444,7 +466,7 @@ def generate_final_invoice_api(
 
         if generated_invoice_doc_id:
             update_payload = {"generated_invoice_id": generated_invoice_doc_id, "status": ProformaInvoiceStatusEnum.INVOICED}
-            updated_proforma = db.update_proforma_invoice(db_session, proforma_id, update_payload)
+            updated_proforma = proforma_invoices_crud.update_proforma_invoice(db_session, proforma_id, update_payload)
             if not updated_proforma:
                 raise HTTPException(status_code=500, detail="Failed to update proforma after generating final invoice.")
 
@@ -473,7 +495,9 @@ def generate_final_invoice_api(
 # Ensure `sqlalchemy.func` is imported for `func.now()`
 # Ensure `os` is imported for path operations.
 # Ensure `uuid` is imported for `uuid.uuid4()`.
-# Ensure `db` provides all CRUDs as used (e.g. db.create_proforma_invoice, db.get_client_by_id, db.add_client_document etc.)
+# Ensure `proforma_invoices_crud` provides all necessary SQLAlchemy CRUDs.
+# Ensure `get_client_by_id_sqlite`, `add_client_document_sqlite`, etc. are correctly imported from `db`.
+# Ensure `db.utils.get_proforma_invoice_context_data` is correctly imported.
 # Ensure `api.models.User` and `ProformaInvoiceStatusEnum` are correct.
-# Ensure `proforma_invoice_utils.get_proforma_invoice_context_data` and `html_to_pdf_util` are available.
+# Ensure `html_to_pdf_util` is available.
 # Ensure `api.dependencies.get_db` and `get_current_active_user` are correct.
