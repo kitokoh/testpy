@@ -838,6 +838,31 @@ def initialize_database():
         UNIQUE (client_id, forwarder_id)
     )""")
 
+    # Create Invoices table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Invoices (
+        invoice_id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        project_id TEXT,
+        document_id TEXT,
+        invoice_number TEXT NOT NULL UNIQUE,
+        issue_date DATE NOT NULL,
+        due_date DATE NOT NULL,
+        total_amount REAL NOT NULL,
+        currency TEXT NOT NULL,
+        payment_status TEXT NOT NULL DEFAULT 'unpaid',
+        payment_date DATE,
+        payment_method TEXT,
+        transaction_id TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES Projects (project_id) ON DELETE SET NULL,
+        FOREIGN KEY (document_id) REFERENCES ClientDocuments (document_id) ON DELETE SET NULL
+    )
+    """)
+
     # Partner Tables (definitions from ca.py which appear to be more up-to-date or matching schema.py's newer ones)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS PartnerCategories (
@@ -1024,6 +1049,12 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_document_type_generated ON ClientDocuments(document_type_generated)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_source_template_id ON ClientDocuments(source_template_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_order_identifier ON ClientDocuments(order_identifier)")
+    # Invoices
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON Invoices(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_project_id ON Invoices(project_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_document_id ON Invoices(document_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_payment_status ON Invoices(payment_status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON Invoices(invoice_number)")
     # TeamMembers
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_user_id ON TeamMembers(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_teammembers_is_active ON TeamMembers(is_active)")
