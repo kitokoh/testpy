@@ -658,6 +658,25 @@ class ClientsCRUD(GenericCRUD):
             logging.error(f"Failed to get client notes for client {client_id}: {e}")
             return []
 
+    @_manage_conn
+    def get_total_clients_count(self, conn: sqlite3.Connection = None, include_deleted: bool = False) -> int:
+        cursor = conn.cursor()
+        sql = "SELECT COUNT(client_id) as total_count FROM Clients"
+        conditions = []
+        if not include_deleted:
+            conditions.append("(is_deleted IS NULL OR is_deleted = 0)")
+
+        if conditions: # Though this condition list will only have one item or be empty
+            sql += " WHERE " + " AND ".join(conditions)
+
+        try:
+            cursor.execute(sql)
+            row = cursor.fetchone()
+            return row['total_count'] if row else 0
+        except sqlite3.Error as e:
+            logging.error(f"Error getting total clients count (include_deleted={include_deleted}): {e}", exc_info=True)
+            return 0
+
 # Instantiate the CRUD class for easy import and use elsewhere
 clients_crud_instance = ClientsCRUD()
 
@@ -677,9 +696,11 @@ get_clients_by_archival_status = clients_crud_instance.get_clients_by_archival_s
 get_active_clients_per_country = clients_crud_instance.get_active_clients_per_country
 add_client_note = clients_crud_instance.add_client_note
 get_client_notes = clients_crud_instance.get_client_notes
+get_total_clients_count = clients_crud_instance.get_total_clients_count
 
 __all__ = [
     "add_client",
+    "get_total_clients_count", # Added
     "get_client_by_id",
     "get_all_clients",
     "update_client",

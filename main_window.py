@@ -15,17 +15,19 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
-from PyQt5.QtWebEngineWidgets import QWebEngineView # For integrated map
-from PyQt5.QtWebChannel import QWebChannel
+# QWebEngineView might still be used by ClientWidget or other parts, so keep for now unless confirmed unused.
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+# from PyQt5.QtWebChannel import QWebChannel # QWebChannel removed as DocumentManager no longer uses its own map.
 
-import db as db_manager # Keep for non-refactored CRUDs and general utils
+import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.products_crud import products_crud_instance # Import products instance
+from db.cruds.products_crud import products_crud_instance
 import icons_rc
-import folium # For map generation
-from statistics_module import MapInteractionHandler
+# import folium # No longer used directly by DocumentManager for its own map
+# from statistics_module import MapInteractionHandler # DocumentManager no longer has its own map handler instance
 from app_setup import APP_ROOT_DIR, CONFIG
-from ui_components import StatisticsWidget, StatusDelegate
+# from ui_components import StatisticsWidget # StatisticsWidget removed from main_layout
+from ui_components import StatusDelegate # Still used for QListWidget
 from document_manager_logic import (
     handle_create_client_execution,
     load_and_display_clients,
@@ -142,9 +144,10 @@ class SettingsDialog(OriginalSettingsDialog):
     def update_forwarder_button_states(self): en=bool(self.forwarders_table.selectedItems()); self.edit_forwarder_btn.setEnabled(en); self.delete_forwarder_btn.setEnabled(en)
 
 class DocumentManager(QMainWindow):
-    def __init__(self, app_root_dir):
+    def __init__(self, app_root_dir, current_user_id):
         super().__init__()
         self.app_root_dir = app_root_dir
+        self.current_user_id = current_user_id
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
         self.setWindowIcon(QIcon.fromTheme("folder-documents"))
         
@@ -159,28 +162,45 @@ class DocumentManager(QMainWindow):
         self.current_offset = 0
         self.limit_per_page = 50
         
-        self.map_view_integrated = QWebEngineView()
-        self.map_interaction_handler_integrated = MapInteractionHandler(self)
-        self.map_interaction_handler_integrated.country_clicked_signal.connect(self.prepare_new_client_for_country)
-        self.map_interaction_handler_integrated.client_clicked_on_map_signal.connect(self.process_client_map_selection)
-        self.web_channel_integrated = QWebChannel(self.map_view_integrated.page())
-        self.map_view_integrated.page().setWebChannel(self.web_channel_integrated)
-        self.web_channel_integrated.registerObject("pyMapConnector", self.map_interaction_handler_integrated)
+        # Removed map_view_integrated, map_interaction_handler_integrated, and web_channel_integrated
 
         self.setup_ui_main()
         self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
         self.main_area_stack.addWidget(self.project_management_widget_instance)
+
         self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
+        # Connect signals from StatisticsDashboard
+        self.statistics_dashboard_instance.request_add_client_for_country.connect(self.handle_add_client_from_stats_map)
+        self.statistics_dashboard_instance.request_view_client_details.connect(self.handle_view_client_from_stats_map)
         self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+
         self.partner_management_widget_instance = PartnerMainWidget(parent=self)
         self.main_area_stack.addWidget(self.partner_management_widget_instance)
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         self.create_actions_main(); self.create_menus_main()
         
         self.load_clients_from_db_slot() # Initial load
-        if self.stats_widget: self.stats_widget.update_stats()
-        self.update_integrated_map()
+        # if self.stats_widget: self.stats_widget.update_stats() # self.stats_widget removed
+        # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
+
+    @pyqtSlot(str)
+    def handle_add_client_from_stats_map(self, country_name_str):
+        logging.info(f"Handling request to add client for country: {country_name_str} from statistics map.")
+        dialog = AddNewClientDialog(initial_country_name=country_name_str, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            client_data = dialog.get_data()
+            if client_data:
+                # Assuming handle_create_client_execution is available and appropriate
+                handle_create_client_execution(self, client_data_dict=client_data)
+                # self.load_clients_from_db_slot() # Refresh client list after adding
+
+    @pyqtSlot(str)
+    def handle_view_client_from_stats_map(self, client_id_str):
+        logging.info(f"Handling request to view client ID: {client_id_str} from statistics map.")
+        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
+        self.open_client_tab_by_id(client_id_str)
 
     def notify(self, title, message, type='INFO', duration=5000, icon_path=None):
 
@@ -210,24 +230,53 @@ class DocumentManager(QMainWindow):
     def setup_ui_main(self): 
         central_widget = QWidget(); self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget); main_layout.setContentsMargins(10,10,10,10); main_layout.setSpacing(10)
-        self.stats_widget = StatisticsWidget(); main_layout.addWidget(self.stats_widget)
+        # self.stats_widget = StatisticsWidget(); main_layout.addWidget(self.stats_widget) # Removed
+
         self.main_area_stack = QStackedWidget(); main_layout.addWidget(self.main_area_stack)
-        self.documents_page_widget = QWidget(); main_splitter = QSplitter(Qt.Horizontal, self.documents_page_widget)
-        left_pane_widget = QWidget(); left_pane_layout = QVBoxLayout(left_pane_widget); left_pane_layout.setContentsMargins(0,0,0,0)
         
-        filter_search_group = QGroupBox(self.tr("Filtres et Recherche Clients")); filter_search_layout = QFormLayout(filter_search_group)
+        self.documents_page_widget = QWidget()
+        main_splitter = QSplitter(Qt.Horizontal, self.documents_page_widget) # This splitter is for client list and client details view
+
+        left_pane_widget = QWidget()
+        left_pane_layout = QVBoxLayout(left_pane_widget)
+        left_pane_layout.setContentsMargins(0,0,0,0)
+
+        # Filter Search Group - Re-layout to QHBoxLayout
+        filter_search_group = QGroupBox(self.tr("Filtres et Recherche Clients"))
+        filter_search_main_layout = QHBoxLayout(filter_search_group) # Changed to QHBoxLayout
+
+        # Status Filter
+        status_filter_layout = QVBoxLayout() # Using QVBoxLayout for label on top
+        status_label = QLabel(self.tr("Statut:"))
         self.status_filter_combo = QComboBox(); self.status_filter_combo.addItem(self.tr("Tous les statuts"), None)
         self.load_statuses_into_filter_combo(); self.status_filter_combo.currentIndexChanged.connect(self.filter_client_list_display_slot)
-        filter_search_layout.addRow(self.tr("Statut:"), self.status_filter_combo)
+        status_filter_layout.addWidget(status_label)
+        status_filter_layout.addWidget(self.status_filter_combo)
+        filter_search_main_layout.addLayout(status_filter_layout)
+
+        # Archive Filter
+        archive_filter_layout = QVBoxLayout()
+        archive_label = QLabel(self.tr("Filtre Archive:"))
         self.client_archive_filter_combo = QComboBox()
         self.client_archive_filter_combo.addItem(self.tr("Clients Actifs"), False)
         self.client_archive_filter_combo.addItem(self.tr("Clients Archivés (supprimés logiquement)"), True)
         self.client_archive_filter_combo.addItem(self.tr("Tout"), "all_status_types")
         self.client_archive_filter_combo.setCurrentIndex(0); self.client_archive_filter_combo.currentIndexChanged.connect(self.filter_client_list_display_slot)
-        filter_search_layout.addRow(self.tr("Filtre Archive:"), self.client_archive_filter_combo)
+        archive_filter_layout.addWidget(archive_label)
+        archive_filter_layout.addWidget(self.client_archive_filter_combo)
+        filter_search_main_layout.addLayout(archive_filter_layout)
+
+        # Search Input
+        search_layout = QVBoxLayout()
+        search_label = QLabel(self.tr("Recherche:"))
         self.search_input_field = QLineEdit(); self.search_input_field.setPlaceholderText(self.tr("Rechercher client..."))
         self.search_input_field.textChanged.connect(self.filter_client_list_display_slot) 
-        filter_search_layout.addRow(self.tr("Recherche:"), self.search_input_field); left_pane_layout.addWidget(filter_search_group)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input_field)
+        filter_search_main_layout.addLayout(search_layout)
+
+        filter_search_main_layout.addStretch(1) # Add stretch to push filters to the left
+        left_pane_layout.addWidget(filter_search_group)
         
         self.client_list_widget = QListWidget(); self.client_list_widget.setAlternatingRowColors(True) 
         self.client_list_widget.setItemDelegate(StatusDelegate(self.client_list_widget))
@@ -241,12 +290,24 @@ class DocumentManager(QMainWindow):
         left_pane_layout.addLayout(pagination_layout)
         
         self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client")); self.add_new_client_button.setIcon(QIcon(":/icons/user-add.svg")); self.add_new_client_button.setObjectName("primaryButton"); self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog); left_pane_layout.addWidget(self.add_new_client_button)
-        map_group_box = QGroupBox(self.tr("Carte des Présences Client")); map_layout = QVBoxLayout(map_group_box); map_layout.addWidget(self.map_view_integrated); map_group_box.setMinimumHeight(200); left_pane_layout.addWidget(map_group_box, 1)
-        left_pane_widget.setLayout(left_pane_layout); main_splitter.addWidget(left_pane_widget)
-        right_pane_splitter = QSplitter(Qt.Vertical)
-        self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True); self.client_tabs_widget.tabCloseRequested.connect(self.close_client_tab); right_pane_splitter.addWidget(self.client_tabs_widget)
-        main_splitter.addWidget(right_pane_splitter); main_splitter.setSizes([int(self.width()*0.35), int(self.width()*0.65)])
-        docs_page_layout = QVBoxLayout(self.documents_page_widget); docs_page_layout.addWidget(main_splitter); docs_page_layout.setContentsMargins(0,0,0,0); self.documents_page_widget.setLayout(docs_page_layout)
+
+        # map_group_box removed from here
+        left_pane_widget.setLayout(left_pane_layout)
+        main_splitter.addWidget(left_pane_widget)
+
+        # Right pane for client tabs (no change here, it's a QSplitter itself)
+        right_pane_splitter = QSplitter(Qt.Vertical) # This was already a QSplitter, good.
+        self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True); self.client_tabs_widget.tabCloseRequested.connect(self.close_client_tab)
+        right_pane_splitter.addWidget(self.client_tabs_widget) # Add client tabs to the right_pane_splitter
+        main_splitter.addWidget(right_pane_splitter) # Add the right_pane_splitter to the main_splitter
+
+        main_splitter.setSizes([int(self.width()*0.35), int(self.width()*0.65)]) # Adjust as needed
+
+        docs_page_layout = QVBoxLayout(self.documents_page_widget)
+        docs_page_layout.addWidget(main_splitter)
+        docs_page_layout.setContentsMargins(0,0,0,0)
+        self.documents_page_widget.setLayout(docs_page_layout)
+
         self.main_area_stack.addWidget(self.documents_page_widget)
 
     def open_add_new_client_dialog(self):
@@ -265,15 +326,17 @@ class DocumentManager(QMainWindow):
         self.product_equivalency_action = QAction(QIcon.fromTheme("document-properties", QIcon(":/icons/modern/link.svg")), self.tr("Gérer Équivalences Produits"), self); self.product_equivalency_action.triggered.connect(self.open_product_equivalency_dialog)
         self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product List"), self); self.product_list_action.triggered.connect(self.open_product_list_placeholder)
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self); self.partner_management_action.triggered.connect(self.show_partner_management_view)
+        self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
 
     def create_menus_main(self): 
         menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addAction(self.product_equivalency_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
-        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action)
+        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
     def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
+    def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
     def execute_create_client_slot(self, client_data_dict=None):
@@ -372,15 +435,21 @@ class DocumentManager(QMainWindow):
 
         if 'country' not in client_data_to_show and client_data_to_show.get('country_id'):
             country_obj = db_manager.get_country_by_id(client_data_to_show['country_id'])
-            client_data_to_show['country'] = country_obj['country_name'] if country_obj else "N/A"
+            client_data_to_show['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
         if 'city' not in client_data_to_show and client_data_to_show.get('city_id'):
             city_obj = db_manager.get_city_by_id(client_data_to_show['city_id'])
-            client_data_to_show['city'] = city_obj['city_name'] if city_obj else "N/A"
+            client_data_to_show['city'] = city_obj.get('city_name', "N/A") if city_obj else "N/A"
         if 'status' not in client_data_to_show and client_data_to_show.get('status_id'):
             status_obj = db_manager.get_status_setting_by_id(client_data_to_show['status_id'])
-            client_data_to_show['status'] = status_obj['status_name'] if status_obj else "N/A"
-        if 'selected_languages' in client_data_to_show and isinstance(client_data_to_show['selected_languages'], str):
-            client_data_to_show['selected_languages'] = client_data_to_show['selected_languages'].split(',')
+            client_data_to_show['status'] = status_obj.get('status_name', "N/A") if status_obj else "N/A"
+
+        # Ensure selected_languages is a list, even if it's null/empty from DB
+        selected_languages_str = client_data_to_show.get('selected_languages')
+        if isinstance(selected_languages_str, str) and selected_languages_str.strip():
+            client_data_to_show['selected_languages'] = [lang.strip() for lang in selected_languages_str.split(',') if lang.strip()]
+        elif not isinstance(client_data_to_show.get('selected_languages'), list): # If it's not a list already (e.g. None or empty string from .get())
+            client_data_to_show['selected_languages'] = []
+
 
         for i in range(self.client_tabs_widget.count()):
             tab_widget_ref = self.client_tabs_widget.widget(i) 
@@ -448,58 +517,11 @@ class DocumentManager(QMainWindow):
     def open_product_list_placeholder(self): ProductListDialog(self).exec_()
     def closeEvent(self, event): save_config(self.config); super().closeEvent(event)
 
-    def process_client_map_selection(self, client_id, client_name):
-        if hasattr(self, 'collapsible_stats_widget'): self.collapsible_stats_widget.collapse_panel()
-        self.open_client_tab_by_id(client_id)
-
-    def update_integrated_map(self):
-        try:
-            clients_by_country_counts = clients_crud_instance.get_client_counts_by_country(include_deleted=False)
-            active_clients_map = clients_crud_instance.get_active_clients_per_country(include_deleted=False)
-            data_for_map = {"country_name": [], "client_count": []}
-            for entry in clients_by_country_counts:
-                data_for_map["country_name"].append(entry["country_name"]); data_for_map["client_count"].append(entry["client_count"])
-            geojson_path = os.path.join(self.app_root_dir, "assets", "world_countries.geojson")
-            if not os.path.exists(geojson_path): logging.error(f"GeoJSON not found: {geojson_path}"); m=folium.Map(location=[20,0],zoom_start=2); self.map_view_integrated.setHtml(m.get_root().render()); return
-            m = folium.Map(location=[20,0],zoom_start=2,tiles="cartodb positron")
-            if data_for_map["country_name"]:
-                import pandas as pd
-                df = pd.DataFrame(data_for_map)
-                choropleth = folium.Choropleth(geo_data=geojson_path,name="choropleth",data=df,columns=["country_name","client_count"],key_on="feature.properties.name",fill_color="YlGnBu",fill_opacity=0.7,line_opacity=0.2,legend_name=self.tr("Nombre de Clients par Pays"),highlight=True).add_to(m)
-                folium.features.GeoJsonTooltip(fields=['name'], aliases=['Pays:'], localize=True).add_to(choropleth.geojson)
-            popup_layer = folium.GeoJson(geojson_path,name=self.tr("Informations Clients"),style_function=lambda x:{'fillColor':'transparent','color':'transparent','weight':0},tooltip=None)
-            for feature in popup_layer.data.get('features',[]):
-                country_name=feature.get('properties',{}).get('name')
-                if not country_name: continue
-                total_clients_in_country=next((e['client_count'] for e in clients_by_country_counts if e['country_name']==country_name),0)
-                active_clients_in_country=active_clients_map.get(country_name,[])
-                popup_html=f"<b>{country_name}</b><br>{self.tr('Clients (Total)')}: {total_clients_in_country}<br>"
-                if active_clients_in_country:
-                    popup_html+=f"<br><b>{self.tr('Clients Actifs')}:</b><ul>"
-                    for client in active_clients_in_country: js_safe_name=client['client_name'].replace("'","\\'").replace('"','\\"'); popup_html+=f"<li><a href='#' onclick='onClientClick(\"{client['client_id']}\",\"{js_safe_name}\")'>{client['client_name']}</a></li>"
-                    popup_html+="</ul>"
-                # Refactor to simplify the f-string for the button
-                js_onclick_country_name = country_name.replace("'", "\\'") # As per original logic for JS string
-                button_text_translation = self.tr('Ajouter Client Ici')
-                button_html = f"<br><button onclick='onCountryFeatureClick(\"{js_onclick_country_name}\")'>{button_text_translation}</button>"
-                popup_html += button_html
-                feature['properties']['popup_content']=popup_html
-            popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content'])); popup_layer.add_to(m)
-            if data_for_map["country_name"]: folium.LayerControl().add_to(m)
-            js_script = f"""<script> ... </script>""" # Keep existing JS
-            html_map = m.get_root().render() + js_script.replace("...", "{ ... }") # Ensure JS is valid
-            self.map_view_integrated.setHtml(html_map); logging.info("Integrated map updated.")
-        except Exception as e: logging.error(f"Error updating map: {e}",exc_info=True); error_map=folium.Map(); folium.Marker([0,0],popup=f"Error: {e}").add_to(error_map); self.map_view_integrated.setHtml(error_map.get_root().render())
-
-    @pyqtSlot(str)
-    def prepare_new_client_for_country(self, country_name_str):
-        dialog = AddNewClientDialog(initial_country_name=country_name_str, parent=self)
-        if dialog.exec_() == QDialog.Accepted and (client_data := dialog.get_data()):
-            handle_create_client_execution(self, client_data_dict=client_data)
-        else: print(f"Client creation cancelled for: {country_name_str}")
+    # process_client_map_selection and prepare_new_client_for_country removed as they were for the integrated map.
+    # update_integrated_map method also removed.
 
     def load_countries_into_combo(self):
-        if hasattr(self,'country_select_combo'): self.country_select_combo.clear(); # ... (rest of method unchanged)
+        if hasattr(self,'country_select_combo'): self.country_select_combo.clear(); # ... (rest of method unchanged) # This combo is part of AddNewClientDialog now.
     def load_cities_for_country(self, country_name_str):
         if hasattr(self,'city_select_combo'): self.city_select_combo.clear(); # ... (rest of method unchanged)
     def add_new_country_dialog(self): # ... (unchanged)
