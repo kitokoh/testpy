@@ -128,7 +128,7 @@ class ClientWidget(QWidget):
         info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
         info_container_layout.setSpacing(10) # Adjust spacing as needed
 
-        self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
+        self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
         self.header_label.setObjectName("clientHeaderLabel")
         info_container_layout.addWidget(self.header_label)
 
@@ -1787,7 +1787,10 @@ class ClientWidget(QWidget):
         self.doc_table.setVisible(False)
 
         client_id = self.client_info.get("client_id")
-        if not client_id: return
+        if not client_id:
+            if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
+            logging.warning("populate_doc_table: client_id is missing from client_info.")
+            return
 
         order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
         is_distributor_type = self.client_info.get('category') == 'Distributeur'
@@ -1840,16 +1843,25 @@ class ClientWidget(QWidget):
         client_documents = db_manager.get_documents_for_client(client_id, filters=filters)
         client_documents = client_documents if client_documents else []
 
+        base_client_path = self.client_info.get("base_folder_path")
+        if not base_client_path or not os.path.isdir(base_client_path):
+            logging.error(f"populate_doc_table: base_folder_path '{base_client_path}' is missing or not a directory for client_id {client_id}.")
+            if hasattr(self, 'documents_empty_label'):
+                self.documents_empty_label.setText(self.tr("Erreur: Dossier client de base non trouvé ou inaccessible."))
+                self.documents_empty_label.setVisible(True)
+            self.doc_table.setVisible(False)
+            return
+
         if not client_documents:
-            if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
+            if hasattr(self, 'documents_empty_label'):
+                 self.documents_empty_label.setText(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+                 self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
             return
 
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
         self.doc_table.setVisible(True)
         self.doc_table.setRowCount(len(client_documents))
-
-        base_client_path = self.client_info["base_folder_path"]
 
         for row_idx, doc_data in enumerate(client_documents):
             document_id = doc_data.get('document_id')
@@ -1861,23 +1873,30 @@ class ClientWidget(QWidget):
             # This assumes path_relative is like "lang_code/filename.ext" OR part of a deeper structure if order_identifier is used
             # For now, let's simplify and assume file_path_relative from DB is just "lang/filename.ext"
             # The full path construction will handle the order subfolder.
-            language_code = "N/A"
-            path_parts = file_path_relative_from_db.split(os.sep)
-            if len(path_parts) > 1: # Expecting at least lang/file.ext
-                language_code = path_parts[0] # First part is language
+            language_code = doc_data.get('language_code', "N/A") # Prefer direct field if available
+            if language_code == "N/A" and file_path_relative_from_db: # Fallback to inferring from path
+                path_parts = file_path_relative_from_db.split(os.sep)
+                if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
+                    language_code = path_parts[0]
 
             # Construct full_file_path
             full_file_path = ""
-            if order_identifier_for_doc:
-                safe_order_subfolder = order_identifier_for_doc.replace(':', '_').replace(' ', '_')
-                # file_path_relative_from_db here should be like "lang/doc.pdf"
-                full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
+            if file_path_relative_from_db: # Only proceed if relative path exists
+                if order_identifier_for_doc:
+                    safe_order_subfolder = str(order_identifier_for_doc).replace(':', '_').replace(' ', '_')
+                    full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
+                else:
+                    full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+
+                if not os.path.exists(full_file_path):
+                    logging.warning(f"Document file path does not exist: {full_file_path} for doc_id {document_id}")
+                    # Optionally mark this row differently or skip
             else:
-                # file_path_relative_from_db here is like "lang/doc.pdf"
-                full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+                logging.warning(f"Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
+
 
             name_item = QTableWidgetItem(doc_name)
-            name_item.setData(Qt.UserRole, full_file_path) # Store full path for actions
+            name_item.setData(Qt.UserRole, full_file_path if full_file_path else None) # Store full path or None
 
             file_type_str = doc_data.get('document_type_generated', 'N/A') # Or derive from extension
             created_at_str = doc_data.get('created_at', '')
