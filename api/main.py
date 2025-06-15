@@ -3,7 +3,8 @@ from . import templates
 from . import documents
 from . import auth as auth_router_module
 from . import products # New import for the products router
-from . import proformas # New import for the proformas router
+from . import payments # Import for the payments router
+
 
 app = FastAPI(
     title="ClientDocManager API",
@@ -24,6 +25,7 @@ app.include_router(templates.router)
 app.include_router(documents.router)
 app.include_router(auth_router_module.router)
 app.include_router(products.router) # Register the new products router
-app.include_router(proformas.router) # Register the new proformas router
+app.include_router(payments.router, prefix="/api/v1/payments", tags=["Payments Management"]) # Register the payments router
+
 
 # Further routers will be added here (for documents, auth, etc.)

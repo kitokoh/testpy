@@ -4,6 +4,8 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, 
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+from datetime import date, datetime
 from typing import Optional, List, Dict, Any # Keep existing Pydantic imports for now
 
 # SQLAlchemy Base
@@ -282,3 +284,45 @@ class LinkMediaToProductRequest(BaseModel):
 
 class ReorderProductMediaLinksRequest(BaseModel):
     ordered_media_item_ids: List[str] = Field(..., description="List of media_item_ids in the new desired display order.")
+
+# Models for Invoices
+class InvoiceBase(BaseModel):
+    client_id: str
+    project_id: Optional[str] = None
+    document_id: Optional[str] = None
+    invoice_number: str
+    issue_date: date
+    due_date: date
+    total_amount: float
+    currency: str
+    payment_status: Optional[str] = "unpaid"
+    payment_date: Optional[date] = None
+    payment_method: Optional[str] = None
+    transaction_id: Optional[str] = None
+    notes: Optional[str] = None
+
+class InvoiceCreate(InvoiceBase):
+    pass
+
+class InvoiceUpdate(BaseModel):
+    client_id: Optional[str] = None
+    project_id: Optional[str] = None
+    document_id: Optional[str] = None
+    invoice_number: Optional[str] = None
+    issue_date: Optional[date] = None
+    due_date: Optional[date] = None
+    total_amount: Optional[float] = None
+    currency: Optional[str] = None
+    payment_status: Optional[str] = None
+    payment_date: Optional[date] = None
+    payment_method: Optional[str] = None
+    transaction_id: Optional[str] = None
+    notes: Optional[str] = None
+
+class Invoice(InvoiceBase):
+    invoice_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
