@@ -27,6 +27,8 @@ from PyPDF2 import PdfMerger
 from reportlab.pdfgen import canvas
 
 import db as db_manager
+from db.cruds.template_categories_crud import get_all_template_categories
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -34,6 +36,7 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 from utils import populate_docx_template, load_config as utils_load_config, save_config as utils_save_config
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog
 
+import icons_rc # Import for Qt resource file
 # APP_ROOT_DIR is now passed to CompilePdfDialog constructor where needed.
 import shutil # Ensure shutil is imported
 # from main import get_notification_manager # Line removed
@@ -354,7 +357,7 @@ class SettingsDialog(QDialog):
         self.setup_ui_settings()
 
     def setup_ui_settings(self):
-        layout = QVBoxLayout(self); tabs_widget = QTabWidget(); layout.addWidget(tabs_widget)
+        layout = QVBoxLayout(self); self.tabs_widget = QTabWidget(); layout.addWidget(self.tabs_widget)
         general_tab_widget = QWidget(); general_form_layout = QFormLayout(general_tab_widget)
         self.templates_dir_input = QLineEdit(self.current_config_data["templates_dir"])
         templates_browse_btn = QPushButton(self.tr("Parcourir...")); templates_browse_btn.clicked.connect(lambda: self.browse_directory_for_input(self.templates_dir_input, self.tr("Sélectionner dossier modèles")))
@@ -400,7 +403,7 @@ class SettingsDialog(QDialog):
         self.google_maps_url_input.setPlaceholderText(self.tr("Entrez l'URL complète pour les avis Google Maps"))
         general_form_layout.addRow(self.tr("Lien Avis Google Maps:"), self.google_maps_url_input)
 
-        tabs_widget.addTab(general_tab_widget, self.tr("Général"))
+        self.tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
         email_form_layout.addRow(self.tr("Serveur SMTP:"), self.smtp_server_input_field)
@@ -410,8 +413,8 @@ class SettingsDialog(QDialog):
         email_form_layout.addRow(self.tr("Utilisateur SMTP:"), self.smtp_user_input_field)
         self.smtp_pass_input_field = QLineEdit(self.current_config_data.get("smtp_password", "")); self.smtp_pass_input_field.setEchoMode(QLineEdit.Password)
         email_form_layout.addRow(self.tr("Mot de passe SMTP:"), self.smtp_pass_input_field)
-        tabs_widget.addTab(email_tab_widget, self.tr("Email"))
-        self.company_tab = CompanyTabWidget(self); tabs_widget.addTab(self.company_tab, self.tr("Company Details"))
+        self.tabs_widget.addTab(email_tab_widget, self.tr("Email"))
+        self.company_tab = CompanyTabWidget(self); self.tabs_widget.addTab(self.company_tab, self.tr("Company Details"))
         dialog_button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         ok_settings_button = dialog_button_box.button(QDialogButtonBox.Ok); ok_settings_button.setText(self.tr("OK")); ok_settings_button.setObjectName("primaryButton")
         cancel_settings_button = dialog_button_box.button(QDialogButtonBox.Cancel); cancel_settings_button.setText(self.tr("Annuler"))
@@ -512,7 +515,7 @@ class TemplateDialog(QDialog):
     def populate_category_filter(self):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
         try:
-            categories = db_manager.get_all_template_categories()
+            categories = get_all_template_categories()
             if categories:
                 for category in categories:
                     self.category_filter_combo.addItem(category['category_name'], category['category_id'])
@@ -523,8 +526,8 @@ class TemplateDialog(QDialog):
     def populate_language_filter(self):
         self.language_filter_combo.addItem(self.tr("All Languages"), "all")
         try:
-            # Assuming db_manager.get_distinct_template_languages() returns a list of language code strings
-            languages = db_manager.get_distinct_template_languages()
+            # Assuming get_distinct_template_languages() returns a list of language code strings
+            languages = get_distinct_template_languages()
             if languages:
                 for lang_code_tuple in languages: # get_distinct_template_languages might return list of tuples
                     lang_code = lang_code_tuple[0]
@@ -544,8 +547,8 @@ class TemplateDialog(QDialog):
             # Add more types as needed
         }
         try:
-            # Assuming db_manager.get_distinct_template_types() returns a list of type strings
-            doc_types = db_manager.get_distinct_template_types()
+            # Assuming get_distinct_template_types() returns a list of type strings
+            doc_types = get_distinct_template_types()
             if doc_types:
                 for type_tuple in doc_types: # get_distinct_template_types might return list of tuples
                     db_type = type_tuple[0]
@@ -595,7 +598,7 @@ class TemplateDialog(QDialog):
         effective_language_code = language_filter if language_filter != "all" else None
         effective_template_type = type_filter if type_filter != "all" else None
 
-        all_templates_from_db = db_manager.get_filtered_templates(
+        all_templates_from_db = get_filtered_templates(
             category_id=effective_category_id,
             language_code=effective_language_code,
             template_type=effective_template_type
