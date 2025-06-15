@@ -21,6 +21,7 @@ from PyQt5.QtWebChannel import QWebChannel # Retain for ClientWidget if it uses 
 import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.products_crud import products_crud_instance
+
 from db.cruds.products_crud import products_crud_instance # Import products instance
 from db.cruds.transporters_crud import get_all_transporters # Added import
 from db.cruds.freight_forwarders_crud import get_all_freight_forwarders # Added import

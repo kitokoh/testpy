@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import logging
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QSplitter, QHBoxLayout,
+    QGroupBox, QFormLayout, QTableWidget, QHeaderView, QTabWidget, QProgressBar,
+    QTableWidgetItem
+)
+from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QWebChannel
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QSplitter, QHBoxLayout)
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
 import os
@@ -11,12 +18,19 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem # Added QTableWidgetItem
 )
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot, QWebChannel
-from PyQt5.QtGui import QIcon # Added QIcon
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtGui import QIcon # Added QIconfrom PyQt5.QtWebEngineWidgets import QWebEngineView
 
 import folium
 import pandas as pd
 
+# from db.cruds.clients_crud import clients_crud_instance # Not directly used if kpis_crud is sufficient
+from db.cruds.kpis_crud import (
+    get_total_clients_count, get_active_clients_count_from_kpis,
+    get_total_projects_count_from_kpis, get_active_projects_count_from_kpis,
+    get_total_products_count_from_kpis, get_client_segmentation_by_city_from_kpis,
+    get_client_segmentation_by_status_from_kpis, get_client_segmentation_by_category_from_kpis,
+    get_client_counts_by_country_from_kpis
+)
 # statistics_panel import will be removed once UI is fully ported
 # from statistics_panel import CollapsibleStatisticsWidget
 from db.cruds.clients_crud import clients_crud_instance
@@ -362,6 +376,10 @@ class StatisticsDashboard(QWidget):
         self._populate_table("category", get_client_segmentation_by_category_from_kpis, ["category", "client_count"])
 
     # --- End of Ported Methods ---
+        # The old update_statistics_map method (which was the display-only map) is now removed.
+        # self.update_map() is the current method for the interactive map.
+
+
 
     def update_statistics_map(self): # This is the old display-only map, will be replaced by update_map
         logging.warning("update_statistics_map called - this should be replaced by update_map for interactive map.")
