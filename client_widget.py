@@ -56,7 +56,7 @@ def _import_main_elements():
         from whatsapp.whatsapp_dialog import SendWhatsAppDialog as WhatsAppDialogModule
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
-        from db import DATABASE_NAME as DB_NAME
+        from config import DATABASE_PATH as DB_PATH_CONFIG # Added line
         MAIN_MODULE_CONTACT_DIALOG = ContactDialog
         MAIN_MODULE_PRODUCT_DIALOG = ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
@@ -64,7 +64,7 @@ def _import_main_elements():
         MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
         MAIN_MODULE_CONFIG = APP_CONFIG
-        MAIN_MODULE_DATABASE_NAME = DB_NAME
+        MAIN_MODULE_DATABASE_NAME = DB_PATH_CONFIG # Changed DB_NAME to DB_PATH_CONFIG
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
         MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
         MAIN_MODULE_SEND_WHATSAPP_DIALOG = WhatsAppDialogModule
