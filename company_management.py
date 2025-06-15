@@ -6,12 +6,14 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QTextEdit,
     QDialogButtonBox, QMessageBox, QComboBox, QFileDialog, QStackedWidget,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QTabWidget
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QTabWidget,
+    QCheckBox, QLabel, QScrollArea # Added for EditPersonnelContactDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QGridLayout
 from contact_manager.sync_service import handle_contact_change_from_platform # For Google Sync
+import logging # Added for logging
 
 # Adjust path to import db_manager from the parent directory / current dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,8 +36,15 @@ try:
         get_personnel_for_company,
         update_company_personnel,
         delete_company_personnel,
+        # Imports for new contact management for personnel
+        get_contacts_for_personnel,      # Already in company_personnel_crud
+        add_personnel_contact,           # Already in company_personnel_crud
+        update_personnel_contact_link,   # Already in company_personnel_crud
+        unlink_contact_from_personnel, # Already in company_personnel_crud
+        # get_personnel_contact_link_details, # This might be needed if editing shows full details
         initialize_database
     )
+    # No need to import central contacts CRUD here, company_personnel_crud handles that.
     db_available = True
     print("Specific db functions imported successfully.")
 except ImportError as e:
@@ -51,12 +60,189 @@ except ImportError as e:
     def get_personnel_for_company(*args, **kwargs): print("DB function get_personnel_for_company unavailable"); return []
     def update_company_personnel(*args, **kwargs): print("DB function update_company_personnel unavailable"); return False
     def delete_company_personnel(*args, **kwargs): print("DB function delete_company_personnel unavailable"); return False
+    # Fallbacks for new functions
+    def get_contacts_for_personnel(*args, **kwargs): print("DB function get_contacts_for_personnel unavailable"); return []
+    def add_personnel_contact(*args, **kwargs): print("DB function add_personnel_contact unavailable"); return None
+    def update_personnel_contact_link(*args, **kwargs): print("DB function update_personnel_contact_link unavailable"); return False
+    def unlink_contact_from_personnel(*args, **kwargs): print("DB function unlink_contact_from_personnel unavailable"); return False
+
     def initialize_database(*args, **kwargs): print("DB function initialize_database unavailable"); pass
 
     print("Failed to import specific db functions. Some features will not work.")
 
 # Define APP_ROOT_DIR
 APP_ROOT_DIR = parent_dir
+logger = logging.getLogger(__name__) # Setup logger for this module
+
+
+class EditPersonnelContactDialog(QDialog):
+    def __init__(self, personnel_id, company_personnel_contact_id=None, contact_data=None, parent=None):
+        super().__init__(parent)
+        self.personnel_id = personnel_id
+        self.company_personnel_contact_id = company_personnel_contact_id
+        self.existing_contact_data = contact_data if contact_data else {}
+
+        self.setWindowTitle(self.tr("Edit Contact") if company_personnel_contact_id else self.tr("Add Contact"))
+        self.setMinimumWidth(500)
+        layout = QVBoxLayout(self)
+
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        form_layout = QFormLayout(scroll_widget)
+
+        # --- Form Fields ---
+        # Link Specific
+        self.is_primary_checkbox = QCheckBox(self.tr("Is Primary Contact"))
+        form_layout.addRow(self.is_primary_checkbox)
+        self.can_receive_docs_checkbox = QCheckBox(self.tr("Can Receive Documents"))
+        form_layout.addRow(self.can_receive_docs_checkbox)
+
+        # Mandatory Contact
+        self.displayName_input = QLineEdit()
+        form_layout.addRow(self.tr("Display Name*:"), self.displayName_input)
+
+        self.show_optional_checkbox = QCheckBox(self.tr("Show Optional Fields"))
+        self.show_optional_checkbox.setChecked(False)
+        self.show_optional_checkbox.stateChanged.connect(self.toggle_optional_fields_visibility)
+        form_layout.addRow(self.show_optional_checkbox)
+
+        self.optional_fields_widgets = []
+
+        def add_optional_field(label_text, widget):
+            label = QLabel(label_text)
+            form_layout.addRow(label, widget)
+            self.optional_fields_widgets.extend([label, widget])
+
+        self.givenName_input = QLineEdit()
+        add_optional_field(self.tr("Given Name:"), self.givenName_input)
+        self.familyName_input = QLineEdit()
+        add_optional_field(self.tr("Family Name:"), self.familyName_input)
+        self.email_input = QLineEdit()
+        add_optional_field(self.tr("Email:"), self.email_input)
+        self.email_type_input = QLineEdit()
+        add_optional_field(self.tr("Email Type:"), self.email_type_input)
+        self.phone_input = QLineEdit()
+        add_optional_field(self.tr("Phone:"), self.phone_input)
+        self.phone_type_input = QLineEdit()
+        add_optional_field(self.tr("Phone Type:"), self.phone_type_input)
+        self.position_input = QLineEdit() # Formerly role for personnel contact
+        add_optional_field(self.tr("Position:"), self.position_input)
+        self.contact_company_name_input = QLineEdit()
+        add_optional_field(self.tr("Contact's Company:"), self.contact_company_name_input)
+        self.contact_notes_input = QTextEdit()
+        self.contact_notes_input.setFixedHeight(60)
+        add_optional_field(self.tr("Notes:"), self.contact_notes_input)
+        self.address_street_input = QLineEdit()
+        add_optional_field(self.tr("Street:"), self.address_street_input)
+        self.address_city_input = QLineEdit()
+        add_optional_field(self.tr("City:"), self.address_city_input)
+        self.address_region_input = QLineEdit()
+        add_optional_field(self.tr("Region/State:"), self.address_region_input)
+        self.address_postalCode_input = QLineEdit()
+        add_optional_field(self.tr("Postal Code:"), self.address_postalCode_input)
+        self.address_country_input = QLineEdit()
+        add_optional_field(self.tr("Country:"), self.address_country_input)
+        self.org_name_input = QLineEdit()
+        add_optional_field(self.tr("Organization Name:"), self.org_name_input)
+        self.org_title_input = QLineEdit()
+        add_optional_field(self.tr("Organization Title:"), self.org_title_input)
+        self.birthday_input = QLineEdit() # Consider QDateEdit
+        add_optional_field(self.tr("Birthday (YYYY-MM-DD):"), self.birthday_input)
+
+        scroll_widget.setLayout(form_layout)
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+
+        self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.dialog_buttons.accepted.connect(self.accept_contact_dialog) # Renamed to avoid clash
+        self.dialog_buttons.rejected.connect(self.reject)
+        layout.addWidget(self.dialog_buttons)
+
+        self.populate_contact_form()
+        self.toggle_optional_fields_visibility()
+
+
+    def toggle_optional_fields_visibility(self):
+        visible = self.show_optional_checkbox.isChecked()
+        for widget in self.optional_fields_widgets:
+            widget.setVisible(visible)
+
+    def populate_contact_form(self):
+        self.is_primary_checkbox.setChecked(self.existing_contact_data.get('is_primary', False))
+        self.can_receive_docs_checkbox.setChecked(self.existing_contact_data.get('can_receive_documents', True))
+        self.displayName_input.setText(self.existing_contact_data.get('displayName', self.existing_contact_data.get('name', '')))
+        # Populate optional fields
+        self.givenName_input.setText(self.existing_contact_data.get('givenName', ''))
+        self.familyName_input.setText(self.existing_contact_data.get('familyName', ''))
+        self.email_input.setText(self.existing_contact_data.get('email', ''))
+        self.email_type_input.setText(self.existing_contact_data.get('email_type', ''))
+        self.phone_input.setText(self.existing_contact_data.get('phone', ''))
+        self.phone_type_input.setText(self.existing_contact_data.get('phone_type', ''))
+        self.position_input.setText(self.existing_contact_data.get('position', ''))
+        self.contact_company_name_input.setText(self.existing_contact_data.get('company_name', ''))
+        self.contact_notes_input.setPlainText(self.existing_contact_data.get('notes', ''))
+        self.address_street_input.setText(self.existing_contact_data.get('address_streetAddress', ''))
+        self.address_city_input.setText(self.existing_contact_data.get('address_city', ''))
+        self.address_region_input.setText(self.existing_contact_data.get('address_region', ''))
+        self.address_postalCode_input.setText(self.existing_contact_data.get('address_postalCode', ''))
+        self.address_country_input.setText(self.existing_contact_data.get('address_country', ''))
+        self.org_name_input.setText(self.existing_contact_data.get('organization_name', ''))
+        self.org_title_input.setText(self.existing_contact_data.get('organization_title', ''))
+        self.birthday_input.setText(self.existing_contact_data.get('birthday_date', ''))
+
+    def accept_contact_dialog(self): # Renamed from accept
+        display_name = self.displayName_input.text().strip()
+        if not display_name:
+            QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Display Name is required."))
+            return
+
+        contact_payload = {
+            'displayName': display_name,
+            'is_primary': self.is_primary_checkbox.isChecked(),
+            'can_receive_documents': self.can_receive_docs_checkbox.isChecked(),
+            'givenName': self.givenName_input.text().strip(),
+            'familyName': self.familyName_input.text().strip(),
+            'email': self.email_input.text().strip(),
+            'email_type': self.email_type_input.text().strip(),
+            'phone': self.phone_input.text().strip(),
+            'phone_type': self.phone_type_input.text().strip(),
+            'position': self.position_input.text().strip(),
+            'company_name': self.contact_company_name_input.text().strip(),
+            'notes': self.contact_notes_input.toPlainText().strip(),
+            'address_streetAddress': self.address_street_input.text().strip(),
+            'address_city': self.address_city_input.text().strip(),
+            'address_region': self.address_region_input.text().strip(),
+            'address_postalCode': self.address_postalCode_input.text().strip(),
+            'address_country': self.address_country_input.text().strip(),
+            'organization_name': self.org_name_input.text().strip(),
+            'organization_title': self.org_title_input.text().strip(),
+            'birthday_date': self.birthday_input.text().strip()
+        }
+
+        # For updates, separate link_data and contact_details_data
+        link_data_for_update = {
+            'is_primary': contact_payload['is_primary'],
+            'can_receive_documents': contact_payload['can_receive_documents']
+        }
+        # contact_details_for_update will be everything else from contact_payload
+        contact_details_for_update = {k: v for k, v in contact_payload.items() if k not in ['is_primary', 'can_receive_documents']}
+
+
+        if self.company_personnel_contact_id: # Editing
+            if update_personnel_contact_link(self.company_personnel_contact_id, link_data=link_data_for_update, contact_details_data=contact_details_for_update):
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact updated successfully."))
+                super().accept() # Use super().accept() to close dialog
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update contact."))
+        else: # Adding
+            new_link_id = add_personnel_contact(self.personnel_id, contact_payload) # add_personnel_contact takes the full payload
+            if new_link_id:
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact added successfully."))
+                super().accept()
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add contact."))
+
 
 LOGO_SUBDIR = "company_logos"
 DEFAULT_LOGO_SIZE = 128
@@ -210,46 +396,161 @@ class PersonnelDialog(QDialog):
         self.company_id = company_id
         self.personnel_data = personnel_data
         self.personnel_id = None
-        self.current_user_id = current_user_id # Store user_id for sync hooks
+        self.current_user_id = current_user_id
 
         self.setWindowTitle(self.tr("Edit Personnel") if personnel_data else self.tr("Add Personnel"))
-        self.setMinimumWidth(350)
-        layout = QFormLayout(self)
-        layout.setSpacing(10)
+        self.setMinimumWidth(450) # Increased width for contacts table
 
+        main_layout = QVBoxLayout(self) # Main layout for the dialog
+
+        # Personnel Details Form
+        details_group = QGroupBox(self.tr("Personnel Details"))
+        form_layout = QFormLayout()
         self.name_edit = QLineEdit()
+        form_layout.addRow(self.tr("Name*:"), self.name_edit)
         self.role_combo = QComboBox()
         self.role_combo.addItems(["seller", "technical_manager", "other"])
         self.role_combo.setEditable(True)
         self.role_combo.setCurrentText(role_default)
-        self.email_edit = QLineEdit()
-        self.phone_edit = QLineEdit()
+        form_layout.addRow(self.tr("Role*:"), self.role_combo)
+        details_group.setLayout(form_layout)
+        main_layout.addWidget(details_group)
 
-        layout.addRow(self.tr("Name:"), self.name_edit)
-        layout.addRow(self.tr("Role:"), self.role_combo)
-        layout.addRow(self.tr("Email:"), self.email_edit)
-        layout.addRow(self.tr("Phone:"), self.phone_edit)
+        # Contacts Management
+        contacts_group = QGroupBox(self.tr("Associated Contacts"))
+        contacts_layout_v = QVBoxLayout()
+        self.contacts_table = QTableWidget()
+        self.contacts_table.setColumnCount(5) # Display Name, Position, Email, Phone, Primary?
+        self.contacts_table.setHorizontalHeaderLabels([self.tr("Display Name"), self.tr("Position"), self.tr("Email"), self.tr("Phone"), self.tr("Primary?")])
+        self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.contacts_table.doubleClicked.connect(self.handle_edit_personnel_contact) # Edit on double click
+        contacts_layout_v.addWidget(self.contacts_table)
 
+        contact_buttons_layout = QHBoxLayout()
+        self.add_contact_btn = QPushButton(self.tr("Add Contact"))
+        self.edit_contact_btn = QPushButton(self.tr("Edit Selected Contact"))
+        self.remove_contact_btn = QPushButton(self.tr("Remove Selected Contact Link"))
+        contact_buttons_layout.addWidget(self.add_contact_btn)
+        contact_buttons_layout.addWidget(self.edit_contact_btn)
+        contact_buttons_layout.addWidget(self.remove_contact_btn)
+        contacts_layout_v.addLayout(contact_buttons_layout)
+        contacts_group.setLayout(contacts_layout_v)
+        main_layout.addWidget(contacts_group)
+
+        # Dialog Buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        main_layout.addWidget(self.button_box)
+
+        # Connect signals
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addRow(self.button_box)
+        self.add_contact_btn.clicked.connect(self.handle_add_personnel_contact)
+        self.edit_contact_btn.clicked.connect(self.handle_edit_personnel_contact) # Explicit edit button
+        self.remove_contact_btn.clicked.connect(self.handle_remove_personnel_contact_link)
+
 
         if self.personnel_data:
             self.personnel_id = self.personnel_data.get('personnel_id')
-            self.load_personnel_data()
+            self.load_personnel_data() # This will also load contacts
+        else: # New personnel, disable contact buttons until personnel is saved (or enable if we allow adding contacts before first save)
+            self.add_contact_btn.setEnabled(False)
+            self.edit_contact_btn.setEnabled(False)
+            self.remove_contact_btn.setEnabled(False)
+            self.contacts_table.setEnabled(False)
+
 
     def load_personnel_data(self):
-        # ... (load_personnel_data implementation as before) ...
         self.name_edit.setText(self.personnel_data.get('name', ''))
-        self.email_edit.setText(self.personnel_data.get('email', ''))
-        self.phone_edit.setText(self.personnel_data.get('phone', ''))
         role = self.personnel_data.get('role', '')
         if role in ["seller", "technical_manager", "other"]:
             self.role_combo.setCurrentText(role)
         else:
             self.role_combo.setCurrentText("other")
             self.role_combo.lineEdit().setText(role)
+
+        if self.personnel_id: # Existing personnel, load their contacts
+            self.load_associated_contacts()
+            self.add_contact_btn.setEnabled(True)
+            self.edit_contact_btn.setEnabled(True)
+            self.remove_contact_btn.setEnabled(True)
+            self.contacts_table.setEnabled(True)
+
+    def load_associated_contacts(self):
+        if not self.personnel_id:
+            self.contacts_table.setRowCount(0)
+            return
+
+        contacts = get_contacts_for_personnel(self.personnel_id)
+        self.contacts_table.setRowCount(0)
+        for contact_data in contacts:
+            row_pos = self.contacts_table.rowCount()
+            self.contacts_table.insertRow(row_pos)
+
+            name_item = QTableWidgetItem(contact_data.get('displayName', contact_data.get('name', 'N/A')))
+            name_item.setData(Qt.UserRole, contact_data) # Store full contact data for editing
+
+            self.contacts_table.setItem(row_pos, 0, name_item)
+            self.contacts_table.setItem(row_pos, 1, QTableWidgetItem(contact_data.get('position', '')))
+            self.contacts_table.setItem(row_pos, 2, QTableWidgetItem(contact_data.get('email', '')))
+            self.contacts_table.setItem(row_pos, 3, QTableWidgetItem(contact_data.get('phone', '')))
+            self.contacts_table.setItem(row_pos, 4, QTableWidgetItem("Yes" if contact_data.get('is_primary') else "No"))
+        self.contacts_table.resizeColumnsToContents()
+
+
+    def handle_add_personnel_contact(self):
+        if not self.personnel_id:
+            QMessageBox.warning(self, self.tr("Save Personnel First"), self.tr("Please save the personnel before adding contacts."))
+            return
+        dialog = EditPersonnelContactDialog(personnel_id=self.personnel_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_associated_contacts()
+
+    def handle_edit_personnel_contact(self):
+        selected_row = self.contacts_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Edit Contact"), self.tr("Please select a contact to edit."))
+            return
+
+        item_data = self.contacts_table.item(selected_row, 0).data(Qt.UserRole)
+        if not item_data or 'company_personnel_contact_id' not in item_data:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve contact link details."))
+            return
+
+        dialog = EditPersonnelContactDialog(
+            personnel_id=self.personnel_id,
+            company_personnel_contact_id=item_data['company_personnel_contact_id'],
+            contact_data=item_data, # Pass the full dict
+            parent=self
+        )
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_associated_contacts()
+
+    def handle_remove_personnel_contact_link(self):
+        selected_row = self.contacts_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Remove Contact Link"), self.tr("Please select a contact link to remove."))
+            return
+
+        item_data = self.contacts_table.item(selected_row, 0).data(Qt.UserRole)
+        if not item_data or 'company_personnel_contact_id' not in item_data:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve contact link ID."))
+            return
+
+        company_personnel_contact_id = item_data['company_personnel_contact_id']
+        contact_name = item_data.get('displayName', item_data.get('name', 'this contact'))
+
+        reply = QMessageBox.question(self, self.tr("Confirm Removal"),
+                                     self.tr(f"Are you sure you want to remove the link to contact '{contact_name}'? This will not delete the central contact record."),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if unlink_contact_from_personnel(company_personnel_contact_id):
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact link removed successfully."))
+                self.load_associated_contacts()
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to remove contact link."))
+
 
     def accept(self):
         if not db_available:
@@ -258,55 +559,49 @@ class PersonnelDialog(QDialog):
 
         name = self.name_edit.text().strip()
         role = self.role_combo.currentText().strip()
-        email = self.email_edit.text().strip()
-        phone = self.phone_edit.text().strip()
+        # Email and phone are no longer part of CompanyPersonnel direct fields
+        # email = self.email_edit.text().strip()
+        # phone = self.phone_edit.text().strip()
 
         if not name or not role:
             QMessageBox.warning(self, self.tr("Input Error"), self.tr("Name and role cannot be empty."))
             return
 
-        data = {"company_id": self.company_id, "name": name, "role": role, "email": email, "phone": phone}
+        # Data for CompanyPersonnel table (excluding direct email/phone)
+        data = {"company_id": self.company_id, "name": name, "role": role}
 
-        if self.personnel_id: # Editing
-            success = update_company_personnel(self.personnel_id, data)
+        if self.personnel_id: # Editing existing personnel
+            success = update_company_personnel(self.personnel_id, data) # This CRUD should only update CompanyPersonnel fields
             if success:
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel updated successfully."))
-                if hasattr(self, 'current_user_id') and self.current_user_id:
-                    try:
-                        handle_contact_change_from_platform(
-                            user_id=str(self.current_user_id),
-                            local_contact_id=str(self.personnel_id),
-                            local_contact_type='company_personnel',
-                            change_type='update'
-                        )
-                        print(f"Sync triggered for updated personnel: {self.personnel_id}")
-                    except Exception as e:
-                        print(f"Error triggering sync for updated personnel: {e}")
-                else:
-                    print("Warning: current_user_id not available in PersonnelDialog for update, sync not triggered.")
+                # Sync hooks for personnel's own record (name, role) change can remain if needed,
+                # but not for email/phone as they are removed.
+                # The prompt mentioned adjusting/removing sync hooks for direct email/phone fields.
+                # If other CompanyPersonnel fields (name, role) are synced, that logic would be here.
+                # For now, assume sync is primarily for contact details which are handled separately.
+                # Example of removed sync hook:
+                # if hasattr(self, 'current_user_id') and self.current_user_id:
+                #     handle_contact_change_from_platform(...) for personnel's direct fields
                 super().accept()
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update personnel."))
-        else: # Adding
-            new_personnel_id = add_company_personnel(data)
+        else: # Adding new personnel
+            new_personnel_id = add_company_personnel(data) # This CRUD adds to CompanyPersonnel table
             if new_personnel_id:
-                QMessageBox.information(self, self.tr("Success"), self.tr("Personnel added successfully."))
-                if hasattr(self, 'current_user_id') and self.current_user_id:
-                    try:
-                        handle_contact_change_from_platform(
-                            user_id=str(self.current_user_id),
-                            local_contact_id=str(new_personnel_id),
-                            local_contact_type='company_personnel',
-                            change_type='create'
-                        )
-                        print(f"Sync triggered for new personnel: {new_personnel_id}")
-                    except Exception as e:
-                        print(f"Error triggering sync for new personnel: {e}")
-                else:
-                    print("Warning: current_user_id not available in PersonnelDialog for create, sync not triggered.")
-                super().accept()
+                self.personnel_id = new_personnel_id # Important to set this for the dialog instance
+                QMessageBox.information(self, self.tr("Success"), self.tr("Personnel added successfully. You can now add contacts to this person."))
+                # Enable contact management now that personnel is saved
+                self.add_contact_btn.setEnabled(True)
+                self.edit_contact_btn.setEnabled(True)
+                self.remove_contact_btn.setEnabled(True)
+                self.contacts_table.setEnabled(True)
+                # Sync for the creation of the personnel record itself (not its contacts yet)
+                # if hasattr(self, 'current_user_id') and self.current_user_id:
+                #    handle_contact_change_from_platform(...) for new personnel record
+                super().accept() # Close dialog after successful add
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add personnel."))
+        # Contact saving is now handled by EditPersonnelContactDialog
 
 
 class CompanyDetailsViewWidget(QWidget):
@@ -367,12 +662,37 @@ class CompanyTabWidget(QWidget):
         company_button_grid = QGridLayout(); company_button_grid.addWidget(self.add_company_button, 0, 0); company_button_grid.addWidget(self.edit_company_button, 0, 1); company_button_grid.addWidget(self.delete_company_button, 1, 0); company_button_grid.addWidget(self.set_default_button, 1, 1)
         left_panel_layout.addLayout(company_button_grid)
         self.details_tabs = QTabWidget(); self.company_info_tab = QWidget(); self.company_info_layout = QVBoxLayout(self.company_info_tab); self.company_details_view = None; self.details_tabs.addTab(self.company_info_tab, self.tr("Company Info"))
-        sellers_tab = QWidget(); sellers_layout = QVBoxLayout(sellers_tab); self.sellers_table = QTableWidget(); self.sellers_table.setColumnCount(2); self.sellers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Actions")]); self.sellers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch); self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers); sellers_layout.addWidget(self.sellers_table)
+
+        # Sellers Tab
+        sellers_tab = QWidget(); sellers_layout = QVBoxLayout(sellers_tab)
+        self.sellers_table = QTableWidget()
+        self.sellers_table.setColumnCount(4) # Name, Role, Primary Email, Primary Phone
+        self.sellers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Role"), self.tr("Primary Email"), self.tr("Primary Phone")])
+        self.sellers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.sellers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
+        sellers_layout.addWidget(self.sellers_table)
         seller_btn_layout = QHBoxLayout(); self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller')); self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller')); self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_seller_btn.setObjectName("dangerButton"); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
         seller_btn_layout.addWidget(self.add_seller_btn); seller_btn_layout.addWidget(self.edit_seller_btn); seller_btn_layout.addWidget(self.delete_seller_btn); sellers_layout.addLayout(seller_btn_layout); self.details_tabs.addTab(sellers_tab, self.tr("Sellers"))
-        tech_managers_tab = QWidget(); tech_managers_layout = QVBoxLayout(tech_managers_tab); self.tech_managers_table = QTableWidget(); self.tech_managers_table.setColumnCount(2); self.tech_managers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Actions")]); self.tech_managers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch); self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers); tech_managers_layout.addWidget(self.tech_managers_table)
+
+        # Technical Managers Tab
+        tech_managers_tab = QWidget(); tech_managers_layout = QVBoxLayout(tech_managers_tab)
+        self.tech_managers_table = QTableWidget()
+        self.tech_managers_table.setColumnCount(4) # Name, Role, Primary Email, Primary Phone
+        self.tech_managers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Role"), self.tr("Primary Email"), self.tr("Primary Phone")])
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tech_managers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
+        tech_managers_layout.addWidget(self.tech_managers_table)
         tech_btn_layout = QHBoxLayout(); self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager')); self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager')); self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_tech_btn.setObjectName("dangerButton"); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
         tech_btn_layout.addWidget(self.add_tech_btn); tech_btn_layout.addWidget(self.edit_tech_btn); tech_btn_layout.addWidget(self.delete_tech_btn); tech_managers_layout.addLayout(tech_btn_layout); self.details_tabs.addTab(tech_managers_tab, self.tr("Technical Managers"))
+
         main_layout.addLayout(left_panel_layout, 1); main_layout.addWidget(self.details_tabs, 2)
         self.load_companies(); self.update_personnel_button_states(False)
 
@@ -489,17 +809,42 @@ class CompanyTabWidget(QWidget):
 
 
     def _populate_personnel_table(self, table: QTableWidget, personnel_list: list, append=False):
-        # ... (_populate_personnel_table implementation as before) ...
-        if not append: table.setRowCount(0)
-        for personnel in personnel_list:
-            current_row = table.rowCount(); table.insertRow(current_row)
-            name_item = QTableWidgetItem(personnel.get('name')); name_item.setData(Qt.UserRole, personnel); table.setItem(current_row, 0, name_item)
-            btn_widget = QWidget(); btn_layout = QHBoxLayout(btn_widget)
-            edit_btn = QPushButton(self.tr("Edit")); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg"))))
-            # edit_btn.clicked.connect(...) # Connect these if actions from table rows are needed
-            delete_btn = QPushButton(self.tr("Delete")); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); delete_btn.setObjectName("dangerButtonTable")
-            # delete_btn.clicked.connect(...)
-            btn_layout.addWidget(edit_btn); btn_layout.addWidget(delete_btn); btn_layout.setContentsMargins(0,0,0,0); table.setCellWidget(current_row, 1, btn_widget)
+        if not append:
+            table.setRowCount(0)
+
+        for personnel_record in personnel_list: # personnel_record is from CompanyPersonnel table
+            current_row = table.rowCount()
+            table.insertRow(current_row)
+
+            personnel_id = personnel_record.get('personnel_id')
+            name_item = QTableWidgetItem(personnel_record.get('name'))
+            name_item.setData(Qt.UserRole, personnel_record) # Store full personnel record for edit/delete
+            table.setItem(current_row, 0, name_item)
+            table.setItem(current_row, 1, QTableWidgetItem(personnel_record.get('role', 'N/A')))
+
+            primary_email = self.tr("N/A")
+            primary_phone = self.tr("N/A")
+
+            if personnel_id:
+                # Fetch associated contacts for this personnel
+                contacts = get_contacts_for_personnel(personnel_id)
+                if contacts:
+                    primary_contact = next((c for c in contacts if c.get('is_primary')), None)
+                    if primary_contact:
+                        primary_email = primary_contact.get('email', self.tr("N/A"))
+                        primary_phone = primary_contact.get('phone', self.tr("N/A"))
+                    elif contacts: # No primary, take first contact's details if available
+                        first_contact = contacts[0]
+                        primary_email = first_contact.get('email', self.tr("N/A"))
+                        primary_phone = first_contact.get('phone', self.tr("N/A"))
+
+            table.setItem(current_row, 2, QTableWidgetItem(primary_email))
+            table.setItem(current_row, 3, QTableWidgetItem(primary_phone))
+
+            # Actions column (Edit/Delete for the personnel record itself) is removed from table display
+            # Actions are now handled by buttons below the table (edit_seller_btn, delete_seller_btn etc.)
+            # If row-specific actions were needed, they would be added here.
+
         table.resizeColumnsToContents()
 
 
