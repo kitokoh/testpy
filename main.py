@@ -2,6 +2,7 @@
 import sys
 import os
 import logging # For main.py's own logging needs, and for translator parts if setup_logging isn't called first
+import icons_rc # Import the compiled resource file
 
 # Core PyQt5 imports for application execution
 from PyQt5.QtWidgets import QApplication
@@ -14,6 +15,7 @@ from app_setup import (
     setup_logging, load_stylesheet_global, initialize_default_templates
 )
 from utils import is_first_launch, mark_initial_setup_complete
+from auth.roles import SUPER_ADMIN
 # Import InitialSetupDialog and PromptCompanyInfoDialog
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check

@@ -67,6 +67,29 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_category,
     get_total_clients_count, # Added
 )
+from .cruds.contacts_crud import (
+    get_contacts_for_client,
+    add_contact,
+    get_contact_by_id,
+    get_contact_by_email,
+    get_all_contacts,
+    update_contact,
+    delete_contact,
+    link_contact_to_client,
+    unlink_contact_from_client,
+    get_contacts_for_client_count,
+    get_clients_for_contact,
+    get_specific_client_contact_link_details,
+    update_client_contact_link
+)
+from .cruds.client_project_products_crud import (
+    get_products_for_client_or_project,
+    get_distinct_purchase_confirmed_at_for_client,
+    add_product_to_client_or_project,
+    update_client_project_product,
+    remove_product_from_client_or_project,
+    get_client_project_product_by_id
+)
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
     add_cover_page,
@@ -195,6 +218,25 @@ __all__ = [
     "get_client_segmentation_by_city", # Added
     "get_client_segmentation_by_status", # Added
     "get_client_segmentation_by_category", # Added
+    "get_contacts_for_client",
+    "add_contact",
+    "get_contact_by_id",
+    "get_contact_by_email",
+    "get_all_contacts",
+    "update_contact",
+    "delete_contact",
+    "link_contact_to_client",
+    "unlink_contact_from_client",
+    "get_contacts_for_client_count",
+    "get_clients_for_contact",
+    "get_specific_client_contact_link_details",
+    "update_client_contact_link",
+    "get_products_for_client_or_project",
+    "get_distinct_purchase_confirmed_at_for_client",
+    "add_product_to_client_or_project",
+    "update_client_project_product",
+    "remove_product_from_client_or_project",
+    "get_client_project_product_by_id",
     "get_cover_pages_for_client",
     "add_cover_page",
     "update_cover_page",
