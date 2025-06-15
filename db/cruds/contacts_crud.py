@@ -6,15 +6,19 @@ from .generic_crud import _manage_conn, get_db_connection
 
 # --- Contacts CRUD ---
 @_manage_conn
-def get_contacts_for_client(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+def get_contacts_for_client(client_id: str, limit: int = None, offset: int = 0, conn: sqlite3.Connection = None) -> list[dict]:
     cursor=conn.cursor()
     sql = """SELECT c.*, cc.is_primary_for_client, cc.can_receive_documents
              FROM Contacts c JOIN ClientContacts cc ON c.contact_id = cc.contact_id WHERE cc.client_id = ?"""
+    params = [client_id]
+    if limit is not None:
+        sql += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
     try:
-        cursor.execute(sql, (client_id,))
+        cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Error getting contacts for client {client_id}: {e}")
+        logging.error(f"Error getting contacts for client {client_id} with limit {limit} and offset {offset}: {e}")
         return []
 
 @_manage_conn
