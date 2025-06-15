@@ -19,7 +19,6 @@ from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 # from PyQt5.QtWebChannel import QWebChannel # QWebChannel removed as DocumentManager no longer uses its own map.
 
-
 import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.products_crud import products_crud_instance
@@ -30,6 +29,9 @@ import icons_rc
 from app_setup import APP_ROOT_DIR, CONFIG
 # from ui_components import StatisticsWidget # StatisticsWidget removed from main_layout
 from ui_components import StatusDelegate # Still used for QListWidget
+from map_client_dialog import MapClientDialog # Added for new client from map
+from db import get_country_by_name, get_or_add_country, get_city_by_name_and_country_id, get_or_add_city # Added for DB ops
+
 from document_manager_logic import (
     handle_create_client_execution,
     load_and_display_clients,
@@ -180,9 +182,6 @@ class DocumentManager(QMainWindow):
         self.partner_management_widget_instance = PartnerMainWidget(parent=self)
         self.main_area_stack.addWidget(self.partner_management_widget_instance)
 
-        self.product_management_page_instance = ProductManagementPage(self) # Create instance
-        self.main_area_stack.addWidget(self.product_management_page_instance) # Add to stack
-
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         self.create_actions_main(); self.create_menus_main()
         
@@ -193,14 +192,80 @@ class DocumentManager(QMainWindow):
 
     @pyqtSlot(str)
     def handle_add_client_from_stats_map(self, country_name_str):
-        logging.info(f"Handling request to add client for country: {country_name_str} from statistics map.")
-        dialog = AddNewClientDialog(initial_country_name=country_name_str, parent=self)
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map.")
+        dialog = MapClientDialog(country_name=country_name_str, parent=self)
+
         if dialog.exec_() == QDialog.Accepted:
-            client_data = dialog.get_data()
-            if client_data:
-                # Assuming handle_create_client_execution is available and appropriate
-                handle_create_client_execution(self, client_data_dict=client_data)
-                # self.load_clients_from_db_slot() # Refresh client list after adding
+            client_map_data = dialog.get_data()
+            logging.info(f"MapClientDialog accepted. Data: {client_map_data}")
+
+            country_id = None
+            city_id = None
+
+            # Country Handling
+            try:
+                country_obj = get_country_by_name(client_map_data['country_name'])
+                if country_obj:
+                    country_id = country_obj['country_id']
+                else:
+                    logging.info(f"Country '{client_map_data['country_name']}' not found. Adding it.")
+                    # Using get_or_add_country as it's more robust and returns the dict
+                    new_country_obj = get_or_add_country(client_map_data['country_name'])
+                    if new_country_obj and new_country_obj.get('country_id'):
+                        country_id = new_country_obj['country_id']
+                        logging.info(f"Country '{client_map_data['country_name']}' added with ID {country_id}.")
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer le pays '{0}'.").format(client_map_data['country_name']))
+                        return
+            except Exception as e:
+                logging.error(f"Error handling country '{client_map_data['country_name']}': {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement du pays."))
+                return
+
+            if not country_id: # Should be caught by above, but as a safeguard
+                QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu. Impossible de continuer."))
+                return
+
+            # City Handling
+            city_name_str = client_map_data['city_name']
+            try:
+                # get_city_by_name_and_country_id is not exposed by db/__init__.py in the provided files,
+                # but get_or_add_city is, and is preferred.
+                city_obj = get_or_add_city(city_name_str, country_id)
+                if city_obj and city_obj.get('city_id'):
+                    city_id = city_obj['city_id']
+                    logging.info(f"City '{city_name_str}' found/added with ID {city_id} for country ID {country_id}.")
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer la ville '{0}'.").format(city_name_str))
+                    return
+            except Exception as e:
+                logging.error(f"Error handling city '{city_name_str}': {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement de la ville."))
+                return
+
+            if not city_id: # Safeguard
+                QMessageBox.critical(self, self.tr("Erreur Ville"), self.tr("ID de la ville non obtenu. Impossible de continuer."))
+                return
+
+            # Prepare data for client creation
+            client_data_for_db = {
+                "client_name": client_map_data["client_name"],
+                "company_name": client_map_data.get("company_name"), # Optional
+                "country_id": country_id,
+                "city_id": city_id,
+                "project_identifier": client_map_data.get("project_identifier"), # Optional
+                "primary_need_description": client_map_data.get("primary_need_description"), # Optional
+                "selected_languages": client_map_data.get("selected_languages"), # Optional
+                "created_by_user_id": self.current_user_id
+                # handle_create_client_execution will set defaults for status, folder path, price etc.
+            }
+
+            logging.info(f"Proceeding to call handle_create_client_execution with data: {client_data_for_db}")
+            # This existing method should handle the rest (default status, folder, project, etc.)
+            handle_create_client_execution(self, client_data_dict=client_data_for_db)
+            # self.load_clients_from_db_slot() is called within execute_create_client_slot, which is called by handle_create_client_execution's wrapper in DocumentManager
+        else:
+            logging.info("MapClientDialog cancelled by user.")
 
     @pyqtSlot(str)
     def handle_view_client_from_stats_map(self, client_id_str):
@@ -334,7 +399,8 @@ class DocumentManager(QMainWindow):
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
 
     def create_menus_main(self): 
-        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
+        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); file_menu.addAction(self.product_equivalency_action); file_menu.addSeparator(); file_menu.addAction(self.exit_action)
+
         modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
@@ -342,7 +408,7 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
     def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
-    def show_product_management_page(self): self.main_area_stack.setCurrentWidget(self.product_management_page_instance) # New method
+
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
     def execute_create_client_slot(self, client_data_dict=None):

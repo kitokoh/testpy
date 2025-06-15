@@ -202,3 +202,16 @@ def get_all_cities(country_id: int = None, conn: sqlite3.Connection = None) -> l
     except sqlite3.Error as e:
         logging.error(f"Database error in get_all_cities (country_id={country_id}): {e}")
         return []
+
+__all__ = [
+    "get_country_by_name",
+    "get_country_by_id",
+    "get_or_add_country",
+    "add_country", # Keep for compatibility if used elsewhere, though get_or_add is preferred
+    "get_all_countries",
+    "get_city_by_name_and_country_id",
+    "get_city_by_id",
+    "add_city", # Keep for compatibility
+    "get_or_add_city",
+    "get_all_cities",
+]

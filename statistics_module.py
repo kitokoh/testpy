@@ -17,6 +17,7 @@ import pandas as pd
 from db import (
     get_total_clients_count,
     get_active_clients_count,
+    get_country_by_name, # Added
     get_total_projects_count,
     get_active_projects_count,
     get_total_products_count,
@@ -25,6 +26,7 @@ from db import (
     get_client_segmentation_by_category,
     get_client_counts_by_country
 )
+from db.cruds.clients_crud import clients_crud_instance # Added back
 
 from app_setup import APP_ROOT_DIR
 
@@ -51,9 +53,9 @@ class StatisticsDashboard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Tableau de Bord Statistiques Interactif"))
-        
+
         main_layout = QVBoxLayout(self)
-        
+
         # Global Refresh Button
         self.global_refresh_button = QPushButton(self.tr("Rafraîchir Tout le Tableau de Bord"))
         self.global_refresh_button.setIcon(QIcon.fromTheme("view-refresh", QIcon(":/icons/refresh-cw.svg")))
@@ -62,7 +64,7 @@ class StatisticsDashboard(QWidget):
 
         # Main horizontal splitter
         main_splitter = QSplitter(Qt.Horizontal, self)
-        
+
         # Left widget for Map
         self.left_widget_for_map = QWidget()
         left_map_layout = QVBoxLayout(self.left_widget_for_map)
@@ -71,7 +73,7 @@ class StatisticsDashboard(QWidget):
         left_map_layout.addWidget(self.map_view)
         self.left_widget_for_map.setLayout(left_map_layout)
         main_splitter.addWidget(self.left_widget_for_map)
-        
+
         # Right widget for Stats
         self.right_widget_for_stats = QWidget()
         right_stats_layout = QVBoxLayout(self.right_widget_for_stats)
@@ -79,7 +81,7 @@ class StatisticsDashboard(QWidget):
         # self._setup_stats_display_ui(right_stats_layout) # This will be called later
         self.right_widget_for_stats.setLayout(right_stats_layout)
         main_splitter.addWidget(self.right_widget_for_stats)
-        
+
         main_splitter.setSizes([int(self.width() * 0.6), int(self.width() * 0.4)]) # Initial sizing
         main_layout.addWidget(main_splitter)
         self.setLayout(main_layout)
@@ -88,15 +90,15 @@ class StatisticsDashboard(QWidget):
         self.map_interaction_handler = MapInteractionHandler(self)
         self.map_interaction_handler.country_clicked_signal.connect(self._on_map_country_clicked)
         self.map_interaction_handler.client_clicked_on_map_signal.connect(self._on_map_client_clicked)
-        
+
         web_channel = QWebChannel(self.map_view.page())
         self.map_view.page().setWebChannel(web_channel)
         web_channel.registerObject("pyMapConnector", self.map_interaction_handler)
 
         # Placeholder for ported stats UI setup and initial data load
         self._setup_stats_display_ui(right_stats_layout) # Now call it
-        self.refresh_all_dashboard_content() 
-        
+        self.refresh_all_dashboard_content()
+
         logging.info("StatisticsDashboard initialized with new interactive structure.")
 
     @pyqtSlot(str)
@@ -133,7 +135,7 @@ class StatisticsDashboard(QWidget):
         # layout_to_populate.addLayout(refresh_button_layout)
 
         title_label = QLabel(self.tr("Statistiques Détaillées"))
-        title_label.setObjectName("statisticsTitleLabel") 
+        title_label.setObjectName("statisticsTitleLabel")
         title_label.setAlignment(Qt.AlignCenter)
         layout_to_populate.addWidget(title_label)
 
@@ -185,15 +187,14 @@ class StatisticsDashboard(QWidget):
             # Fetch data for choropleth
             clients_by_country_counts = get_client_counts_by_country()
 
-
             data_for_map = {"country_name": [], "client_count": []}
             if clients_by_country_counts:
                 for entry in clients_by_country_counts:
                     data_for_map["country_name"].append(entry["country_name"])
                     data_for_map["client_count"].append(entry["client_count"])
-            
+
             geojson_path = os.path.join(APP_ROOT_DIR, "assets", "world_countries.geojson")
-            
+
             if not os.path.exists(geojson_path):
                 logging.error(f"GeoJSON file not found at: {geojson_path}")
                 m = folium.Map(location=[20,0], zoom_start=2)
@@ -201,14 +202,14 @@ class StatisticsDashboard(QWidget):
                 self.map_view.setHtml(m.get_root().render())
                 return
 
-            m = folium.Map(location=[20, 0], zoom_start=2, tiles="cartodb positron")
-            
+            m = folium.Map(location=[20, 0], zoom_start=2, tiles="CartoDB positron") # Standardized casing
+
             if data_for_map["country_name"] and data_for_map["client_count"]:
                 df = pd.DataFrame(data_for_map)
                 folium.Choropleth(
                     geo_data=geojson_path, name="choropleth", data=df,
                     columns=["country_name", "client_count"], key_on="feature.properties.name",
-                    fill_color="YlGnBu", fill_opacity=0.7, line_opacity=0.2,
+                    fill_color="YlGnBu", fill_opacity=0.6, line_opacity=0.2, # Adjusted fill_opacity to 0.6
                     legend_name=self.tr("Nombre de Clients par Pays"), highlight=True,
                 ).add_to(m)
 
@@ -217,7 +218,7 @@ class StatisticsDashboard(QWidget):
             # For StatisticsDashboard, we might just use the same get_client_counts_by_country data
             # or fetch more detailed client data if we want to plot individual clients (can be slow).
             # For now, the popups will focus on country interaction.
-            
+
             # Interactive popups for countries
             popup_layer = folium.GeoJson(
                 geojson_path,
@@ -225,46 +226,71 @@ class StatisticsDashboard(QWidget):
                 style_function=lambda x: {'fillColor':'transparent', 'color':'transparent', 'weight':0},
                 tooltip=None # Disable default tooltip for this layer if choropleth provides enough
             )
-            
+
             js_script_content = ""
             for feature in popup_layer.data.get('features', []):
                 country_name = feature.get('properties', {}).get('name', 'N/A')
                 if country_name == 'N/A': continue
 
                 country_client_count = next((item['client_count'] for item in clients_by_country_counts if item['country_name'] == country_name), 0)
-                
-                # HTML for the popup
+
                 popup_html = f"<b>{country_name}</b><br>"
-                popup_html += f"{self.tr('Clients (Total)')}: {country_client_count}<br>"
-                
-                # Add client button (JS call to pyMapConnector)
+                popup_html += f"{self.tr('Clients (Total)')}: {country_client_count}<br><hr>"
+
+                # Fetch and list clients by city for this country
+                country_obj = get_country_by_name(country_name)
+                city_client_map = {}
+                if country_obj:
+                    country_id = country_obj.get('country_id')
+                    clients_in_country = clients_crud_instance.get_all_clients_with_details(
+                        filters={'country_id': country_id},
+                        include_deleted=False # Only show active clients in this list
+                    )
+                    if clients_in_country:
+                        for client in clients_in_country:
+                            city_name = client.get('city', self.tr('Ville Inconnue'))
+                            client_detail_name = client.get('client_name', self.tr('Client Inconnu'))
+                            # Prepare for JS: escape quotes in client_detail_name for the clientClickedOnMap JS call
+                            js_safe_client_detail_name = client_detail_name.replace("'", "\\'").replace('"', '\\"')
+                            client_id = client.get('client_id')
+
+                            if city_name not in city_client_map:
+                                city_client_map[city_name] = []
+
+                            if len(city_client_map[city_name]) < 3: # Limit to 3 clients per city for popup
+                                # Store client_id as well for the JS call
+                                city_client_map[city_name].append({'id': client_id, 'name': client_detail_name, 'js_safe_name': js_safe_client_detail_name})
+
+                if city_client_map:
+                    for city_name, clients_in_city_list in city_client_map.items():
+                        popup_html += f"<b>{self.tr('Ville')}: {city_name}</b> ({len(clients_in_city_list)} {self.tr('client(s) affiché(s)')})<br>"
+                        popup_html += "<ul>"
+                        for client_data in clients_in_city_list:
+                            # Create clickable link for each client
+                            popup_html += f"<li><a href='#' onclick='pyMapConnector.clientClickedOnMap(\"{client_data['id']}\", \"{client_data['js_safe_name']}\"); return false;'>{client_data['name']}</a></li>"
+                        popup_html += "</ul>"
+                else:
+                    popup_html += f"{self.tr('Aucun client détaillé à afficher pour les villes.')}<br>"
+
+                # "Ajouter Client Ici" button
                 js_safe_country_name = country_name.replace("'", "\\'")
                 button_text = self.tr('Ajouter Client Ici')
-                popup_html += f"<button onclick='pyMapConnector.countryClicked(\"{js_safe_country_name}\")'>{button_text}</button><br>"
-                
-                # If you want to list some clients (example, adapt as needed)
-                # active_clients_in_country = clients_crud_instance.get_clients_by_filters({'country_name': country_name, 'is_deleted': False}, limit=5) # Example
-                # if active_clients_in_country:
-                #     popup_html += f"<br><b>{self.tr('Quelques Clients Actifs')}:</b><ul>"
-                #     for client in active_clients_in_country:
-                #         js_safe_client_name = client['client_name'].replace("'", "\\'").replace('"', '\\"')
-                #         popup_html += f"<li><a href='#' onclick='pyMapConnector.clientClickedOnMap(\"{client['client_id']}\", \"{js_safe_client_name}\")'>{client['client_name']}</a></li>"
-                #     popup_html += "</ul>"
-                
+                popup_html += f"<br><button onclick='pyMapConnector.countryClicked(\"{js_safe_country_name}\")'>{button_text}</button>"
+
                 feature['properties']['popup_content'] = popup_html
 
-            popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content']))
+            popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content'], localize=True)) # Added localize=True
             popup_layer.add_to(m)
-            
+
             if data_for_map["country_name"]: # Only add LayerControl if there's data
                 folium.LayerControl().add_to(m)
-            
+
             # The JavaScript for pyMapConnector to exist.
             # Note: folium's get_root().render() wraps the map in an IFrame.
             # Direct JS injection like this might be tricky if the context is wrong.
             # QWebChannel works by injecting objects into the page's main window.
             # The onclick handlers in popups should correctly call `window.pyMapConnector.method()`.
-            
+
             # No explicit JS script needed here as pyMapConnector is registered with QWebChannel.
             # The onclick attributes in the HTML popups will use this.
 
@@ -292,7 +318,6 @@ class StatisticsDashboard(QWidget):
             self.stats_labels["active_projects"].setText(str(active_projects))
 
             total_products = get_total_products_count()
-
             self.stats_labels["total_products"].setText(str(total_products))
         except Exception as e:
             logging.error(f"Error updating global stats: {e}", exc_info=True)
@@ -303,7 +328,6 @@ class StatisticsDashboard(QWidget):
         try:
             total_clients_count = get_total_clients_count()
             active_clients_count = get_active_clients_count()
-
 
             if total_clients_count > 0:
                 health_score = (active_clients_count / total_clients_count) * 100
