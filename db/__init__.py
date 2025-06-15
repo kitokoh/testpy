@@ -65,6 +65,7 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_city,
     get_client_segmentation_by_status,
     get_client_segmentation_by_category,
+    get_total_clients_count, # Added
 )
 from .cruds.cover_pages_crud import (
     get_cover_pages_for_client,
@@ -189,6 +190,7 @@ __all__ = [
     "delete_team_member",
     "get_all_clients",
     "get_active_clients_count",
+    "get_total_clients_count", # Added
     "get_client_counts_by_country", # Added
     "get_client_segmentation_by_city", # Added
     "get_client_segmentation_by_status", # Added

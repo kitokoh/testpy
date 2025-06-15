@@ -7,20 +7,23 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem
 )
 from PyQt5.QtCore import Qt, QObject, pyqtSignal, pyqtSlot
+from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtWebChannel import QWebChannel
 
 import folium
 import pandas as pd
 
-# from db.cruds.clients_crud import clients_crud_instance # Not directly used if kpis_crud is sufficient
-from db.cruds import (
-    get_total_clients_count, get_active_clients_count_from_kpis,
-    get_total_projects_count_from_kpis, get_active_projects_count_from_kpis,
-    get_total_products_count_from_kpis, get_client_segmentation_by_city_from_kpis,
-    get_client_segmentation_by_status_from_kpis, get_client_segmentation_by_category_from_kpis,
-    get_client_counts_by_country_from_kpis
+from db import (
+    get_total_clients_count,
+    get_active_clients_count,
+    get_total_projects_count,
+    get_active_projects_count,
+    get_total_products_count,
+    get_client_segmentation_by_city,
+    get_client_segmentation_by_status,
+    get_client_segmentation_by_category,
+    get_client_counts_by_country
 )
 
 from app_setup import APP_ROOT_DIR
@@ -180,8 +183,9 @@ class StatisticsDashboard(QWidget):
         logging.info("Updating interactive map...")
         try:
             # Fetch data for choropleth
-            clients_by_country_counts = get_client_counts_by_country_from_kpis() # Using KPI version
-            
+            clients_by_country_counts = get_client_counts_by_country()
+
+
             data_for_map = {"country_name": [], "client_count": []}
             if clients_by_country_counts:
                 for entry in clients_by_country_counts:
@@ -275,19 +279,20 @@ class StatisticsDashboard(QWidget):
     # --- Methods to be ported from CollapsibleStatisticsWidget ---
     def update_global_stats(self):
         try:
-            total_clients = get_total_clients_count() # From kpis_crud
+            total_clients = get_total_clients_count()
             self.stats_labels["total_clients"].setText(str(total_clients))
 
-            active_clients = get_active_clients_count_from_kpis() # From kpis_crud
+            active_clients = get_active_clients_count()
             self.stats_labels["active_clients"].setText(str(active_clients))
 
-            total_projects = get_total_projects_count_from_kpis() # From kpis_crud
+            total_projects = get_total_projects_count()
             self.stats_labels["total_projects"].setText(str(total_projects))
 
-            active_projects = get_active_projects_count_from_kpis() # From kpis_crud
+            active_projects = get_active_projects_count()
             self.stats_labels["active_projects"].setText(str(active_projects))
 
-            total_products = get_total_products_count_from_kpis() # From kpis_crud
+            total_products = get_total_products_count()
+
             self.stats_labels["total_products"].setText(str(total_products))
         except Exception as e:
             logging.error(f"Error updating global stats: {e}", exc_info=True)
@@ -297,7 +302,8 @@ class StatisticsDashboard(QWidget):
     def update_business_health_score(self):
         try:
             total_clients_count = get_total_clients_count()
-            active_clients_count = get_active_clients_count_from_kpis()
+            active_clients_count = get_active_clients_count()
+
 
             if total_clients_count > 0:
                 health_score = (active_clients_count / total_clients_count) * 100
@@ -354,12 +360,11 @@ class StatisticsDashboard(QWidget):
             table.setSortingEnabled(True)
 
     def update_customer_segmentation_views(self):
-        # Using KPI versions of data fetching functions
-        self._populate_table("country", get_client_counts_by_country_from_kpis, ["country_name", "client_count"])
-        self._populate_table("city", get_client_segmentation_by_city_from_kpis, ["country_name", "city_name", "client_count"])
-        self._populate_table("status", get_client_segmentation_by_status_from_kpis, ["status_name", "client_count"])
-        self._populate_table("category", get_client_segmentation_by_category_from_kpis, ["category", "client_count"])
-        
+        self._populate_table("country", get_client_counts_by_country, ["country_name", "client_count"])
+        self._populate_table("city", get_client_segmentation_by_city, ["country_name", "city_name", "client_count"])
+        self._populate_table("status", get_client_segmentation_by_status, ["status_name", "client_count"])
+        self._populate_table("category", get_client_segmentation_by_category, ["category", "client_count"])
+
     # --- End of Ported Methods ---
         # The old update_statistics_map method (which was the display-only map) is now removed.
         # self.update_map() is the current method for the interactive map.
