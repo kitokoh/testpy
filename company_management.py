@@ -23,11 +23,8 @@ if parent_dir not in sys.path:
 if current_dir not in sys.path: # for running directly if db.py is alongside
     sys.path.insert(0, current_dir)
 
-from db.cruds.companies_crud import companies_crud_instance
-# Keep other db imports for now, will be refactored incrementally
-from db.cruds.companies_crud import companies_crud_instance # Ensure this is at the top
-# Keep other db imports for now, will be refactored incrementally
-from db.cruds.companies_crud import companies_crud_instance # Ensure this is at the top
+from db.cruds.companies_crud import add_company, get_all_companies, update_company, delete_company, set_default_company, get_company_by_id
+from db.cruds.company_personnel_crud import get_contacts_for_personnel, add_personnel_contact, update_personnel_contact_link, unlink_contact_from_personnel
 # Keep other db imports for now, will be refactored incrementally
 try:
     from db import (
@@ -38,10 +35,6 @@ try:
         get_personnel_for_company,
         update_company_personnel,
         delete_company_personnel,
-        get_contacts_for_personnel,
-        add_personnel_contact,
-        update_personnel_contact_link,
-        unlink_contact_from_personnel,
         initialize_database
     )
     db_available = True # This flag might become less relevant with direct instance usage
@@ -59,10 +52,6 @@ except ImportError as e:
     def get_personnel_for_company(*args, **kwargs): print("DB function get_personnel_for_company unavailable"); return []
     def update_company_personnel(*args, **kwargs): print("DB function update_company_personnel unavailable"); return False
     def delete_company_personnel(*args, **kwargs): print("DB function delete_company_personnel unavailable"); return False
-    def get_contacts_for_personnel(*args, **kwargs): print("DB function get_contacts_for_personnel unavailable"); return []
-    def add_personnel_contact(*args, **kwargs): print("DB function add_personnel_contact unavailable"); return None
-    def update_personnel_contact_link(*args, **kwargs): print("DB function update_personnel_contact_link unavailable"); return False
-    def unlink_contact_from_personnel(*args, **kwargs): print("DB function unlink_contact_from_personnel unavailable"); return False
     def initialize_database(*args, **kwargs): print("DB function initialize_database unavailable"); pass
 
     print("Failed to import some db functions. Some features may not work.")
@@ -354,7 +343,7 @@ class CompanyDialog(QDialog):
                 return
         data['logo_path'] = final_logo_rel_path
         if self.company_id:
-            success_update = companies_crud_instance.update_company(self.company_id, data)
+            success_update = update_company(self.company_id, data)
             if success_update: # update_company returns bool
                 QMessageBox.information(self, self.tr("Success"), self.tr("Company updated successfully."))
                 super().accept()
@@ -362,7 +351,7 @@ class CompanyDialog(QDialog):
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update company."))
         else:
             # add_company returns new_company_id (str) or None
-            new_company_id_result = companies_crud_instance.add_company(data)
+            new_company_id_result = add_company(data)
             if new_company_id_result:
                 self.company_id = new_company_id_result # Set company_id for the dialog instance
                 if self.logo_path_selected_for_upload: # Logo was uploaded for a new company
@@ -380,7 +369,7 @@ class CompanyDialog(QDialog):
                             if os.path.exists(old_full_path):
                                 try:
                                     os.rename(old_full_path, new_full_path)
-                                    companies_crud_instance.update_company(self.company_id, {'logo_path': new_proper_filename})
+                                    update_company(self.company_id, {'logo_path': new_proper_filename})
                                     print(f"Renamed logo from {temp_logo_filename} to {new_proper_filename}")
                                 except Exception as e_rename:
                                     print(f"Error renaming logo after company creation: {e_rename}")
@@ -703,7 +692,7 @@ class CompanyTabWidget(QWidget):
         self.sellers_table.setRowCount(0); self.tech_managers_table.setRowCount(0); self.current_selected_company_id = None
         # if not db_available: self.company_list_widget.addItem(QListWidgetItem(self.tr("Error: DB functions not available."))); return
         try:
-            companies = companies_crud_instance.get_all_companies() # Changed to use instance
+            companies = get_all_companies() # Changed to use instance
             if not companies: self.company_list_widget.addItem(QListWidgetItem(self.tr("No companies found.")))
             for company in companies:
                 item_text = company['company_name']
@@ -765,7 +754,7 @@ class CompanyTabWidget(QWidget):
                         try: os.remove(full_logo_path); print(f"Deleted logo: {full_logo_path}")
                         except Exception as e_logo_del: QMessageBox.warning(self, self.tr("Logo Deletion Error"), self.tr("Could not delete logo file: {0}.\nPlease remove it manually.").format(str(e_logo_del)))
                 # delete_company returns bool
-                if companies_crud_instance.delete_company(self.current_selected_company_id):
+                if delete_company(self.current_selected_company_id):
                     QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully."))
                     self.load_companies()
                 else:
@@ -779,7 +768,7 @@ class CompanyTabWidget(QWidget):
         company_data = item.data(Qt.UserRole)
         # if db_available: # Assuming instance available
         # set_default_company returns bool
-        if companies_crud_instance.set_default_company(self.current_selected_company_id):
+        if set_default_company(self.current_selected_company_id):
             QMessageBox.information(self, self.tr("Success"), self.tr("'{0}' is now the default company.").format(company_data.get('company_name')))
             current_selection_row = self.company_list_widget.currentRow(); self.load_companies()
             if current_selection_row >=0 and current_selection_row < self.company_list_widget.count(): self.company_list_widget.setCurrentRow(current_selection_row); self.on_company_selected(self.company_list_widget.currentItem())

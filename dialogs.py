@@ -30,7 +30,6 @@ from reportlab.pdfgen import canvas
 
 import db as db_manager # Keep for now
 from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.templates_crud import templates_crud_instance
 from db.cruds.template_categories_crud import get_all_template_categories
 # templates_crud functions get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are likely class methods on templates_crud_instance or static methods.
@@ -39,7 +38,7 @@ from db.cruds.template_categories_crud import get_all_template_categories
 # Let's check if they are used directly by db_manager or need to be instance calls.
 # Upon review, get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are module-level in templates_crud.py, so direct import is fine.
-from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates, get_templates_by_type
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -2217,7 +2216,7 @@ class SendEmailDialog(QDialog):
                 #     template_type=template_type,
                 #     language_code=language_code
                 # )
-                templates = templates_crud_instance.get_templates_by_type_and_language(
+                templates = get_templates_by_type(
                     template_type=template_type,
                     language_code=language_code
                 )
