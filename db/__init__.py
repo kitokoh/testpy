@@ -114,7 +114,8 @@ from .cruds.templates_crud import ( # Modified
     get_all_file_based_templates,
     get_distinct_template_languages,
     get_distinct_template_types,
-    get_filtered_templates
+    get_filtered_templates,
+    get_distinct_languages_for_template_type
 )
 from .cruds.cover_page_templates_crud import get_cover_page_template_by_id
 from .cruds.milestones_crud import (
@@ -287,6 +288,7 @@ __all__ = [
     "get_all_file_based_templates", # From templates_crud
     "get_distinct_template_languages", # Added from templates_crud.py
     "get_distinct_template_types", # Added from templates_crud.py
+    "get_distinct_languages_for_template_type", # Added this line
     "get_filtered_templates", # Added from templates_crud.py
     "get_cover_page_template_by_id", # Now from cover_page_templates_crud
     "get_milestones_for_project",

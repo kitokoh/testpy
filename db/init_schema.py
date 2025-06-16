@@ -601,6 +601,19 @@ def initialize_database():
     )
     """)
 
+    # Ensure serial_number column exists in ClientProjectProducts table
+    cursor.execute("PRAGMA table_info(ClientProjectProducts)")
+    cpp_columns_info_check = cursor.fetchall() # Use a different variable name to avoid conflict
+    cpp_column_names_check = [info['name'] for info in cpp_columns_info_check]
+
+    if 'serial_number' not in cpp_column_names_check:
+        try:
+            cursor.execute("ALTER TABLE ClientProjectProducts ADD COLUMN serial_number TEXT")
+            print("Added 'serial_number' column to ClientProjectProducts table.")
+        except sqlite3.Error as e_alter_cpp_sn:
+            print(f"Error adding 'serial_number' column to ClientProjectProducts table: {e_alter_cpp_sn}")
+    # The existing check for purchase_confirmed_at can remain as is.
+
     # Ensure purchase_confirmed_at column exists in ClientProjectProducts table
     cursor.execute("PRAGMA table_info(ClientProjectProducts)")
     cpp_columns_info = cursor.fetchall()

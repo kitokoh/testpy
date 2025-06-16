@@ -5,6 +5,8 @@
     <file alias="pencil.svg">icons/pencil.svg</file>
     <file alias="trash.svg">icons/trash.svg</file>
     <file alias="plus.svg">icons/plus.svg</file>
+    <file alias="dialog-cancel.svg">icons/x.svg</file>
+    <file alias="dialog-ok-apply.svg">icons/check.svg</file>
     <file alias="chevron-up.svg">icons/chevron-up.svg</file>
     <file alias="chevron-down.svg">icons/chevron-down.svg</file>
     <file alias="check.svg">icons/check.svg</file>

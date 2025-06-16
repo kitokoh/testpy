@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import QListWidgetItem
 from PyQt5.QtGui import QPixmap
 
 import db as db_manager
+from db.cruds.clients_crud import clients_crud_instance
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
 from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
@@ -181,9 +182,9 @@ class ClientWidget(QWidget):
         self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
 
         # Initialize distributor specific info labels (used in populate_details_layout)
-        self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
-        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
-        self.distributor_info_value_label.setWordWrap(True)
+        # self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
+        # self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        # self.distributor_info_value_label.setWordWrap(True)
 
 
         self.populate_details_layout() # Builds the details_layout
@@ -1696,6 +1697,11 @@ class ClientWidget(QWidget):
         self.detail_value_labels["category_value"] = self.category_value_label # Store for edit mode
 
         # Distributor Specific Info (conditionally visible)
+        self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
+        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        self.distributor_info_value_label.setWordWrap(True)
+        self.distributor_info_value_label.setObjectName("distributorInfoValueLabel") # Keep object name if used in QSS
+        self.distributor_info_label.setObjectName("distributorInfoLabel")
         self.details_layout.addRow(self.distributor_info_label, self.distributor_info_value_label)
         self.toggle_distributor_info_visibility() # Call to set initial visibility
 
@@ -2877,7 +2883,7 @@ class ClientWidget(QWidget):
             # Update self.client_info with all new values, including text names for country/city/status
             # This ensures the display view (populate_details_layout) has the most current data
             # A full fetch might be cleaner:
-            updated_client_full_info = db_manager.get_client_by_id(self.client_info['client_id'])
+            updated_client_full_info = clients_crud_instance.get_client_by_id(self.client_info['client_id'])
             if updated_client_full_info:
                 self.client_info = updated_client_full_info # Replace local client_info
 
