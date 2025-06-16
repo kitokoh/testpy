@@ -54,6 +54,7 @@ from statistics_panel import CollapsibleStatisticsWidget # Import the new widget
 from utils import save_config
 from company_management import CompanyTabWidget
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
+from invoicing.invoice_management_widget import InvoiceManagementWidget # Invoice Management
 from main import get_notification_manager # For notifications
 
 
@@ -300,6 +301,9 @@ class DocumentManager(QMainWindow):
         self.partner_management_widget_instance = PartnerMainWidget(parent=self)
         self.main_area_stack.addWidget(self.partner_management_widget_instance)
 
+        self.invoice_management_widget_instance = InvoiceManagementWidget(parent=self)
+        self.main_area_stack.addWidget(self.invoice_management_widget_instance)
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
 
         self.create_actions_main()
@@ -479,6 +483,8 @@ class DocumentManager(QMainWindow):
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self)
         self.partner_management_action.triggered.connect(self.show_partner_management_view)
 
+        self.invoicing_action = QAction(QIcon(":/icons/credit-card.svg"), self.tr("Invoicing & Payments"), self)
+        self.invoicing_action.triggered.connect(self.show_invoicing_view)
 
     def create_menus_main(self): 
         menu_bar = self.menuBar()
@@ -492,6 +498,7 @@ class DocumentManager(QMainWindow):
         # modules_menu.addAction(self.statistics_action)
         modules_menu.addAction(self.product_list_action) # Add new action here
         modules_menu.addAction(self.partner_management_action) # Add Partner Management action
+        modules_menu.addAction(self.invoicing_action) # Add Invoicing action
         help_menu = menu_bar.addMenu(self.tr("Aide"))
         about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
@@ -529,6 +536,11 @@ class DocumentManager(QMainWindow):
 
     def show_partner_management_view(self):
         self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
+
+    def show_invoicing_view(self):
+        self.main_area_stack.setCurrentWidget(self.invoice_management_widget_instance)
+        if hasattr(self.invoice_management_widget_instance, 'load_invoices'):
+            self.invoice_management_widget_instance.load_invoices()
 
     def show_about_dialog(self): 
         QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
