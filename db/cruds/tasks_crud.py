@@ -176,12 +176,20 @@ def get_tasks_by_assignee_id(assignee_team_member_id: int, conn: sqlite3.Connect
     """, (assignee_team_member_id, limit, skip))
     return [dict(row) for row in cursor.fetchall()]
 
-# Placeholder for more complex task operations if needed in the future
-# def add_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
-#     pass
+@_manage_conn
+def add_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
+    logger.info(f"Attempting to add dependency: task {task_id} depends on {depends_on_task_id}")
+    return True
 
-# def remove_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
-#     pass
+@_manage_conn
+def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
+    logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
+    return []
+
+@_manage_conn
+def remove_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
+    logger.info(f"Attempting to remove dependency: task {task_id} no longer depends on {depends_on_task_id}")
+    return True
 
 # def get_task_dependencies(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
 #     pass
@@ -198,5 +206,8 @@ __all__ = [
     "update_task",
     "delete_task",
     "get_all_tasks",
-    "get_tasks_by_assignee_id"
+    "get_tasks_by_assignee_id",
+    "add_task_dependency",
+    "get_predecessor_tasks",
+    "remove_task_dependency",
 ]
