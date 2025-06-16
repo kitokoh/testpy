@@ -312,15 +312,16 @@ class StatisticsDashboard(QWidget):
                 folium.Choropleth(
                     geo_data=geojson_path, name="choropleth", data=df,
                     columns=["country_name", "client_count"], key_on="feature.properties.name",
-                    fill_color=client_colormap, # Use the StepColormap instance
+                    fill_color='Blues', # Changed to a Color Brewer string
                     fill_opacity=0.7, # Slightly more opaque for better color visibility
                     line_opacity=0.3,
                     highlight=True,
                     # legend_name removed to use the StepColormap's legend
+                    # The client_colormap object itself will be added to the map separately for the legend
                 ).add_to(m)
 
                 # Add the colormap itself to the map to generate the legend
-                client_colormap.add_to(m)
+                client_colormap.add_to(m) # This line is preserved
 
             # Fetch active client data for interactive markers/popups
             # This is a simplified version; in DocumentManager it's get_active_clients_per_country
