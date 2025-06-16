@@ -24,7 +24,7 @@ from .template_categories_crud import add_template_category
 
 # --- Templates CRUD ---
 @_manage_conn
-def add_template(data: dict, conn: sqlite3.Connection = None) -> int | None:
+def add_template(data: dict, conn: sqlite3.Connection = None, client_id: str = None) -> int | None: # Added client_id
     cursor=conn.cursor(); now=datetime.utcnow().isoformat()+"Z"
     cat_id = data.get('category_id')
 
@@ -44,14 +44,15 @@ def add_template(data: dict, conn: sqlite3.Connection = None) -> int | None:
              (template_name, template_type, description, base_file_name, language_code,
               is_default_for_type_lang, category_id, content_definition, email_subject_template,
               email_variables_info, cover_page_config_json, document_mapping_config_json,
-              raw_template_file_data, version, created_at, updated_at, created_by_user_id)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+              raw_template_file_data, version, created_at, updated_at, created_by_user_id, client_id)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""" # Added one more ? for client_id
     params=(data.get('template_name'), data.get('template_type'), data.get('description'),
             data.get('base_file_name'), data.get('language_code'),
             data.get('is_default_for_type_lang', False), cat_id, data.get('content_definition'),
             data.get('email_subject_template'), data.get('email_variables_info'),
             data.get('cover_page_config_json'), data.get('document_mapping_config_json'),
-            raw_blob, data.get('version'), now, now, data.get('created_by_user_id'))
+            raw_blob, data.get('version'), now, now, data.get('created_by_user_id'),
+            data.get('client_id')) # Added client_id to params
     try:
         cursor.execute(sql,params)
         return cursor.lastrowid
@@ -91,7 +92,23 @@ def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = No
                 logging.warning(f"Template file not found at {fpath} for default template {name}")
                 data['raw_template_file_data'] = None # Or some default content
 
-        return add_template(data, conn=conn) # Pass conn
+        original_template_id = add_template(data, conn=conn) # Pass conn
+
+        # Check if the template is an HTML email and duplicate it for PDF generation
+        if data.get('template_type') == 'html_email' and original_template_id is not None:
+            pdf_template_data = data.copy() # Create a shallow copy
+            pdf_template_data['template_type'] = 'html_email_to_pdf'
+            pdf_template_data['is_default_for_type_lang'] = False
+            # client_id for the PDF version should be the same as the original
+            pdf_template_data['client_id'] = data.get('client_id')
+
+            # Remove template_id if it was somehow set in data, to ensure a new insert
+            pdf_template_data.pop('template_id', None)
+
+            # Call add_template for the new PDF version, passing client_id if it exists
+            add_template(pdf_template_data, conn=conn, client_id=pdf_template_data.get('client_id'))
+
+        return original_template_id
     except sqlite3.Error as e:
         logging.error(f"Error in add_default_template_if_not_exists for '{name}': {e}")
         return None
@@ -111,18 +128,33 @@ def get_template_by_id(template_id: int, conn: sqlite3.Connection = None) -> dic
         return None
 
 @_manage_conn
-def get_templates_by_type(template_type: str, language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+def get_templates_by_type(template_type: str, language_code: str = None, client_id: str = None, conn: sqlite3.Connection = None) -> list[dict]:
     cursor = conn.cursor()
-    sql = "SELECT * FROM Templates WHERE template_type = ?"
     params = [template_type]
+    sql = "SELECT * FROM Templates WHERE template_type = ?"
+
     if language_code:
         sql += " AND language_code = ?"
         params.append(language_code)
+
+    if client_id:
+        sql += " AND (client_id = ? OR client_id IS NULL)"
+        params.append(client_id)
+    else:
+        # If no client_id is specified, typically we might only want global templates or all.
+        # For now, let's assume it means all templates of that type (client-specific or global)
+        # This part of the logic might need refinement based on exact requirements for calls without client_id.
+        # The current behavior without specific client_id handling means it would fetch ALL templates of that type.
+        # To be more explicit or restrictive, one might add "AND client_id IS NULL" if client_id is None
+        # but the requirement is "client templates + global templates", so this is implicitly handled.
+        pass
+
+
     try:
         cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get templates by type '{template_type}' and lang '{language_code}': {e}")
+        logging.error(f"Failed to get templates by type '{template_type}', lang '{language_code}', client '{client_id}': {e}")
         return []
 
 @_manage_conn
@@ -144,7 +176,7 @@ def update_template(template_id: int, template_data: dict, conn: sqlite3.Connect
                   'language_code', 'is_default_for_type_lang', 'category_id',
                   'content_definition', 'email_subject_template', 'email_variables_info',
                   'cover_page_config_json', 'document_mapping_config_json',
-                  'raw_template_file_data', 'version', 'updated_at', 'created_by_user_id']
+                  'raw_template_file_data', 'version', 'updated_at', 'created_by_user_id', 'client_id'] # Added client_id
     data_to_set = {k:v for k,v in template_data.items() if k in valid_cols}
 
     if not data_to_set : return False # Nothing valid to update (besides possibly category_name already handled)
@@ -191,14 +223,36 @@ def get_distinct_template_types(conn: sqlite3.Connection = None) -> list[tuple[s
         return []
 
 @_manage_conn
-def get_filtered_templates(category_id: int = None, language_code: str = None, template_type: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+def get_filtered_templates(
+    category_id: int = None,
+    language_code: str = None,
+    template_type: str = None,
+    client_id_filter: str = None,
+    fetch_global_only: bool = False,
+    conn: sqlite3.Connection = None
+) -> list[dict]:
     cursor = conn.cursor(); sql = "SELECT * FROM Templates"; where_clauses = []; params = []
-    if category_id is not None: where_clauses.append("category_id = ?"); params.append(category_id)
-    if language_code is not None: where_clauses.append("language_code = ?"); params.append(language_code)
-    if template_type is not None: where_clauses.append("template_type = ?"); params.append(template_type)
 
-    if where_clauses: sql += " WHERE " + " AND ".join(where_clauses)
-    sql += " ORDER BY category_id, template_name"
+    if category_id is not None:
+        where_clauses.append("category_id = ?")
+        params.append(category_id)
+    if language_code is not None:
+        where_clauses.append("language_code = ?")
+        params.append(language_code)
+    if template_type is not None:
+        where_clauses.append("template_type = ?")
+        params.append(template_type)
+
+    if fetch_global_only:
+        where_clauses.append("client_id IS NULL")
+    elif client_id_filter is not None:
+        where_clauses.append("(client_id = ? OR client_id IS NULL)")
+        params.append(client_id_filter)
+    # If neither fetch_global_only is True nor client_id_filter is set, all templates (client-specific and global) are fetched.
+
+    if where_clauses:
+        sql += " WHERE " + " AND ".join(where_clauses)
+    sql += " ORDER BY client_id, category_id, template_name"
 
     try:
         cursor.execute(sql, tuple(params))
@@ -247,40 +301,76 @@ def set_default_template_by_id(template_id: int, conn: sqlite3.Connection = None
         logging.warning(f"Template ID {template_id} not found for setting as default.")
         return False
     try:
-        # These two execute calls should be part of the same transaction,
-        # which _manage_conn handles by committing after the function if func name implies write.
-        cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_type = ? AND language_code = ?",
-                       (template_info['template_type'], template_info['language_code']))
+        # These two execute calls should be part of the same transaction
+        # Unset other defaults for this type, language, and client (or global if client_id is NULL)
+        if template_info.get('client_id'):
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_type = ? AND language_code = ? AND client_id = ?",
+                           (template_info['template_type'], template_info['language_code'], template_info['client_id']))
+        else:
+            cursor.execute("UPDATE Templates SET is_default_for_type_lang = 0 WHERE template_type = ? AND language_code = ? AND client_id IS NULL",
+                           (template_info['template_type'], template_info['language_code']))
+
         cursor.execute("UPDATE Templates SET is_default_for_type_lang = 1 WHERE template_id = ?", (template_id,))
         return True
     except sqlite3.Error as e:
-        logging.error(f"Failed to set default template for ID {template_id}: {e}")
+        logging.error(f"Failed to set default template for ID {template_id}, client {template_info.get('client_id')}: {e}")
         return False
 
 @_manage_conn
-def get_template_by_type_lang_default(template_type: str, language_code: str, conn: sqlite3.Connection = None) -> dict | None:
+def get_template_by_type_lang_default(template_type: str, language_code: str, client_id: str = None, conn: sqlite3.Connection = None) -> dict | None:
     cursor = conn.cursor()
+    # Prioritize client-specific default, then global default.
+    # If client_id is provided, look for that client's default OR a global default, prioritizing client.
+    # If client_id is None, look for a global default only.
+    sql = """
+        SELECT * FROM Templates
+        WHERE template_type = ? AND language_code = ? AND is_default_for_type_lang = TRUE
+    """
+    params = [template_type, language_code]
+
+    if client_id:
+        sql += "AND (client_id = ? OR client_id IS NULL) ORDER BY CASE WHEN client_id IS NULL THEN 1 ELSE 0 END, template_id LIMIT 1"
+        params.append(client_id)
+    else:
+        sql += "AND client_id IS NULL LIMIT 1"
+
     try:
-        cursor.execute("SELECT * FROM Templates WHERE template_type = ? AND language_code = ? AND is_default_for_type_lang = TRUE LIMIT 1",
-                       (template_type, language_code))
+        cursor.execute(sql, tuple(params))
         row = cursor.fetchone()
         return dict(row) if row else None
     except sqlite3.Error as e:
-        logging.error(f"Failed to get default template by type '{template_type}' and lang '{language_code}': {e}")
+        logging.error(f"Failed to get default template by type '{template_type}', lang '{language_code}', client '{client_id}': {e}")
         return None
 
 @_manage_conn
-def get_all_templates(template_type_filter: str = None, language_code_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
-    cursor = conn.cursor(); sql = "SELECT * FROM Templates"; params = []; clauses = []
-    if template_type_filter: clauses.append("template_type = ?"); params.append(template_type_filter)
-    if language_code_filter: clauses.append("language_code = ?"); params.append(language_code_filter)
-    if clauses: sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY template_name, language_code"
+def get_all_templates(template_type_filter: str = None, language_code_filter: str = None, client_id_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+    cursor = conn.cursor()
+    sql = "SELECT * FROM Templates"
+    params = []
+    clauses = []
+
+    if template_type_filter:
+        clauses.append("template_type = ?")
+        params.append(template_type_filter)
+    if language_code_filter:
+        clauses.append("language_code = ?")
+        params.append(language_code_filter)
+
+    if client_id_filter is not None: # Explicitly check for None, as empty string could be a valid (though unlikely) client_id
+        clauses.append("(client_id = ? OR client_id IS NULL)")
+        params.append(client_id_filter)
+    # If client_id_filter is None, all templates (global and all client-specific) are implicitly included by not adding a client_id clause.
+
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+
+    sql += " ORDER BY client_id, template_name, language_code" # Added client_id to order
+
     try:
         cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all templates with filters type='{template_type_filter}', lang='{language_code_filter}': {e}")
+        logging.error(f"Failed to get all templates with filters type='{template_type_filter}', lang='{language_code_filter}', client='{client_id_filter}': {e}")
         return []
 
 @_manage_conn
