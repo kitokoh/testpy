@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (alrea
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
 # import db as db_manager # For db initialization - already imported above, now using 'import db'
 from main_window import DocumentManager # The main application window
-from notifications import NotificationManager # Added for notifications
+from project_management.notifications import NotificationManager # Added for notifications
 from db.cruds.users_crud import users_crud_instance # Added for default operational user
 from PyQt5.QtWidgets import QMessageBox # Added for error dialog
 

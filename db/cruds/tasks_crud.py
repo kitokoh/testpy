@@ -79,6 +79,22 @@ def get_tasks_by_project_id(project_id: str, conn: sqlite3.Connection = None) ->
     return [dict(row) for row in cursor.fetchall()]
 
 @_manage_conn
+def get_tasks_by_project_id_ordered_by_sequence(project_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    logger.debug(f"Fetching tasks for project_id {project_id}, ordered by sequence.")
+    cursor = conn.cursor()
+    # Assuming 'sequence_order' is a column in the Tasks table
+    # If the column name is different (e.g., 'sequence_number', 'order_index'), adjust it here.
+    sql = "SELECT * FROM Tasks WHERE project_id = ? ORDER BY sequence_order ASC"
+    try:
+        cursor.execute(sql, (project_id,))
+        tasks = [dict(row) for row in cursor.fetchall()]
+        logger.debug(f"Found {len(tasks)} tasks for project_id {project_id} ordered by sequence.")
+        return tasks
+    except sqlite3.Error as e:
+        logger.error(f"Database error in get_tasks_by_project_id_ordered_by_sequence for project {project_id}: {e}", exc_info=True)
+        return [] # Return empty list on error
+
+@_manage_conn
 def update_task(task_id: int, task_data: dict, conn: sqlite3.Connection = None) -> bool:
     """
     Updates an existing task.
@@ -178,6 +194,7 @@ __all__ = [
     "add_task",
     "get_task_by_id",
     "get_tasks_by_project_id",
+    "get_tasks_by_project_id_ordered_by_sequence",
     "update_task",
     "delete_task",
     "get_all_tasks",

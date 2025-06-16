@@ -53,6 +53,7 @@ from .cruds.tasks_crud import (
     delete_task,
     get_task_by_id,
     get_tasks_by_assignee_id,
+    get_tasks_by_project_id_ordered_by_sequence,
 )
 from .cruds.kpis_crud import get_kpis_for_project
 from .cruds.activity_logs_crud import add_activity_log, get_activity_logs
@@ -240,6 +241,7 @@ __all__ = [
     "delete_task",
     "get_task_by_id",
     "get_tasks_by_assignee_id",
+    "get_tasks_by_project_id_ordered_by_sequence",
     "get_kpis_for_project",
     "add_activity_log",
     "get_activity_logs",
