@@ -18,6 +18,7 @@ import db as db_manager
 from db.cruds.template_categories_crud import get_all_template_categories
 from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # templates_crud_instance is not used directly by TemplateDialog
+import icons_rc # Import for Qt resource file
 
 # Local import for get_notification_manager will be kept inside methods as per plan.
 
