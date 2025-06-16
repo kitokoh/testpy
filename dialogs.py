@@ -39,13 +39,7 @@ from db.cruds.template_categories_crud import get_all_template_categories
 # Let's check if they are used directly by db_manager or need to be instance calls.
 # Upon review, get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are module-level in templates_crud.py, so direct import is fine.
-from db.cruds.templates_crud import (
-    get_distinct_template_languages,
-    get_distinct_template_types,
-    get_filtered_templates,
-    get_templates_by_type, # Added for SendEmailDialog
-    get_template_by_id # Added for SendEmailDialog (replaces db_manager.get_template_details_by_id)
-)
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates, get_templates_by_type
 
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
