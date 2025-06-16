@@ -27,6 +27,10 @@ from dialogs import ClientProductDimensionDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 from main import get_notification_manager # Added for notifications
 
+from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
+from document_manager_logic import create_final_invoice_and_update_db
+
+
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
 
@@ -620,6 +624,18 @@ class ClientWidget(QWidget):
         self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
+
+        # --- Billing Tab ---
+        self.billing_tab = QWidget()
+        self.billing_tab_layout = QVBoxLayout(self.billing_tab)
+
+        self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
+        self.generate_invoice_button.setToolTip(self.tr("Open dialog to prepare and generate a final invoice for this client."))
+        self.generate_invoice_button.clicked.connect(self.handle_generate_final_invoice)
+        self.billing_tab_layout.addWidget(self.generate_invoice_button)
+        self.billing_tab_layout.addStretch()
+
+        self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
 
     def open_send_whatsapp_dialog(self):
        client_uuid = self.client_info.get("client_id")
@@ -2950,7 +2966,108 @@ class ClientWidget(QWidget):
 
         self.save_client_notes()
 
+    def handle_generate_final_invoice(self):
+        if not self.client_info or not self.client_info.get('client_id'):
+            QMessageBox.warning(self, self.tr("Client Error"), self.tr("Client information is not available."))
+            return
 
+        client_id = self.client_info.get('client_id')
+
+        current_default_company_id = "0e718801-9f2f-4e6a-9254-80c738f991F9" # Fallback Placeholder UUID
+        if hasattr(self, 'config') and self.config.get('default_company_id'):
+            current_default_company_id = self.config.get('default_company_id')
+        elif hasattr(self.parent(), 'config') and self.parent().config.get('default_company_id'): # Check main window
+            current_default_company_id = self.parent().config.get('default_company_id')
+        elif self.default_company_id: # from __init__
+             current_default_company_id = self.default_company_id
+        else:
+             QMessageBox.critical(self, self.tr("Configuration Error"),
+                                 self.tr("Default selling company ID is not configured. Cannot generate invoice."))
+             return
+
+        client_langs = self.client_info.get('selected_languages', 'en')
+        if isinstance(client_langs, str):
+            client_langs_list = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+        elif isinstance(client_langs, list):
+            client_langs_list = client_langs
+        else:
+            client_langs_list = ['en']
+
+        lang_code = client_langs_list[0].strip() if client_langs_list else 'en'
+
+        # Determine project_id for the invoice. ClientWidget might be specific to a project,
+        # or it might be a general client view. If general, project_id might be None here,
+        # and selected within FinalInvoiceDataDialog or not used if it's a client-level invoice.
+        # For this integration, let's assume it's a client-level invoice for now, or
+        # FinalInvoiceDataDialog handles project selection if necessary.
+        # If ClientWidget is contextually aware of a single project, pass that.
+        # Let's assume for now project_id is not directly passed from ClientWidget context,
+        # but could be part of self.client_info if ClientWidget is for a specific project view.
+        active_project_id_for_invoice = self.client_info.get('project_id_context', None) # Example if such context exists
+
+        dialog = FinalInvoiceDataDialog(
+            client_id=client_id,
+            project_id=active_project_id_for_invoice,
+            company_id=current_default_company_id,
+            parent=self
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            line_items, additional_context = dialog.get_data()
+
+            if not line_items:
+                QMessageBox.warning(self, self.tr("No Items"), self.tr("Cannot generate an invoice with no line items."))
+                return
+
+            current_user_id = None
+            main_window = self # Start with self, then try parent
+            # Traverse up to find DocumentManager instance which should have current_user
+            # This assumes ClientWidget is always a child of DocumentManager or a similar structure
+            # Maximum of, say, 5 levels up to prevent infinite loops in weird scenarios
+            for _ in range(5):
+                if hasattr(main_window, 'current_user') and main_window.current_user:
+                    current_user_id = main_window.current_user.get('user_id')
+                    break
+                if hasattr(main_window, 'parent') and callable(main_window.parent):
+                    main_window = main_window.parent()
+                    if main_window is None: # Reached top level QApplication object or similar
+                        break
+                else: # No more parents
+                    main_window = None
+                    break
+
+            if not current_user_id:
+                logging.warning("Could not determine current_user_id for invoice generation in ClientWidget.")
+
+            try:
+                success, new_invoice_id, new_doc_id = create_final_invoice_and_update_db(
+                    client_id=client_id,
+                    company_id=current_default_company_id,
+                    target_language_code=lang_code,
+                    line_items=line_items,
+                    project_id=active_project_id_for_invoice,
+                    additional_context_overrides=additional_context,
+                    created_by_user_id=current_user_id
+                )
+
+                if success:
+                    QMessageBox.information(self, self.tr("Success"),
+                                            self.tr("Invoice successfully generated and saved (Invoice DB ID: {0}, Document ID: {1}).").format(new_invoice_id, new_doc_id))
+                    if hasattr(self, 'populate_doc_table'):
+                        self.populate_doc_table()
+
+                    if main_window and hasattr(main_window, 'invoice_management_widget_instance'):
+                        if hasattr(main_window.invoice_management_widget_instance, 'load_invoices'):
+                             main_window.invoice_management_widget_instance.load_invoices()
+                             logging.info("Refreshed global invoice list.")
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to generate or save the final invoice. Check logs for details."))
+            except Exception as e_gen:
+                logging.error(f"Exception during final invoice creation process from ClientWidget: {e_gen}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Critical Error"), self.tr("An unexpected error occurred: {0}").format(str(e_gen)))
+
+
+# Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # are correctly available either as methods of ClientWidget or properly imported.
 # The dynamic import _import_main_elements() is a temporary measure.
