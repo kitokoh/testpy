@@ -2,11 +2,12 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QTabWidget, QWidget, QFormLayout,
     QLineEdit, QPushButton, QComboBox, QSpinBox, QDialogButtonBox,
-    QFileDialog, QLabel, QHBoxLayout, QCheckBox
+    QFileDialog, QLabel, QHBoxLayout, QCheckBox, QMessageBox
 )
 # Note: QHBoxLayout was added as it's used for template/client dir browsing lines.
 # Note: QCheckBox was added for the new setting.
 # Note: utils_load_config was not found in use in the SettingsDialog, only utils_save_config.
+import os # Added for os.path.dirname and os.path.exists in browse_db_path
 from utils import save_config as utils_save_config
 from company_management import CompanyTabWidget
 
@@ -71,6 +72,15 @@ class SettingsDialog(QDialog):
         self.show_setup_prompt_checkbox.setChecked(self.current_config_data.get("show_initial_setup_on_startup", False))
         general_form_layout.addRow(self.tr("Show setup prompt on next start (if no company configured):"), self.show_setup_prompt_checkbox)
 
+        # Database Path Configuration
+        self.db_path_input = QLineEdit(self.current_config_data.get("database_path", ""))
+        db_path_browse_btn = QPushButton(self.tr("Parcourir..."))
+        db_path_browse_btn.clicked.connect(self.browse_db_path)
+        db_path_layout = QHBoxLayout()
+        db_path_layout.addWidget(self.db_path_input)
+        db_path_layout.addWidget(db_path_browse_btn)
+        general_form_layout.addRow(self.tr("Chemin Base de Données:"), db_path_layout)
+
         self.tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -93,6 +103,23 @@ class SettingsDialog(QDialog):
         dir_path = QFileDialog.getExistingDirectory(self, dialog_title, line_edit_target.text())
         if dir_path: line_edit_target.setText(dir_path)
 
+    def browse_db_path(self):
+        current_path = self.db_path_input.text()
+        # Try to start the dialog in the directory of the current path, if valid
+        start_dir = os.path.dirname(current_path) if current_path and os.path.exists(os.path.dirname(current_path)) else ""
+
+        options = QFileDialog.Options()
+        # options |= QFileDialog.DontUseNativeDialog # Uncomment for testing if native dialog causes issues
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Sélectionner le fichier de base de données"),
+            start_dir, # Use the directory of the current path as starting point
+            self.tr("Fichiers de base de données (*.db);;Tous les fichiers (*.*)"),
+            options=options
+        )
+        if file_path:
+            self.db_path_input.setText(file_path)
+
     def get_config(self):
         selected_lang_display_text = self.interface_lang_combo.currentText()
         language_code = self.lang_display_to_code.get(selected_lang_display_text, "fr")
@@ -102,6 +129,7 @@ class SettingsDialog(QDialog):
             "language": language_code,
             "default_reminder_days": self.reminder_days_spinbox.value(),
             "session_timeout_minutes": self.session_timeout_spinbox.value(), # Added session timeout
+            "database_path": self.db_path_input.text().strip(),
             "smtp_server": self.smtp_server_input_field.text(),
             "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(),
@@ -122,49 +150,22 @@ class SettingsDialog(QDialog):
 
     # Override accept to save config before closing
     def accept(self):
+        old_db_path = self.current_config_data.get("database_path", "") # Get old path BEFORE new_config
+
         new_config = self.get_config()
-        # The actual saving logic might be more complex, e.g. self.CONFIG.update(new_config)
-        # and then self.save_config(self.CONFIG, 'config.json')
-        # For now, assuming direct save of the returned dict is okay.
-        # The original SettingsDialog directly calls self.save_config(new_config_dict, "config.json")
-        # So, this should be:
+        new_db_path = new_config.get("database_path", "") # Get new path from new_config
+        db_path_actually_changed = old_db_path != new_db_path
+
         try:
-            # The `save_config` function from `utils` likely takes the data and a filename.
-            # Assuming the filename is 'config.json' as is common.
-            # The original `main_config` passed to __init__ is the reference to the app's main config object.
-            # We should update this main_config object and then tell it to save itself,
-            # or use a utility that knows where to save it.
-            # The `utils_save_config` is `self.save_config`.
-            # The original main.py might have something like:
-            # self.config_manager.update_config(new_settings_data)
-            # self.config_manager.save_config()
-            # Or, if `main_config` is just a dict and `utils_save_config` saves a dict to a known path:
+            self.save_config(new_config)
 
-            # Let's refine get_config in CompanyTabWidget if it's not directly returning savable data.
-            # The provided `dialogs.py` snippet for `SettingsDialog.get_config` already returns a dict.
-            # The `CompanyTabWidget` is instantiated with `self` (the SettingsDialog instance),
-            # so it might call `self.parent().save_config` or similar.
-            # However, the `get_config` in `SettingsDialog` is the one that should aggregate all data.
-            # The `CompanyTabWidget`'s data needs to be incorporated into `config_data_to_return`.
-            # I've added a placeholder for this logic in `get_config`.
-            # The `utils_save_config` function needs to be called with the correct parameters.
-            # If `utils_save_config` is responsible for knowing the path:
-            self.save_config(new_config) # Assuming utils_save_config knows the path or uses self.CONFIG internally
+            if db_path_actually_changed:
+                QMessageBox.information(self,
+                                        self.tr("Redémarrage Nécessaire"),
+                                        self.tr("Le chemin de la base de données a été modifié. Veuillez redémarrer l'application pour que les changements prennent effet."))
 
-            # If SettingsDialog is meant to update the passed `main_config` object directly:
-            # self.current_config_data.update(new_config) # Update the dict in-place
-            # And then the caller of SettingsDialog would be responsible for saving.
-            # However, the presence of `self.save_config = utils_save_config` implies SettingsDialog saves.
-
-            # For the purpose of refactoring, we ensure the logic remains the same.
-            # If `CompanyTabWidget` saves itself, that's fine. If it returns data, `get_config` handles it.
-            # The `utils_save_config` is likely `ConfigManager.save_config_static` or similar.
-            # Let's assume `self.save_config(new_config)` is the correct invocation based on its direct assignment.
-            # This implies `utils_save_config` is a function that takes the config dict.
-            # The actual saving path/mechanism is abstracted by `utils_save_config`.
-
-            QMessageBox.information(self, self.tr("Paramètres Enregistrés"), self.tr("Les paramètres ont été enregistrés. Certains changements peuvent nécessiter un redémarrage."))
-            super().accept() # Call QDialog.accept() to close with QDialog.Accepted
+            QMessageBox.information(self, self.tr("Paramètres Enregistrés"), self.tr("Les paramètres ont été enregistrés. Certains changements (comme la langue ou la base de données) peuvent nécessiter un redémarrage."))
+            super().accept()
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Sauvegarde"), self.tr("Impossible d'enregistrer les paramètres:\n{0}").format(str(e)))
             # Do not close dialog if save fails
