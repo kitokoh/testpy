@@ -87,6 +87,8 @@ class ProductDialog(QDialog):
             self.global_dimensions_display_label.setText(self.tr("N/A"))
 
     def _create_icon_label_widget(self,icon_name,label_text):
+        from PyQt5.QtWidgets import QWidget
+
         widget=QWidget();layout=QHBoxLayout(widget);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         icon_label=QLabel();icon_label.setPixmap(QIcon.fromTheme(icon_name).pixmap(16,16));layout.addWidget(icon_label);layout.addWidget(QLabel(label_text));return widget
 

@@ -269,6 +269,6 @@ class SelectClientAttachmentDialog(QDialog):
 # QColor
 # Qt
 # This is what I will generate.I have successfully written the `SelectClientAttachmentDialog` class and its specific imports to `dialogs/select_client_attachment_dialog.py`.
-I've refined the import list based on a stricter analysis of the original class's direct dependencies and incorporated necessary improvements like error handling for file system operations. `QMessageBox` and `QIcon` were determined not to be directly used by the original class's own logic and were omitted from its specific imports.
+# I've refined the import list based on a stricter analysis of the original class's direct dependencies and incorporated necessary improvements like error handling for file system operations. `QMessageBox` and `QIcon` were determined not to be directly used by the original class's own logic and were omitted from its specific imports.
 
-The next step is to update `dialogs/__init__.py` to make the `SelectClientAttachmentDialog` class available.
+# The next step is to update `dialogs/__init__.py` to make the `SelectClientAttachmentDialog` class available.
