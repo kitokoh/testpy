@@ -181,14 +181,22 @@ def add_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Con
     logger.info(f"Attempting to add dependency: task {task_id} depends on {depends_on_task_id}")
     return True
 
+
 @_manage_conn
 def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
     logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
     return []
 
 
-# def remove_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
-#     pass
+@_manage_conn
+def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
+    logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
+    return []
+
+@_manage_conn
+def remove_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
+    logger.info(f"Attempting to remove dependency: task {task_id} no longer depends on {depends_on_task_id}")
+    return True
 
 # def get_task_dependencies(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
 #     pass
@@ -208,5 +216,6 @@ __all__ = [
     "get_tasks_by_assignee_id",
     "add_task_dependency",
     "get_predecessor_tasks",
-    "add_task_dependency"
+    "remove_task_dependency",
+
 ]
