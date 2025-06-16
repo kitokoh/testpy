@@ -72,19 +72,21 @@ def add_client_document(data: dict, conn: sqlite3.Connection = None) -> str | No
 def delete_client_document(document_id: str, conn: sqlite3.Connection = None) -> bool:
     """
     Deletes a client document by its document_id.
-    STUB FUNCTION - Full implementation pending.
     """
-    # Changed document_id type hint to str to match new_document_id type
-    logging.warning(f"Called stub function delete_client_document for document_id: {document_id}. Full implementation is missing.")
-    # Example:
-    # cursor = conn.cursor()
-    # try:
-    #     cursor.execute("DELETE FROM ClientDocuments WHERE document_id = ?", (document_id,))
-    #     return cursor.rowcount > 0 # Returns True if a row was deleted
-    # except sqlite3.Error as e:
-    #     logging.error(f"Stub delete_client_document error for {document_id}: {e}")
-    #     return False
-    return False
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM ClientDocuments WHERE document_id = ?", (document_id,))
+        # conn.commit() # Handled by _manage_conn
+        if cursor.rowcount > 0:
+            logging.info(f"Successfully deleted client document with ID: {document_id}")
+            return True
+        else:
+            logging.warning(f"No client document found with ID: {document_id} to delete.")
+            return False # No rows affected, so technically not a successful deletion of an existing record
+    except sqlite3.Error as e:
+        logging.error(f"Error deleting client document with ID {document_id}: {e}")
+        # conn.rollback() # Handled by _manage_conn
+        return False
 
 @_manage_conn
 def get_document_by_id(document_id: str, conn: sqlite3.Connection = None) -> dict | None:
@@ -237,15 +239,90 @@ def add_client_document_note(data: dict, conn: sqlite3.Connection = None) -> int
 
 @_manage_conn
 def update_client_document_note(note_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:
-    logging.warning(f"Called stub function update_client_document_note for note_id {note_id} with data {data}. Full implementation is missing.")
-    return False
+    """
+    Updates an existing client document note.
+    Handles potential UNIQUE constraint violation if the update changes
+    document_type or language_code to a combination that already exists for the client.
+    """
+    cursor = conn.cursor()
+    sql = """
+        UPDATE ClientDocumentNotes SET
+            document_type = ?,
+            language_code = ?,
+            note_content = ?,
+            is_active = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE note_id = ?
+    """
+    params = (
+        data.get('document_type'),
+        data.get('language_code'),
+        data.get('note_content'),
+        data.get('is_active', True),
+        note_id
+    )
+    try:
+        cursor.execute(sql, params)
+        # conn.commit() # Handled by _manage_conn
+        if cursor.rowcount > 0:
+            logging.info(f"Successfully updated client document note with ID: {note_id}")
+            return True
+        else:
+            logging.warning(f"No client document note found with ID: {note_id} to update, or data was the same.")
+            # It's possible the note_id doesn't exist, or the data provided
+            # was identical to existing data, causing no actual update by some DB engines.
+            # For SQLite, if the WHERE clause (note_id = ?) doesn't match, rowcount is 0.
+            # If it matches but data is same, rowcount is still 1 (operation performed).
+            # So, rowcount 0 here means note_id not found.
+            return False
+    except sqlite3.IntegrityError:
+        logging.warning(
+            f"Failed to update client document note ID {note_id} due to UNIQUE constraint violation "
+            f"(client_id: {data.get('client_id')}, " # client_id is not updated but useful for logging
+            f"document_type: {data.get('document_type')}, "
+            f"language_code: {data.get('language_code')})."
+        )
+        return False # Indicates failure due to duplicate
+    except sqlite3.Error as e:
+        logging.error(f"Database error updating client document note ID {note_id}: {e}")
+        return False
 
 @_manage_conn
 def delete_client_document_note(note_id: int, conn: sqlite3.Connection = None) -> bool:
-    logging.warning(f"Called stub function delete_client_document_note for note_id {note_id}. Full implementation is missing.")
-    return False
+    """
+    Deletes a client document note by its note_id.
+    """
+    cursor = conn.cursor()
+    sql = "DELETE FROM ClientDocumentNotes WHERE note_id = ?"
+    try:
+        cursor.execute(sql, (note_id,))
+        # conn.commit() # Handled by _manage_conn
+        if cursor.rowcount > 0:
+            logging.info(f"Successfully deleted client document note with ID: {note_id}")
+            return True
+        else:
+            logging.warning(f"No client document note found with ID: {note_id} to delete.")
+            return False # No rows affected
+    except sqlite3.Error as e:
+        logging.error(f"Error deleting client document note with ID {note_id}: {e}")
+        return False
 
 @_manage_conn
 def get_client_document_note_by_id(note_id: int, conn: sqlite3.Connection = None) -> dict | None:
-    logging.warning(f"Called stub function get_client_document_note_by_id for note_id {note_id}. Full implementation is missing.")
-    return None
+    """
+    Retrieves a specific client document note by its note_id.
+    """
+    cursor = conn.cursor()
+    sql = "SELECT * FROM ClientDocumentNotes WHERE note_id = ?"
+    try:
+        cursor.execute(sql, (note_id,))
+        row = cursor.fetchone()
+        if row:
+            # Assuming conn.row_factory = sqlite3.Row is set
+            return dict(row)
+        else:
+            logging.warning(f"No client document note found with ID: {note_id}")
+            return None
+    except sqlite3.Error as e:
+        logging.error(f"Error getting client document note by ID {note_id}: {e}")
+        return None

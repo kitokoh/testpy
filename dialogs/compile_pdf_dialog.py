@@ -20,6 +20,7 @@ from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_C
 import db as db_manager
 # clients_crud_instance is not used by CompilePdfDialog
 import icons_rc # Import for Qt resource file
+import logging # Added for logging in _populate_email_templates
 
 class CompilePdfDialog(QDialog):
     def __init__(self, client_info, config, app_root_dir, parent=None):
@@ -49,9 +50,57 @@ class CompilePdfDialog(QDialog):
         action_layout = QHBoxLayout()
         compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/download.svg")); compile_btn.setObjectName("primaryButton")
         compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
-        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
+        # cancel_btn is now part of QDialogButtonBox
+        # cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
         layout.addLayout(action_layout)
+
+        # Add Email Template ComboBox
+        email_template_layout = QHBoxLayout()
+        email_template_layout.addWidget(QLabel(self.tr("Modèle d'email (optionnel):")))
+        self.email_template_combo = QComboBox()
+        self.email_template_combo.setToolTip(self.tr("Sélectionnez un modèle d'email à utiliser si vous envoyez le PDF par email."))
+        email_template_layout.addWidget(self.email_template_combo)
+        layout.addLayout(email_template_layout)
+        self._populate_email_templates() # New method to populate this
+
+        # Add Checkbox for sending email
+        self.email_after_compile_checkbox = QCheckBox(self.tr("Envoyer par email après compilation"))
+        self.email_after_compile_checkbox.setChecked(False) # Default to not sending
+        layout.addWidget(self.email_after_compile_checkbox)
+
+        # Dialog Buttons
+        self.button_box = QDialogButtonBox()
+        # Keep "Compiler PDF" as primary action, but it's not a standard Ok button.
+        # We will handle its click separately and then call self.accept() if compilation is successful.
+        # Standard OK/Cancel buttons are not directly used for main actions here.
+        # Let's remove explicit OK/Cancel from ButtonBox if compile_btn is the main action trigger.
+        # Or, we can use a standard ButtonBox and connect compile_pdf to the Ok signal.
+        # For now, let's keep the explicit compile_btn and use self.accept() in its handler.
+        # Adding a close button for user convenience if they don't want to compile.
+        self.button_box.addButton(self.tr("Fermer"), QDialogButtonBox.RejectRole)
+        layout.addWidget(self.button_box)
+        self.button_box.rejected.connect(self.reject)
+
+
         self.load_existing_pdfs()
+
+        # Instance variables to store results for get_data()
+        self.compiled_output_path = None
+        self.compiled_output_filename = None
+
+
+    def _populate_email_templates(self):
+        self.email_template_combo.addItem(self.tr("Aucun (contenu générique)"), None)
+        try:
+            # Assuming 'email' is the category for email templates
+            templates = db_manager.get_templates_by_category('email')
+            if templates:
+                for template in templates:
+                    self.email_template_combo.addItem(template['template_name'], template['template_id'])
+        except Exception as e:
+            logging.error(f"Error populating email templates in CompilePdfDialog: {e}")
+            # QMessageBox.warning(self, self.tr("Erreur Modèles"), self.tr("Impossible de charger les modèles d'email."))
+
 
     def load_existing_pdfs(self):
         client_dir = self.client_info["base_folder_path"]; pdf_files = []
@@ -116,10 +165,43 @@ class CompilePdfDialog(QDialog):
         try:
             with open(output_path, 'wb') as f: merger.write(f)
             if cover_path and os.path.exists(cover_path): os.remove(cover_path) # Clean up temp cover
-            # QMessageBox.information(self, self.tr("Compilation réussie"), self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(output_path)) # Original line
-            self.offer_download_or_email(output_path); # Call this before accept
-            self.accept()
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF:\n{0}").format(str(e)))
+
+            self.compiled_output_path = output_path
+            self.compiled_output_filename = output_name
+
+            QMessageBox.information(self, self.tr("Compilation réussie"),
+                                    self.tr("Le PDF compilé '{0}' a été sauvegardé.").format(output_name))
+            self.accept() # Signal to ClientWidget that compilation was successful
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF:\n{0}").format(str(e)))
+            self.compiled_output_path = None # Ensure no path is returned on error
+            self.compiled_output_filename = None
+
+
+    def get_data(self):
+        """Returns the data collected by the dialog."""
+        return {
+            "output_path": self.compiled_output_path,
+            "output_filename": self.compiled_output_filename,
+            "selected_documents_specs": self.get_selected_documents_specs(), # If ClientWidget needs this
+            "selected_email_template_id": self.email_template_combo.currentData(),
+            "send_email_after_compilation": self.email_after_compile_checkbox.isChecked()
+        }
+
+    def get_selected_documents_specs(self):
+        """Helper to get details of selected documents if needed by caller."""
+        specs = []
+        for row in range(self.pdf_list.rowCount()):
+            chk = self.pdf_list.cellWidget(row, 0)
+            if chk and chk.isChecked():
+                file_path_item = self.pdf_list.item(row, 2)
+                pages_widget = self.pdf_list.cellWidget(row, 3)
+                if file_path_item and pages_widget:
+                    specs.append({
+                        "path": file_path_item.text(),
+                        "pages_spec": pages_widget.text().strip()
+                    })
+        return specs
 
     def create_cover_page(self):
         config_dict = {'title': self.tr("Compilation de Documents - Projet: {0}").format(self.client_info.get('project_identifier', self.tr('N/A'))),
@@ -155,32 +237,32 @@ class CompilePdfDialog(QDialog):
         close_btn = msg_box.addButton(self.tr("Fermer"), QMessageBox.RejectRole) # Changed to RejectRole for clarity
         msg_box.exec_()
         if msg_box.clickedButton() == download_btn: QDesktopServices.openUrl(QUrl.fromLocalFile(pdf_path))
-        elif msg_box.clickedButton() == email_btn: self.send_email(pdf_path)
+        # elif msg_box.clickedButton() == email_btn: self.send_email(pdf_path) # Removed direct call
         # If close_btn is clicked, it does nothing extra, dialog closes.
 
-    def send_email(self, pdf_path):
-        primary_email = None; client_uuid = self.client_info.get("client_id")
-        if client_uuid:
-            contacts_for_client = db_manager.get_contacts_for_client(client_uuid) # Uses db_manager
-            if contacts_for_client:
-                for contact in contacts_for_client:
-                    if contact.get('is_primary_for_client'): primary_email = contact.get('email'); break
-
-        email, ok = QInputDialog.getText(self, self.tr("Envoyer par email"), self.tr("Adresse email du destinataire:"), text=primary_email or "")
-        if not ok or not email.strip(): return
-
-        if not self.config.get("smtp_server") or not self.config.get("smtp_user"):
-            QMessageBox.warning(self, self.tr("Configuration manquante"), self.tr("Veuillez configurer les paramètres SMTP dans les paramètres de l'application.")); return
-
-        msg = MIMEMultipart(); msg['From'] = self.config["smtp_user"]; msg['To'] = email; msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info.get('client_name', 'N/A'))
-        body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info.get('project_identifier', 'N/A')); msg.attach(MIMEText(body, 'plain'))
-
-        with open(pdf_path, 'rb') as f: part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
-        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'; msg.attach(part)
-
-        try:
-            server = smtplib.SMTP(self.config["smtp_server"], self.config.get("smtp_port", 587))
-            if self.config.get("smtp_port", 587) == 587: server.starttls()
-            server.login(self.config["smtp_user"], self.config["smtp_password"]); server.send_message(msg); server.quit()
-            QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))
+    # def send_email(self, pdf_path): # Removed as ClientWidget will handle this
+    #     primary_email = None; client_uuid = self.client_info.get("client_id")
+    #     if client_uuid:
+    #         contacts_for_client = db_manager.get_contacts_for_client(client_uuid) # Uses db_manager
+    #         if contacts_for_client:
+    #             for contact in contacts_for_client:
+    #                 if contact.get('is_primary_for_client'): primary_email = contact.get('email'); break
+    #
+    #     email, ok = QInputDialog.getText(self, self.tr("Envoyer par email"), self.tr("Adresse email du destinataire:"), text=primary_email or "")
+    #     if not ok or not email.strip(): return
+    #
+    #     if not self.config.get("smtp_server") or not self.config.get("smtp_user"):
+    #         QMessageBox.warning(self, self.tr("Configuration manquante"), self.tr("Veuillez configurer les paramètres SMTP dans les paramètres de l'application.")); return
+    #
+    #     msg = MIMEMultipart(); msg['From'] = self.config["smtp_user"]; msg['To'] = email; msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info.get('client_name', 'N/A'))
+    #     body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info.get('project_identifier', 'N/A')); msg.attach(MIMEText(body, 'plain'))
+    #
+    #     with open(pdf_path, 'rb') as f: part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
+    #     part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'; msg.attach(part)
+    #
+    #     try:
+    #         server = smtplib.SMTP(self.config["smtp_server"], self.config.get("smtp_port", 587))
+    #         if self.config.get("smtp_port", 587) == 587: server.starttls()
+    #         server.login(self.config["smtp_user"], self.config["smtp_password"]); server.send_message(msg); server.quit()
+    #         QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
+    #     except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))

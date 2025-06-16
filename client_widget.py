@@ -1558,44 +1558,67 @@ class ClientWidget(QWidget):
 
                 shutil.copy(selected_file_path, target_file_path)
 
-                # Update client's selected languages if necessary
-                current_selected_languages = self.client_info.get("selected_languages", [])
-                # Ensure it's a list, as it might be a comma-separated string from DB
-                if isinstance(current_selected_languages, str):
-                    current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                # Prepare data for database entry
+                file_extension = os.path.splitext(file_name)[1].lower()
+                doc_type_generated = f"USER_UPLOADED_{file_extension.replace('.', '').upper()}"
+                relative_path = os.path.join(selected_doc_language, file_name)
 
-                if not current_selected_languages: # Handle empty or None case
-                    current_selected_languages = []
+                # Attempt to get current_user_id (example, might need adjustment based on actual app structure)
+                current_user_id = None
+                if hasattr(self, 'config') and 'current_user' in self.config and self.config['current_user']:
+                    current_user_id = self.config['current_user'].get('user_id')
 
-                if selected_doc_language not in current_selected_languages:
-                    add_lang_reply = QMessageBox.question(
-                        self,
-                        self.tr("Ajouter Langue"),
-                        self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes
-                    )
-                    if add_lang_reply == QMessageBox.Yes:
-                        updated_languages_list = current_selected_languages + [selected_doc_language]
-                        updated_languages_str = ",".join(updated_languages_list)
 
-                        client_id_to_update = self.client_info.get("client_id")
-                        if client_id_to_update:
-                            if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
-                                self.client_info["selected_languages"] = updated_languages_list # Update local info
-                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                doc_data = {
+                    'client_id': self.client_info.get("client_id"),
+                    'document_name': file_name,
+                    'file_name_on_disk': file_name,
+                    'file_path_relative': relative_path,
+                    'language_code': selected_doc_language, # Storing language code
+                    'document_type_generated': doc_type_generated,
+                    'source_template_id': None,  # No template for manual uploads
+                    'order_identifier': None, # No specific order for manual uploads by default
+                    'user_id': current_user_id # Pass user_id if available
+                }
+
+                new_doc_id = db_manager.add_client_document(doc_data)
+
+                if new_doc_id:
+                    # Update client's selected languages if necessary
+                    current_selected_languages = self.client_info.get("selected_languages", [])
+                    if isinstance(current_selected_languages, str):
+                        current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                    if not current_selected_languages: current_selected_languages = []
+
+                    if selected_doc_language not in current_selected_languages:
+                        add_lang_reply = QMessageBox.question(
+                            self, self.tr("Ajouter Langue"),
+                            self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
+                            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                        )
+                        if add_lang_reply == QMessageBox.Yes:
+                            updated_languages_list = current_selected_languages + [selected_doc_language]
+                            updated_languages_str = ",".join(updated_languages_list)
+                            client_id_to_update = self.client_info.get("client_id")
+                            if client_id_to_update:
+                                if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
+                                    self.client_info["selected_languages"] = updated_languages_list
+                                    logging.info(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                                else:
+                                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
                             else:
-                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
-                        else:
-                            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
+                                QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
 
-                self.populate_doc_table()
+                    self.populate_doc_table()
+                    QMessageBox.information(
+                        self, self.tr("Succès"),
+                        self.tr("Document '{0}' ajouté avec succès en langue '{1}' et enregistré dans la base de données.").format(file_name, selected_doc_language)
+                    )
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Le document a été copié, mais son enregistrement dans la base de données a échoué."))
+                    # Optionally, attempt to remove the copied file if DB entry failed:
+                    # os.remove(target_file_path)
 
-                QMessageBox.information(
-                    self,
-                    self.tr("Succès"),
-                    self.tr("Document '{0}' ajouté avec succès en langue '{1}'.").format(file_name, selected_doc_language)
-                )
             except Exception as e:
                 QMessageBox.warning(
                     self,
@@ -2031,13 +2054,90 @@ class ClientWidget(QWidget):
             self.doc_table.setItem(row_idx, 3, QTableWidgetItem(mod_time_formatted))
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
-            pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
-            source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
+            pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30)
+            pdf_btn.clicked.connect(lambda _, p=full_file_path, l=language_code: self._handle_open_pdf_action(p, l)) # Pass language_code
+            action_layout.addWidget(pdf_btn)
+
+            source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30)
+            source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)) if p and os.path.exists(p) else QMessageBox.warning(self, self.tr("Fichier Introuvable"), self.tr("Le fichier source n'existe pas ou le chemin est manquant.")))
+            action_layout.addWidget(source_btn)
+
             if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
-                edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
-            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
+                edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30)
+                edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p))
+                action_layout.addWidget(edit_btn)
+            else:
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+
+            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30)
+            # Pass document_id for DB deletion, full_file_path for file system deletion
+            delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p))
+            action_layout.addWidget(delete_btn)
+
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+
+    def delete_client_document_entry(self, document_id, file_path):
+        """Deletes document from DB and filesystem after confirmation."""
+        if not document_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID de document manquant. Impossible de supprimer."))
+            return
+
+        confirm_msg = self.tr("Êtes-vous sûr de vouloir supprimer le document")
+        if file_path and os.path.basename(file_path):
+            confirm_msg += f" '{os.path.basename(file_path)}'"
+        confirm_msg += self.tr(" (ID DB: {0})?\nCette action est irréversible.").format(document_id)
+
+        reply = QMessageBox.question(self, self.tr("Confirmer la suppression"), confirm_msg,
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            db_deleted = False
+            try:
+                if db_manager.delete_client_document(document_id): # This now calls the implemented version
+                    logging.info(f"Document ID {document_id} deleted from DB.")
+                    db_deleted = True
+                else:
+                    # This case implies delete_client_document returned False,
+                    # meaning document_id was not found or another DB error occurred.
+                    QMessageBox.warning(self, self.tr("Erreur DB"),
+                                        self.tr("Impossible de supprimer l'entrée du document de la base de données (ID: {0}). "
+                                                "Il se peut qu'il ait déjà été supprimé ou qu'une erreur se soit produite.").format(document_id))
+            except Exception as e_db:
+                logging.error(f"Exception while deleting document ID {document_id} from DB: {e_db}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur DB Exception"),
+                                     self.tr("Une exception est survenue lors de la suppression de l'entrée DB:\n{0}").format(str(e_db)))
+
+            file_deleted_successfully = False
+            if db_deleted: # Only attempt file deletion if DB entry was confirmed deleted
+                if file_path and os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logging.info(f"Document file {file_path} deleted from filesystem.")
+                        file_deleted_successfully = True
+                        QMessageBox.information(self, self.tr("Succès"),
+                                                self.tr("Document '{0}' supprimé avec succès (DB et fichier).").format(os.path.basename(file_path)))
+                    except OSError as e_file:
+                        logging.error(f"Error deleting file {file_path}: {e_file}", exc_info=True)
+                        QMessageBox.warning(self, self.tr("Erreur Fichier"),
+                                            self.tr("L'entrée DB a été supprimée, mais le fichier '{0}' n'a pas pu être supprimé:\n{1}").format(os.path.basename(file_path), str(e_file)))
+                        # At this point, DB is deleted, file is not. This is an inconsistent state.
+                        # Options: Log for manual cleanup, try to re-add DB record (complex), or inform user.
+                elif file_path: # DB deleted, but file path was provided and file doesn't exist
+                    logging.warning(f"DB entry for document ID {document_id} deleted, but file {file_path} was already missing.")
+                    QMessageBox.information(self, self.tr("Info"),
+                                            self.tr("L'entrée DB pour le document a été supprimée, mais le fichier associé '{0}' n'a pas été trouvé sur le disque.").format(os.path.basename(file_path)))
+                    file_deleted_successfully = True # Consider it "successful" in terms of the file not being there
+                else: # DB deleted, but no file_path was associated or passed
+                    logging.info(f"DB entry for document ID {document_id} deleted. No file path provided for filesystem deletion.")
+                    QMessageBox.information(self, self.tr("Succès DB"),
+                                            self.tr("L'entrée DB pour le document (ID: {0}) a été supprimée. Aucun fichier associé à supprimer du disque.").format(document_id))
+                    # This case might be considered a full success if no file was expected.
+                    file_deleted_successfully = True # If no file path, treat as if file part is done.
+
+
+            if db_deleted or file_deleted_successfully : # Refresh if any part of the deletion process happened or seemed to succeed
+                self.populate_doc_table()
+
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -2045,7 +2145,170 @@ class ClientWidget(QWidget):
 
     def open_compile_pdf_dialog(self):
         dialog = self.CompilePdfDialog(self.client_info, self.config, self.app_root_dir, self)
-        dialog.exec_()
+        if dialog.exec_() == QDialog.Accepted:
+            dialog_data = dialog.get_data() # Assume this returns a dict
+
+            compiled_pdf_path = dialog_data.get("output_path") # Path of the compiled PDF
+            output_filename = dialog_data.get("output_filename")
+            email_template_id = dialog_data.get("selected_email_template_id")
+            # Assuming the dialog_data might also contain a flag if user wants to send email
+            should_send_email_flag = dialog_data.get("send_email_after_compilation", False)
+
+            if not compiled_pdf_path or not os.path.exists(compiled_pdf_path):
+                QMessageBox.warning(self, self.tr("Erreur PDF"),
+                                    self.tr("Le fichier PDF compilé n'a pas été trouvé ou n'est pas accessible."))
+                return
+
+            if should_send_email_flag: # Check if user opted to send email
+                self.generate_and_send_pdf_email(
+                    compiled_pdf_path=compiled_pdf_path,
+                    output_filename=output_filename if output_filename else os.path.basename(compiled_pdf_path),
+                    client_info_dict=self.client_info, # Pass the whole client_info dict
+                    email_template_id=email_template_id
+                )
+            else:
+                # Optionally, just open the PDF if not emailing, or show a success message
+                QMessageBox.information(self, self.tr("PDF Compilé"),
+                                        self.tr("Le PDF '{0}' a été compilé avec succès.\nChemin: {1}").format(
+                                            output_filename if output_filename else os.path.basename(compiled_pdf_path),
+                                            compiled_pdf_path))
+                # QDesktopServices.openUrl(QUrl.fromLocalFile(compiled_pdf_path))
+
+
+    def generate_and_send_pdf_email(self, compiled_pdf_path, output_filename, client_info_dict, email_template_id):
+        """
+        Prepares and opens the SendEmailDialog to send the compiled PDF.
+        """
+        client_uuid = client_info_dict.get("client_id")
+        if not client_uuid:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible pour l'envoi d'email."))
+            return
+
+        # 1. Fetch Client Email
+        primary_email_to = ""
+        contacts = db_manager.get_contacts_for_client(client_uuid)
+        if contacts:
+            for contact in contacts:
+                if contact.get('is_primary_for_client') and contact.get('email'):
+                    primary_email_to = contact['email']
+                    break
+            if not primary_email_to and contacts[0].get('email'): # Fallback
+                primary_email_to = contacts[0]['email']
+
+        if not primary_email_to:
+            QMessageBox.warning(self, self.tr("Email Destinataire Manquant"),
+                                self.tr("Aucun email de contact trouvé pour ce client. Veuillez en ajouter un."))
+            return
+
+        # 2. Prepare Email Content
+        email_subject = self.tr("Votre document: {0}").format(output_filename)
+        email_body = self.tr("<p>Bonjour,</p><p>Veuillez trouver ci-joint le document '{0}'.</p><p>Cordialement.</p>").format(output_filename)
+
+        if email_template_id:
+            try:
+                template_data = db_manager.get_template_by_id(email_template_id)
+                if template_data:
+                    # Attempt to import a context builder, e.g., from document_generator
+                    # This is a potential point of failure if the import path or function is incorrect.
+                    try:
+                        from document_generator.context_builder import get_document_context
+
+                        # Determine company_id for context
+                        company_id_for_context = self.default_company_id # From __init__
+                        if not company_id_for_context:
+                             # Fallback or error if no default company ID is set
+                            default_company_from_db = db_manager.get_default_company()
+                            if default_company_from_db:
+                                company_id_for_context = default_company_from_db.get('company_id')
+                            else:
+                                logging.error("Default company ID not found for email context.")
+                                QMessageBox.warning(self, self.tr("Erreur Configuration"),
+                                                    self.tr("Société par défaut non configurée, impossible de générer le contexte complet de l'email."))
+                                # Proceed with generic content or minimal context
+                                raise ImportError("Default company ID missing for context.")
+
+
+                        # Determine language_code for context (e.g., client's primary language or a default)
+                        # Templates are usually language-specific, so this context language might be for general terms.
+                        context_lang_code = "fr" # Default language for context
+                        client_selected_langs = client_info_dict.get("selected_languages", [])
+                        if isinstance(client_selected_langs, str) and client_selected_langs:
+                            context_lang_code = client_selected_langs.split(',')[0].strip()
+                        elif isinstance(client_selected_langs, list) and client_selected_langs:
+                            context_lang_code = client_selected_langs[0]
+
+                        context_data = get_document_context(
+                            client_id=client_uuid,
+                            company_id=company_id_for_context,
+                            language_code=context_lang_code, # Language for context values
+                            project_id=client_info_dict.get("project_id"), # Optional project ID from client_info
+                            document_type="email_dispatch_compiled_pdf", # Generic type for this email
+                            additional_data={"compiled_pdf_name": output_filename, "client_raw_info": client_info_dict}
+                        )
+
+                        temp_subject = template_data.get('template_subject', email_subject)
+                        temp_body = template_data.get('template_content', email_body)
+
+                        # Enhanced placeholder replacement
+                        # 1. Replace from the 'placeholders' dictionary (e.g., {{BUYER_COMPANY_NAME}})
+                        if 'placeholders' in context_data:
+                            for pk, pv in context_data['placeholders'].items():
+                                temp_subject = temp_subject.replace(f"{{{{{pk}}}}}", str(pv if pv is not None else ""))
+                                temp_body = temp_body.replace(f"{{{{{pk}}}}}", str(pv if pv is not None else ""))
+
+                        # 2. Replace from structured context (e.g., {{client.name}}, {{doc.grand_total_amount}})
+                        for section_key, section_dict in context_data.items():
+                            if isinstance(section_dict, dict):
+                                for item_key, item_value in section_dict.items():
+                                    # Ensure item_value is not a complex type like another dict/list for direct replacement
+                                    if not isinstance(item_value, (dict, list)):
+                                        placeholder = f"{{{{{section_key}.{item_key}}}}}"
+                                        temp_subject = temp_subject.replace(placeholder, str(item_value if item_value is not None else ""))
+                                        temp_body = temp_body.replace(placeholder, str(item_value if item_value is not None else ""))
+
+                        email_subject = temp_subject
+                        email_body = temp_body
+
+                    except ImportError:
+                        logging.warning("document_generator.context_builder.get_document_context not found or import failed. Using generic email content.")
+                    except Exception as e_context:
+                        logging.error(f"Error populating email template using get_document_context: {e_context}", exc_info=True)
+                        QMessageBox.warning(self, self.tr("Erreur Modèle Email"),
+                                            self.tr("Erreur lors de la préparation du contenu de l'email à partir du modèle. Envoi avec contenu générique."))
+                else:
+                    logging.warning(f"Email template ID {email_template_id} not found. Using generic content.")
+            except Exception as e_template_fetch:
+                logging.error(f"Error fetching email template ID {email_template_id}: {e_template_fetch}")
+                QMessageBox.warning(self, self.tr("Erreur Modèle Email"),
+                                    self.tr("Erreur lors de la récupération du modèle d'email. Envoi avec contenu générique."))
+
+        # 3. Instantiate SendEmailDialog
+        try:
+            # Ensure SendEmailDialog is available (it's set in _import_main_elements)
+            if not self.SendEmailDialog:
+                QMessageBox.critical(self, self.tr("Erreur Interne"), self.tr("Le composant SendEmailDialog n'est pas initialisé."))
+                return
+
+            email_dialog = self.SendEmailDialog(
+                client_email=primary_email_to,
+                subject=email_subject,
+                body=email_body,
+                attachments=[compiled_pdf_path], # Pass PDF path as a list
+                config=self.config, # Pass main app config
+                client_id=client_uuid, # Pass client_id
+                parent=self
+            )
+            if email_dialog.exec_() == QDialog.Accepted:
+                # Email sending is handled by SendEmailDialog itself upon its own 'accept'
+                QMessageBox.information(self, self.tr("Email"), self.tr("Le dialogue d'envoi d'email a été traité."))
+            else:
+                QMessageBox.information(self, self.tr("Email Annulé"), self.tr("L'envoi du PDF par email a été annulé."))
+
+        except Exception as e_dialog:
+            logging.error(f"Error opening or processing SendEmailDialog: {e_dialog}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Envoi Email"),
+                                 self.tr("Une erreur est survenue lors de la préparation de l'email: {0}").format(str(e_dialog)))
+
 
     def open_selected_doc(self):
         selected_row = self.doc_table.currentRow()
@@ -2067,22 +2330,60 @@ class ClientWidget(QWidget):
         if os.path.exists(file_path):
             try:
                 editor_client_data = { "client_id": self.client_info.get("client_id"), "client_name": self.client_info.get("client_name", ""), "company_name": self.client_info.get("company_name", ""), "need": self.client_info.get("need", ""), "primary_need_description": self.client_info.get("need", ""), "project_identifier": self.client_info.get("project_identifier", ""), "country": self.client_info.get("country", ""), "country_id": self.client_info.get("country_id"), "city": self.client_info.get("city", ""), "city_id": self.client_info.get("city_id"), "price": self.client_info.get("price", 0), "status": self.client_info.get("status"), "status_id": self.client_info.get("status_id"), "selected_languages": self.client_info.get("selected_languages"), "notes": self.client_info.get("notes"), "creation_date": self.client_info.get("creation_date"), "category": self.client_info.get("category"), "base_folder_path": self.client_info.get("base_folder_path") }
+
+                # Determine target_language_code for PDF generation
+                target_language_code_for_pdf = "fr" # Default
+                try:
+                    # Attempt to infer from path: base_folder/lang_code/file.ext
+                    inferred_lang = os.path.basename(os.path.dirname(file_path))
+                    if inferred_lang in SUPPORTED_LANGUAGES:
+                        target_language_code_for_pdf = inferred_lang
+                    else: # Fallback to client's primary language or default
+                        client_langs = self.client_info.get("selected_languages", [])
+                        if isinstance(client_langs, str): client_langs = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+                        if client_langs and client_langs[0] in SUPPORTED_LANGUAGES:
+                            target_language_code_for_pdf = client_langs[0]
+                        # else keep default "fr"
+                except Exception as e_lang_infer:
+                    logging.warning(f"Could not infer language from path {file_path} for PDF gen: {e_lang_infer}. Defaulting to {target_language_code_for_pdf}.")
+
                 if file_path.lower().endswith('.xlsx'):
                     editor = ExcelEditor(file_path, parent=self)
-                    if editor.exec_() == QDialog.Accepted:
-                        # ... (archiving and PDF generation logic remains the same) ...
-                        self.generate_pdf_for_document(file_path, self.client_info, self)
+                    if editor.exec_() == QDialog.Accepted: # Assuming Accepted means changes were made and saved
+                        # Call generate_pdf_for_document with corrected arguments
+                        generated_pdf_path = self.generate_pdf_for_document(
+                            source_file_path=file_path,
+                            client_info=self.client_info,
+                            app_root_dir=self.app_root_dir, # Corrected: pass app_root_dir
+                            parent_widget=self,
+                            target_language_code=target_language_code_for_pdf # Corrected: pass determined lang code
+                        )
+                        if generated_pdf_path:
+                            logging.info(f"PDF generated after Excel edit: {generated_pdf_path}")
+                        # Note: generate_pdf_for_document currently shows "not supported" for XLSX.
                     self.populate_doc_table()
                 elif file_path.lower().endswith('.html'):
                     html_editor_dialog = HtmlEditor(file_path, client_data=editor_client_data, parent=self)
-                    if html_editor_dialog.exec_() == QDialog.Accepted:
-                        # ... (archiving and PDF generation logic remains the same) ...
-                        generated_pdf_path = self.generate_pdf_for_document(file_path, self.client_info, self)
-                        if generated_pdf_path: print(f"Updated PDF generated at: {generated_pdf_path}")
+                    if html_editor_dialog.exec_() == QDialog.Accepted: # Assuming Accepted means changes were made and saved
+                        # Call generate_pdf_for_document with corrected arguments
+                        generated_pdf_path = self.generate_pdf_for_document(
+                            source_file_path=file_path,
+                            client_info=self.client_info,
+                            app_root_dir=self.app_root_dir, # Corrected: pass app_root_dir
+                            parent_widget=self,
+                            target_language_code=target_language_code_for_pdf # Corrected: pass determined lang code
+                        )
+                        if generated_pdf_path:
+                            logging.info(f"Updated PDF generated after HTML edit: {generated_pdf_path}")
                     self.populate_doc_table()
-                else: QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-            except Exception as e: QMessageBox.warning(self, self.tr("Erreur Ouverture Fichier"), self.tr("Impossible d'ouvrir le fichier:\n{0}").format(str(e)))
-        else: QMessageBox.warning(self, self.tr("Fichier Introuvable"), self.tr("Le fichier n'existe plus.")); self.populate_doc_table()
+                else:
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            except Exception as e:
+                QMessageBox.warning(self, self.tr("Erreur Ouverture Fichier"), self.tr("Impossible d'ouvrir le fichier:\n{0}").format(str(e)))
+                logging.error(f"Error opening document {file_path}: {e}", exc_info=True)
+        else:
+            QMessageBox.warning(self, self.tr("Fichier Introuvable"), self.tr("Le fichier n'existe plus."))
+            self.populate_doc_table() # Refresh table if file is missing
 
     def delete_document(self, file_path):
         if not os.path.exists(file_path): return
@@ -2348,93 +2649,133 @@ class ClientWidget(QWidget):
         try:
             dialog = self.EditProductLineDialog(product_link_data, self.app_root_dir, self) # Pass app_root_dir
             if dialog.exec_() == QDialog.Accepted:
-                updated_line_data = dialog.get_data()
+                updated_line_data = dialog.get_data() # This now contains name, desc, weight, dimensions
                 if updated_line_data:
+                    # Prepare payload for db_manager.update_client_project_product
+                    # Note: The current db_manager.update_client_project_product only processes
+                    # 'quantity', 'unit_price_override', 'total_price_calculated', 'serial_number', 'purchase_confirmed_at'.
+                    # Adding other keys here won't make them save unless the CRUD function is also updated.
+                    # For now, we add them as requested, assuming CRUD might be updated later or for completeness.
+
+                    # Base unit price is needed to determine if the new price is an override
+                    # This was already fetched for dialog population: global_product_data.get('base_unit_price', 0.0)
+
+                    new_unit_price_for_client = updated_line_data.get('unit_price')
+                    new_override_price = new_unit_price_for_client if new_unit_price_for_client is not None and float(new_unit_price_for_client) != float(base_unit_price) else None
+
                     update_payload = {
                         'quantity': updated_line_data.get('quantity'),
-                        'unit_price_override': updated_line_data.get('unit_price')
+                        'unit_price_override': new_override_price,
+                        # Attempting to pass other fields. These will be ignored by current CRUD
+                        # unless client_project_products_crud.update_client_project_product
+                        # is modified to include them in `valid_cols` and its SQL.
+                        # Assuming placeholder column names for now if they were to be added:
+                        'line_item_name_override': updated_line_data.get('name'),
+                        'line_item_description_override': updated_line_data.get('description'),
+                        'line_item_weight_override': updated_line_data.get('weight'),
+                        'line_item_dimensions_override': updated_line_data.get('dimensions')
                     }
+                    # Remove None values to avoid issues if CRUD expects only fields to change
                     update_payload = {k: v for k, v in update_payload.items() if v is not None}
 
+
                     if db_manager.update_client_project_product(link_id, update_payload):
-                        QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour."))
+                        QMessageBox.information(self, self.tr("Succès"), self.tr("Ligne de produit mise à jour (quantité/prix). Les autres modifications (nom, etc.) ne sont pas encore sauvegardées en base de données."))
                     else:
                         QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour de la ligne de produit."))
             self.load_products() # Refresh after successful update or error
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur lors de la modification du produit:\n{0}").format(str(e)))
             self.load_products() # Ensure table is reloaded even on unexpected error
-        selected_row = self.products_table.currentRow()
+        selected_row = self.products_table.currentRow() # Re-evaluate selected_row, dialog might have lost focus
         if selected_row < 0:
-            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier."))
+            # This case should ideally not be hit if a row was selected to enable the button.
+            # If dialog interaction somehow deselects, this is a fallback.
+            # QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner un produit à modifier."))
             return
+
+        # id_item, link_id, linked_product_data, global_product_data, etc.
+        # are all fetched again to ensure data consistency for the EditProductLineDialog.
+        # This part seems fine.
 
         id_item = self.products_table.item(selected_row, 0)
         if not id_item:
-            logging.error("Edit Product: Could not find ID item for selected row.")
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du produit sélectionné."))
+            logging.error("Edit Product: Could not find ID item for selected row after dialog.") # Log context
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID du produit sélectionné après modification."))
             return
 
-        link_id = id_item.data(Qt.UserRole)
+        link_id = id_item.data(Qt.UserRole) # This is client_project_product_id
         if link_id is None:
-            logging.error(f"Edit Product: No client_project_product_id found for row {selected_row}.")
-            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID de lien produit non trouvé."))
+            logging.error(f"Edit Product: No client_project_product_id found for row {selected_row} after dialog.")
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("ID de lien produit non trouvé après modification."))
             return
 
         try:
-            linked_product_data = db_manager.get_client_project_product_by_id(link_id)
-            if not linked_product_data:
-                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Détails du produit lié non trouvés."))
+            # Fetch the full data needed for the dialog
+            linked_product_data_for_dialog = db_manager.get_client_project_product_by_id(link_id)
+            if not linked_product_data_for_dialog:
+                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Détails du produit lié non trouvés pour le dialogue."))
                 return
 
-            product_id = linked_product_data.get('product_id')
-            global_product_data = db_manager.get_product_by_id(product_id)
-            if not global_product_data:
-                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Détails du produit global non trouvés."))
-                return
+            # The EditProductLineDialog needs specific fields from product_data.
+            # `name` and `description` in the dialog are line-specific from `updated_line_data`
+            # `weight` and `dimensions` are also line-specific from `updated_line_data`
+            # `quantity` and `unit_price` are the core editable fields of the dialog.
+            # `product_id` (global) and `client_project_product_id` (link) are for reference.
 
-            product_name = global_product_data.get('product_name', self.tr("Produit Inconnu"))
-            current_quantity = linked_product_data.get('quantity', 0)
-            current_unit_price_override = linked_product_data.get('unit_price_override')
-            base_unit_price = global_product_data.get('base_unit_price', 0.0)
+            # Construct the product_data to pass to EditProductLineDialog
+            # It should reflect the current state of the line item from the table/DB
+            # and include the global product_id for the "View Detailed Dimensions" button.
+            dialog_product_data = {
+                'client_project_product_id': link_id,
+                'product_id': linked_product_data_for_dialog.get('product_id'), # Global product ID
+                'name': linked_product_data_for_dialog.get('product_name'), # Global product name as default
+                'description': linked_product_data_for_dialog.get('product_description'), # Global product desc as default
+                'weight': linked_product_data_for_dialog.get('weight'), # Global product weight as default
+                'dimensions': linked_product_data_for_dialog.get('dimensions'), # Global product dimensions as default
+                'quantity': linked_product_data_for_dialog.get('quantity'),
+                'unit_price': linked_product_data_for_dialog.get('unit_price_override') if linked_product_data_for_dialog.get('unit_price_override') is not None else linked_product_data_for_dialog.get('base_unit_price', 0.0)
+            }
+            base_unit_price = linked_product_data_for_dialog.get('base_unit_price', 0.0)
 
-            # Effective price shown to user for editing is override or base
-            effective_current_unit_price = current_unit_price_override if current_unit_price_override is not None else base_unit_price
 
-            dialog = self.EditProductLineDialog(
-                product_name,
-                current_quantity,
-                effective_current_unit_price,
-                base_unit_price, # Pass base_unit_price for reference/display in dialog
-                parent=self
-            )
+            dialog = self.EditProductLineDialog(dialog_product_data, self.app_root_dir, self)
 
             if dialog.exec_() == QDialog.Accepted:
                 new_data = dialog.get_data()
-                if not new_data or 'quantity' not in new_data or 'unit_price' not in new_data:
-                     QMessageBox.warning(self, self.tr("Erreur Dialogue"), self.tr("Les données retournées par le dialogue de modification sont invalides."))
+                if not new_data: # Basic check
+                     QMessageBox.warning(self, self.tr("Erreur Dialogue"), self.tr("Aucune donnée retournée par le dialogue de modification."))
                      return
 
-                new_quantity = new_data['quantity']
-                new_unit_price_for_client = new_data['unit_price']
+                # Validate quantity and unit_price (as these are primary updatable fields)
+                new_quantity = new_data.get('quantity')
+                new_unit_price_for_client = new_data.get('unit_price')
 
-                if new_quantity <= 0:
+                if new_quantity is None or new_quantity <= 0: # Check for None as well
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("La quantité doit être positive."))
                     return
-                if new_unit_price_for_client < 0:
+                if new_unit_price_for_client is None or new_unit_price_for_client < 0: # Check for None
                     QMessageBox.warning(self, self.tr("Valeur Invalide"), self.tr("Le prix unitaire ne peut être négatif."))
                     return
 
-                # Determine if the new price should be an override
                 new_override_price = new_unit_price_for_client if float(new_unit_price_for_client) != float(base_unit_price) else None
 
                 update_payload = {
                     'quantity': new_quantity,
-                    'unit_price_override': new_override_price
+                    'unit_price_override': new_override_price,
+                    # Add other fields from new_data, mapping to expected DB columns if they exist
+                    # For now, these will be ignored by the current update_client_project_product
+                    'line_item_name_override': new_data.get('name'),
+                    'line_item_description_override': new_data.get('description'),
+                    'line_item_weight_override': new_data.get('weight'),
+                    'line_item_dimensions_override': new_data.get('dimensions'),
                 }
+                # Filter out None values, as CRUD might not expect them if columns are NOT NULL without defaults
+                update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
 
                 if db_manager.update_client_project_product(link_id, update_payload):
-                    QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour. Certaines modifications (nom, desc, poids, dims) ne sont pas stockées pour la ligne et seront ignorées."))
                     self.load_products() # Refresh table
 
                     # Update client's total price

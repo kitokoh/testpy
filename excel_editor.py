@@ -1089,15 +1089,63 @@ class ExcelEditor(QDialog):
         if file_path: self.load_file(file_path)
     
     def save_file(self) -> bool:
+        if not self.file_path:
+            return self.save_file_as()
+        if not self.excel_model.workbook or not self.excel_model.current_sheet:
+            QMessageBox.warning(self, "Error", "No workbook or sheet loaded to save.")
+            return False
+
+        self.set_progress(True, "Saving file...")
+        self.update_client_data()  # Ensure client data in model is up-to-date
+
+        # Write QTableWidget data back to the openpyxl worksheet
+        worksheet = self.excel_model.current_sheet
+        for r in range(self.table.rowCount()):
+            for c in range(self.table.columnCount()):
+                item = self.table.item(r, c)
+                if item:
+                    cell_value_str = item.text()
+                    # Attempt to convert back to numeric if possible, otherwise save as string
+                    # More sophisticated type handling might be needed for dates, specific number formats etc.
+                    try:
+                        # Try float conversion for cells that might contain numbers
+                        # Excel itself stores numbers as floats mostly.
+                        # Remove commas for thousands separator if used in display
+                        cleaned_value_str = cell_value_str.replace(',', '')
+                        cell_value = float(cleaned_value_str)
+                    except ValueError:
+                        # If not a float, try int
+                        try:
+                            cell_value = int(cleaned_value_str)
+                        except ValueError:
+                            # Fallback to string if not float or int
+                            cell_value = cell_value_str
+
+                    # Apply value to openpyxl cell
+                    # worksheet.cell(row=r + 1, column=c + 1).value = item.text() # Original simple save
+                    excel_cell = worksheet.cell(row=r + 1, column=c + 1)
+                    excel_cell.value = cell_value
+
+                    # Optionally, re-apply styles from QTableWidgetItem back to excel_cell
+                    # This is complex if styles can be modified in QTableWidget.
+                    # For now, assume styles are preserved from load or managed by openpyxl.
+                    # StyleConverter.qt_to_excel(item, excel_cell) # If style changes in table are to be saved
+                else:
+                    # If QTableWidgetItem is None (e.g. if cells were cleared in UI)
+                    worksheet.cell(row=r + 1, column=c + 1).value = None
+
+
         try:
-            if not self.file_path: return self.save_file_as()
-            self.set_progress(True, "Saving file...")
-            self.update_client_data() # Ensure model is up-to-date
             self.excel_model.workbook.save(self.file_path)
             self.excel_model.is_modified = False
             self.set_progress(False)
             self.update_status("File saved successfully")
             return True
+        except ReadOnlyWorkbookException:
+            logger.error(f"Cannot save read-only workbook: {self.file_path}")
+            QMessageBox.critical(self, "Error", f"Cannot save read-only workbook: {self.file_path}\nPlease use 'Save As...' to save a copy.")
+            self.set_progress(False)
+            return False
         except Exception as e:
             logger.error(f"Error saving file: {str(e)}")
             QMessageBox.critical(self, "Error", f"Error saving file:\n{str(e)}")

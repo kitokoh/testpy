@@ -224,6 +224,25 @@ def get_specific_client_contact_link_details(client_id: str, contact_id: int, co
         return None
 
 @_manage_conn
+def unlink_contact_from_client_by_link_id(client_contact_id: int, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes a client-contact link by its specific client_contact_id (primary key of ClientContacts table).
+    """
+    cursor = conn.cursor()
+    sql = "DELETE FROM ClientContacts WHERE client_contact_id = ?"
+    try:
+        cursor.execute(sql, (client_contact_id,))
+        if cursor.rowcount > 0:
+            logging.info(f"Successfully unlinked client-contact link ID: {client_contact_id}")
+            return True
+        else:
+            logging.warning(f"No client-contact link found with ID: {client_contact_id} to unlink.")
+            return False
+    except sqlite3.Error as e:
+        logging.error(f"Error unlinking client-contact link ID {client_contact_id}: {e}")
+        return False
+
+@_manage_conn
 def update_client_contact_link(client_contact_id: int, details: dict, conn: sqlite3.Connection = None) -> bool:
     if not details or not any(k in details for k in ['is_primary_for_client','can_receive_documents']):
         logging.warning("No valid details provided for update_client_contact_link.")

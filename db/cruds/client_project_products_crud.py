@@ -76,8 +76,14 @@ def update_client_project_product(link_id: int, data: dict, conn: sqlite3.Connec
 
     data['total_price_calculated'] = qty * float(eff_price) # Ensure eff_price is float
 
-    valid_cols = ['quantity','unit_price_override','total_price_calculated','serial_number','purchase_confirmed_at']
-    to_set={k:v for k,v in data.items() if k in valid_cols}
+    # Add new override fields to the list of columns that can be updated
+    valid_cols = [
+        'quantity', 'unit_price_override', 'total_price_calculated', 'serial_number',
+        'purchase_confirmed_at',
+        'line_item_name_override', 'line_item_description_override',
+        'line_item_weight_override', 'line_item_dimensions_override'
+    ]
+    to_set = {k: v for k, v in data.items() if k in valid_cols}
 
     if not to_set:
         logger.info(f"No valid fields to update for ClientProjectProduct link ID {link_id}.")
