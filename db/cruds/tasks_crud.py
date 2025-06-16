@@ -182,6 +182,7 @@ def add_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Con
     return True
 
 
+
 @_manage_conn
 def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
     logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
