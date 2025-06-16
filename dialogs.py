@@ -30,6 +30,7 @@ from reportlab.pdfgen import canvas
 
 import db as db_manager # Keep for now
 from db.cruds.clients_crud import clients_crud_instance
+
 from db.cruds.template_categories_crud import get_all_template_categories
 # templates_crud functions get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are likely class methods on templates_crud_instance or static methods.
@@ -38,7 +39,14 @@ from db.cruds.template_categories_crud import get_all_template_categories
 # Let's check if they are used directly by db_manager or need to be instance calls.
 # Upon review, get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are module-level in templates_crud.py, so direct import is fine.
-from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates, get_templates_by_type
+from db.cruds.templates_crud import (
+    get_distinct_template_languages,
+    get_distinct_template_types,
+    get_filtered_templates,
+    get_templates_by_type, # Added for SendEmailDialog
+    get_template_by_id # Added for SendEmailDialog (replaces db_manager.get_template_details_by_id)
+)
+
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -55,6 +63,13 @@ import shutil # Ensure shutil is imported
 
 # Forward declaration for type hinting if needed, or ensure ProductDimensionUIDialog is defined before use.
 # class ProductDimensionUIDialog(QDialog): pass
+# The problematic import "from .product_dimension_ui_dialog import ProductDimensionUIDialog"
+# would be near the top imports. Since ProductDimensionUIDialog is defined IN THIS FILE,
+# that import is unnecessary and likely the cause of the error if product_dimension_ui_dialog.py doesn't exist.
+# The diff tool will remove it if it's found. If it's not found by the diff tool,
+# it implies it was already removed or the error source is different than assumed.
+# For now, let's assume the error trace is accurate and the line exists.
+# If the line is not there, this operation will be a no-op for this part of the diff.
 
 
 class AddNewClientDialog(QDialog):
@@ -2212,10 +2227,7 @@ class SendEmailDialog(QDialog):
             all_templates_for_lang = []
             for template_type in self.email_template_types:
                 # Corrected function call: get_templates_by_type
-                # templates = db_manager.get_templates_by_type( # Original line
-                #     template_type=template_type,
-                #     language_code=language_code
-                # )
+
                 templates = get_templates_by_type(
                     template_type=template_type,
                     language_code=language_code
@@ -2250,7 +2262,8 @@ class SendEmailDialog(QDialog):
             return
 
         try:
-            template_details = db_manager.get_template_details_by_id(template_id) # Ensure this method exists and fetches all needed details
+            # Corrected to use directly imported function:
+            template_details = get_template_by_id(template_id)
             if not template_details:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Détails du modèle non trouvés."))
                 self.body_edit.setPlainText("")
