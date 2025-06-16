@@ -8,3 +8,4 @@ from .create_document_dialog import CreateDocumentDialog
 from .compile_pdf_dialog import CompilePdfDialog
 from .edit_client_dialog import EditClientDialog
 from .manage_product_master_dialog import ManageProductMasterDialog
+
