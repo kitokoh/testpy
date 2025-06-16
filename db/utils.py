@@ -1,34 +1,27 @@
 import sqlite3
 import os
+import sys  # Keep sys import for path manipulation
 import json
+import sys # Import sys
 from datetime import datetime
 import logging # Keep logging import
 
-# Import global constants from db_config.py
-try:
-    from .. import db_config
-    from .. import config # For MEDIA_FILES_BASE_PATH
-except (ImportError, ValueError): # pragma: no cover
-    import sys
-    # Correctly get the /app directory (parent of db/)
-    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-        import config # For MEDIA_FILES_BASE_PATH
-    except ImportError:
-        print("CRITICAL: db_config.py or config.py not found in utils.py. Using fallback paths.")
-        # Fallback class definition
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(app_dir, "app_data_fallback.db") # Use app_dir for path
-            APP_ROOT_DIR_CONTEXT = app_dir
-            LOGO_SUBDIR_CONTEXT = "company_logos_fallback"
-        db_config = db_config_fallback
-        class config_fallback:
-            MEDIA_FILES_BASE_PATH = os.path.join(app_dir, "media_files_fallback")
-        config = config_fallback
+# --- Configuration Import ---
+# Get the application root directory (parent of 'db' directory)
+app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir) # Insert at the beginning to ensure it's checked first
 
+try:
+    import config  # This should now find config.py at the root
+    db_config = config # Alias config as db_config for compatibility
+except ImportError as e:
+    # This block should ideally not be reached if config.py exists at the root
+    logging.critical(f"CRITICAL: config.py not found at root ({app_dir}) by db/utils.py. Error: {e}")
+    # Optionally, re-raise the error or exit, as the application cannot function without config.
+    raise ImportError(f"config.py is essential and was not found at {app_dir}") from e
+
+# --- End Configuration Import ---
 
 # CRUD function imports
 
@@ -37,17 +30,9 @@ except (ImportError, ValueError): # pragma: no cover
     print("CRUD functions will be imported dynamically in functions that need them.")
 
 
+# get_db_connection moved to db.connection
+from .connection import get_db_connection
 
-def get_db_connection(db_path_override=None): # Renamed parameter for clarity
-    """
-    Returns a new database connection object.
-    Uses DATABASE_PATH from db_config by default.
-    An optional db_path_override can be provided (e.g., for tests).
-    """
-    path_to_connect = db_path_override if db_path_override else db_config.DATABASE_PATH
-    conn = sqlite3.connect(path_to_connect)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def format_currency(amount: float | None, symbol: str = "€", precision: int = 2) -> str:
     if amount is None: return ""
@@ -57,7 +42,9 @@ def format_currency(amount: float | None, symbol: str = "€", precision: int = 
     except (ValueError, TypeError): return str(amount) # Fallback to string representation if not a number
 
 def _get_batch_products_and_equivalents(product_ids: list[int], target_language_code: str, conn_passed=None) -> dict:
-    from .. import db # Import db here to avoid circular import at module level
+    # from .. import db # Avoid importing full db package
+    from ..cruds.products_crud import get_product_by_id_details as products_get_product_by_id_details
+    # Note: If other db.crud functions are needed, they must be imported specifically.
     if not product_ids: return {}
 
     conn_is_internal = False
@@ -72,7 +59,7 @@ def _get_batch_products_and_equivalents(product_ids: list[int], target_language_
         cursor = conn.cursor()
 
         for pid_original in product_ids:
-            product_detail = db.get_product_by_id_details(id=pid_original, conn=conn) # Use db object
+            product_detail = products_get_product_by_id_details(id=pid_original, conn=conn) # Use specific import
             if product_detail:
                 results[pid_original]['original'] = product_detail
 
@@ -113,7 +100,15 @@ def get_document_context_data(
     project_id: str = None, linked_product_ids_for_doc: list[int] = None,
     additional_context: dict = None, conn_passed: sqlite3.Connection = None
 ) -> dict:
-    from .. import db # Import db here to avoid circular import at module level
+    # Import specific CRUD functions to avoid circular dependency with db package
+    from ..cruds.companies_crud import get_company_by_id, get_personnel_for_company
+    from ..cruds.clients_crud import get_client_by_id
+    from ..cruds.locations_crud import get_country_by_id, get_city_by_id
+    from ..cruds.contacts_crud import get_contacts_for_client
+    from ..cruds.projects_crud import get_project_by_id
+    from ..cruds.client_project_products_crud import get_client_project_product_by_id, get_products_for_client_or_project
+    from ..cruds.templates_crud import get_client_document_notes # Assuming this is where it is
+
     context = {"doc": {}, "client": {}, "seller": {}, "project": {}, "products": [], "lang": {}, "additional": {}}
     effective_additional_context = additional_context if isinstance(additional_context, dict) else {}
     context["additional"] = effective_additional_context
@@ -140,20 +135,20 @@ def get_document_context_data(
         context["doc"]["vat_rate_percentage"] = float(effective_additional_context.get("vat_rate_percentage", 20.0))
         context["doc"]["discount_rate_percentage"] = float(effective_additional_context.get("discount_rate_percentage", 0.0))
 
-        seller_company_data = db.get_company_by_id(company_id, conn=conn)
+        seller_company_data = get_company_by_id(company_id, conn=conn)
         if seller_company_data:
             context["seller"]["name"] = seller_company_data.get('company_name', "N/A")
             context["seller"]["address"] = seller_company_data.get('address', "N/A")
             context["seller"]["full_address"] = seller_company_data.get('address', "N/A") # Redundant, consider removing
             logo_path_relative = seller_company_data.get('logo_path')
             if logo_path_relative:
-                # Ensure APP_ROOT_DIR_CONTEXT and LOGO_SUBDIR_CONTEXT are correctly defined in db_config
-                abs_logo_path = os.path.join(db_config.APP_ROOT_DIR_CONTEXT, db_config.LOGO_SUBDIR_CONTEXT, logo_path_relative)
+                # Ensure APP_ROOT_DIR and LOGO_SUBDIR are correctly defined in config
+                abs_logo_path = os.path.join(config.APP_ROOT_DIR, config.LOGO_SUBDIR, logo_path_relative)
                 context["seller"]["company_logo_path"] = f"file:///{abs_logo_path.replace(os.sep, '/')}" if os.path.exists(abs_logo_path) else None
             else:
                 context["seller"]["company_logo_path"] = None
 
-            seller_personnel_list = db.get_personnel_for_company(company_id, conn=conn)
+            seller_personnel_list = get_personnel_for_company(company_id, conn=conn)
             if seller_personnel_list: # Check if list is not empty
                  # Assuming the first person is the representative, or apply specific logic
                 context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0].get('name', "N/A")}
@@ -161,25 +156,25 @@ def get_document_context_data(
                 context["seller"]["personnel"] = {"representative_name": "N/A"}
 
 
-        client_data = db.get_client_by_id(client_id, conn=conn)
+        client_data = get_client_by_id(client_id, conn=conn)
         if client_data:
             context["client"]["id"] = client_data.get('client_id')
             context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
             context["client"]["address"] = client_data.get('address', "N/A") # Assuming 'address' field exists
 
             if client_data.get('country_id'):
-                country = db.get_country_by_id(client_data['country_id'], conn=conn)
+                country = get_country_by_id(client_data['country_id'], conn=conn)
                 context["client"]["country_name"] = country['country_name'] if country else "N/A"
             else:
                 context["client"]["country_name"] = "N/A"
 
             if client_data.get('city_id'):
-                city = db.get_city_by_id(client_data['city_id'], conn=conn)
+                city = get_city_by_id(client_data['city_id'], conn=conn)
                 context["client"]["city_name"] = city['city_name'] if city else "N/A"
             else:
                 context["client"]["city_name"] = "N/A"
 
-            client_contacts = db.get_contacts_for_client(client_id, conn=conn)
+            client_contacts = get_contacts_for_client(client_id, conn=conn)
             if client_contacts: # Assuming first contact is primary or representative
                 context["client"]["primary_contact_name"] = client_contacts[0].get('name', client_contacts[0].get('displayName', "N/A"))
                 context["client"]["primary_contact_email"] = client_contacts[0].get('email', "N/A")
@@ -189,7 +184,7 @@ def get_document_context_data(
 
 
         if project_id:
-            project_data = db.get_project_by_id(project_id, conn=conn)
+            project_data = get_project_by_id(project_id, conn=conn)
             if project_data:
                 context["project"]["name"] = project_data.get('project_name')
                 # Potentially add more project details if needed
@@ -211,7 +206,7 @@ def get_document_context_data(
                     })
         elif linked_product_ids_for_doc: # Assuming this is a list of ClientProjectProduct IDs
             for cpp_id in linked_product_ids_for_doc:
-                cpp_data = db.get_client_project_product_by_id(cpp_id, conn=conn) # Use db object
+                cpp_data = get_client_project_product_by_id(cpp_id, conn=conn)
                 if cpp_data and cpp_data.get('product_id'):
                     all_product_ids_to_fetch.add(cpp_data['product_id'])
                     product_data_for_loop.append({
@@ -221,7 +216,7 @@ def get_document_context_data(
                         'serial_number': cpp_data.get('serial_number')
                     })
         else: # Default to client/project products if no specific list provided
-            client_project_products = db.get_products_for_client_or_project(client_id=client_id, project_id=project_id, conn=conn) # Use db object
+            client_project_products = get_products_for_client_or_project(client_id=client_id, project_id=project_id, conn=conn)
             for cpp_data in client_project_products:
                 if cpp_data.get('product_id'):
                     all_product_ids_to_fetch.add(cpp_data['product_id'])
@@ -297,7 +292,7 @@ def get_document_context_data(
 
         doc_type_for_notes = effective_additional_context.get('current_document_type_for_notes')
         if doc_type_for_notes and client_id and target_language_code:
-            notes = db.get_client_document_notes(client_id=client_id, document_type=doc_type_for_notes, language_code=target_language_code, is_active=True, conn=conn) # Use db object
+            notes = get_client_document_notes(client_id=client_id, document_type=doc_type_for_notes, language_code=target_language_code, is_active=True, conn=conn)
             if notes: context['doc']['client_specific_footer_notes'] = notes[0]['note_content'].replace('\n','<br>')
 
         # Mapping to buyer_*, seller_* placeholders (ensure these are consistent)
@@ -316,7 +311,7 @@ def get_document_context_data(
     return context
 
 __all__ = [
-    "get_db_connection",
+    # "get_db_connection", # Moved to db.connection
     "format_currency",
     "get_document_context_data",
 ]
@@ -324,7 +319,7 @@ __all__ = [
 if __name__ == '__main__': # pragma: no cover
     print("db.utils module direct execution (for testing, may require DB setup)")
     # Example calls for testing
-    # test_conn = get_db_connection()
+    # test_conn = get_db_connection() # This would now use the import from .connection
     # if test_conn:
     #     print("DB connection successful via get_db_connection.")
     #     test_conn.close()

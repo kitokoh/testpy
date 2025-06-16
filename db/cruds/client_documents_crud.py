@@ -106,13 +106,61 @@ def get_document_by_id(document_id: str, conn: sqlite3.Connection = None) -> dic
     return {'document_id': document_id, 'client_id': 'dummy_client_id', 'file_path_relative': 'dummy/path.pdf', 'file_name_on_disk': 'dummy.pdf'} # Placeholder for API to work
 
 @_manage_conn
-def get_documents_for_client(client_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+def get_documents_for_client(client_id: str, filters: dict = None, conn: sqlite3.Connection = None) -> list[dict]:
     """
-    Retrieves all documents for a specific client.
-    STUB FUNCTION - Full implementation pending.
+    Retrieves all documents for a specific client, with optional filtering.
+
+    Args:
+        client_id (str): The ID of the client whose documents are to be retrieved.
+        filters (dict, optional): A dictionary for filtering results.
+            Supported filters:
+            - 'order_identifier':
+                - 'NONE': Retrieves documents where order_identifier IS NULL.
+                - 'ALL': Retrieves all documents regardless of order_identifier (or if key is missing).
+                - Any other string: Retrieves documents matching that specific order_identifier.
+        conn (sqlite3.Connection, optional): SQLite connection object. Provided by _manage_conn.
+
+    Returns:
+        list[dict]: A list of dictionaries, where each dictionary represents a document.
+                    Returns an empty list if no documents are found or in case of an error.
     """
-    logging.warning(f"Called stub function get_documents_for_client for client_id: {client_id}. Full implementation is missing.")
-    return []
+    if not client_id:
+        logging.error("get_documents_for_client: client_id cannot be empty.")
+        return []
+
+    try:
+        # Assuming conn.row_factory = sqlite3.Row is set by _manage_conn or globally
+        # If not, dict conversion would be more manual:
+        # e.g., columns = [col[0] for col in cursor.description]
+        # then for row in rows: result.append(dict(zip(columns, row)))
+
+        sql = "SELECT * FROM ClientDocuments WHERE client_id = ?"
+        params = [client_id]
+
+        if filters:
+            order_identifier_filter = filters.get('order_identifier')
+            if order_identifier_filter == 'NONE':
+                sql += " AND order_identifier IS NULL"
+            elif order_identifier_filter and order_identifier_filter != 'ALL':
+                sql += " AND order_identifier = ?"
+                params.append(order_identifier_filter)
+            # If 'ALL' or not provided, no additional order_identifier filter is applied
+
+        sql += " ORDER BY created_at DESC"
+
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+        # Convert rows to dicts (assuming conn.row_factory = sqlite3.Row)
+        return [dict(row) for row in rows]
+
+    except sqlite3.Error as e:
+        logging.error(f"Error retrieving documents for client {client_id} with filters {filters}: {e} - SQL: {sql} - Params: {params}")
+        return []
+    except Exception as e: # Catch any other unexpected errors
+        logging.error(f"Unexpected error in get_documents_for_client for client {client_id}: {e}")
+        return []
 
 @_manage_conn
 def get_documents_for_project(project_id: str, conn: sqlite3.Connection = None) -> list[dict]:
@@ -152,8 +200,40 @@ def get_client_document_notes(client_id: str, document_type: str = None, languag
 
 @_manage_conn
 def add_client_document_note(data: dict, conn: sqlite3.Connection = None) -> int | None:
-    logging.warning(f"Called stub function add_client_document_note with data {data}. Full implementation is missing.")
-    return None
+    """
+    Adds a new client document note.
+    Handles UNIQUE constraint (client_id, document_type, language_code).
+    """
+    cursor = conn.cursor()
+    sql = """
+        INSERT INTO ClientDocumentNotes (
+            client_id, document_type, language_code, note_content, is_active
+        ) VALUES (?, ?, ?, ?, ?)
+    """
+    params = (
+        data.get('client_id'),
+        data.get('document_type'),
+        data.get('language_code'),
+        data.get('note_content'),
+        data.get('is_active', True) # Default to True if not provided
+    )
+    try:
+        cursor.execute(sql, params)
+        # conn.commit() # Handled by _manage_conn
+        last_id = cursor.lastrowid
+        logging.info(f"Client document note added with ID: {last_id} for client {data.get('client_id')}")
+        return last_id
+    except sqlite3.IntegrityError:
+        logging.warning(
+            f"Failed to add client document note due to UNIQUE constraint violation "
+            f"(client_id: {data.get('client_id')}, "
+            f"document_type: {data.get('document_type')}, "
+            f"language_code: {data.get('language_code')})."
+        )
+        return None # Indicates failure, possibly due to duplicate
+    except sqlite3.Error as e:
+        logging.error(f"Database error adding client document note for client {data.get('client_id')}: {e}")
+        return None
 
 @_manage_conn
 def update_client_document_note(note_id: int, data: dict, conn: sqlite3.Connection = None) -> bool:

@@ -56,8 +56,8 @@ def load_config():
         "smtp_user": "",
         "smtp_password": "",
         "default_reminder_days": 30,
-        "session_timeout_minutes": 259200 # New default: 6 months (6 * 30 * 24 * 60)
-
+        "session_timeout_minutes": 259200, # New default: 6 months (6 * 30 * 24 * 60)
+        "show_initial_setup_on_startup": False
     }
 
 def save_config(config_data):

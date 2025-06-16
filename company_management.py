@@ -6,12 +6,14 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QDialog, QFormLayout, QLineEdit, QTextEdit,
     QDialogButtonBox, QMessageBox, QComboBox, QFileDialog, QStackedWidget,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QTabWidget
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QTabWidget,
+    QCheckBox, QLabel, QScrollArea # Added for EditPersonnelContactDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QGridLayout
 from contact_manager.sync_service import handle_contact_change_from_platform # For Google Sync
+import logging # Added for logging
 
 # Adjust path to import db_manager from the parent directory / current dir
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,16 +23,237 @@ if parent_dir not in sys.path:
 if current_dir not in sys.path: # for running directly if db.py is alongside
     sys.path.insert(0, current_dir)
 
+
+# Import company CRUD functions directly
+from db.cruds.companies_crud import (
+    get_all_companies,
+    add_company,
+    update_company,
+    delete_company,
+    set_default_company,
+    get_company_by_id # Add if needed elsewhere
+)
+# Import personnel and contact link CRUD functions directly
+from db.cruds.company_personnel_crud import (
+    get_contacts_for_personnel,
+    add_company_personnel,
+    get_personnel_for_company,
+    update_company_personnel,
+    delete_company_personnel,
+    add_personnel_contact,
+    update_personnel_contact_link,
+    unlink_contact_from_personnel,
+    delete_all_contact_links_for_personnel # Consider if needed
+)
+# Keep other db imports for now, will be refactored incrementally
 try:
-    import db.crud as db_manager # Changed from 'import db as db_manager' to match crud.py usage
-    print("db.crud as db_manager imported successfully.")
+    # Company and personnel functions are now imported directly above.
+    from db import (
+        # Company functions handled by companies_crud_instance:
+        # add_company, get_company_by_id, get_all_companies,
+        # update_company, delete_company, set_default_company, get_default_company
+        add_company_personnel,
+        get_personnel_for_company,
+        update_company_personnel,
+        delete_company_personnel,
+        initialize_database
+
+    )
+    db_available = True # This flag is now mainly for initialize_database
+    print("Core DB functions (initialize_database) imported successfully.")
 except ImportError as e:
-    print(f"Error importing db.crud as db_manager: {e}")
-    db_manager = None
-    print("Failed to import db_manager. Some features will not work.")
+    print(f"Error importing core DB functions (initialize_database): {e}")
+    db_available = False
+    # Fallbacks for functions not yet moved to CRUD instances if any.
+    # companies_crud_instance itself would be unavailable if its import failed,
+    # leading to a NameError, which is an acceptable failure mode.
+    # So, no need for MockCompaniesCRUD here anymore.
+
+    # Fallbacks for other functions if their direct imports fail
+    def add_company_personnel(*args, **kwargs): print("DB function add_company_personnel unavailable"); return None
+    def get_personnel_for_company(*args, **kwargs): print("DB function get_personnel_for_company unavailable"); return []
+    def update_company_personnel(*args, **kwargs): print("DB function update_company_personnel unavailable"); return False
+    def delete_company_personnel(*args, **kwargs): print("DB function delete_company_personnel unavailable"); return False
+
+    def initialize_database(*args, **kwargs): print("DB function initialize_database unavailable"); pass
+    # Remove other fallbacks as their functions are now directly imported.
+    # If those imports fail, NameError is the expected behavior.
+
+    print("Failed to import initialize_database. Some features may not work or setup might be incomplete.")
 
 # Define APP_ROOT_DIR
 APP_ROOT_DIR = parent_dir
+logger = logging.getLogger(__name__) # Setup logger for this module
+
+
+class EditPersonnelContactDialog(QDialog):
+    def __init__(self, personnel_id, company_personnel_contact_id=None, contact_data=None, parent=None):
+        super().__init__(parent)
+        self.personnel_id = personnel_id
+        self.company_personnel_contact_id = company_personnel_contact_id
+        self.existing_contact_data = contact_data if contact_data else {}
+
+        self.setWindowTitle(self.tr("Edit Contact") if company_personnel_contact_id else self.tr("Add Contact"))
+        self.setMinimumWidth(500)
+        layout = QVBoxLayout(self)
+
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        form_layout = QFormLayout(scroll_widget)
+
+        # --- Form Fields ---
+        # Link Specific
+        self.is_primary_checkbox = QCheckBox(self.tr("Is Primary Contact"))
+        form_layout.addRow(self.is_primary_checkbox)
+        self.can_receive_docs_checkbox = QCheckBox(self.tr("Can Receive Documents"))
+        form_layout.addRow(self.can_receive_docs_checkbox)
+
+        # Mandatory Contact
+        self.displayName_input = QLineEdit()
+        form_layout.addRow(self.tr("Display Name*:"), self.displayName_input)
+
+        self.show_optional_checkbox = QCheckBox(self.tr("Show Optional Fields"))
+        self.show_optional_checkbox.setChecked(False)
+        self.show_optional_checkbox.stateChanged.connect(self.toggle_optional_fields_visibility)
+        form_layout.addRow(self.show_optional_checkbox)
+
+        self.optional_fields_widgets = []
+
+        def add_optional_field(label_text, widget):
+            label = QLabel(label_text)
+            form_layout.addRow(label, widget)
+            self.optional_fields_widgets.extend([label, widget])
+
+        self.givenName_input = QLineEdit()
+        add_optional_field(self.tr("Given Name:"), self.givenName_input)
+        self.familyName_input = QLineEdit()
+        add_optional_field(self.tr("Family Name:"), self.familyName_input)
+        self.email_input = QLineEdit()
+        add_optional_field(self.tr("Email:"), self.email_input)
+        self.email_type_input = QLineEdit()
+        add_optional_field(self.tr("Email Type:"), self.email_type_input)
+        self.phone_input = QLineEdit()
+        add_optional_field(self.tr("Phone:"), self.phone_input)
+        self.phone_type_input = QLineEdit()
+        add_optional_field(self.tr("Phone Type:"), self.phone_type_input)
+        self.position_input = QLineEdit() # Formerly role for personnel contact
+        add_optional_field(self.tr("Position:"), self.position_input)
+        self.contact_company_name_input = QLineEdit()
+        add_optional_field(self.tr("Contact's Company:"), self.contact_company_name_input)
+        self.contact_notes_input = QTextEdit()
+        self.contact_notes_input.setFixedHeight(60)
+        add_optional_field(self.tr("Notes:"), self.contact_notes_input)
+        self.address_street_input = QLineEdit()
+        add_optional_field(self.tr("Street:"), self.address_street_input)
+        self.address_city_input = QLineEdit()
+        add_optional_field(self.tr("City:"), self.address_city_input)
+        self.address_region_input = QLineEdit()
+        add_optional_field(self.tr("Region/State:"), self.address_region_input)
+        self.address_postalCode_input = QLineEdit()
+        add_optional_field(self.tr("Postal Code:"), self.address_postalCode_input)
+        self.address_country_input = QLineEdit()
+        add_optional_field(self.tr("Country:"), self.address_country_input)
+        self.org_name_input = QLineEdit()
+        add_optional_field(self.tr("Organization Name:"), self.org_name_input)
+        self.org_title_input = QLineEdit()
+        add_optional_field(self.tr("Organization Title:"), self.org_title_input)
+        self.birthday_input = QLineEdit() # Consider QDateEdit
+        add_optional_field(self.tr("Birthday (YYYY-MM-DD):"), self.birthday_input)
+
+        scroll_widget.setLayout(form_layout)
+        scroll_area.setWidget(scroll_widget)
+        layout.addWidget(scroll_area)
+
+        self.dialog_buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.dialog_buttons.accepted.connect(self.accept_contact_dialog) # Renamed to avoid clash
+        self.dialog_buttons.rejected.connect(self.reject)
+        layout.addWidget(self.dialog_buttons)
+
+        self.populate_contact_form()
+        self.toggle_optional_fields_visibility()
+
+
+    def toggle_optional_fields_visibility(self):
+        visible = self.show_optional_checkbox.isChecked()
+        for widget in self.optional_fields_widgets:
+            widget.setVisible(visible)
+
+    def populate_contact_form(self):
+        self.is_primary_checkbox.setChecked(self.existing_contact_data.get('is_primary', False))
+        self.can_receive_docs_checkbox.setChecked(self.existing_contact_data.get('can_receive_documents', True))
+        self.displayName_input.setText(self.existing_contact_data.get('displayName', self.existing_contact_data.get('name', '')))
+        # Populate optional fields
+        self.givenName_input.setText(self.existing_contact_data.get('givenName', ''))
+        self.familyName_input.setText(self.existing_contact_data.get('familyName', ''))
+        self.email_input.setText(self.existing_contact_data.get('email', ''))
+        self.email_type_input.setText(self.existing_contact_data.get('email_type', ''))
+        self.phone_input.setText(self.existing_contact_data.get('phone', ''))
+        self.phone_type_input.setText(self.existing_contact_data.get('phone_type', ''))
+        self.position_input.setText(self.existing_contact_data.get('position', ''))
+        self.contact_company_name_input.setText(self.existing_contact_data.get('company_name', ''))
+        self.contact_notes_input.setPlainText(self.existing_contact_data.get('notes', ''))
+        self.address_street_input.setText(self.existing_contact_data.get('address_streetAddress', ''))
+        self.address_city_input.setText(self.existing_contact_data.get('address_city', ''))
+        self.address_region_input.setText(self.existing_contact_data.get('address_region', ''))
+        self.address_postalCode_input.setText(self.existing_contact_data.get('address_postalCode', ''))
+        self.address_country_input.setText(self.existing_contact_data.get('address_country', ''))
+        self.org_name_input.setText(self.existing_contact_data.get('organization_name', ''))
+        self.org_title_input.setText(self.existing_contact_data.get('organization_title', ''))
+        self.birthday_input.setText(self.existing_contact_data.get('birthday_date', ''))
+
+    def accept_contact_dialog(self): # Renamed from accept
+        display_name = self.displayName_input.text().strip()
+        if not display_name:
+            QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Display Name is required."))
+            return
+
+        contact_payload = {
+            'displayName': display_name,
+            'is_primary': self.is_primary_checkbox.isChecked(),
+            'can_receive_documents': self.can_receive_docs_checkbox.isChecked(),
+            'givenName': self.givenName_input.text().strip(),
+            'familyName': self.familyName_input.text().strip(),
+            'email': self.email_input.text().strip(),
+            'email_type': self.email_type_input.text().strip(),
+            'phone': self.phone_input.text().strip(),
+            'phone_type': self.phone_type_input.text().strip(),
+            'position': self.position_input.text().strip(),
+            'company_name': self.contact_company_name_input.text().strip(),
+            'notes': self.contact_notes_input.toPlainText().strip(),
+            'address_streetAddress': self.address_street_input.text().strip(),
+            'address_city': self.address_city_input.text().strip(),
+            'address_region': self.address_region_input.text().strip(),
+            'address_postalCode': self.address_postalCode_input.text().strip(),
+            'address_country': self.address_country_input.text().strip(),
+            'organization_name': self.org_name_input.text().strip(),
+            'organization_title': self.org_title_input.text().strip(),
+            'birthday_date': self.birthday_input.text().strip()
+        }
+
+        # For updates, separate link_data and contact_details_data
+        link_data_for_update = {
+            'is_primary': contact_payload['is_primary'],
+            'can_receive_documents': contact_payload['can_receive_documents']
+        }
+        # contact_details_for_update will be everything else from contact_payload
+        contact_details_for_update = {k: v for k, v in contact_payload.items() if k not in ['is_primary', 'can_receive_documents']}
+
+
+        if self.company_personnel_contact_id: # Editing
+            if update_personnel_contact_link(self.company_personnel_contact_id, link_data=link_data_for_update, contact_details_data=contact_details_for_update):
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact updated successfully."))
+                super().accept() # Use super().accept() to close dialog
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update contact."))
+        else: # Adding
+            new_link_id = add_personnel_contact(self.personnel_id, contact_payload) # add_personnel_contact takes the full payload
+            if new_link_id:
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact added successfully."))
+                super().accept()
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add contact."))
+
 
 LOGO_SUBDIR = "company_logos"
 DEFAULT_LOGO_SIZE = 128
@@ -116,9 +339,9 @@ class CompanyDialog(QDialog):
 
     def accept(self):
         # ... (accept implementation for CompanyDialog as before) ...
-        if not db_manager:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
-            return
+        # if not db_available: # Assuming instances are available if imports succeed
+        #     QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
+        #     return
         company_name = self.company_name_edit.text().strip()
         if not company_name:
             QMessageBox.warning(self, self.tr("Input Error"), self.tr("Company name cannot be empty."))
@@ -145,30 +368,36 @@ class CompanyDialog(QDialog):
                 return
         data['logo_path'] = final_logo_rel_path
         if self.company_id:
-            success = db_manager.update_company(self.company_id, data)
-            if success:
+            success_update = update_company(self.company_id, data)
+
+            if success_update: # update_company returns bool
                 QMessageBox.information(self, self.tr("Success"), self.tr("Company updated successfully."))
                 super().accept()
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update company."))
         else:
-            new_company_id = db_manager.add_company(data)
-            if new_company_id:
-                if self.logo_path_selected_for_upload and not self.company_id:
-                    temp_logo_filename = data.get('logo_path')
-                    if temp_logo_filename: # Check if temp_logo_filename could be a UUID string
+            # add_company returns new_company_id (str) or None
+            new_company_id_result = add_company(data)
+
+            if new_company_id_result:
+                self.company_id = new_company_id_result # Set company_id for the dialog instance
+                if self.logo_path_selected_for_upload: # Logo was uploaded for a new company
+                    temp_logo_filename = data.get('logo_path') # This is the UUID-based name
+                    if temp_logo_filename:
                         try:
-                            is_uuid_filename = str(uuid.UUID(temp_logo_filename.rsplit('.',1)[0], version=4)) == temp_logo_filename.rsplit('.',1)[0]
+                            is_uuid_filename = str(uuid.UUID(os.path.splitext(temp_logo_filename)[0])) == os.path.splitext(temp_logo_filename)[0]
                         except ValueError:
                             is_uuid_filename = False
+                        
                         if is_uuid_filename:
-                            new_proper_filename = f"{new_company_id}{os.path.splitext(temp_logo_filename)[1]}"
+                            new_proper_filename = f"{self.company_id}{os.path.splitext(temp_logo_filename)[1]}"
                             old_full_path = os.path.join(self.app_root_dir, LOGO_SUBDIR, temp_logo_filename)
                             new_full_path = os.path.join(self.app_root_dir, LOGO_SUBDIR, new_proper_filename)
                             if os.path.exists(old_full_path):
                                 try:
                                     os.rename(old_full_path, new_full_path)
-                                    db_manager.update_company(new_company_id, {'logo_path': new_proper_filename})
+                                    update_company(self.company_id, {'logo_path': new_proper_filename})
+
                                     print(f"Renamed logo from {temp_logo_filename} to {new_proper_filename}")
                                 except Exception as e_rename:
                                     print(f"Error renaming logo after company creation: {e_rename}")
@@ -184,40 +413,73 @@ class PersonnelDialog(QDialog):
         self.company_id = company_id
         self.personnel_data = personnel_data
         self.personnel_id = None
-        self.current_user_id = current_user_id # Store user_id for sync hooks
+        self.current_user_id = current_user_id
 
         self.setWindowTitle(self.tr("Edit Personnel") if personnel_data else self.tr("Add Personnel"))
-        self.setMinimumWidth(350)
-        layout = QFormLayout(self)
-        layout.setSpacing(10)
+        self.setMinimumWidth(450) # Increased width for contacts table
 
+        main_layout = QVBoxLayout(self) # Main layout for the dialog
+
+        # Personnel Details Form
+        details_group = QGroupBox(self.tr("Personnel Details"))
+        form_layout = QFormLayout()
         self.name_edit = QLineEdit()
+        form_layout.addRow(self.tr("Name*:"), self.name_edit)
         self.role_combo = QComboBox()
         self.role_combo.addItems(["seller", "technical_manager", "other"])
         self.role_combo.setEditable(True)
         self.role_combo.setCurrentText(role_default)
-        self.email_edit = QLineEdit()
-        self.phone_edit = QLineEdit()
+        form_layout.addRow(self.tr("Role*:"), self.role_combo)
+        details_group.setLayout(form_layout)
+        main_layout.addWidget(details_group)
 
-        layout.addRow(self.tr("Name:"), self.name_edit)
-        layout.addRow(self.tr("Role:"), self.role_combo)
-        layout.addRow(self.tr("Email:"), self.email_edit)
-        layout.addRow(self.tr("Phone:"), self.phone_edit)
+        # Contacts Management
+        contacts_group = QGroupBox(self.tr("Associated Contacts"))
+        contacts_layout_v = QVBoxLayout()
+        self.contacts_table = QTableWidget()
+        self.contacts_table.setColumnCount(5) # Display Name, Position, Email, Phone, Primary?
+        self.contacts_table.setHorizontalHeaderLabels([self.tr("Display Name"), self.tr("Position"), self.tr("Email"), self.tr("Phone"), self.tr("Primary?")])
+        self.contacts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.contacts_table.doubleClicked.connect(self.handle_edit_personnel_contact) # Edit on double click
+        contacts_layout_v.addWidget(self.contacts_table)
 
+        contact_buttons_layout = QHBoxLayout()
+        self.add_contact_btn = QPushButton(self.tr("Add Contact"))
+        self.edit_contact_btn = QPushButton(self.tr("Edit Selected Contact"))
+        self.remove_contact_btn = QPushButton(self.tr("Remove Selected Contact Link"))
+        contact_buttons_layout.addWidget(self.add_contact_btn)
+        contact_buttons_layout.addWidget(self.edit_contact_btn)
+        contact_buttons_layout.addWidget(self.remove_contact_btn)
+        contacts_layout_v.addLayout(contact_buttons_layout)
+        contacts_group.setLayout(contacts_layout_v)
+        main_layout.addWidget(contacts_group)
+
+        # Dialog Buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        main_layout.addWidget(self.button_box)
+
+        # Connect signals
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addRow(self.button_box)
+        self.add_contact_btn.clicked.connect(self.handle_add_personnel_contact)
+        self.edit_contact_btn.clicked.connect(self.handle_edit_personnel_contact) # Explicit edit button
+        self.remove_contact_btn.clicked.connect(self.handle_remove_personnel_contact_link)
+
 
         if self.personnel_data:
             self.personnel_id = self.personnel_data.get('personnel_id')
-            self.load_personnel_data()
+            self.load_personnel_data() # This will also load contacts
+        else: # New personnel, disable contact buttons until personnel is saved (or enable if we allow adding contacts before first save)
+            self.add_contact_btn.setEnabled(False)
+            self.edit_contact_btn.setEnabled(False)
+            self.remove_contact_btn.setEnabled(False)
+            self.contacts_table.setEnabled(False)
+
 
     def load_personnel_data(self):
-        # ... (load_personnel_data implementation as before) ...
         self.name_edit.setText(self.personnel_data.get('name', ''))
-        self.email_edit.setText(self.personnel_data.get('email', ''))
-        self.phone_edit.setText(self.personnel_data.get('phone', ''))
         role = self.personnel_data.get('role', '')
         if role in ["seller", "technical_manager", "other"]:
             self.role_combo.setCurrentText(role)
@@ -225,62 +487,138 @@ class PersonnelDialog(QDialog):
             self.role_combo.setCurrentText("other")
             self.role_combo.lineEdit().setText(role)
 
+        if self.personnel_id: # Existing personnel, load their contacts
+            self.load_associated_contacts()
+            self.add_contact_btn.setEnabled(True)
+            self.edit_contact_btn.setEnabled(True)
+            self.remove_contact_btn.setEnabled(True)
+            self.contacts_table.setEnabled(True)
+
+    def load_associated_contacts(self):
+        if not self.personnel_id:
+            self.contacts_table.setRowCount(0)
+            return
+
+        contacts = get_contacts_for_personnel(self.personnel_id)
+        self.contacts_table.setRowCount(0)
+        for contact_data in contacts:
+            row_pos = self.contacts_table.rowCount()
+            self.contacts_table.insertRow(row_pos)
+
+            name_item = QTableWidgetItem(contact_data.get('displayName', contact_data.get('name', 'N/A')))
+            name_item.setData(Qt.UserRole, contact_data) # Store full contact data for editing
+
+            self.contacts_table.setItem(row_pos, 0, name_item)
+            self.contacts_table.setItem(row_pos, 1, QTableWidgetItem(contact_data.get('position', '')))
+            self.contacts_table.setItem(row_pos, 2, QTableWidgetItem(contact_data.get('email', '')))
+            self.contacts_table.setItem(row_pos, 3, QTableWidgetItem(contact_data.get('phone', '')))
+            self.contacts_table.setItem(row_pos, 4, QTableWidgetItem("Yes" if contact_data.get('is_primary') else "No"))
+        self.contacts_table.resizeColumnsToContents()
+
+
+    def handle_add_personnel_contact(self):
+        if not self.personnel_id:
+            QMessageBox.warning(self, self.tr("Save Personnel First"), self.tr("Please save the personnel before adding contacts."))
+            return
+        dialog = EditPersonnelContactDialog(personnel_id=self.personnel_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_associated_contacts()
+
+    def handle_edit_personnel_contact(self):
+        selected_row = self.contacts_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Edit Contact"), self.tr("Please select a contact to edit."))
+            return
+
+        item_data = self.contacts_table.item(selected_row, 0).data(Qt.UserRole)
+        if not item_data or 'company_personnel_contact_id' not in item_data:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve contact link details."))
+            return
+
+        dialog = EditPersonnelContactDialog(
+            personnel_id=self.personnel_id,
+            company_personnel_contact_id=item_data['company_personnel_contact_id'],
+            contact_data=item_data, # Pass the full dict
+            parent=self
+        )
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_associated_contacts()
+
+    def handle_remove_personnel_contact_link(self):
+        selected_row = self.contacts_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.information(self, self.tr("Remove Contact Link"), self.tr("Please select a contact link to remove."))
+            return
+
+        item_data = self.contacts_table.item(selected_row, 0).data(Qt.UserRole)
+        if not item_data or 'company_personnel_contact_id' not in item_data:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Could not retrieve contact link ID."))
+            return
+
+        company_personnel_contact_id = item_data['company_personnel_contact_id']
+        contact_name = item_data.get('displayName', item_data.get('name', 'this contact'))
+
+        reply = QMessageBox.question(self, self.tr("Confirm Removal"),
+                                     self.tr(f"Are you sure you want to remove the link to contact '{contact_name}'? This will not delete the central contact record."),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            if unlink_contact_from_personnel(company_personnel_contact_id):
+                QMessageBox.information(self, self.tr("Success"), self.tr("Contact link removed successfully."))
+                self.load_associated_contacts()
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to remove contact link."))
+
+
     def accept(self):
-        if not db_manager:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+        if not db_available:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
             return
 
         name = self.name_edit.text().strip()
         role = self.role_combo.currentText().strip()
-        email = self.email_edit.text().strip()
-        phone = self.phone_edit.text().strip()
+        # Email and phone are no longer part of CompanyPersonnel direct fields
+        # email = self.email_edit.text().strip()
+        # phone = self.phone_edit.text().strip()
 
         if not name or not role:
             QMessageBox.warning(self, self.tr("Input Error"), self.tr("Name and role cannot be empty."))
             return
 
-        data = {"company_id": self.company_id, "name": name, "role": role, "email": email, "phone": phone}
+        # Data for CompanyPersonnel table (excluding direct email/phone)
+        data = {"company_id": self.company_id, "name": name, "role": role}
 
-        if self.personnel_id: # Editing
-            success = db_manager.update_company_personnel(self.personnel_id, data)
+        if self.personnel_id: # Editing existing personnel
+            success = update_company_personnel(self.personnel_id, data) # This CRUD should only update CompanyPersonnel fields
             if success:
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel updated successfully."))
-                if hasattr(self, 'current_user_id') and self.current_user_id:
-                    try:
-                        handle_contact_change_from_platform(
-                            user_id=str(self.current_user_id),
-                            local_contact_id=str(self.personnel_id),
-                            local_contact_type='company_personnel',
-                            change_type='update'
-                        )
-                        print(f"Sync triggered for updated personnel: {self.personnel_id}")
-                    except Exception as e:
-                        print(f"Error triggering sync for updated personnel: {e}")
-                else:
-                    print("Warning: current_user_id not available in PersonnelDialog for update, sync not triggered.")
+                # Sync hooks for personnel's own record (name, role) change can remain if needed,
+                # but not for email/phone as they are removed.
+                # The prompt mentioned adjusting/removing sync hooks for direct email/phone fields.
+                # If other CompanyPersonnel fields (name, role) are synced, that logic would be here.
+                # For now, assume sync is primarily for contact details which are handled separately.
+                # Example of removed sync hook:
+                # if hasattr(self, 'current_user_id') and self.current_user_id:
+                #     handle_contact_change_from_platform(...) for personnel's direct fields
                 super().accept()
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to update personnel."))
-        else: # Adding
-            new_personnel_id = db_manager.add_company_personnel(data)
+        else: # Adding new personnel
+            new_personnel_id = add_company_personnel(data) # This CRUD adds to CompanyPersonnel table
             if new_personnel_id:
-                QMessageBox.information(self, self.tr("Success"), self.tr("Personnel added successfully."))
-                if hasattr(self, 'current_user_id') and self.current_user_id:
-                    try:
-                        handle_contact_change_from_platform(
-                            user_id=str(self.current_user_id),
-                            local_contact_id=str(new_personnel_id),
-                            local_contact_type='company_personnel',
-                            change_type='create'
-                        )
-                        print(f"Sync triggered for new personnel: {new_personnel_id}")
-                    except Exception as e:
-                        print(f"Error triggering sync for new personnel: {e}")
-                else:
-                    print("Warning: current_user_id not available in PersonnelDialog for create, sync not triggered.")
-                super().accept()
+                self.personnel_id = new_personnel_id # Important to set this for the dialog instance
+                QMessageBox.information(self, self.tr("Success"), self.tr("Personnel added successfully. You can now add contacts to this person."))
+                # Enable contact management now that personnel is saved
+                self.add_contact_btn.setEnabled(True)
+                self.edit_contact_btn.setEnabled(True)
+                self.remove_contact_btn.setEnabled(True)
+                self.contacts_table.setEnabled(True)
+                # Sync for the creation of the personnel record itself (not its contacts yet)
+                # if hasattr(self, 'current_user_id') and self.current_user_id:
+                #    handle_contact_change_from_platform(...) for new personnel record
+                super().accept() # Close dialog after successful add
             else:
                 QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add personnel."))
+        # Contact saving is now handled by EditPersonnelContactDialog
 
 
 class CompanyDetailsViewWidget(QWidget):
@@ -341,12 +679,37 @@ class CompanyTabWidget(QWidget):
         company_button_grid = QGridLayout(); company_button_grid.addWidget(self.add_company_button, 0, 0); company_button_grid.addWidget(self.edit_company_button, 0, 1); company_button_grid.addWidget(self.delete_company_button, 1, 0); company_button_grid.addWidget(self.set_default_button, 1, 1)
         left_panel_layout.addLayout(company_button_grid)
         self.details_tabs = QTabWidget(); self.company_info_tab = QWidget(); self.company_info_layout = QVBoxLayout(self.company_info_tab); self.company_details_view = None; self.details_tabs.addTab(self.company_info_tab, self.tr("Company Info"))
-        sellers_tab = QWidget(); sellers_layout = QVBoxLayout(sellers_tab); self.sellers_table = QTableWidget(); self.sellers_table.setColumnCount(2); self.sellers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Actions")]); self.sellers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch); self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers); sellers_layout.addWidget(self.sellers_table)
+
+        # Sellers Tab
+        sellers_tab = QWidget(); sellers_layout = QVBoxLayout(sellers_tab)
+        self.sellers_table = QTableWidget()
+        self.sellers_table.setColumnCount(4) # Name, Role, Primary Email, Primary Phone
+        self.sellers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Role"), self.tr("Primary Email"), self.tr("Primary Phone")])
+        self.sellers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.sellers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.sellers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
+        sellers_layout.addWidget(self.sellers_table)
         seller_btn_layout = QHBoxLayout(); self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller')); self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller')); self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_seller_btn.setObjectName("dangerButton"); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
         seller_btn_layout.addWidget(self.add_seller_btn); seller_btn_layout.addWidget(self.edit_seller_btn); seller_btn_layout.addWidget(self.delete_seller_btn); sellers_layout.addLayout(seller_btn_layout); self.details_tabs.addTab(sellers_tab, self.tr("Sellers"))
-        tech_managers_tab = QWidget(); tech_managers_layout = QVBoxLayout(tech_managers_tab); self.tech_managers_table = QTableWidget(); self.tech_managers_table.setColumnCount(2); self.tech_managers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Actions")]); self.tech_managers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch); self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers); tech_managers_layout.addWidget(self.tech_managers_table)
+
+        # Technical Managers Tab
+        tech_managers_tab = QWidget(); tech_managers_layout = QVBoxLayout(tech_managers_tab)
+        self.tech_managers_table = QTableWidget()
+        self.tech_managers_table.setColumnCount(4) # Name, Role, Primary Email, Primary Phone
+        self.tech_managers_table.setHorizontalHeaderLabels([self.tr("Name"), self.tr("Role"), self.tr("Primary Email"), self.tr("Primary Phone")])
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tech_managers_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tech_managers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
+        tech_managers_layout.addWidget(self.tech_managers_table)
         tech_btn_layout = QHBoxLayout(); self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager')); self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager')); self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_tech_btn.setObjectName("dangerButton"); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
         tech_btn_layout.addWidget(self.add_tech_btn); tech_btn_layout.addWidget(self.edit_tech_btn); tech_btn_layout.addWidget(self.delete_tech_btn); tech_managers_layout.addLayout(tech_btn_layout); self.details_tabs.addTab(tech_managers_tab, self.tr("Technical Managers"))
+
         main_layout.addLayout(left_panel_layout, 1); main_layout.addWidget(self.details_tabs, 2)
         self.load_companies(); self.update_personnel_button_states(False)
 
@@ -355,9 +718,10 @@ class CompanyTabWidget(QWidget):
         self.company_list_widget.clear()
         if self.company_details_view: self.company_info_layout.removeWidget(self.company_details_view); self.company_details_view.deleteLater(); self.company_details_view = None
         self.sellers_table.setRowCount(0); self.tech_managers_table.setRowCount(0); self.current_selected_company_id = None
-        if not db_manager: self.company_list_widget.addItem(QListWidgetItem(self.tr("Error: DB Manager not loaded."))); return
+        # if not db_available: self.company_list_widget.addItem(QListWidgetItem(self.tr("Error: DB functions not available."))); return
         try:
-            companies = db_manager.get_all_companies()
+            companies = get_all_companies() # Changed to use instance
+
             if not companies: self.company_list_widget.addItem(QListWidgetItem(self.tr("No companies found.")))
             for company in companies:
                 item_text = company['company_name']
@@ -384,7 +748,7 @@ class CompanyTabWidget(QWidget):
 
     def handle_add_company(self):
         # ... (handle_add_company implementation as before) ...
-        if not db_manager: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available.")); return
+        # if not db_available: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available.")); return # Assuming instance available
         dialog = CompanyDialog(parent=self, app_root_dir=self.app_root_dir)
         if dialog.exec_() == QDialog.Accepted: self.load_companies()
 
@@ -411,30 +775,36 @@ class CompanyTabWidget(QWidget):
         company_data = item.data(Qt.UserRole)
         confirm = QMessageBox.warning(self, self.tr("Confirm Delete"), self.tr("Are you sure you want to delete {0}? This will also delete all associated personnel.").format(company_data.get('company_name')), QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:
-            if db_manager:
+            if db_available:
                 logo_rel_path = company_data.get('logo_path')
                 if logo_rel_path:
                     full_logo_path = os.path.join(self.app_root_dir, LOGO_SUBDIR, logo_rel_path)
                     if os.path.exists(full_logo_path):
                         try: os.remove(full_logo_path); print(f"Deleted logo: {full_logo_path}")
                         except Exception as e_logo_del: QMessageBox.warning(self, self.tr("Logo Deletion Error"), self.tr("Could not delete logo file: {0}.\nPlease remove it manually.").format(str(e_logo_del)))
-                if db_manager.delete_company(self.current_selected_company_id): QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully.")); self.load_companies()
-                else: QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to delete company from database."))
-            else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+                # delete_company returns bool
+                if delete_company(self.current_selected_company_id):
+
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully."))
+                    self.load_companies()
+                else: 
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to delete company from database."))
+            # else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available.")) # Assuming instance available
 
     def handle_set_default(self):
-        # ... (handle_set_default implementation as before) ...
         if not self.current_selected_company_id: QMessageBox.information(self, self.tr("Set Default"), self.tr("Please select a company to set as default.")); return
         item = self.company_list_widget.currentItem();
         if not item: return
         company_data = item.data(Qt.UserRole)
-        if db_manager:
-            if db_manager.set_default_company(self.current_selected_company_id):
-                QMessageBox.information(self, self.tr("Success"), self.tr("'{0}' is now the default company.").format(company_data.get('company_name')))
-                current_selection_row = self.company_list_widget.currentRow(); self.load_companies()
-                if current_selection_row >=0 and current_selection_row < self.company_list_widget.count(): self.company_list_widget.setCurrentRow(current_selection_row); self.on_company_selected(self.company_list_widget.currentItem())
-            else: QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to set default company."))
-        else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database manager not available."))
+        # if db_available: # Assuming instance available
+        # set_default_company returns bool
+        if set_default_company(self.current_selected_company_id):
+
+            QMessageBox.information(self, self.tr("Success"), self.tr("'{0}' is now the default company.").format(company_data.get('company_name')))
+            current_selection_row = self.company_list_widget.currentRow(); self.load_companies()
+            if current_selection_row >=0 and current_selection_row < self.company_list_widget.count(): self.company_list_widget.setCurrentRow(current_selection_row); self.on_company_selected(self.company_list_widget.currentItem())
+        else: QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to set default company."))
+        # else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available."))
 
     def update_company_button_states(self):
         # ... (update_company_button_states implementation as before) ...
@@ -453,27 +823,52 @@ class CompanyTabWidget(QWidget):
     def load_personnel(self, company_id):
         # ... (load_personnel implementation as before) ...
         self.sellers_table.setRowCount(0); self.tech_managers_table.setRowCount(0)
-        if not db_manager or not company_id: return
+        if not db_available or not company_id: return
         try:
-            sellers = db_manager.get_personnel_for_company(company_id, role='seller'); self._populate_personnel_table(self.sellers_table, sellers)
-            tech_managers = db_manager.get_personnel_for_company(company_id, role='technical_manager'); self._populate_personnel_table(self.tech_managers_table, tech_managers)
-            others_sellers = db_manager.get_personnel_for_company(company_id, role='other_seller'); self._populate_personnel_table(self.sellers_table, others_sellers, append=True) # Example custom roles
-            others_tech = db_manager.get_personnel_for_company(company_id, role='other_technical_manager'); self._populate_personnel_table(self.tech_managers_table, others_tech, append=True)
+            sellers = get_personnel_for_company(company_id, role='seller'); self._populate_personnel_table(self.sellers_table, sellers)
+            tech_managers = get_personnel_for_company(company_id, role='technical_manager'); self._populate_personnel_table(self.tech_managers_table, tech_managers)
+            others_sellers = get_personnel_for_company(company_id, role='other_seller'); self._populate_personnel_table(self.sellers_table, others_sellers, append=True) # Example custom roles
+            others_tech = get_personnel_for_company(company_id, role='other_technical_manager'); self._populate_personnel_table(self.tech_managers_table, others_tech, append=True)
         except Exception as e: QMessageBox.warning(self, self.tr("Personnel Error"), self.tr("Error loading personnel: {0}").format(str(e)))
 
 
     def _populate_personnel_table(self, table: QTableWidget, personnel_list: list, append=False):
-        # ... (_populate_personnel_table implementation as before) ...
-        if not append: table.setRowCount(0)
-        for personnel in personnel_list:
-            current_row = table.rowCount(); table.insertRow(current_row)
-            name_item = QTableWidgetItem(personnel.get('name')); name_item.setData(Qt.UserRole, personnel); table.setItem(current_row, 0, name_item)
-            btn_widget = QWidget(); btn_layout = QHBoxLayout(btn_widget)
-            edit_btn = QPushButton(self.tr("Edit")); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg"))))
-            # edit_btn.clicked.connect(...) # Connect these if actions from table rows are needed
-            delete_btn = QPushButton(self.tr("Delete")); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); delete_btn.setObjectName("dangerButtonTable")
-            # delete_btn.clicked.connect(...)
-            btn_layout.addWidget(edit_btn); btn_layout.addWidget(delete_btn); btn_layout.setContentsMargins(0,0,0,0); table.setCellWidget(current_row, 1, btn_widget)
+        if not append:
+            table.setRowCount(0)
+
+        for personnel_record in personnel_list: # personnel_record is from CompanyPersonnel table
+            current_row = table.rowCount()
+            table.insertRow(current_row)
+
+            personnel_id = personnel_record.get('personnel_id')
+            name_item = QTableWidgetItem(personnel_record.get('name'))
+            name_item.setData(Qt.UserRole, personnel_record) # Store full personnel record for edit/delete
+            table.setItem(current_row, 0, name_item)
+            table.setItem(current_row, 1, QTableWidgetItem(personnel_record.get('role', 'N/A')))
+
+            primary_email = self.tr("N/A")
+            primary_phone = self.tr("N/A")
+
+            if personnel_id:
+                # Fetch associated contacts for this personnel
+                contacts = get_contacts_for_personnel(personnel_id)
+                if contacts:
+                    primary_contact = next((c for c in contacts if c.get('is_primary')), None)
+                    if primary_contact:
+                        primary_email = primary_contact.get('email', self.tr("N/A"))
+                        primary_phone = primary_contact.get('phone', self.tr("N/A"))
+                    elif contacts: # No primary, take first contact's details if available
+                        first_contact = contacts[0]
+                        primary_email = first_contact.get('email', self.tr("N/A"))
+                        primary_phone = first_contact.get('phone', self.tr("N/A"))
+
+            table.setItem(current_row, 2, QTableWidgetItem(primary_email))
+            table.setItem(current_row, 3, QTableWidgetItem(primary_phone))
+
+            # Actions column (Edit/Delete for the personnel record itself) is removed from table display
+            # Actions are now handled by buttons below the table (edit_seller_btn, delete_seller_btn etc.)
+            # If row-specific actions were needed, they would be added here.
+
         table.resizeColumnsToContents()
 
 
@@ -539,7 +934,7 @@ class CompanyTabWidget(QWidget):
             else:
                 print("Warning: current_user_id or personnel_id not available in CompanyTabWidget for delete sync trigger.")
 
-            if db_manager and db_manager.delete_company_personnel(personnel_id):
+            if db_available and delete_company_personnel(personnel_id):
                 QMessageBox.information(self, self.tr("Success"), self.tr("Personnel deleted successfully."))
                 self.load_personnel(self.current_selected_company_id)
             else:
@@ -556,10 +951,10 @@ if __name__ == '__main__':
         else: print(f"Stylesheet not found at {stylesheet_path_to_try}. Using default style.")
     except Exception as e: print(f"Error loading stylesheet: {e}")
 
-    if db_manager:
-        try: db_manager.initialize_database(); print("Database initialized by company_management.py (for testing if run directly).")
-        except Exception as e: print(f"Error initializing database from company_management.py: {e}")
-    else: print("db_manager not available, skipping database initialization in company_management.py.")
+    # if db_available: # Assuming initialize_database is correctly imported and db_available might be true
+    try: initialize_database(); print("Database initialized by company_management.py (for testing if run directly).")
+    except Exception as e: print(f"Error initializing database from company_management.py: {e}")
+    # else: print("db functions not available, skipping database initialization in company_management.py.") # This else might not be reachable if db_available is always True
 
     os.makedirs(os.path.join(APP_ROOT_DIR, LOGO_SUBDIR), exist_ok=True)
 

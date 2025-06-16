@@ -5,6 +5,7 @@ from . import auth as auth_router_module
 from . import products # New import for the products router
 from . import payments # Import for the payments router
 
+
 app = FastAPI(
     title="ClientDocManager API",
     description="API for managing clients, documents, and related functionalities.",

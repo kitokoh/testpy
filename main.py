@@ -2,6 +2,7 @@
 import sys
 import os
 import logging # For main.py's own logging needs, and for translator parts if setup_logging isn't called first
+import icons_rc # Import the compiled resource file
 
 # Core PyQt5 imports for application execution
 from PyQt5.QtWidgets import QApplication
@@ -13,21 +14,26 @@ from app_setup import (
     APP_ROOT_DIR, CONFIG,
     setup_logging, load_stylesheet_global, initialize_default_templates
 )
+from app_config import save_config # Added import
 from utils import is_first_launch, mark_initial_setup_complete
+from auth.roles import SUPER_ADMIN
 # Import InitialSetupDialog and PromptCompanyInfoDialog
 from initial_setup_dialog import InitialSetupDialog, PromptCompanyInfoDialog
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check
 # Import specific db functions needed
+import db # Added import for db module
 from db.db_seed import run_seed
-from db.cruds.companies_crud import get_all_companies, add_company # Specific imports for company check
-from db.cruds.application_settings_crud import get_setting # New import
-from db.init_schema import initialize_database # <<<< Initialize function moved to db/ca.py
+from db import get_all_companies, add_company # Specific imports for company check
+# from db.cruds.application_settings_crud import get_setting # Removed direct import
+# from db.init_schema import initialize_database # This will be db.initialize_database after this change
 from auth.login_window import LoginWindow # Added for authentication
 from PyQt5.QtWidgets import QDialog # Required for QDialog.Accepted check (already present, but good to note)
 # from initial_setup_dialog import InitialSetupDialog # Redundant import, already imported above
-# import db as db_manager # For db initialization - already imported above
+# import db as db_manager # For db initialization - already imported above, now using 'import db'
 from main_window import DocumentManager # The main application window
-from notifications import NotificationManager # Added for notifications
+from project_management.notifications import NotificationManager # Added for notifications
+from db.cruds.users_crud import users_crud_instance # Added for default operational user
+from PyQt5.QtWidgets import QMessageBox # Added for error dialog
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
@@ -39,6 +45,14 @@ CURRENT_USER_ID = None
 SESSION_START_TIME = None
 # Initialize from CONFIG, providing a default if key is missing
 SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
+
+# --- DEVELOPMENT/TESTING FLAG ---
+# Set to True to bypass the login screen for faster testing.
+# WARNING: This will log in as the default admin user with super_admin privileges
+# and should ONLY be used for development/testing purposes.
+# Ensure this is set to False for production or normal use.
+BYPASS_LOGIN_FOR_TESTING = True
+# --- End Development/Testing: Bypass Login Flag ---
 
 # Old database initialization block removed as it's now called directly in main()
 
@@ -68,7 +82,7 @@ def check_session_timeout() -> bool:
 def main():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
 
-    initialize_database() # Initialize database before any other operations
+    db.initialize_database() # Initialize database before any other operations
 
     # 1. Configure logging as the very first step.
     setup_logging()
@@ -172,7 +186,7 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    language_code_from_db = get_setting('user_selected_language') # Use new import
+    language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
     # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
@@ -223,157 +237,143 @@ def main():
     # --- End Coordinated Data Seeding ---
 
     # --- Startup Dialog Logic ---
-    # Default paths for templates and clients, used by is_first_launch and mark_initial_setup_complete
-    default_templates_dir = os.path.join(APP_ROOT_DIR, "templates")
-    default_clients_dir = os.path.join(APP_ROOT_DIR, "clients")
-    if 'templates_dir' in CONFIG:
-        default_templates_dir = CONFIG['templates_dir']
-    if 'clients_dir' in CONFIG:
-        default_clients_dir = CONFIG['clients_dir']
+    show_setup_prompt_config_value = CONFIG.get("show_initial_setup_on_startup", False)
+    # Use CONFIG for directory paths in is_first_launch
+    first_launch_detected = is_first_launch(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
+    companies_exist = bool(db.get_all_companies()) # Check once
 
-    if is_first_launch(APP_ROOT_DIR, default_templates_dir, default_clients_dir):
+    should_reset_config_flag_after_dialog = False
+
+    if first_launch_detected:
         logging.info("Application detected first launch. Executing InitialSetupDialog.")
         initial_setup_dialog = InitialSetupDialog()
         result = initial_setup_dialog.exec_()
-
         if result == QDialog.Accepted:
-            logging.info("InitialSetupDialog accepted by user.")
-            mark_initial_setup_complete(APP_ROOT_DIR, default_templates_dir, default_clients_dir)
+            # Use CONFIG for directory paths in mark_initial_setup_complete
+            mark_initial_setup_complete(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
             logging.info("Initial setup marked as complete.")
-            # After initial setup, also prompt for company info if none exists,
-            # as InitialSetupDialog doesn't handle company creation.
-            try:
-                companies = get_all_companies()
-                if not companies:
-                    logging.info("No companies found after initial setup. Prompting for company information.")
-                    prompt_dialog = PromptCompanyInfoDialog() # Consider if this dialog needs a parent
-                    dialog_result_company = prompt_dialog.exec_()
-                    if dialog_result_company == QDialog.Accepted:
-                        if prompt_dialog.use_default_company:
-                            logging.info("User opted to use a default company after initial setup.")
-                            default_company_data = {
-                                "company_name": "My Business",
-                                "address": "Not specified",
-                                "is_default": True,
-                                "logo_path": None,
-                                "payment_info": "",
-                                "other_info": "Default company created post initial setup."
-                            }
-                            new_company_id = add_company(default_company_data)
-                            if new_company_id:
-                                logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
-                            else:
-                                logging.error("Failed to add default company post initial setup.")
-                        else: # User entered data
-                            user_company_data = prompt_dialog.get_company_data()
-                            if user_company_data and user_company_data['company_name']:
-                                company_to_add = {
-                                    "company_name": user_company_data['company_name'],
-                                    "address": user_company_data.get('address', ''),
-                                    "is_default": True,
-                                    "logo_path": None,
-                                    "payment_info": "",
-                                    "other_info": "Company created via prompt post initial setup."
-                                }
-                                new_company_id = add_company(company_to_add)
-                                if new_company_id:
-                                    logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
-                                else:
-                                    logging.error(f"Failed to add user-defined company '{company_to_add['company_name']}' post initial setup.")
-                            else:
-                                logging.warning("Company prompt accepted, but no company name provided. No company added.")
-                    else: # Dialog was cancelled
-                        logging.warning("User cancelled company prompt after initial setup. Application may function without a company, or this might be handled later.")
-                else: # Companies exist after initial setup (perhaps created by a previous partial setup)
-                    logging.info("Companies found in the database after initial setup. No need to prompt for company info now.")
-            except Exception as e:
-                logging.critical(f"Error during company check/setup after InitialSetupDialog: {e}", exc_info=True)
+            companies_exist = bool(db.get_all_companies()) # Re-check companies after setup
         else:
-            logging.warning("InitialSetupDialog cancelled or closed by user. Application may lack necessary configurations.")
-            # Depending on policy, could exit here: QApplication.quit() or sys.exit(1)
-    else: # Not the first launch
-        logging.info("Application not on first launch. Checking for company existence.")
-        try:
-            companies = get_all_companies()
-            if not companies:
-                logging.info("No companies found in the database on a subsequent launch. Executing PromptCompanyInfoDialog.")
-                prompt_dialog = PromptCompanyInfoDialog()
-                dialog_result = prompt_dialog.exec_()
+            logging.warning("InitialSetupDialog cancelled. Application may lack configurations.")
+            # Potentially exit or show critical error if setup is vital
 
-                if dialog_result == QDialog.Accepted:
-                    if prompt_dialog.use_default_company:
-                        logging.info("User opted to use a default company.")
-                        default_company_data = {
-                            "company_name": "My Business",
-                            "address": "Not specified",
-                            "is_default": True,
-                            "logo_path": None,
-                            "payment_info": "",
-                            "other_info": "Default company created on subsequent launch."
+    # Now, handle the PromptCompanyInfoDialog based on company existence and the flag
+    if not companies_exist:
+        if first_launch_detected or show_setup_prompt_config_value: # Show if first launch OR if flag is true
+            logging.info("No companies found or setup prompt explicitly enabled. Prompting for company information.")
+            prompt_dialog = PromptCompanyInfoDialog()
+            dialog_result_company = prompt_dialog.exec_()
+
+            if dialog_result_company == QDialog.Accepted:
+                if prompt_dialog.use_default_company:
+                    logging.info("User opted to use a default company.")
+                    default_company_data = {
+                        "company_name": "My Business", "address": "Not specified", "is_default": True,
+                        "logo_path": None, "payment_info": "", "other_info": "Default company created."
+                    }
+                    new_company_id = add_company(default_company_data)
+                    if new_company_id:
+                        logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+                        companies_exist = True # Update companies_exist status
+                    else:
+                        logging.error("Failed to add default company.")
+                else: # User entered data
+                    user_company_data = prompt_dialog.get_company_data()
+                    if user_company_data and user_company_data['company_name']:
+                        company_to_add = {
+                            "company_name": user_company_data['company_name'],
+                            "address": user_company_data.get('address', ''), "is_default": True,
+                            "logo_path": None, "payment_info": "", "other_info": "Company created via prompt."
                         }
-                        new_company_id = add_company(default_company_data)
+                        new_company_id = add_company(company_to_add)
                         if new_company_id:
-                            logging.info(f"Default company 'My Business' added with ID: {new_company_id}.")
+                            logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
+                            companies_exist = True # Update companies_exist status
                         else:
-                            logging.error("Failed to add default company.")
-                    else: # User entered data
-                        user_company_data = prompt_dialog.get_company_data()
-                        if user_company_data and user_company_data['company_name']:
-                            company_to_add = {
-                                "company_name": user_company_data['company_name'],
-                                "address": user_company_data.get('address', ''),
-                                "is_default": True,
-                                "logo_path": None,
-                                "payment_info": "",
-                                "other_info": "Company created via prompt on subsequent launch."
-                            }
-                            new_company_id = add_company(company_to_add)
-                            if new_company_id:
-                                logging.info(f"User-defined company '{company_to_add['company_name']}' added with ID: {new_company_id}.")
-                            else:
-                                logging.error(f"Failed to add user-defined company: {company_to_add['company_name']}.")
-                        else:
-                            logging.warning("Save and Continue chosen, but company name was empty. No company added.")
-                else: # Dialog was cancelled
-                    logging.warning("User cancelled company prompt. Application might not function as expected without a company.")
+                            logging.error(f"Failed to add user-defined company '{company_to_add['company_name']}'.")
+                    else:
+                        logging.warning("Company prompt accepted, but no company name provided. No company added.")
+            else: # Dialog was cancelled
+                logging.warning("User cancelled company prompt.")
+
+            # If the prompt was shown because of the config flag (and not strictly first_launch path that also sets it)
+            if show_setup_prompt_config_value and not first_launch_detected:
+                should_reset_config_flag_after_dialog = True
+        else:
+            logging.info("No companies found, but setup prompt is not enabled by config and not first launch. Skipping company prompt.")
+    else: # Companies exist
+        logging.info("Companies found in the database. No need to prompt for company info now.")
+        # If companies exist, but the flag was true, it implies the user wanted to see the prompt (even if not strictly necessary).
+        # Reset it as the condition (no companies) for the prompt to be useful wasn't met, or it was already met.
+        if show_setup_prompt_config_value:
+             should_reset_config_flag_after_dialog = True
+
+
+    if should_reset_config_flag_after_dialog:
+        logging.info("Resetting 'show_initial_setup_on_startup' flag to False.")
+        CONFIG["show_initial_setup_on_startup"] = False
+        save_config(CONFIG)
+
+    proceed_to_main_app = False # Initialize before bypass and remember me
+
+    # --- Development/Testing: Bypass Login ---
+    if BYPASS_LOGIN_FOR_TESTING:
+        logging.warning("Login screen is being bypassed due to BYPASS_LOGIN_FOR_TESTING flag.")
+        try:
+            # Ensure db operations can be performed to get admin user
+            from db.cruds.users_crud import users_crud_instance
+            # from auth.roles import SUPER_ADMIN # Make sure SUPER_ADMIN is imported if not already (it is)
+
+            admin_user = users_crud_instance.get_user_by_username("admin") # Assuming "admin" is the default admin username
+            if admin_user:
+                CURRENT_USER_ID = admin_user['user_id']
+                CURRENT_USER_ROLE = SUPER_ADMIN # Assign super_admin role
+                CURRENT_SESSION_TOKEN = "BYPASS_TOKEN_ADMIN_SUPER"
+                SESSION_START_TIME = datetime.datetime.now()
+                proceed_to_main_app = True # This sets it to True if bypass is successful
+                logging.info(f"Bypassed login. Logged in as default admin: {admin_user['username']} (ID: {CURRENT_USER_ID}), Role: {CURRENT_USER_ROLE}")
             else:
-                logging.info("Companies found in the database. No need to prompt for company info.")
-        except Exception as e:
-            logging.critical(f"Error during company check on a subsequent launch: {e}. Application may not function correctly.", exc_info=True)
+                logging.error("BYPASS_LOGIN_FOR_TESTING: Could not find default admin user 'admin'. Login cannot be bypassed.")
+                # proceed_to_main_app will remain False, forcing normal login
+        except Exception as e_bypass:
+            logging.error(f"BYPASS_LOGIN_FOR_TESTING: Error during login bypass: {e_bypass}", exc_info=True)
+            # proceed_to_main_app will remain False, normal login flow will occur.
+    # --- End Development/Testing: Bypass Login ---
 
     # 10. Authentication Flow
     settings = QSettings()
-    remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
-    proceed_to_main_app = False
 
-    if remember_me_active:
-        logging.info("Found active 'Remember Me' flag.")
-        stored_token = settings.value("auth/session_token", None)
-        stored_user_id = settings.value("auth/user_id", None)
-        stored_username = settings.value("auth/username", "Unknown") # Default for logging
-        stored_user_role = settings.value("auth/user_role", None)
+    # Now check "Remember Me" ONLY if bypass did not occur
+    if not proceed_to_main_app:
+        remember_me_active = settings.value("auth/remember_me_active", False, type=bool)
+        if remember_me_active:
+            logging.info("Found active 'Remember Me' flag.")
+            stored_token = settings.value("auth/session_token", None)
+            stored_user_id = settings.value("auth/user_id", None)
+            stored_username = settings.value("auth/username", "Unknown") # Default for logging
+            stored_user_role = settings.value("auth/user_role", None)
 
-        if stored_token and stored_user_id and stored_user_role:
-            logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
+            if stored_token and stored_user_id and stored_user_role:
+                logging.info(f"Attempting to restore session for user: {stored_username} (ID: {stored_user_id}) with stored token.")
 
-            global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME
-            CURRENT_SESSION_TOKEN = stored_token
-            CURRENT_USER_ID = stored_user_id
-            CURRENT_USER_ROLE = stored_user_role
-            SESSION_START_TIME = datetime.datetime.now() # Reset session timer
+                # global CURRENT_SESSION_TOKEN, CURRENT_USER_ID, CURRENT_USER_ROLE, SESSION_START_TIME # Already global
+                CURRENT_SESSION_TOKEN = stored_token
+                CURRENT_USER_ID = stored_user_id
+                CURRENT_USER_ROLE = stored_user_role
+                SESSION_START_TIME = datetime.datetime.now() # Reset session timer
 
-            logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
-            logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
-            proceed_to_main_app = True
+                logging.info(f"Session restored for user: {stored_username}, Role: {CURRENT_USER_ROLE}. Token: {CURRENT_SESSION_TOKEN}")
+                logging.info(f"Session (restored) started at: {SESSION_START_TIME}")
+                proceed_to_main_app = True
+            else:
+                logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
+                settings.setValue("auth/remember_me_active", False)
+                settings.remove("auth/session_token")
+                settings.remove("auth/user_id")
+                settings.remove("auth/username")
+                settings.remove("auth/user_role")
         else:
-            logging.warning("Found 'Remember Me' flag but token or user details are missing. Clearing invalid 'Remember Me' data.")
-            settings.setValue("auth/remember_me_active", False)
-            settings.remove("auth/session_token")
-            settings.remove("auth/user_id")
-            settings.remove("auth/username")
-            settings.remove("auth/user_role")
-    else:
-        logging.info("'Remember Me' is not active.")
+            logging.info("'Remember Me' is not active.")
 
     if not proceed_to_main_app:
         logging.info("Proceeding to show LoginWindow.")
@@ -396,11 +396,31 @@ def main():
                 sys.exit(1)
             proceed_to_main_app = True # Mark to proceed
         else:
-            logging.info("Login failed or cancelled by user. Exiting application.")
-            sys.exit()
+            logging.warning("Login dialog was not accepted (failed, cancelled, or closed). Attempting to use default operational user.")
+            DEFAULT_OPERATIONAL_USERNAME = "default_operational_user"
+            try:
+                # Assuming users_crud_instance does not require explicit connection management here
+                # or it handles it internally for read-only operations like get_user_by_username.
+                # If main.py initializes a global DB connection that CRUD instances can use, that's also fine.
+                default_user = users_crud_instance.get_user_by_username(DEFAULT_OPERATIONAL_USERNAME)
+                if default_user:
+                    CURRENT_USER_ID = default_user.get('user_id')
+                    CURRENT_USER_ROLE = default_user.get('role')
+                    SESSION_START_TIME = datetime.datetime.now()
+                    CURRENT_SESSION_TOKEN = "default_user_session_token" # Placeholder token
+                    logging.info(f"Proceeding with default operational user: {DEFAULT_OPERATIONAL_USERNAME} (ID: {CURRENT_USER_ID}, Role: {CURRENT_USER_ROLE})")
+                    proceed_to_main_app = True
+                else:
+                    logging.critical(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' not found in the database.")
+                    QMessageBox.critical(None, "Critical Error", f"Default operational user profile ('{DEFAULT_OPERATIONAL_USERNAME}') not found. Application cannot start. Please contact support or run database seeding.")
+                    sys.exit(1)
+            except Exception as e_default_user:
+                logging.critical(f"An error occurred while trying to fetch the default operational user '{DEFAULT_OPERATIONAL_USERNAME}': {e_default_user}", exc_info=True)
+                QMessageBox.critical(None, "Critical Database Error", f"An error occurred while accessing user data. Application cannot start. Check logs for details.")
+                sys.exit(1)
 
     if proceed_to_main_app:
-        main_window = DocumentManager(APP_ROOT_DIR)
+        main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID)
 
         # Setup Notification Manager
         # Ensure 'app' is the QApplication instance, available in this scope
@@ -437,7 +457,7 @@ def main():
         # 11. Create and Show Main Window (only after successful login)
         # DocumentManager is imported from main_window
         # APP_ROOT_DIR is imported from app_setup
-        main_window = DocumentManager(APP_ROOT_DIR) # Pass user_id and role if needed by DocumentManager
+        main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID) # Pass user_id and role if needed by DocumentManager
         main_window.show()
         logging.info("Main window shown. Application is running.")
 

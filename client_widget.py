@@ -12,7 +12,8 @@ from carrier_email_dialog import CarrierEmailDialog # Added import
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QApplication
+    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QApplication,
+    QSizePolicy # Added QSizePolicy
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap, QTextCursor
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication, QEvent
@@ -21,11 +22,12 @@ from PyQt5.QtWidgets import QListWidgetItem
 from PyQt5.QtGui import QPixmap
 
 import db as db_manager
+from db.cruds.clients_crud import clients_crud_instance
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
-from dialogs import ClientProductDimensionDialog # Added import
+from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
-from main import get_notification_manager # Added for notifications
+# Removed: from main import get_notification_manager
 
 from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
 from document_manager_logic import create_final_invoice_and_update_db
@@ -60,7 +62,7 @@ def _import_main_elements():
         from whatsapp.whatsapp_dialog import SendWhatsAppDialog as WhatsAppDialogModule
         from utils import generate_pdf_for_document as utils_generate_pdf_for_document
         from app_setup import CONFIG as APP_CONFIG
-        from db import DATABASE_NAME as DB_NAME
+        from config import DATABASE_PATH as DB_PATH_CONFIG # Added line
         MAIN_MODULE_CONTACT_DIALOG = ContactDialog
         MAIN_MODULE_PRODUCT_DIALOG = ProductDialog
         MAIN_MODULE_EDIT_PRODUCT_LINE_DIALOG = EditProductLineDialog
@@ -68,7 +70,7 @@ def _import_main_elements():
         MAIN_MODULE_COMPILE_PDF_DIALOG = CompilePdfDialog
         MAIN_MODULE_GENERATE_PDF_FOR_DOCUMENT = utils_generate_pdf_for_document
         MAIN_MODULE_CONFIG = APP_CONFIG
-        MAIN_MODULE_DATABASE_NAME = DB_NAME
+        MAIN_MODULE_DATABASE_NAME = DB_PATH_CONFIG # Changed DB_NAME to DB_PATH_CONFIG
         MAIN_MODULE_SEND_EMAIL_DIALOG = SendEmailDialog
         MAIN_MODULE_CLIENT_DOCUMENT_NOTE_DIALOG = ClientDocumentNoteDialog
         MAIN_MODULE_SEND_WHATSAPP_DIALOG = WhatsAppDialogModule
@@ -77,9 +79,10 @@ def _import_main_elements():
 class ClientWidget(QWidget):
     CONTACT_PAGE_LIMIT = 15 # Class attribute for page limit
 
-    def __init__(self, client_info, config, app_root_dir, parent=None): # Add app_root_dir
+    def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
         self.client_info = client_info
+        self.notification_manager = notification_manager # Store notification_manager
         # self.config = config # Original config passed
 
         # Dynamically import main elements to avoid circular import at module load time
@@ -131,7 +134,7 @@ class ClientWidget(QWidget):
         info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
         info_container_layout.setSpacing(10) # Adjust spacing as needed
 
-        self.header_label = QLabel(f"<h2>{self.client_info['client_name']}</h2>")
+        self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
         self.header_label.setObjectName("clientHeaderLabel")
         info_container_layout.addWidget(self.header_label)
 
@@ -161,7 +164,7 @@ class ClientWidget(QWidget):
         action_layout.addWidget(self.edit_save_client_btn)
 
         self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
-        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/message-circle.svg"))) # Placeholder icon
+        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Changed placeholder
         self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
         self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
         action_layout.addWidget(self.send_whatsapp_btn)
@@ -183,9 +186,9 @@ class ClientWidget(QWidget):
         self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
 
         # Initialize distributor specific info labels (used in populate_details_layout)
-        self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
-        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
-        self.distributor_info_value_label.setWordWrap(True)
+        # self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
+        # self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        # self.distributor_info_value_label.setWordWrap(True)
 
 
         self.populate_details_layout() # Builds the details_layout
@@ -195,7 +198,7 @@ class ClientWidget(QWidget):
         client_info_group_layout.addWidget(self.info_container_widget)
 
         # Connect toggled signal and set initial state
-        self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
+        # self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
         self.client_info_group_box.setChecked(True) # Initially expanded
 
         layout.addWidget(self.client_info_group_box) # Add the group box to the main layout
@@ -220,13 +223,13 @@ class ClientWidget(QWidget):
         # Move self.notes_edit into this new group box
         # notes_group_layout.addWidget(self.notes_edit) # Directly adding notes_edit
 
-        self.notes_group_box.setChecked(True) # Expanded by default
+        self.notes_group_box.setChecked(False) # Expanded by default
         self.notes_container_widget = QWidget() # Create a container for the notes_edit
         notes_container_layout = QVBoxLayout(self.notes_container_widget)
         notes_container_layout.setContentsMargins(0, 5, 0, 0)
         notes_container_layout.addWidget(self.notes_edit) # Add notes_edit to the container
         notes_group_layout.addWidget(self.notes_container_widget) # Add container to group_layout
-        self.notes_group_box.toggled.connect(self.notes_container_widget.setVisible)
+        # self.notes_group_box.toggled.connect(self.notes_container_widget.setVisible)
 
         # Add the new notes group box to the main layout
         layout.addWidget(self.notes_group_box)
@@ -252,12 +255,21 @@ class ClientWidget(QWidget):
         # Filter layout for documents tab
         self.doc_filter_layout_widget = QWidget() # Container for the filter layout
         doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
-        doc_filter_layout.setContentsMargins(0,0,0,0)
-        doc_filter_layout.addWidget(QLabel(self.tr("Filtrer par Commande:")))
+        doc_filter_layout.setContentsMargins(0,0,0,0) # Keep tight margins for the filter bar itself
+
+        doc_filter_label = QLabel(self.tr("Filtrer par Commande:"))
+        doc_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed) # Prevent label from expanding
+        doc_filter_layout.addWidget(doc_filter_label)
+
         self.doc_order_filter_combo = QComboBox()
+        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # Allow combo to expand but not vertically
         self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
         doc_filter_layout.addWidget(self.doc_order_filter_combo)
-        doc_filter_layout.addStretch()
+
+        # doc_filter_layout.addStretch() # Removing stretch to see if default behavior is better; can be added back if needed.
+                                     # If parent is QVBoxLayout, QHBoxLayout should by default take available width.
+                                     # If it needs to be left-aligned within a wider space, addStretch() is correct.
+                                     # Forcing on single line, it's more about child widget policies.
         docs_layout.addWidget(self.doc_filter_layout_widget)
         self.doc_filter_layout_widget.setVisible(False) # Initially hidden
 
@@ -636,6 +648,10 @@ class ClientWidget(QWidget):
         self.billing_tab_layout.addStretch()
 
         self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
+        # Connect new accordion handlers
+        self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
 
     def open_send_whatsapp_dialog(self):
        client_uuid = self.client_info.get("client_id")
@@ -680,18 +696,91 @@ class ClientWidget(QWidget):
            QMessageBox.critical(self, self.tr("Error Fetching Contacts"), self.tr("Could not retrieve contact information: {0}").format(str(e)))
 
         # Accordion logic connections
-       if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
-            self.notes_group_box.toggled.connect(self._handle_notes_toggled)
-            self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
+       # if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
+            # self.notes_group_box.toggled.connect(self._handle_notes_toggled)
+            # self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
 
+    def _handle_client_info_section_toggled(self, checked):
+        # Ensure the container widget exists
+        if not hasattr(self, 'info_container_widget'):
+            return
+        self.info_container_widget.setVisible(checked)
 
-    def _handle_notes_toggled(self, checked):
-        if checked and hasattr(self, 'tabs_group_box') and self.tabs_group_box.isChecked():
-            self.tabs_group_box.setChecked(False)
+        if checked:
+            # Block signals to prevent infinite loops or unintended recursive calls
+            if hasattr(self, 'notes_group_box'):
+                self.notes_group_box.blockSignals(True)
+                self.notes_group_box.setChecked(False)
+                if hasattr(self, 'notes_container_widget'): # Ensure notes_container_widget also exists
+                    self.notes_container_widget.setVisible(False) # Explicitly hide content
+                self.notes_group_box.blockSignals(False)
 
-    def _handle_tabs_toggled(self, checked):
-        if checked and hasattr(self, 'notes_group_box') and self.notes_group_box.isChecked():
-            self.notes_group_box.setChecked(False)
+            if hasattr(self, 'tabs_group_box'):
+                self.tabs_group_box.blockSignals(True)
+                self.tabs_group_box.setChecked(False)
+                if hasattr(self, 'tab_widget'): # Ensure tab_widget exists
+                    self.tab_widget.setVisible(False) # Explicitly hide content
+                self.tabs_group_box.blockSignals(False)
+        elif not self.notes_group_box.isChecked() and not self.tabs_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.client_info_group_box.blockSignals(True)
+            self.client_info_group_box.setChecked(True)
+            self.info_container_widget.setVisible(True) # Ensure content visibility matches state
+            self.client_info_group_box.blockSignals(False)
+
+    def _handle_notes_section_toggled(self, checked):
+        # Ensure the container widget exists
+        if not hasattr(self, 'notes_container_widget'):
+            return
+        self.notes_container_widget.setVisible(checked)
+
+        if checked:
+            if hasattr(self, 'client_info_group_box'):
+                self.client_info_group_box.blockSignals(True)
+                self.client_info_group_box.setChecked(False)
+                if hasattr(self, 'info_container_widget'): # Ensure info_container_widget also exists
+                    self.info_container_widget.setVisible(False) # Explicitly hide content
+                self.client_info_group_box.blockSignals(False)
+
+            if hasattr(self, 'tabs_group_box'):
+                self.tabs_group_box.blockSignals(True)
+                self.tabs_group_box.setChecked(False)
+                if hasattr(self, 'tab_widget'): # Ensure tab_widget exists
+                     self.tab_widget.setVisible(False) # Explicitly hide content
+                self.tabs_group_box.blockSignals(False)
+        elif not self.client_info_group_box.isChecked() and not self.tabs_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.notes_group_box.blockSignals(True)
+            self.notes_group_box.setChecked(True)
+            self.notes_container_widget.setVisible(True) # Ensure content visibility matches state
+            self.notes_group_box.blockSignals(False)
+
+    def _handle_tabs_section_toggled(self, checked):
+        # Ensure the tab_widget (content) exists
+        if not hasattr(self, 'tab_widget'):
+            return
+        self.tab_widget.setVisible(checked)
+
+        if checked:
+            if hasattr(self, 'client_info_group_box'):
+                self.client_info_group_box.blockSignals(True)
+                self.client_info_group_box.setChecked(False)
+                if hasattr(self, 'info_container_widget'): # Ensure info_container_widget also exists
+                     self.info_container_widget.setVisible(False) # Explicitly hide content
+                self.client_info_group_box.blockSignals(False)
+
+            if hasattr(self, 'notes_group_box'):
+                self.notes_group_box.blockSignals(True)
+                self.notes_group_box.setChecked(False)
+                if hasattr(self, 'notes_container_widget'): # Ensure notes_container_widget also exists
+                     self.notes_container_widget.setVisible(False) # Explicitly hide content
+                self.notes_group_box.blockSignals(False)
+        elif not self.client_info_group_box.isChecked() and not self.notes_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.tabs_group_box.blockSignals(True)
+            self.tabs_group_box.setChecked(True)
+            self.tab_widget.setVisible(True) # Ensure content visibility matches state
+            self.tabs_group_box.blockSignals(False)
 
     def load_sav_tickets_table(self):
         # Ensure sav_tickets_table is initialized before use
@@ -1037,7 +1126,7 @@ class ClientWidget(QWidget):
         try:
             # Example: Load all assigned personnel, or filter by a general "vendor/sales" role_in_project
             # For now, role_filter=None fetches all personnel assigned to this client.
-            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter=None)
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter=None) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_vendors_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('personnel_name'))
@@ -1061,7 +1150,7 @@ class ClientWidget(QWidget):
             # Example: Filter for personnel assigned with a role_in_project like 'Technicien assigné'
             # Or, if AssignPersonnelDialog uses a role_filter for DB CompanyPersonnel.role, that's different.
             # Assuming here role_in_project is the primary filter criteria from Client_AssignedPersonnel table.
-            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter="Technicien") # Or specific role
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter="Technicien") or [] # Or specific role
             for row, item_data in enumerate(assigned_list): # This list now comes from get_assigned_personnel_for_client
                 self.assigned_technicians_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('personnel_name'))
@@ -1082,7 +1171,7 @@ class ClientWidget(QWidget):
         client_id = self.client_info.get('client_id')
         if not client_id: return
         try:
-            assigned_list = db_manager.get_assigned_transporters_for_client(client_id)
+            assigned_list = db_manager.get_assigned_transporters_for_client(client_id) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_transporters_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('transporter_name'))
@@ -1130,7 +1219,7 @@ class ClientWidget(QWidget):
         client_id = self.client_info.get('client_id')
         if not client_id: return
         try:
-            assigned_list = db_manager.get_assigned_forwarders_for_client(client_id)
+            assigned_list = db_manager.get_assigned_forwarders_for_client(client_id) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_forwarders_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('forwarder_name'))
@@ -1160,15 +1249,23 @@ class ClientWidget(QWidget):
             return
 
         try:
-            linked_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+            # Fetch all globally available products for selection.
+            # Assuming db_manager.get_all_products() returns a list of product dictionaries
+            # with at least 'product_id', 'product_name', 'language_code'.
+            all_global_products = db_manager.get_all_products(filters=None)
 
-            if linked_products:
-                unique_products = {prod.get('product_id'): prod for prod in linked_products}.values()
-                for prod_data in sorted(list(unique_products), key=lambda x: x.get('product_name', '')):
+            if all_global_products:
+                # Global products should be unique by their definition (product_id).
+                # Sorting can be done here if not handled by the DB query, or to ensure consistent order.
+                # For example: all_global_products.sort(key=lambda x: (x.get('product_name', ''), x.get('language_code', '')))
+
+                for prod_data in all_global_products: # Iterate directly if already sorted or uniqueness is guaranteed by source
                     product_name = prod_data.get('product_name', 'N/A')
                     global_product_id = prod_data.get('product_id')
                     lang_code = prod_data.get('language_code', '')
+
                     display_text = f"{product_name} ({lang_code}) - ID: {global_product_id}"
+                    # Store the global_product_id as data for the combo box item
                     self.dim_product_selector_combo.addItem(display_text, global_product_id)
         except Exception as e:
             print(f"Error loading products for dimension tab: {e}")
@@ -1615,6 +1712,11 @@ class ClientWidget(QWidget):
         self.detail_value_labels["category_value"] = self.category_value_label # Store for edit mode
 
         # Distributor Specific Info (conditionally visible)
+        self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
+        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        self.distributor_info_value_label.setWordWrap(True)
+        self.distributor_info_value_label.setObjectName("distributorInfoValueLabel") # Keep object name if used in QSS
+        self.distributor_info_label.setObjectName("distributorInfoLabel")
         self.details_layout.addRow(self.distributor_info_label, self.distributor_info_value_label)
         self.toggle_distributor_info_visibility() # Call to set initial visibility
 
@@ -1660,7 +1762,7 @@ class ClientWidget(QWidget):
     def load_statuses(self):
         try:
             # Assuming 'Client' is the status_type for this context
-            client_statuses = db_manager.get_all_status_settings(status_type='Client')
+            client_statuses = db_manager.get_all_status_settings(type_filter='Client')
             if client_statuses is None: client_statuses = [] # Handle case where db_manager returns None
 
             self.status_combo.clear() # Clear before populating
@@ -1736,34 +1838,45 @@ class ClientWidget(QWidget):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
-                                                message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
-                                                type='SUCCESS')
-                    self.update_sav_tab_visibility() # Update SAV tab based on new status
-                else:
-                # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client dans la DB."))
-                get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
-            # This 'elif status_text:' should handle other statuses not 'Vendu'
-            elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
-                 if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
-                    self.client_info["status"] = status_text
-                    self.client_info["status_id"] = status_id_to_set
-                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
-                    get_notification_manager().show(title=self.tr("Statut Mis à Jour"),
+                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
                                                     message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
                                                     type='SUCCESS')
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
-                 else:
+                else:
+                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+
+                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+
+            # This 'elif status_text:' should handle other statuses not 'Vendu'
+            elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
+                # Ensure client_id_to_update and status_id_to_set are defined in this path
+                client_id_to_update = self.client_info.get("client_id")
+                status_setting = db_manager.get_status_setting_by_name(status_text, 'Client')
+                if not client_id_to_update or not status_setting or status_setting.get('status_id') is None:
+                    QMessageBox.warning(self, self.tr("Erreur Critique"), self.tr("Données client ou statut manquantes pour la mise à jour."))
+                    return # or handle error appropriately
+
+                status_id_to_set = status_setting['status_id']
+
+                if db_manager.update_client(client_id_to_update, {'status_id': status_id_to_set}):
+                    self.client_info["status"] = status_text
+                    self.client_info["status_id"] = status_id_to_set
+                    print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
+                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
+                                                    message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
+                                                    type='SUCCESS')
+                    self.update_sav_tab_visibility() # Update SAV tab based on new status
+                else:
                     # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client pour '{0}'.").format(status_text))
-                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
+                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
 
             elif status_text: # Fallback for empty status_text or other unhandled cases
                 QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
-                get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
+                self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
 
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-            get_notification_manager().show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
+            self.notification_manager.show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
 
     def save_client_notes(self):
         notes = self.notes_edit.toPlainText()
@@ -1777,13 +1890,13 @@ class ClientWidget(QWidget):
             if db_manager.update_client(client_id_to_update, {'notes': notes}):
                 self.client_info["notes"] = notes # Update local copy
                 # Optionally, notify on successful save, though it might be too frequent if auto-saving.
-                # get_notification_manager().show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
+                # self.notification_manager.show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
             else:
                 # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des notes dans la DB."))
-                get_notification_manager().show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
+                self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
         except Exception as e:
             # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
-            get_notification_manager().show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
+            self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
 
     def populate_doc_table(self):
         self.doc_table.setRowCount(0) # Clear table first
@@ -1791,14 +1904,17 @@ class ClientWidget(QWidget):
         self.doc_table.setVisible(False)
 
         client_id = self.client_info.get("client_id")
-        if not client_id: return
+        if not client_id:
+            if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
+            logging.warning("populate_doc_table: client_id is missing from client_info.")
+            return
 
         order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
         is_distributor_type = self.client_info.get('category') == 'Distributeur'
         has_multiple_orders = order_events and len(order_events) > 1
         show_order_filter = is_distributor_type or has_multiple_orders
 
-        self.doc_filter_layout_widget.setVisible(show_order_filter)
+        self.doc_filter_layout_widget.setVisible(bool(show_order_filter))
 
         current_order_filter_selection = None
         if show_order_filter:
@@ -1844,16 +1960,25 @@ class ClientWidget(QWidget):
         client_documents = db_manager.get_documents_for_client(client_id, filters=filters)
         client_documents = client_documents if client_documents else []
 
+        base_client_path = self.client_info.get("base_folder_path")
+        if not base_client_path or not os.path.isdir(base_client_path):
+            logging.error(f"populate_doc_table: base_folder_path '{base_client_path}' is missing or not a directory for client_id {client_id}.")
+            if hasattr(self, 'documents_empty_label'):
+                self.documents_empty_label.setText(self.tr("Erreur: Dossier client de base non trouvé ou inaccessible."))
+                self.documents_empty_label.setVisible(True)
+            self.doc_table.setVisible(False)
+            return
+
         if not client_documents:
-            if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
+            if hasattr(self, 'documents_empty_label'):
+                 self.documents_empty_label.setText(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+                 self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
             return
 
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
         self.doc_table.setVisible(True)
         self.doc_table.setRowCount(len(client_documents))
-
-        base_client_path = self.client_info["base_folder_path"]
 
         for row_idx, doc_data in enumerate(client_documents):
             document_id = doc_data.get('document_id')
@@ -1865,23 +1990,30 @@ class ClientWidget(QWidget):
             # This assumes path_relative is like "lang_code/filename.ext" OR part of a deeper structure if order_identifier is used
             # For now, let's simplify and assume file_path_relative from DB is just "lang/filename.ext"
             # The full path construction will handle the order subfolder.
-            language_code = "N/A"
-            path_parts = file_path_relative_from_db.split(os.sep)
-            if len(path_parts) > 1: # Expecting at least lang/file.ext
-                language_code = path_parts[0] # First part is language
+            language_code = doc_data.get('language_code', "N/A") # Prefer direct field if available
+            if language_code == "N/A" and file_path_relative_from_db: # Fallback to inferring from path
+                path_parts = file_path_relative_from_db.split(os.sep)
+                if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
+                    language_code = path_parts[0]
 
             # Construct full_file_path
             full_file_path = ""
-            if order_identifier_for_doc:
-                safe_order_subfolder = order_identifier_for_doc.replace(':', '_').replace(' ', '_')
-                # file_path_relative_from_db here should be like "lang/doc.pdf"
-                full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
+            if file_path_relative_from_db: # Only proceed if relative path exists
+                if order_identifier_for_doc:
+                    safe_order_subfolder = str(order_identifier_for_doc).replace(':', '_').replace(' ', '_')
+                    full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
+                else:
+                    full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+
+                if not os.path.exists(full_file_path):
+                    logging.warning(f"Document file path does not exist: {full_file_path} for doc_id {document_id}")
+                    # Optionally mark this row differently or skip
             else:
-                # file_path_relative_from_db here is like "lang/doc.pdf"
-                full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+                logging.warning(f"Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
+
 
             name_item = QTableWidgetItem(doc_name)
-            name_item.setData(Qt.UserRole, full_file_path) # Store full path for actions
+            name_item.setData(Qt.UserRole, full_file_path if full_file_path else None) # Store full path or None
 
             file_type_str = doc_data.get('document_type_generated', 'N/A') # Or derive from extension
             created_at_str = doc_data.get('created_at', '')
@@ -2107,8 +2239,75 @@ class ClientWidget(QWidget):
         dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
-            # ... (logic for adding products remains the same) ...
-            if products_list_data: self.load_products() # Refresh only if data was processed
+
+            # --- BEGIN HYPOTHETICAL ACTUAL FIX AREA ---
+            # This is where the actual loop processing products_list_data would be.
+            # Assuming the loop and the call to db_manager.add_product_to_client_project_link_and_global
+            # or similar database function occurs here.
+
+            # If the error "TypeError: City() missing 1 required positional argument: 'country_id'"
+            # originates from an attempt to process city information *within this loop*
+            # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
+
+            # Example of what might be happening and how to fix it:
+            products_list_data = dialog.get_data() # This is a list of product_entry dicts
+
+            processed_count = 0
+            if products_list_data:
+                for product_entry in products_list_data:
+                    client_id_for_product = self.client_info.get('client_id')
+                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
+                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
+                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
+
+                    global_product_id = product_entry.get('product_id') # This is the ID from Products table
+                    quantity = product_entry.get('quantity')
+                    unit_price_override = product_entry.get('unit_price') # Dialog uses 'unit_price' for the override
+
+                    # Determine project_id. It can be None.
+                    # project_identifier from client_info might be the name/code, not the DB ID.
+                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
+                    project_id_for_db = self.client_info.get('project_id', None)
+                    if project_id_for_db is None:
+                        # If 'project_id' is not directly in client_info,
+                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
+                        # For now, assume if 'project_id' is not there, it's None.
+                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
+
+
+                    if not all([client_id_for_product, global_product_id, quantity is not None, unit_price_override is not None]):
+                        logging.error(f"Skipping product entry due to missing data: {product_entry} for client_id {client_id_for_product}")
+                        QMessageBox.warning(self, self.tr("Données Produit Incomplètes"),
+                                            self.tr("Impossible d'ajouter un produit car certaines informations sont manquantes : {0}.").format(product_entry.get('name', 'Nom inconnu')))
+                        continue
+
+                    db_call_payload = {
+                        'client_id': client_id_for_product,
+                        'product_id': global_product_id,
+                        'quantity': quantity,
+                        'unit_price_override': unit_price_override,
+                        'project_id': project_id_for_db,
+                        # 'serial_number': None, # Default to None if not provided by dialog
+                        # 'purchase_confirmed_at': None, # Default to None
+                    }
+
+                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
+                    link_id = db_manager.add_product_to_client_or_project(db_call_payload)
+
+                    if link_id:
+                        processed_count += 1
+                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
+                    else:
+                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        QMessageBox.warning(self, self.tr("Erreur Base de Données"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
+
+            if processed_count > 0:
+                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                                         self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
+
+            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+                self.load_products()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
@@ -2711,7 +2910,7 @@ class ClientWidget(QWidget):
             # Update self.client_info with all new values, including text names for country/city/status
             # This ensures the display view (populate_details_layout) has the most current data
             # A full fetch might be cleaner:
-            updated_client_full_info = db_manager.get_client_by_id(self.client_info['client_id'])
+            updated_client_full_info = clients_crud_instance.get_client_by_id(self.client_info['client_id'])
             if updated_client_full_info:
                 self.client_info = updated_client_full_info # Replace local client_info
 
@@ -2894,13 +3093,19 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def eventFilter(self, obj, event):
-        if obj is self.notes_edit and event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
-                    return super().eventFilter(obj, event)
-                else: # Enter pressed
-                    self.append_new_note_with_timestamp()
-                    return True # Event handled
+        if obj is self.notes_edit:
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
+                        # Let the base class handle Shift+Enter for newline
+                        return super().eventFilter(obj, event)
+                    else: # Enter pressed
+                        self.append_new_note_with_timestamp()
+                        return True # Event handled, stop further processing for this Enter key press
+            elif event.type() == QEvent.FocusOut:
+                self.save_client_notes()
+                # Return False to allow normal FocusOut processing after saving
+                return False
         return super().eventFilter(obj, event)
 
     def append_new_note_with_timestamp(self):

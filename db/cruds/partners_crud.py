@@ -3,12 +3,18 @@ import uuid
 from datetime import datetime
 import logging
 from .generic_crud import get_db_connection, _manage_conn
+from .contacts_crud import (
+    add_contact as central_add_contact,
+    get_contact_by_id as central_get_contact_by_id,
+    update_contact as central_update_contact,
+    delete_contact as central_delete_contact # Not used in this subtask as per instructions
+)
 
 logger = logging.getLogger(__name__)
 
 # --- PartnerCategories CRUD Functions ---
 @_manage_conn
-def add_partner_category(category_data_or_name: str | dict, description: str = None, conn: sqlite3.Connection = None) -> int | None:
+def add_partner_category(category_data_or_name: str | dict, description: str = None, conn: sqlite3.Connection = None, **kwargs) -> int | None:
     """Adds a new partner category. Can accept name directly or a dict."""
     cursor = conn.cursor()
     name = None
@@ -49,7 +55,7 @@ def get_partner_category_by_id(category_id: int, conn: sqlite3.Connection = None
     return dict(row) if row else None
 
 @_manage_conn
-def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None) -> dict | None:
+def get_partner_category_by_name(name: str, conn: sqlite3.Connection = None, **kwargs) -> dict | None:
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM PartnerCategories WHERE category_name = ?", (name,))
     row = cursor.fetchone()
@@ -251,79 +257,182 @@ def get_partners_by_category_id(category_id: int, conn: sqlite3.Connection = Non
 
 # --- PartnerContacts CRUD ---
 @_manage_conn
-def add_partner_contact(contact_data: dict, conn: sqlite3.Connection = None) -> int | None:
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    sql = """
-        INSERT INTO PartnerContacts (partner_id, name, email, phone, role, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+def add_partner_contact(partner_id: str, contact_data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
-    params = (
-        contact_data.get('partner_id'), contact_data.get('name'), contact_data.get('email'),
-        contact_data.get('phone'), contact_data.get('role'), now, now
+    Adds a contact to the central Contacts table and links it to a partner
+    in the PartnerContacts table.
+    """
+    # Step 1: Extract data for central Contacts table
+    # Ensure 'name' or 'displayName' is present for central_add_contact
+    if not contact_data.get('name') and not contact_data.get('displayName'):
+        logger.error("Contact name or displayName is required.")
+        return None
+
+    # displayName is preferred by central_add_contact if 'name' is not also present
+    # We can pass all of contact_data, central_add_contact will pick what it needs.
+    central_contact_id = central_add_contact(contact_data, conn=conn)
+
+    if central_contact_id is None:
+        logger.error(f"Failed to add contact to central Contacts table for partner {partner_id}.")
+        return None
+
+    # Step 2: Extract data for PartnerContacts link table
+    is_primary = bool(contact_data.get('is_primary', False))
+    can_receive_documents = bool(contact_data.get('can_receive_documents', True))
+    now = datetime.utcnow().isoformat()
+
+    sql_link = """
+        INSERT INTO PartnerContacts (partner_id, contact_id, is_primary, can_receive_documents, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """
+    params_link = (
+        partner_id,
+        central_contact_id,
+        is_primary,
+        can_receive_documents,
+        now,
+        now
     )
+
+    cursor = conn.cursor()
     try:
-        if not contact_data.get('partner_id') or not contact_data.get('name'):
-            logger.error("partner_id and name are required for adding a partner contact.")
-            return None
-        cursor.execute(sql, params)
+        cursor.execute(sql_link, params_link)
+        logger.info(f"Linked contact {central_contact_id} to partner {partner_id} with PartnerContacts ID: {cursor.lastrowid}")
         return cursor.lastrowid
     except sqlite3.IntegrityError as e:
-        logger.warning(f"Failed to add partner contact for partner {contact_data.get('partner_id')}. Error: {e}")
+        # This might happen if the (partner_id, contact_id) pair already exists
+        logger.warning(f"Failed to link contact {central_contact_id} to partner {partner_id}. Link might already exist. Error: {e}")
+        # Check if it exists and return its ID if so? Or just return None. For now, None.
+        # To get existing:
+        # cursor.execute("SELECT partner_contact_id FROM PartnerContacts WHERE partner_id = ? AND contact_id = ?", (partner_id, central_contact_id))
+        # existing_row = cursor.fetchone()
+        # if existing_row: return existing_row['partner_contact_id']
         return None
     except sqlite3.Error as e:
-        logger.error(f"Database error in add_partner_contact: {e}")
+        logger.error(f"Database error linking contact to partner {partner_id}: {e}")
+        # Potentially roll back the central_add_contact? Complex, for now, we assume it's fine or handled by caller.
+        # Consider that central_add_contact might also have its own error handling/logging.
         return None
 
 @_manage_conn
-def get_partner_contact_by_id(contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
+def get_partner_contact_by_id(partner_contact_id: int, conn: sqlite3.Connection = None) -> dict | None:
+    """
+    Retrieves a specific partner contact by the PartnerContacts link ID,
+    joining with the central Contacts table.
+    """
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
+    sql = """
+        SELECT c.*, pc.partner_contact_id, pc.partner_id, pc.is_primary, pc.can_receive_documents,
+               pc.created_at AS link_created_at, pc.updated_at AS link_updated_at
+        FROM Contacts c
+        JOIN PartnerContacts pc ON c.contact_id = pc.contact_id
+        WHERE pc.partner_contact_id = ?
+    """
+    cursor.execute(sql, (partner_contact_id,))
     row = cursor.fetchone()
     return dict(row) if row else None
 
 @_manage_conn
 def get_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all contacts linked to a specific partner, fetching full contact details
+    from the central Contacts table.
+    """
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM PartnerContacts WHERE partner_id = ? ORDER BY name", (partner_id,))
-    return [dict(row) for row in cursor.fetchall()]
+    sql = """
+        SELECT c.*, pc.partner_contact_id, pc.is_primary, pc.can_receive_documents,
+               pc.created_at AS link_created_at, pc.updated_at AS link_updated_at
+        FROM Contacts c
+        JOIN PartnerContacts pc ON c.contact_id = pc.contact_id
+        WHERE pc.partner_id = ?
+        ORDER BY c.name, c.displayName
+    """
+    try:
+        cursor.execute(sql, (partner_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logger.error(f"Database error in get_contacts_for_partner for partner {partner_id}: {e}")
+        return []
 
 @_manage_conn
-def update_partner_contact(contact_id: int, contact_data: dict, conn: sqlite3.Connection = None) -> bool:
-    if not contact_data: return False
-    cursor = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    contact_data['updated_at'] = now
-
-    valid_columns = ['name', 'email', 'phone', 'role', 'updated_at']
-    fields_to_update = {k:v for k,v in contact_data.items() if k in valid_columns and v is not None}
-
-    if not fields_to_update or ('updated_at' in fields_to_update and len(fields_to_update) == 1) :
-         logger.info(f"No data fields to update for partner contact {contact_id} other than timestamp.")
-         # Still update timestamp if that's the only change
-         if 'updated_at' in fields_to_update and len(fields_to_update) == 1:
-            cursor.execute("UPDATE PartnerContacts SET updated_at = ? WHERE contact_id = ?", (now, contact_id))
-            return cursor.rowcount > 0
-         return False
-
-
-    set_clauses = [f"{col} = ?" for col in fields_to_update.keys()]
-    params = list(fields_to_update.values())
-    params.append(contact_id)
-
-    sql = f"UPDATE PartnerContacts SET {', '.join(set_clauses)} WHERE contact_id = ?"
-    try:
-        cursor.execute(sql, tuple(params))
-        return cursor.rowcount > 0
-    except sqlite3.Error as e:
-        logger.error(f"Database error updating partner contact {contact_id}: {e}")
+def update_partner_contact(partner_contact_id: int, contact_data: dict, conn: sqlite3.Connection = None) -> bool:
+    """
+    Updates a partner contact. This can involve updating the central contact details
+    and/or the link-specific details in PartnerContacts.
+    """
+    if not contact_data:
+        logger.info(f"No data provided for updating partner_contact_id {partner_contact_id}.")
         return False
 
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    updated_central = False
+    updated_link = False
+
+    # Step 1: Get central_contact_id from PartnerContacts
+    cursor.execute("SELECT contact_id FROM PartnerContacts WHERE partner_contact_id = ?", (partner_contact_id,))
+    link_row = cursor.fetchone()
+    if not link_row:
+        logger.error(f"PartnerContacts link with ID {partner_contact_id} not found.")
+        return False
+    central_contact_id = link_row['contact_id']
+
+    # Step 2: Update central Contacts table if relevant fields are present
+    # Define fields that belong to the central Contacts table (subset of what contacts_crud.update_contact handles)
+    central_contact_fields = [
+        'name', 'email', 'phone', 'position', 'company_name', 'notes', 'givenName',
+        'familyName', 'displayName', 'phone_type', 'email_type', 'address_formattedValue',
+        'address_streetAddress', 'address_city', 'address_region', 'address_postalCode',
+        'address_country', 'organization_name', 'organization_title', 'birthday_date'
+    ]
+    central_data_to_update = {k: v for k, v in contact_data.items() if k in central_contact_fields}
+
+    if central_data_to_update:
+        if central_update_contact(central_contact_id, central_data_to_update, conn=conn):
+            logger.info(f"Updated central contact details for contact_id {central_contact_id} linked to partner_contact_id {partner_contact_id}.")
+            updated_central = True
+        else:
+            # Log error or warning if central update fails, but proceed to link update if any
+            logger.warning(f"Failed to update central contact details for contact_id {central_contact_id}.")
+            # Depending on requirements, one might choose to return False here if central update is critical
+
+    # Step 3: Update PartnerContacts link table if relevant fields are present
+    link_fields_to_update_sql = []
+    link_params_sql = []
+
+    if 'is_primary' in contact_data:
+        link_fields_to_update_sql.append("is_primary = ?")
+        link_params_sql.append(bool(contact_data['is_primary']))
+    if 'can_receive_documents' in contact_data:
+        link_fields_to_update_sql.append("can_receive_documents = ?")
+        link_params_sql.append(bool(contact_data['can_receive_documents']))
+
+    if link_fields_to_update_sql:
+        link_fields_to_update_sql.append("updated_at = ?")
+        link_params_sql.append(now)
+        link_params_sql.append(partner_contact_id)
+
+        sql_update_link = f"UPDATE PartnerContacts SET {', '.join(link_fields_to_update_sql)} WHERE partner_contact_id = ?"
+        try:
+            cursor.execute(sql_update_link, tuple(link_params_sql))
+            if cursor.rowcount > 0:
+                logger.info(f"Updated PartnerContacts link details for partner_contact_id {partner_contact_id}.")
+                updated_link = True
+        except sqlite3.Error as e:
+            logger.error(f"Database error updating PartnerContacts link for {partner_contact_id}: {e}")
+            # No specific return here, rely on updated_link or updated_central
+
+    return updated_central or updated_link
+
 @_manage_conn
-def delete_partner_contact(contact_id: int, conn: sqlite3.Connection = None) -> bool:
+def delete_partner_contact(partner_contact_id: int, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes the link between a partner and a contact from PartnerContacts.
+    Does NOT delete the contact from the central Contacts table.
+    """
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM PartnerContacts WHERE contact_id = ?", (contact_id,))
+        cursor.execute("DELETE FROM PartnerContacts WHERE partner_contact_id = ?", (partner_contact_id,))
         return cursor.rowcount > 0
     except sqlite3.Error as e:
         logger.error(f"Database error deleting partner contact {contact_id}: {e}")
@@ -331,9 +440,18 @@ def delete_partner_contact(contact_id: int, conn: sqlite3.Connection = None) -> 
 
 @_manage_conn
 def delete_contacts_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> bool:
+    """
+    Deletes all links between a specific partner and their associated contacts
+    from the PartnerContacts table. Does NOT delete contacts from the central Contacts table.
+    Returns True if deletion was attempted (does not guarantee rows were deleted if none existed).
+    Check rowcount from cursor if specific feedback on rows deleted is needed.
+    """
     cursor = conn.cursor()
     try:
         cursor.execute("DELETE FROM PartnerContacts WHERE partner_id = ?", (partner_id,))
+        # cursor.rowcount will indicate how many rows were actually deleted.
+        # For this function, returning True on successful execution (no error) is typical.
+        logger.info(f"Attempted deletion of all contacts for partner {partner_id}. Rows affected: {cursor.rowcount}")
         return True
     except sqlite3.Error as e:
         logger.error(f"Database error deleting contacts for partner {partner_id}: {e}")
@@ -471,3 +589,40 @@ def delete_partner_document(document_id: str, conn: sqlite3.Connection = None) -
     except sqlite3.Error as e:
         logger.error(f"Database error deleting partner document {document_id}: {e}")
         return False
+
+__all__ = [
+    # PartnerCategories
+    "add_partner_category",
+    "get_partner_category_by_id",
+    "get_partner_category_by_name",
+    "get_all_partner_categories",
+    "update_partner_category",
+    "delete_partner_category",
+    "get_or_add_partner_category",
+    # Partners
+    "add_partner",
+    "get_partner_by_id",
+    "get_partner_by_email",
+    "get_all_partners",
+    "update_partner",
+    "delete_partner",
+    "get_partners_by_category_id", # Alias for get_all_partners with filter
+    # PartnerContacts
+    "add_partner_contact",
+    "get_partner_contact_by_id",
+    "get_contacts_for_partner",
+    "update_partner_contact",
+    "delete_partner_contact",
+    "delete_contacts_for_partner",
+    # PartnerCategoryLink
+    "link_partner_to_category",
+    "unlink_partner_from_category",
+    "get_categories_for_partner",
+    "get_partners_in_category", # This is the one needed by the import
+    # PartnerDocuments
+    "add_partner_document",
+    "get_documents_for_partner",
+    "get_partner_document_by_id",
+    "update_partner_document",
+    "delete_partner_document",
+]

@@ -76,3 +76,13 @@ def get_default_company(conn: sqlite3.Connection = None) -> dict | None:
     except sqlite3.Error:
         # logging.error(f"Failed to get default company: {e}") # Consider logging
         return None
+
+__all__ = [
+    "add_company",
+    "get_company_by_id",
+    "get_all_companies",
+    "update_company",
+    "delete_company",
+    "set_default_company",
+    "get_default_company",
+]
