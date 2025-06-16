@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt # Included for safety and common Qt enum usage
 
 import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
-from db.cruds.templates_crud import templates_crud_instance
+from db.cruds import templates_crud
 
 
 # Anticipated imports for other dialogs
@@ -167,7 +167,7 @@ class SendEmailDialog(QDialog):
         try:
             all_templates_for_lang = []
             for template_type in self.email_template_types:
-                templates = templates_crud_instance.get_templates_by_type_and_language(
+                templates = templates_crud.get_templates_by_type(
 
                     template_type=template_type, language_code=language_code
                 )

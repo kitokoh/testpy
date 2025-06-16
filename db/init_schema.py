@@ -601,6 +601,18 @@ def initialize_database():
     )
     """)
 
+    # Ensure purchase_confirmed_at column exists in ClientProjectProducts table
+    cursor.execute("PRAGMA table_info(ClientProjectProducts)")
+    cpp_columns_info = cursor.fetchall()
+    cpp_column_names = [info['name'] for info in cpp_columns_info]
+
+    if 'purchase_confirmed_at' not in cpp_column_names:
+        try:
+            cursor.execute("ALTER TABLE ClientProjectProducts ADD COLUMN purchase_confirmed_at TIMESTAMP")
+            print("Added 'purchase_confirmed_at' column to ClientProjectProducts table.")
+        except sqlite3.Error as e_alter_cpp:
+            print(f"Error adding 'purchase_confirmed_at' column to ClientProjectProducts table: {e_alter_cpp}")
+
     # Create ScheduledEmails table (from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ScheduledEmails (
