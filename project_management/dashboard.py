@@ -284,6 +284,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         topbar_layout.addWidget(user_widget)
         self.nav_buttons[0].setObjectName("selected")
 
+    def logout(self):
+        print("Logout button clicked. Attempting to signal parent...")
+        if self.parent() and hasattr(self.parent(), 'handle_logout'):
+            self.parent().handle_logout()
+        else:
+            print("Parent has no 'handle_logout' method or parent is None.")
+            # As a fallback, if this dashboard is the main window, it might close itself.
+            # However, since it's a QWidget hosted by DocumentManager, this is less likely.
+            # For now, just printing is safest if parent communication fails.
+            # If direct parent communication is not desired, a signal/slot mechanism
+            # would be more appropriate, but requires changes in the parent class too.
+
     # ... (Placeholder methods gestion_notification, gestion_prospects, etc. remain unchanged) ...
     def gestion_notification(self): print("Notification management enabled.")
     def gestion_prospects(self): print("Prospect management enabled.")
@@ -347,6 +359,37 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(activities_widget)
         self.main_content.addWidget(page)
 
+    def update_dashboard(self, selected_date=None):
+        if selected_date is None:
+            # If called by refresh button, use current date from picker
+            selected_date = self.date_picker.date().toPyDate()
+        else:
+            # If called by dateChanged signal, selected_date is a QDate object
+            selected_date = selected_date.toPyDate() # Convert QDate to Python date
+
+        print(f"update_dashboard called. Selected date: {selected_date}")
+
+        # Placeholder: Load/update Key Performance Indicators (KPIs)
+        # self.load_kpis(selected_date)
+        print("Placeholder: Would load KPIs for", selected_date)
+
+        # Placeholder: Load/update performance graph
+        # self.load_performance_graph(selected_date)
+        print("Placeholder: Would load performance graph for", selected_date)
+
+        # Placeholder: Load/update project progress graph
+        # self.load_project_progress_graph(selected_date)
+        print("Placeholder: Would load project progress graph for", selected_date)
+
+        # Placeholder: Load/update recent activities
+        # self.load_recent_activities(selected_date)
+        print("Placeholder: Would load recent activities for", selected_date)
+
+        # Example of how you might log this activity
+        # if self.current_user:
+        #     user_id = self.current_user.get('user_id')
+        #     log_activity(user_id, "Refreshed dashboard view", f"Date: {selected_date}")
+
     def setup_team_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -372,6 +415,52 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(header); layout.addWidget(filters); layout.addWidget(self.team_table)
         self.main_content.addWidget(page)
 
+    def filter_team_members(self, _=None): # Argument can be ignored for now
+        search_text = self.team_search.text().lower()
+        role_filter_text = self.role_filter.currentText()
+        status_filter_text = self.status_filter.currentText()
+
+        print(f"filter_team_members called. Search: '{search_text}', Role: '{role_filter_text}', Status: '{status_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all team members (e.g., from a database or a cached list).
+        # 2. Filtering them based on search_text, role_filter_text, and status_filter_text.
+        # 3. Clearing the self.team_table.
+        # 4. Populating self.team_table with the filtered members.
+
+        # For now, let's assume there's a method that reloads all team members.
+        # If actual filtering is implemented, this call might be more specific
+        # or the load_team_members method itself might take filters.
+        if hasattr(self, 'load_team_members'):
+            print("Calling self.load_team_members() to refresh table (actual filtering not implemented yet).")
+            self.load_team_members() # This will just reload all members without filtering
+        else:
+            print("Placeholder: Would update team table with filtered data. 'load_team_members' not found.")
+
+    def load_team_members(self):
+        print("load_team_members called.")
+        # Placeholder: Actual data loading and table population logic.
+        # This would typically involve:
+        # 1. Calling a database function (e.g., get_all_team_members(filters...)).
+        # 2. Clearing self.team_table (self.team_table.setRowCount(0)).
+        # 3. Iterating through the fetched data and populating the table rows.
+        #    - For each team member, create QTableWidgetItems for each piece of data.
+        #    - Add buttons for actions like 'Edit', 'Delete'.
+
+        if hasattr(self, 'team_table') and isinstance(self.team_table, QTableWidget):
+            self.team_table.setRowCount(0) # Clear existing rows
+            # Example: Add a dummy row to show it's working
+            # num_cols = self.team_table.columnCount()
+            # if num_cols > 0:
+            #     self.team_table.insertRow(0)
+            #     self.team_table.setItem(0, 0, QTableWidgetItem("Dummy Member"))
+            #     for col in range(1, num_cols):
+            #         self.team_table.setItem(0, col, QTableWidgetItem(f"Data {col}"))
+            print(f"Placeholder: Cleared team_table. Would populate with actual team data from DB.")
+        else:
+            print("Placeholder: self.team_table not found or not a QTableWidget. Cannot load team members.")
+
     def setup_projects_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
@@ -395,6 +484,43 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.projects_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         layout.addWidget(header); layout.addWidget(filters); layout.addWidget(self.projects_table)
         self.main_content.addWidget(page)
+
+    def filter_projects(self, _=None): # Argument can be ignored for now
+        search_text = self.project_search.text().lower()
+        status_filter_text = self.status_filter_proj.currentText()
+        priority_filter_text = self.priority_filter.currentText()
+
+        print(f"filter_projects called. Search: '{search_text}', Status: '{status_filter_text}', Priority: '{priority_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all projects (e.g., from a database or a cached list).
+        # 2. Filtering them based on the criteria.
+        # 3. Clearing self.projects_table.
+        # 4. Populating self.projects_table with the filtered projects.
+
+        # For now, let's assume there's a method that reloads all projects.
+        if hasattr(self, 'load_projects'):
+            print("Calling self.load_projects() to refresh table (actual filtering not implemented yet).")
+            self.load_projects() # This will just reload all projects without filtering
+        else:
+            print("Placeholder: Would update projects table with filtered data. 'load_projects' not found.")
+
+    def load_projects(self):
+        print("load_projects called.")
+        # Placeholder: Actual data loading and table population logic.
+        # This would typically involve:
+        # 1. Calling a database function (e.g., get_all_projects(filters...)).
+        # 2. Clearing self.projects_table (self.projects_table.setRowCount(0)).
+        # 3. Iterating through the fetched data and populating the table rows.
+        #    - For each project, create QTableWidgetItems.
+        #    - Add progress bars, buttons for actions etc.
+
+        if hasattr(self, 'projects_table') and isinstance(self.projects_table, QTableWidget):
+            self.projects_table.setRowCount(0) # Clear existing rows
+            print(f"Placeholder: Cleared projects_table. Would populate with actual project data from DB.")
+        else:
+            print("Placeholder: self.projects_table not found or not a QTableWidget. Cannot load projects.")
 
     def setup_tasks_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
@@ -428,6 +554,163 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addLayout(tasks_pagination_layout)
         self.main_content.addWidget(page)
 
+    def filter_tasks(self, _=None): # Argument can be ignored for now
+        search_text = self.task_search.text().lower()
+        status_filter_text = self.task_status_filter.currentText()
+        priority_filter_text = self.task_priority_filter.currentText()
+        project_filter_text = self.task_project_filter.currentText() # Assuming it stores text
+        # If task_project_filter stores project ID in currentData(), you might use:
+        # project_filter_id = self.task_project_filter.currentData()
+
+        print(f"filter_tasks called. Search: '{search_text}', Status: '{status_filter_text}', Priority: '{priority_filter_text}', Project: '{project_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all tasks (e.g., from a database or a cached list).
+        # 2. Filtering them based on the criteria.
+        # 3. Clearing self.tasks_table.
+        # 4. Populating self.tasks_table with the filtered tasks.
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() to refresh table (actual filtering not implemented yet).")
+            self.load_tasks() # This will just reload all tasks without filtering
+        else:
+            print("Placeholder: Would update tasks table with filtered data. 'load_tasks' not found.")
+
+    def load_tasks(self):
+        print(f"load_tasks called. Offset: {self.current_task_offset}, Limit: {self.TASK_PAGE_LIMIT}")
+        # Placeholder: Actual data loading (with pagination) and table population.
+        # This would typically involve:
+        # 1. Calling a database function (e.g., get_tasks_paginated(offset=self.current_task_offset, limit=self.TASK_PAGE_LIMIT, filters...)).
+        #    This function should also return the total number of tasks matching the filters.
+        # 2. Updating self.total_tasks_count with the total count from the database query.
+        # 3. Clearing self.tasks_table (self.tasks_table.setRowCount(0)).
+        # 4. Iterating through the fetched page of tasks and populating the table rows.
+        # 5. Calling self.update_task_pagination_controls() to refresh the page info and button states.
+
+        if hasattr(self, 'tasks_table') and isinstance(self.tasks_table, QTableWidget):
+            self.tasks_table.setRowCount(0) # Clear existing rows
+
+            # Simulate fetching some data and total count
+            # In a real scenario, this would come from the database
+            # For example: tasks_page_data, total_filtered_tasks = get_tasks_from_db(offset=self.current_task_offset, limit=self.TASK_PAGE_LIMIT, filters=...)
+            # self.total_tasks_count = total_filtered_tasks
+            # For placeholder:
+            print(f"Placeholder: Cleared tasks_table. Would populate with tasks from DB (offset {self.current_task_offset}, limit {self.TASK_PAGE_LIMIT}).")
+            # self.total_tasks_count = 0 # Reset or set from DB
+        else:
+            print("Placeholder: self.tasks_table not found or not a QTableWidget. Cannot load tasks.")
+
+        if hasattr(self, 'update_task_pagination_controls'):
+            self.update_task_pagination_controls()
+        else:
+            print("Placeholder: 'update_task_pagination_controls' not found. Cannot update pagination UI.")
+
+    def prev_task_page(self):
+        print(f"prev_task_page called. Current offset: {self.current_task_offset}")
+
+        # Placeholder: Actual pagination logic should go here.
+        # This would typically involve:
+        # 1. Decrementing self.current_task_offset by self.TASK_PAGE_LIMIT.
+        # 2. Ensuring self.current_task_offset doesn't go below 0.
+        # 3. Calling self.load_tasks() to fetch and display the previous page.
+        # 4. Updating pagination buttons and label.
+
+        # Example of what might be here:
+        # if self.current_task_offset > 0:
+        #     self.current_task_offset -= self.TASK_PAGE_LIMIT
+        #     if hasattr(self, 'load_tasks'):
+        #         self.load_tasks()
+        #     else:
+        #         print("Placeholder: 'load_tasks' method not found.")
+        # else:
+        #     print("Already on the first page.")
+        # self.update_task_pagination_controls() # Assuming such a method updates buttons/label
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() (actual pagination logic not fully implemented here).")
+            # This basic call won't change page; load_tasks would need to use self.current_task_offset
+            self.load_tasks()
+        else:
+            print("Placeholder: Would load previous page of tasks. 'load_tasks' not found.")
+        if hasattr(self, 'update_task_pagination_controls'):
+            self.update_task_pagination_controls()
+        else:
+            print("Placeholder: Would update pagination controls.")
+
+    def update_task_pagination_controls(self):
+        print(f"update_task_pagination_controls called. Offset: {self.current_task_offset}, Total: {self.total_tasks_count}, Limit: {self.TASK_PAGE_LIMIT}")
+        # Placeholder:
+        # current_page = (self.current_task_offset // self.TASK_PAGE_LIMIT) + 1
+        # total_pages = math.ceil(self.total_tasks_count / self.TASK_PAGE_LIMIT)
+        # if total_pages == 0: total_pages = 1 # Avoid Page X / 0
+        # self.task_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        # self.prev_task_button.setEnabled(self.current_task_offset > 0)
+        # self.next_task_button.setEnabled((self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count)
+        pass
+
+    def next_task_page(self):
+        print(f"next_task_page called. Current offset: {self.current_task_offset}, Total tasks: {self.total_tasks_count}")
+
+        # Placeholder: Actual pagination logic should go here.
+        # This would typically involve:
+        # 1. Incrementing self.current_task_offset by self.TASK_PAGE_LIMIT.
+        # 2. Ensuring self.current_task_offset doesn't exceed total_tasks_count.
+        # 3. Calling self.load_tasks() to fetch and display the next page.
+        # 4. Updating pagination buttons and label.
+
+        # Example of what might be here:
+        # if (self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count:
+        #     self.current_task_offset += self.TASK_PAGE_LIMIT
+        #     if hasattr(self, 'load_tasks'):
+        #         self.load_tasks()
+        #     else:
+        #         print("Placeholder: 'load_tasks' method not found.")
+        # else:
+        #     print("Already on the last page or no more tasks.")
+        # self.update_task_pagination_controls()
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() (actual pagination logic not fully implemented here).")
+            # This basic call won't change page; load_tasks would need to use self.current_task_offset
+            self.load_tasks()
+        else:
+            print("Placeholder: Would load next page of tasks. 'load_tasks' not found.")
+
+        if hasattr(self, 'update_task_pagination_controls'):
+            self.update_task_pagination_controls()
+        else:
+            print("Placeholder: Would update pagination controls.")
+
+    def show_add_task_dialog(self):
+        print("show_add_task_dialog called.")
+        # Placeholder: Actual dialog logic for adding a task should go here.
+        # This would typically involve:
+        # 1. Creating and configuring a QDialog (or a custom dialog class).
+        # 2. Getting data from the user through the dialog.
+        # 3. Calling a database function (e.g., add_task) to save the new task.
+        # 4. Refreshing the tasks table (e.g., by calling self.load_tasks()).
+
+        # Example of what might be here:
+        # dialog = QDialog(self) # Replace with your actual AddTaskDialog
+        # dialog.setWindowTitle("Add New Task")
+        # # ... add form elements to dialog ...
+        # if dialog.exec_() == QDialog.Accepted:
+        #     # task_data = ... get data from dialog fields ...
+        #     # if task_data['name'] and task_data.get('project_id'):
+        #     #     task_id = add_task(task_data)
+        #     #     if task_id:
+        #     #         self.log_activity(f"Added task: {task_data['name']}")
+        #     #         self.load_tasks()
+        #     #     else:
+        #     #         QMessageBox.warning(self, "Error", "Failed to add task.")
+        #     # else:
+        #     #     QMessageBox.warning(self, "Error", "Task name and project are required.")
+        #     pass # Simulate dialog interaction
+        print("Placeholder: Would show a dialog to add a new task.")
+        if hasattr(self, 'load_tasks'):
+            self.load_tasks() # Refresh tasks after hypothetically adding one
+
     def setup_reports_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
@@ -447,6 +730,50 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_view.addTab(self.graph_tab, "Visualization"); self.report_view.addTab(self.data_tab, "Data")
         layout.addWidget(title); layout.addWidget(report_options); layout.addWidget(self.report_view)
         self.main_content.addWidget(page)
+
+    def generate_report(self, _=None): # Argument can be ignored (e.g., index from currentIndexChanged)
+        report_type_text = self.report_type.currentText()
+        report_period_text = self.report_period.currentText()
+
+        print(f"generate_report called. Type: '{report_type_text}', Period: '{report_period_text}'")
+
+        # Placeholder: Actual report generation logic should go here.
+        # This would typically involve:
+        # 1. Fetching data based on report_type_text and report_period_text.
+        # 2. Processing the data.
+        # 3. Displaying the data in self.report_view (e.g., populating graphs in self.graph_tab
+        #    and table in self.data_tab/self.report_data_table).
+
+        print("Placeholder: Would fetch data and populate report views (graph_tab, data_tab).")
+
+        # Example: you might have specific methods to update parts of the report view
+        # if hasattr(self, 'update_report_graph'):
+        #     self.update_report_graph(report_type_text, report_period_text)
+        # if hasattr(self, 'update_report_table'):
+        #     self.update_report_table(report_type_text, report_period_text)
+
+    def export_report(self):
+        report_type_text = self.report_type.currentText() # Get current settings
+        report_period_text = self.report_period.currentText()
+
+        print(f"export_report called. Would export report for Type: '{report_type_text}', Period: '{report_period_text}'")
+
+        # Placeholder: Actual report export logic should go here.
+        # This would typically involve:
+        # 1. Possibly re-generating the report data or using currently displayed data.
+        # 2. Using a library (e.g., ReportLab, FPDF, or even printing QWidget to PDF) to create a PDF file.
+        # 3. Prompting the user for a save location using QFileDialog.
+        # 4. Writing the report to the selected file.
+
+        # Example:
+        # file_path, _ = QFileDialog.getSaveFileName(self, "Save Report as PDF", "", "PDF Files (*.pdf)")
+        # if file_path:
+        #     print(f"Placeholder: Would save PDF to {file_path}")
+        #     # self.generate_pdf_report(file_path, report_type_text, report_period_text)
+        # else:
+        #     print("Export cancelled by user.")
+
+        print("Placeholder: Actual PDF export logic needs implementation.")
 
     def setup_settings_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
@@ -484,6 +811,154 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         tabs.addTab(account_tab, "Account"); tabs.addTab(pref_tab, "Preferences"); tabs.addTab(team_tab, "Access Management")
         layout.addWidget(title); layout.addWidget(tabs)
         self.main_content.addWidget(page)
+
+    def setup_cover_page_management_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Header: Title and Client Selector
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        title = QLabel("Cover Page Management")
+        title.setObjectName("pageTitleLabel")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+
+        header_layout.addWidget(QLabel("Client:"))
+        self.cp_client_combo = QComboBox()
+        self.cp_client_combo.setMinimumWidth(200)
+        # Connect after populating to avoid premature calls if load_clients_into_cp_combo also calls load_cover_pages
+        # self.cp_client_combo.currentIndexChanged.connect(self.load_cover_pages_for_selected_client) # Or a dedicated handler
+        header_layout.addWidget(self.cp_client_combo)
+        layout.addWidget(header_widget)
+
+        # Action buttons
+        actions_widget = QWidget()
+        actions_layout = QHBoxLayout(actions_widget)
+        actions_layout.setContentsMargins(0,0,0,0) # Remove margins if they are part of a groupbox later
+
+        self.cp_create_btn = QPushButton("Create New Cover Page")
+        self.cp_create_btn.setIcon(QIcon(":/icons/plus-square.svg")) # Assuming icon resource
+        self.cp_create_btn.setObjectName("primaryButton")
+        if hasattr(self, 'create_new_cover_page_dialog'):
+            self.cp_create_btn.clicked.connect(self.create_new_cover_page_dialog)
+        else:
+            print("WARN: create_new_cover_page_dialog not found")
+
+        self.cp_edit_btn = QPushButton("Edit Selected")
+        self.cp_edit_btn.setIcon(QIcon(":/icons/edit.svg"))
+        if hasattr(self, 'edit_selected_cover_page_dialog'):
+            self.cp_edit_btn.clicked.connect(self.edit_selected_cover_page_dialog)
+        else:
+            print("WARN: edit_selected_cover_page_dialog not found")
+
+        self.cp_delete_btn = QPushButton("Delete Selected")
+        self.cp_delete_btn.setIcon(QIcon(":/icons/trash.svg"))
+        self.cp_delete_btn.setObjectName("dangerButton") # Assuming a style for danger buttons
+        if hasattr(self, 'delete_selected_cover_page'):
+            self.cp_delete_btn.clicked.connect(self.delete_selected_cover_page)
+        else:
+            print("WARN: delete_selected_cover_page not found")
+
+        actions_layout.addStretch()
+        actions_layout.addWidget(self.cp_create_btn)
+        actions_layout.addWidget(self.cp_edit_btn)
+        actions_layout.addWidget(self.cp_delete_btn)
+        layout.addWidget(actions_widget)
+
+        # Table for Cover Pages
+        self.cover_pages_table = QTableWidget()
+        self.cover_pages_table.setColumnCount(5) # Example columns
+        self.cover_pages_table.setHorizontalHeaderLabels(["ID", "Template Name", "Client Name", "Created Date", "Actions"])
+        self.cover_pages_table.verticalHeader().setVisible(False)
+        self.cover_pages_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.cover_pages_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.cover_pages_table.setSelectionMode(QTableWidget.SingleSelection) # Usually one edits/deletes one at a time
+        self.cover_pages_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # Stretch last section
+        self.cover_pages_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Interactive)
+        self.cover_pages_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive)
+
+        if hasattr(self.cover_pages_table, 'itemSelectionChanged') and hasattr(self, 'update_cover_page_action_buttons_state'):
+            self.cover_pages_table.itemSelectionChanged.connect(self.update_cover_page_action_buttons_state)
+        else:
+            print("WARN: update_cover_page_action_buttons_state or itemSelectionChanged not available for connection.")
+
+        layout.addWidget(self.cover_pages_table)
+        self.main_content.addWidget(page)
+
+        # Initial data load and state update
+        if hasattr(self, 'load_clients_into_cp_combo'):
+            self.load_clients_into_cp_combo() # This should populate the combo
+            # Connect after populating and initial load to avoid issues if load_clients also triggers this
+            if hasattr(self.cp_client_combo, 'currentIndexChanged') and hasattr(self, 'load_cover_pages_for_selected_client'):
+                 self.cp_client_combo.currentIndexChanged.connect(self.load_cover_pages_for_selected_client)
+            else:
+                print("WARN: Cannot connect cp_client_combo.currentIndexChanged to load_cover_pages_for_selected_client")
+
+        else:
+            print("WARN: load_clients_into_cp_combo not found")
+            # Fallback: if clients not loaded, maybe load cover pages without client filter or show empty
+            if hasattr(self, 'load_cover_pages_for_selected_client'):
+                self.load_cover_pages_for_selected_client()
+
+
+        if hasattr(self, 'update_cover_page_action_buttons_state'):
+            self.update_cover_page_action_buttons_state() # Initial state for buttons
+        else:
+            print("WARN: update_cover_page_action_buttons_state not found for initial call")
+
+    def setup_production_management_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Header: Title and Add Button
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        title = QLabel("Production Order Management")
+        title.setObjectName("pageTitleLabel")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+
+        self.add_production_order_btn = QPushButton("New Production Order")
+        self.add_production_order_btn.setIcon(QIcon(":/icons/plus-circle.svg")) # Assuming icon resource
+        self.add_production_order_btn.setObjectName("primaryButton")
+        if hasattr(self, 'show_add_production_order_dialog'):
+            self.add_production_order_btn.clicked.connect(self.show_add_production_order_dialog)
+        else:
+            print("WARN: show_add_production_order_dialog not found for connection.")
+        header_layout.addWidget(self.add_production_order_btn)
+        layout.addWidget(header_widget)
+
+        # Table for Production Orders
+        self.production_orders_table = QTableWidget()
+        self.production_orders_table.setColumnCount(7) # Example columns
+        self.production_orders_table.setHorizontalHeaderLabels([
+            "Order ID", "Project Name", "Status", "Start Date", "End Date", "Quantity", "Actions"
+        ])
+        self.production_orders_table.verticalHeader().setVisible(False)
+        self.production_orders_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.production_orders_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.production_orders_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # Stretch last section
+        self.production_orders_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Interactive) # Project Name
+        # Add more interactive resizing for other columns as needed
+
+        # Placeholder for connecting item double click or selection changed for details/edit
+        # Example: self.production_orders_table.itemDoubleClicked.connect(self.show_production_order_details_via_item)
+        # Example: self.production_orders_table.itemSelectionChanged.connect(self.update_production_order_action_buttons_state)
+
+        layout.addWidget(self.production_orders_table)
+        self.main_content.addWidget(page)
+
+        # Initial data load
+        if hasattr(self, 'load_production_orders'):
+            self.load_production_orders()
+        else:
+            print("WARN: load_production_orders method not found for initial call.")
 
     # ... (All other methods of MainDashboard like show_login_dialog, handle_login, logout, log_activity, load_*, filter_*, update_*, generate_*, export_*, show_add_*, edit_*, delete_*, setup_cover_page_management_page, load_clients_into_cp_combo, etc. are assumed to be copied here verbatim) ...
     # For brevity, I am not repeating all of them here, but they are part of the MainDashboard class being moved.
@@ -693,6 +1168,22 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         # dialog = CoverPageEditorDialog(mode="edit", cover_page_data=cover_page_full_data, parent=self)
         # ... (rest of logic) ...
         pass # Placeholder
+
+    def load_production_orders(self):
+        print("load_production_orders called.")
+        # Placeholder: Actual data loading and table population logic.
+        # This would typically involve:
+        # 1. Calling a database function (e.g., get_all_production_orders(filters...)).
+        # 2. Clearing a hypothetical self.production_orders_table.
+        # 3. Iterating through the fetched data and populating the table rows.
+
+        # Assuming 'setup_production_management_page' would create self.production_orders_table
+        if hasattr(self, 'production_orders_table') and isinstance(self.production_orders_table, QTableWidget):
+            self.production_orders_table.setRowCount(0) # Clear existing rows
+            print(f"Placeholder: Cleared production_orders_table. Would populate with actual production order data from DB.")
+        else:
+            # This message is expected if setup_production_management_page hasn't been fleshed out to create the table
+            print("Placeholder: self.production_orders_table not found or not a QTableWidget. Cannot load production orders yet.")
 
     # TR methods for localization (if used, they are part of QObject, so available in QWidget)
     def tr(self, text):
