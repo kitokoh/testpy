@@ -7,3 +7,12 @@ from .edit_product_line_dialog import EditProductLineDialog
 from .create_document_dialog import CreateDocumentDialog
 from .compile_pdf_dialog import CompilePdfDialog
 from .edit_client_dialog import EditClientDialog
+from .send_email_dialog import SendEmailDialog
+from .product_equivalency_dialog import ProductEquivalencyDialog
+from .select_contacts_dialog import SelectContactsDialog
+from .select_client_attachment_dialog import SelectClientAttachmentDialog
+from .manage_product_master_dialog import ManageProductMasterDialog
+from .client_document_note_dialog import ClientDocumentNoteDialog
+from .product_dimension_ui_dialog import ProductDimensionUIDialog
+from .select_utility_attachment_dialog import SelectUtilityAttachmentDialog
+
