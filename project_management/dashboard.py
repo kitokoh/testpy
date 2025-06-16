@@ -415,6 +415,29 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(header); layout.addWidget(filters); layout.addWidget(self.team_table)
         self.main_content.addWidget(page)
 
+    def filter_team_members(self, _=None): # Argument can be ignored for now
+        search_text = self.team_search.text().lower()
+        role_filter_text = self.role_filter.currentText()
+        status_filter_text = self.status_filter.currentText()
+
+        print(f"filter_team_members called. Search: '{search_text}', Role: '{role_filter_text}', Status: '{status_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all team members (e.g., from a database or a cached list).
+        # 2. Filtering them based on search_text, role_filter_text, and status_filter_text.
+        # 3. Clearing the self.team_table.
+        # 4. Populating self.team_table with the filtered members.
+
+        # For now, let's assume there's a method that reloads all team members.
+        # If actual filtering is implemented, this call might be more specific
+        # or the load_team_members method itself might take filters.
+        if hasattr(self, 'load_team_members'):
+            print("Calling self.load_team_members() to refresh table (actual filtering not implemented yet).")
+            self.load_team_members() # This will just reload all members without filtering
+        else:
+            print("Placeholder: Would update team table with filtered data. 'load_team_members' not found.")
+
     def setup_projects_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
