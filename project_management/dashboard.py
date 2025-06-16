@@ -461,6 +461,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         else:
             print("Placeholder: self.team_table not found or not a QTableWidget. Cannot load team members.")
 
+
     def setup_projects_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
@@ -521,6 +522,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             print(f"Placeholder: Cleared projects_table. Would populate with actual project data from DB.")
         else:
             print("Placeholder: self.projects_table not found or not a QTableWidget. Cannot load projects.")
+
 
     def setup_tasks_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
@@ -605,6 +607,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
             self.update_task_pagination_controls()
         else:
             print("Placeholder: 'update_task_pagination_controls' not found. Cannot update pagination UI.")
+
 
     def prev_task_page(self):
         print(f"prev_task_page called. Current offset: {self.current_task_offset}")
@@ -710,6 +713,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         print("Placeholder: Would show a dialog to add a new task.")
         if hasattr(self, 'load_tasks'):
             self.load_tasks() # Refresh tasks after hypothetically adding one
+
 
     def setup_reports_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
