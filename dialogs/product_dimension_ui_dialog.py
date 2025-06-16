@@ -164,4 +164,3 @@ class ProductDimensionUIDialog(QDialog):
                 QMessageBox.warning(self, self.tr("Échec"), result.get('error', self.tr("Impossible d'enregistrer les dimensions.")))
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors de l'enregistrement des dimensions:\n{0}").format(str(e)))
-
