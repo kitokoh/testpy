@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit, QTextEdit,
     QPushButton, QDialogButtonBox, QMessageBox, QLabel, QTableWidget,

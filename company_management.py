@@ -30,7 +30,7 @@ from db.cruds.companies_crud import (
     add_company,
     update_company,
     delete_company,
-    set_default_company
+    set_default_company,
     get_company_by_id # Add if needed elsewhere
 )
 # Import personnel and contact link CRUD functions directly
@@ -42,7 +42,7 @@ from db.cruds.company_personnel_crud import (
     delete_company_personnel,
     add_personnel_contact,
     update_personnel_contact_link,
-    unlink_contact_from_personnel
+    unlink_contact_from_personnel,
     delete_all_contact_links_for_personnel # Consider if needed
 )
 # Keep other db imports for now, will be refactored incrementally

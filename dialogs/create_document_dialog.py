@@ -15,6 +15,7 @@ import db as db_manager
 from html_editor import HtmlEditor
 from utils import populate_docx_template
 # clients_crud_instance is not used by CreateDocumentDialog
+import icons_rc # Import for Qt resource file
 
 class CreateDocumentDialog(QDialog):
     def __init__(self, client_info, config, parent=None):
