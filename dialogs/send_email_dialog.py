@@ -21,6 +21,7 @@ from db.cruds.templates_crud import templates_crud_instance
 from .select_contacts_dialog import SelectContactsDialog
 from .select_client_attachment_dialog import SelectClientAttachmentDialog
 from .select_utility_attachment_dialog import SelectUtilityAttachmentDialog
+import icons_rc # Import for Qt resource file
 
 
 class SendEmailDialog(QDialog):
