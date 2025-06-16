@@ -8,6 +8,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 import db as db_manager
 # from main import get_notification_manager # This will be a local import
+import icons_rc # Import for Qt resource file
 
 class ContactDialog(QDialog):
     def __init__(self, client_id=None, contact_data=None, parent=None):
