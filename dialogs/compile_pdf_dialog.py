@@ -19,6 +19,7 @@ from PyPDF2 import PdfMerger
 from pagedegrde import generate_cover_page_logic, APP_CONFIG as PAGEDEGRDE_APP_CONFIG
 import db as db_manager
 # clients_crud_instance is not used by CompilePdfDialog
+import icons_rc # Import for Qt resource file
 
 class CompilePdfDialog(QDialog):
     def __init__(self, client_info, config, app_root_dir, parent=None):

@@ -17,10 +17,12 @@ import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds import templates_crud
 
+
 # Anticipated imports for other dialogs
 from .select_contacts_dialog import SelectContactsDialog
 from .select_client_attachment_dialog import SelectClientAttachmentDialog
 from .select_utility_attachment_dialog import SelectUtilityAttachmentDialog
+import icons_rc # Import for Qt resource file
 
 
 class SendEmailDialog(QDialog):
@@ -166,6 +168,7 @@ class SendEmailDialog(QDialog):
             all_templates_for_lang = []
             for template_type in self.email_template_types:
                 templates = templates_crud.get_templates_by_type(
+
                     template_type=template_type, language_code=language_code
                 )
                 if templates: all_templates_for_lang.extend(templates)

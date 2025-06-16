@@ -14,6 +14,7 @@ from db.cruds.clients_crud import clients_crud_instance
 
 # Anticipated import, will be resolved when ProductDimensionUIDialog is moved
 from .product_dimension_ui_dialog import ProductDimensionUIDialog
+import icons_rc # Import for Qt resource file
 
 
 class ProductDialog(QDialog):
