@@ -7,20 +7,9 @@ from proforma_invoice_utils import get_final_invoice_context_data
 # Assuming html_to_pdf_util.py is in the same directory or accessible
 from html_to_pdf_util import render_html_template, convert_html_to_pdf, WeasyPrintError
 
-# Adjust import path based on actual project structure
-# If this file is in, e.g., an 'invoicing' or 'logic' subdirectory:
-try:
-    from ..app_config import CONFIG
-    from ..db.cruds import clients_crud # Though not directly used in this func as per spec
-except (ImportError, ValueError):
-    # Fallback if running script directly from its folder or structure is different
-    # This assumes app_config.py and db/cruds/ are siblings of this file's parent directory
-    # For robust imports, ensure your project's root is in PYTHONPATH
-    # or use relative imports correctly based on your structure.
-    logging.warning("Could not perform relative imports for CONFIG/clients_crud. Attempting direct. This might fail if not in PYTHONPATH.")
-    from app_config import CONFIG
-    from db.cruds import clients_crud
-
+from app_setup import get_app_config
+CONFIG = get_app_config()
+from db.cruds import clients_crud # Though not directly used in this func as per spec
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

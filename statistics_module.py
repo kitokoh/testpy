@@ -11,6 +11,7 @@ from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
+import json # Added for robust JS string escaping
 import folium
 import pandas as pd
 from branca.colormap import StepColormap # Import StepColormap
@@ -45,10 +46,12 @@ class MapInteractionHandler(QObject): # Remains as it's used for the new interac
 
     @pyqtSlot(str)
     def countryClicked(self, country_name):
+        logging.info(f"MapInteractionHandler: countryClicked received: {country_name}")
         self.country_clicked_signal.emit(country_name)
 
     @pyqtSlot(str, str)
     def clientClickedOnMap(self, client_id, client_name):
+        logging.info(f"MapInteractionHandler: clientClickedOnMap received ID: {client_id}, Name: {client_name}")
         self.client_clicked_on_map_signal.emit(client_id, client_name)
 
 class StatisticsDashboard(QWidget):
@@ -220,6 +223,7 @@ class StatisticsDashboard(QWidget):
                 self.stats_stack.setCurrentWidget(self.client_details_widget)
                 return
 
+
             country_name = self.tr("N/A")
             if client_data.get('country_id'):
                 country_obj = get_country_by_id(client_data['country_id'])
@@ -312,7 +316,7 @@ class StatisticsDashboard(QWidget):
                 folium.Choropleth(
                     geo_data=geojson_path, name="choropleth", data=df,
                     columns=["country_name", "client_count"], key_on="feature.properties.name",
-                    # fill_color=client_colormap, # Use the StepColormap instance
+
                     fill_opacity=0.7, # Slightly more opaque for better color visibility
                     line_opacity=0.3,
                     highlight=True,
@@ -321,6 +325,7 @@ class StatisticsDashboard(QWidget):
 
                 # Add the colormap itself to the map to generate the legend
                 client_colormap.add_to(m)
+
 
             # Fetch active client data for interactive markers/popups
             # This is a simplified version; in DocumentManager it's get_active_clients_per_country
@@ -359,36 +364,44 @@ class StatisticsDashboard(QWidget):
                         for client in clients_in_country:
                             city_name = client.get('city', self.tr('Ville Inconnue'))
                             client_detail_name = client.get('client_name', self.tr('Client Inconnu'))
-                            # Prepare for JS: escape quotes in client_detail_name for the clientClickedOnMap JS call
-                            js_safe_client_detail_name = client_detail_name.replace("'", "\\'").replace('"', '\\"')
+                            client_id = client.get('client_id')
+
+                            city_name = client.get('city', self.tr('Ville Inconnue'))
+                            client_detail_name = client.get('client_name', self.tr('Client Inconnu'))
                             client_id = client.get('client_id')
 
                             if city_name not in city_client_map:
                                 city_client_map[city_name] = []
 
                             if len(city_client_map[city_name]) < 3: # Limit to 3 clients per city for popup
-                                # Store client_id as well for the JS call
-                                city_client_map[city_name].append({'id': client_id, 'name': client_detail_name, 'js_safe_name': js_safe_client_detail_name})
+                                city_client_map[city_name].append({
+                                    'id': client_id,
+                                    'name': client_detail_name
+                                })
 
                 if city_client_map:
-                    for city_name, clients_in_city_list in city_client_map.items():
-                        popup_html += f"<b>{self.tr('Ville')}: {city_name}</b> ({len(clients_in_city_list)} {self.tr('client(s) affiché(s)')})<br>"
+                    for city_name_iter, clients_in_city_list in city_client_map.items():
+                        popup_html += f"<b>{self.tr('Ville')}: {city_name_iter}</b> ({len(clients_in_city_list)} {self.tr('client(s) affiché(s)')})<br>"
                         popup_html += "<ul>"
-                        for client_data in clients_in_city_list:
-                            # Create clickable link for each client
-                            popup_html += f"<li><a href='#' onclick='pyMapConnector.clientClickedOnMap(\"{client_data['id']}\", \"{client_data['js_safe_name']}\"); return false;'>{client_data['name']}</a></li>"
+                        for client_data_item in clients_in_city_list:
+                            # Use json.dumps directly on the raw data for JS arguments
+                            js_client_id_arg = json.dumps(client_data_item['id'])
+                            js_client_name_arg = json.dumps(client_data_item['name'])
+                            onclick_js = f"pyMapConnector.clientClickedOnMap({js_client_id_arg}, {js_client_name_arg}); return false;"
+                            popup_html += f"<li><a href='#' onclick='{onclick_js}'>{client_data_item['name']}</a></li>"
                         popup_html += "</ul>"
                 else:
                     popup_html += f"{self.tr('Aucun client détaillé à afficher pour les villes.')}<br>"
 
                 # "Ajouter Client Ici" button
-                js_safe_country_name = country_name.replace("'", "\\'")
+                js_country_name_arg = json.dumps(country_name)
                 button_text = self.tr('Ajouter Client Ici')
-                popup_html += f"<br><button onclick='pyMapConnector.countryClicked(\"{js_safe_country_name}\")'>{button_text}</button>"
+                onclick_country_js = f"pyMapConnector.countryClicked({js_country_name_arg}); return false;"
+                popup_html += f"<br><button onclick='{onclick_country_js}'>{button_text}</button>"
 
                 feature['properties']['popup_content'] = popup_html
 
-            popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content'], localize=True)) # Added localize=True
+            popup_layer.add_child(folium.features.GeoJsonPopup(fields=['popup_content'], localize=True))
             popup_layer.add_to(m)
 
             if data_for_map["country_name"]: # Only add LayerControl if there's data

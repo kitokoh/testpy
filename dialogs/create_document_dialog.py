@@ -154,37 +154,42 @@ class CreateDocumentDialog(QDialog):
             self._initial_load_complete = True
 
         selected_lang = self.language_filter_combo.currentText(); selected_ext_display = self.extension_filter_combo.currentText(); search_text = self.search_bar.text().lower()
-        ext_map = {"HTML": ".html", "XLSX": ".xlsx", "DOCX": ".docx"}; selected_ext = ext_map.get(selected_ext_display)
+        ext_map = {"HTML": ".html", "XLSX": ".xlsx", "DOCX": ".docx"}
+        type_map_from_ext = {".html": "document_html", ".xlsx": "document_excel", ".docx": "document_word"} # Add other types if needed
+
+        selected_ext_val = ext_map.get(selected_ext_display)
+        template_type_filter = None
+        if selected_ext_display != self.tr("All"):
+            template_type_filter = type_map_from_ext.get(selected_ext_val)
+
+        effective_lang_filter = selected_lang if selected_lang != self.tr("All") else None
+        current_client_id = self.client_info.get('client_id')
 
         try:
-            all_file_templates = db_manager.get_all_file_based_templates()
-            if all_file_templates is None: all_file_templates = []
+            # Fetch client-specific and global templates based on filters
+            # get_all_templates is now client-aware and handles other filters
+            templates_from_db = db_manager.get_all_templates(
+                template_type_filter=template_type_filter,
+                language_code_filter=effective_lang_filter,
+                client_id_filter=current_client_id
+            )
+            if templates_from_db is None: templates_from_db = []
 
-            default_templates = []
-            other_templates = []
+            # Apply search text filter locally
+            filtered_templates = []
+            if search_text:
+                for t_dict in templates_from_db:
+                    if search_text in t_dict.get('template_name', '').lower():
+                        filtered_templates.append(t_dict)
+            else:
+                filtered_templates = templates_from_db
 
-            for template_dict in all_file_templates:
-                if template_dict.get('is_default_for_type_lang'):
-                    default_templates.append(template_dict)
-                else:
-                    other_templates.append(template_dict)
+            # Separate default and other templates from the filtered list
+            default_templates = [t for t in filtered_templates if t.get('is_default_for_type_lang')]
+            other_templates = [t for t in filtered_templates if not t.get('is_default_for_type_lang')]
 
-            processed_templates = []
-            for template_list_segment in [default_templates, other_templates]:
-                for template_dict in template_list_segment:
-                    name = template_dict.get('template_name', 'N/A')
-                    lang_code = template_dict.get('language_code', 'N/A')
-                    base_file_name = template_dict.get('base_file_name', 'N/A')
-
-                    if selected_lang != self.tr("All") and lang_code != selected_lang:
-                        continue
-                    file_actual_ext = os.path.splitext(base_file_name)[1].lower()
-                    if selected_ext_display != self.tr("All"):
-                        if not selected_ext or file_actual_ext != selected_ext:
-                            continue
-                    if search_text and search_text not in name.lower():
-                        continue
-                    processed_templates.append(template_dict)
+            # Combine them, defaults first
+            processed_templates = default_templates + other_templates
 
             for template_dict in processed_templates:
                 name = template_dict.get('template_name', 'N/A')
