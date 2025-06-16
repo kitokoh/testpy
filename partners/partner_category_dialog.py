@@ -63,7 +63,8 @@ class PartnerCategoryDialog(QDialog):
                 QMessageBox.warning(self, "Add Category", f"Category '{category_name}' already exists.")
                 return
 
-            category_id = add_partner_category(name=category_name)
+            # Pass category_name directly as the first argument
+            category_id = add_partner_category(category_name)
             if category_id is not None:
                 self.load_categories()
             else:

@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QLineEdit, QTextEdit,
     QPushButton, QCheckBox, QListWidget, QListWidgetItem, QMessageBox, QFileDialog,
-    QInputDialog, QGroupBox, QScrollArea, QGridLayout, QComboBox
+    QInputDialog, QGroupBox, QScrollArea, QGridLayout, QComboBox, QWidget
 )
 from PyQt5.QtCore import Qt, QSize
 

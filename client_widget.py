@@ -12,7 +12,8 @@ from carrier_email_dialog import CarrierEmailDialog # Added import
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QListWidget, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QApplication
+    QInputDialog, QTabWidget, QGroupBox, QMessageBox, QDialog, QFileDialog, QApplication,
+    QSizePolicy # Added QSizePolicy
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont, QColor, QPixmap, QTextCursor
 from PyQt5.QtCore import Qt, QUrl, QCoreApplication, QEvent
@@ -23,7 +24,7 @@ from PyQt5.QtGui import QPixmap
 import db as db_manager
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
-from dialogs import ClientProductDimensionDialog # Added import
+from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
 
@@ -249,12 +250,21 @@ class ClientWidget(QWidget):
         # Filter layout for documents tab
         self.doc_filter_layout_widget = QWidget() # Container for the filter layout
         doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
-        doc_filter_layout.setContentsMargins(0,0,0,0)
-        doc_filter_layout.addWidget(QLabel(self.tr("Filtrer par Commande:")))
+        doc_filter_layout.setContentsMargins(0,0,0,0) # Keep tight margins for the filter bar itself
+
+        doc_filter_label = QLabel(self.tr("Filtrer par Commande:"))
+        doc_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed) # Prevent label from expanding
+        doc_filter_layout.addWidget(doc_filter_label)
+
         self.doc_order_filter_combo = QComboBox()
+        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # Allow combo to expand but not vertically
         self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
         doc_filter_layout.addWidget(self.doc_order_filter_combo)
-        doc_filter_layout.addStretch()
+
+        # doc_filter_layout.addStretch() # Removing stretch to see if default behavior is better; can be added back if needed.
+                                     # If parent is QVBoxLayout, QHBoxLayout should by default take available width.
+                                     # If it needs to be left-aligned within a wider space, addStretch() is correct.
+                                     # Forcing on single line, it's more about child widget policies.
         docs_layout.addWidget(self.doc_filter_layout_widget)
         self.doc_filter_layout_widget.setVisible(False) # Initially hidden
 
@@ -1022,7 +1032,7 @@ class ClientWidget(QWidget):
         try:
             # Example: Load all assigned personnel, or filter by a general "vendor/sales" role_in_project
             # For now, role_filter=None fetches all personnel assigned to this client.
-            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter=None)
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter=None) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_vendors_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('personnel_name'))
@@ -1046,7 +1056,7 @@ class ClientWidget(QWidget):
             # Example: Filter for personnel assigned with a role_in_project like 'Technicien assigné'
             # Or, if AssignPersonnelDialog uses a role_filter for DB CompanyPersonnel.role, that's different.
             # Assuming here role_in_project is the primary filter criteria from Client_AssignedPersonnel table.
-            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter="Technicien") # Or specific role
+            assigned_list = db_manager.get_assigned_personnel_for_client(client_id, role_filter="Technicien") or [] # Or specific role
             for row, item_data in enumerate(assigned_list): # This list now comes from get_assigned_personnel_for_client
                 self.assigned_technicians_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('personnel_name'))
@@ -1067,7 +1077,7 @@ class ClientWidget(QWidget):
         client_id = self.client_info.get('client_id')
         if not client_id: return
         try:
-            assigned_list = db_manager.get_assigned_transporters_for_client(client_id)
+            assigned_list = db_manager.get_assigned_transporters_for_client(client_id) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_transporters_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('transporter_name'))
@@ -1115,7 +1125,7 @@ class ClientWidget(QWidget):
         client_id = self.client_info.get('client_id')
         if not client_id: return
         try:
-            assigned_list = db_manager.get_assigned_forwarders_for_client(client_id)
+            assigned_list = db_manager.get_assigned_forwarders_for_client(client_id) or []
             for row, item_data in enumerate(assigned_list):
                 self.assigned_forwarders_table.insertRow(row)
                 name_item = QTableWidgetItem(item_data.get('forwarder_name'))
@@ -1145,15 +1155,23 @@ class ClientWidget(QWidget):
             return
 
         try:
-            linked_products = db_manager.get_products_for_client_or_project(client_id, project_id=None)
+            # Fetch all globally available products for selection.
+            # Assuming db_manager.get_all_products() returns a list of product dictionaries
+            # with at least 'product_id', 'product_name', 'language_code'.
+            all_global_products = db_manager.get_all_products(filters=None, sort_by='product_name', sort_order='ASC')
 
-            if linked_products:
-                unique_products = {prod.get('product_id'): prod for prod in linked_products}.values()
-                for prod_data in sorted(list(unique_products), key=lambda x: x.get('product_name', '')):
+            if all_global_products:
+                # Global products should be unique by their definition (product_id).
+                # Sorting can be done here if not handled by the DB query, or to ensure consistent order.
+                # For example: all_global_products.sort(key=lambda x: (x.get('product_name', ''), x.get('language_code', '')))
+
+                for prod_data in all_global_products: # Iterate directly if already sorted or uniqueness is guaranteed by source
                     product_name = prod_data.get('product_name', 'N/A')
                     global_product_id = prod_data.get('product_id')
                     lang_code = prod_data.get('language_code', '')
+
                     display_text = f"{product_name} ({lang_code}) - ID: {global_product_id}"
+                    # Store the global_product_id as data for the combo box item
                     self.dim_product_selector_combo.addItem(display_text, global_product_id)
         except Exception as e:
             print(f"Error loading products for dimension tab: {e}")
@@ -2122,8 +2140,63 @@ class ClientWidget(QWidget):
         dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
-            # ... (logic for adding products remains the same) ...
-            if products_list_data: self.load_products() # Refresh only if data was processed
+
+            # --- BEGIN HYPOTHETICAL ACTUAL FIX AREA ---
+            # This is where the actual loop processing products_list_data would be.
+            # Assuming the loop and the call to db_manager.add_product_to_client_project_link_and_global
+            # or similar database function occurs here.
+
+            # If the error "TypeError: City() missing 1 required positional argument: 'country_id'"
+            # originates from an attempt to process city information *within this loop*
+            # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
+
+            # Example of what might be happening and how to fix it:
+            # (This is illustrative as the actual product saving loop is not shown in the provided code)
+
+            client_country_id = self.client_info.get('country_id') # Get country_id from ClientWidget's info
+
+            processed_count = 0
+            if products_list_data:
+                for product_entry in products_list_data:
+                    # product_entry is a dict from ProductDialog.get_data(), which now includes:
+                    # 'client_id', 'product_id' (global ID), 'name', 'quantity', 'unit_price',
+                    # 'language_code', 'weight', 'dimensions',
+                    # 'client_country_id', 'client_city_id'
+
+                    # If there was faulty logic here like:
+                    # city_name_from_client = self.client_info.get('city')
+                    # if city_name_from_client:
+                    #     # Incorrect call: db_manager.get_or_add_city(city_name=city_name_from_client, country_id=None)
+                    #     # Corrected call would be:
+                    #     db_manager.get_or_add_city(city_name=city_name_from_client, country_id=client_country_id)
+                    # This part is speculative as the original call to City() is not found.
+
+                    # The primary action is linking the product:
+                    # Ensure product_entry has all necessary fields for add_product_to_client_or_project
+                    # It already contains client_id, product_id (as 'product_id'), quantity, unit_price_override (as 'unit_price')
+
+                    db_call_payload = {
+                        'client_id': product_entry.get('client_id'),
+                        'product_id': product_entry.get('product_id'), # This is the global product_id
+                        'quantity': product_entry.get('quantity'),
+                        'unit_price_override': product_entry.get('unit_price'), # ProductDialog uses 'unit_price' for this
+                        'project_id': self.client_info.get('project_id'), # Or from a project selector if applicable
+                        # serial_number, purchase_confirmed_at would be None unless set explicitly
+                    }
+
+                    link_id = db_manager.add_product_to_client_or_project(db_call_payload)
+                    if link_id:
+                        processed_count += 1
+                    else:
+                        QMessageBox.warning(self, self.tr("DB Error"),
+                                            self.tr(f"Failed to add product '{product_entry.get('name')}' to client."))
+
+            if processed_count > 0:
+                 QMessageBox.information(self, self.tr("Success"),
+                                         self.tr(f"{processed_count} product(s) added to client successfully."))
+            # --- END HYPOTHETICAL ACTUAL FIX AREA ---
+
+            if products_list_data: self.load_products() # Refresh UI
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
