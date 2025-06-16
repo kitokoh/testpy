@@ -284,6 +284,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         topbar_layout.addWidget(user_widget)
         self.nav_buttons[0].setObjectName("selected")
 
+    def logout(self):
+        print("Logout button clicked. Attempting to signal parent...")
+        if self.parent() and hasattr(self.parent(), 'handle_logout'):
+            self.parent().handle_logout()
+        else:
+            print("Parent has no 'handle_logout' method or parent is None.")
+            # As a fallback, if this dashboard is the main window, it might close itself.
+            # However, since it's a QWidget hosted by DocumentManager, this is less likely.
+            # For now, just printing is safest if parent communication fails.
+            # If direct parent communication is not desired, a signal/slot mechanism
+            # would be more appropriate, but requires changes in the parent class too.
+
     # ... (Placeholder methods gestion_notification, gestion_prospects, etc. remain unchanged) ...
     def gestion_notification(self): print("Notification management enabled.")
     def gestion_prospects(self): print("Prospect management enabled.")
@@ -347,6 +359,37 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(activities_widget)
         self.main_content.addWidget(page)
 
+    def update_dashboard(self, selected_date=None):
+        if selected_date is None:
+            # If called by refresh button, use current date from picker
+            selected_date = self.date_picker.date().toPyDate()
+        else:
+            # If called by dateChanged signal, selected_date is a QDate object
+            selected_date = selected_date.toPyDate() # Convert QDate to Python date
+
+        print(f"update_dashboard called. Selected date: {selected_date}")
+
+        # Placeholder: Load/update Key Performance Indicators (KPIs)
+        # self.load_kpis(selected_date)
+        print("Placeholder: Would load KPIs for", selected_date)
+
+        # Placeholder: Load/update performance graph
+        # self.load_performance_graph(selected_date)
+        print("Placeholder: Would load performance graph for", selected_date)
+
+        # Placeholder: Load/update project progress graph
+        # self.load_project_progress_graph(selected_date)
+        print("Placeholder: Would load project progress graph for", selected_date)
+
+        # Placeholder: Load/update recent activities
+        # self.load_recent_activities(selected_date)
+        print("Placeholder: Would load recent activities for", selected_date)
+
+        # Example of how you might log this activity
+        # if self.current_user:
+        #     user_id = self.current_user.get('user_id')
+        #     log_activity(user_id, "Refreshed dashboard view", f"Date: {selected_date}")
+
     def setup_team_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -371,6 +414,29 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.team_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         layout.addWidget(header); layout.addWidget(filters); layout.addWidget(self.team_table)
         self.main_content.addWidget(page)
+
+    def filter_team_members(self, _=None): # Argument can be ignored for now
+        search_text = self.team_search.text().lower()
+        role_filter_text = self.role_filter.currentText()
+        status_filter_text = self.status_filter.currentText()
+
+        print(f"filter_team_members called. Search: '{search_text}', Role: '{role_filter_text}', Status: '{status_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all team members (e.g., from a database or a cached list).
+        # 2. Filtering them based on search_text, role_filter_text, and status_filter_text.
+        # 3. Clearing the self.team_table.
+        # 4. Populating self.team_table with the filtered members.
+
+        # For now, let's assume there's a method that reloads all team members.
+        # If actual filtering is implemented, this call might be more specific
+        # or the load_team_members method itself might take filters.
+        if hasattr(self, 'load_team_members'):
+            print("Calling self.load_team_members() to refresh table (actual filtering not implemented yet).")
+            self.load_team_members() # This will just reload all members without filtering
+        else:
+            print("Placeholder: Would update team table with filtered data. 'load_team_members' not found.")
 
     def setup_projects_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
