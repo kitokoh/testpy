@@ -44,7 +44,8 @@ from .cruds.projects_crud import (
     get_total_projects_count, # Added
     get_active_projects_count, # Added
 )
-from .cruds.products_crud import get_total_products_count # Added
+from .cruds.products_crud import get_total_products_count, get_all_products, get_all_products_for_selection_filtered # Added
+
 from .cruds.tasks_crud import (
     get_tasks_by_project_id,
     add_task,
@@ -221,6 +222,9 @@ __all__ = [
     "delete_client_document_note",
     "get_client_document_note_by_id",
     "get_document_context_data",
+    "get_all_products", # Added
+    "get_all_products_for_selection_filtered", # Added
+
     "get_all_projects",
     "get_project_by_id",
     "add_project",
