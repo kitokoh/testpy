@@ -2235,52 +2235,64 @@ class ClientWidget(QWidget):
             # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
 
             # Example of what might be happening and how to fix it:
-            # (This is illustrative as the actual product saving loop is not shown in the provided code)
-
-            client_country_id = self.client_info.get('country_id') # Get country_id from ClientWidget's info
+            products_list_data = dialog.get_data() # This is a list of product_entry dicts
 
             processed_count = 0
             if products_list_data:
                 for product_entry in products_list_data:
-                    # product_entry is a dict from ProductDialog.get_data(), which now includes:
-                    # 'client_id', 'product_id' (global ID), 'name', 'quantity', 'unit_price',
-                    # 'language_code', 'weight', 'dimensions',
-                    # 'client_country_id', 'client_city_id'
+                    client_id_for_product = self.client_info.get('client_id')
+                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
+                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
+                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
 
-                    # If there was faulty logic here like:
-                    # city_name_from_client = self.client_info.get('city')
-                    # if city_name_from_client:
-                    #     # Incorrect call: db_manager.get_or_add_city(city_name=city_name_from_client, country_id=None)
-                    #     # Corrected call would be:
-                    #     db_manager.get_or_add_city(city_name=city_name_from_client, country_id=client_country_id)
-                    # This part is speculative as the original call to City() is not found.
+                    global_product_id = product_entry.get('product_id') # This is the ID from Products table
+                    quantity = product_entry.get('quantity')
+                    unit_price_override = product_entry.get('unit_price') # Dialog uses 'unit_price' for the override
 
-                    # The primary action is linking the product:
-                    # Ensure product_entry has all necessary fields for add_product_to_client_or_project
-                    # It already contains client_id, product_id (as 'product_id'), quantity, unit_price_override (as 'unit_price')
+                    # Determine project_id. It can be None.
+                    # project_identifier from client_info might be the name/code, not the DB ID.
+                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
+                    project_id_for_db = self.client_info.get('project_id', None)
+                    if project_id_for_db is None:
+                        # If 'project_id' is not directly in client_info,
+                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
+                        # For now, assume if 'project_id' is not there, it's None.
+                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
+
+
+                    if not all([client_id_for_product, global_product_id, quantity is not None, unit_price_override is not None]):
+                        logging.error(f"Skipping product entry due to missing data: {product_entry} for client_id {client_id_for_product}")
+                        QMessageBox.warning(self, self.tr("Données Produit Incomplètes"),
+                                            self.tr("Impossible d'ajouter un produit car certaines informations sont manquantes : {0}.").format(product_entry.get('name', 'Nom inconnu')))
+                        continue
 
                     db_call_payload = {
-                        'client_id': product_entry.get('client_id'),
-                        'product_id': product_entry.get('product_id'), # This is the global product_id
-                        'quantity': product_entry.get('quantity'),
-                        'unit_price_override': product_entry.get('unit_price'), # ProductDialog uses 'unit_price' for this
-                        'project_id': self.client_info.get('project_id'), # Or from a project selector if applicable
-                        # serial_number, purchase_confirmed_at would be None unless set explicitly
+                        'client_id': client_id_for_product,
+                        'product_id': global_product_id,
+                        'quantity': quantity,
+                        'unit_price_override': unit_price_override,
+                        'project_id': project_id_for_db,
+                        # 'serial_number': None, # Default to None if not provided by dialog
+                        # 'purchase_confirmed_at': None, # Default to None
                     }
 
+                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
+
                     if link_id:
                         processed_count += 1
+                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
                     else:
-                        QMessageBox.warning(self, self.tr("DB Error"),
-                                            self.tr(f"Failed to add product '{product_entry.get('name')}' to client."))
+                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        QMessageBox.warning(self, self.tr("Erreur Base de Données"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
 
             if processed_count > 0:
-                 QMessageBox.information(self, self.tr("Success"),
-                                         self.tr(f"{processed_count} product(s) added to client successfully."))
-            # --- END HYPOTHETICAL ACTUAL FIX AREA ---
+                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                                         self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
 
-            if products_list_data: self.load_products() # Refresh UI
+            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+                self.load_products()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
@@ -3066,13 +3078,19 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def eventFilter(self, obj, event):
-        if obj is self.notes_edit and event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
-                    return super().eventFilter(obj, event)
-                else: # Enter pressed
-                    self.append_new_note_with_timestamp()
-                    return True # Event handled
+        if obj is self.notes_edit:
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
+                        # Let the base class handle Shift+Enter for newline
+                        return super().eventFilter(obj, event)
+                    else: # Enter pressed
+                        self.append_new_note_with_timestamp()
+                        return True # Event handled, stop further processing for this Enter key press
+            elif event.type() == QEvent.FocusOut:
+                self.save_client_notes()
+                # Return False to allow normal FocusOut processing after saving
+                return False
         return super().eventFilter(obj, event)
 
     def append_new_note_with_timestamp(self):

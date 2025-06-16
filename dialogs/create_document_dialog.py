@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
+import logging # Added for logging
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
@@ -239,20 +240,36 @@ class CreateDocumentDialog(QDialog):
                         selected_order_identifier = selected_order_identifier_data
 
                 client_base_folder = self.client_info.get("base_folder_path")
-                file_path_relative_for_db = os.path.join(db_template_lang, actual_template_filename)
+                if not client_base_folder:
+                    logging.error(f"Client base folder not found for client_id: {client_id_for_context}")
+                    QMessageBox.warning(self, self.tr("Erreur Configuration Client"), self.tr("Dossier de base du client non configuré pour {0}.").format(self.client_info.get("client_name", "ce client")))
+                    continue
 
+                safe_order_subfolder = ""
                 if selected_order_identifier:
                     safe_order_subfolder = selected_order_identifier.replace(':', '_').replace(' ', '_')
+                    # Path for file system
                     target_path_for_file = os.path.join(client_base_folder, safe_order_subfolder, db_template_lang, actual_template_filename)
+                    # Path for DB (relative to client_base_folder)
+                    file_path_relative_for_db = os.path.join(safe_order_subfolder, db_template_lang, actual_template_filename)
                 else:
+                    # Path for file system
                     target_path_for_file = os.path.join(client_base_folder, db_template_lang, actual_template_filename)
+                    # Path for DB (relative to client_base_folder)
+                    file_path_relative_for_db = os.path.join(db_template_lang, actual_template_filename)
+
+                logging.info(f"Target path for file: {target_path_for_file}")
                 os.makedirs(os.path.dirname(target_path_for_file), exist_ok=True)
 
                 try:
+                    logging.info(f"Copying template '{template_file_on_disk_abs}' to '{target_path_for_file}'")
                     shutil.copy(template_file_on_disk_abs, target_path_for_file)
+                    logging.info(f"Successfully copied template to target path.")
+
                     additional_context = {}
                     if 'project_id' in self.client_info: additional_context['project_id'] = self.client_info['project_id']
-                    if 'invoice_id' in self.client_info: additional_context['invoice_id'] = self.client_info['invoice_id']
+                    # invoice_id seems to be set later contextually for packing lists, not from client_info directly here.
+                    # if 'invoice_id' in self.client_info: additional_context['invoice_id'] = self.client_info['invoice_id']
                     additional_context['order_identifier'] = selected_order_identifier
 
                     if template_type == 'HTML_PACKING_LIST':
@@ -306,35 +323,67 @@ class CreateDocumentDialog(QDialog):
                              additional_context['current_document_type_for_notes'] = template_type
 
                     doc_db_data = {
-                        'client_id': client_id_for_context, 'project_id': project_id_for_context_arg,
-                        'order_identifier': selected_order_identifier, 'document_name': actual_template_filename,
-                        'file_name_on_disk': actual_template_filename, 'file_path_relative': file_path_relative_for_db,
-                        'document_type_generated': template_type, 'source_template_id': template_id_for_db,
-                        'created_by_user_id': None
+                        'client_id': client_id_for_context,
+                        'project_id': project_id_for_context_arg, # This can be None if not applicable
+                        'order_identifier': selected_order_identifier, # This can be None
+                        'document_name': actual_template_filename, # Name of the doc, usually same as file
+                        'file_name_on_disk': actual_template_filename, # Actual file name
+                        'file_path_relative': file_path_relative_for_db, # Corrected relative path
+                        'document_type_generated': template_type,
+                        'source_template_id': template_id_for_db,
+                        'created_by_user_id': None # Placeholder for user ID, to be implemented
                     }
+                    logging.info(f"Attempting to add document to DB with data: {doc_db_data}")
                     new_document_id_from_db = db_manager.add_client_document(doc_db_data)
+
                     if new_document_id_from_db:
-                        # logging.info(f"Document record added to DB with ID: {new_document_id_from_db}") # Consider logging
+                        logging.info(f"Document record added to DB with ID: {new_document_id_from_db}")
                         additional_context['document_id'] = new_document_id_from_db
                     else:
+                        logging.error(f"Failed to add document record to DB for: {actual_template_filename}. Data: {doc_db_data}")
                         QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Impossible d'enregistrer l'entrée du document dans la base de données pour {0}.").format(actual_template_filename))
-                        continue
+                        # Consider cleanup of copied file if DB entry fails: os.remove(target_path_for_file)
+                        continue # Skip to next template
 
                     if target_path_for_file.lower().endswith(".docx"):
+                        logging.info(f"Populating DOCX template: {target_path_for_file}")
                         populate_docx_template(target_path_for_file, self.client_info) # self.client_info is used as context here
                     elif target_path_for_file.lower().endswith(".html"):
+                        logging.info(f"Populating HTML template: {target_path_for_file}")
                         with open(target_path_for_file, 'r', encoding='utf-8') as f: template_content = f.read()
+
                         document_context = db_manager.get_document_context_data(
                             client_id=client_id_for_context, company_id=default_company_id,
                             target_language_code=db_template_lang, project_id=project_id_for_context_arg,
                             additional_context=additional_context
                         )
-                        populated_content = HtmlEditor.populate_html_content(template_content, document_context)
-                        with open(target_path_for_file, 'w', encoding='utf-8') as f: f.write(populated_content)
-                    created_files_count += 1
-                except Exception as e_create: QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, e_create))
-            else: QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
+                        if not document_context:
+                             logging.warning(f"Failed to get document context for {actual_template_filename}. HTML might be incomplete.")
 
-        if created_files_count > 0: QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count)); self.accept()
-        elif not selected_items: pass
-        else: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les erreurs précédentes."))
+                        try:
+                            populated_content = HtmlEditor.populate_html_content(template_content, document_context if document_context else {})
+                            with open(target_path_for_file, 'w', encoding='utf-8') as f: f.write(populated_content)
+                            logging.info(f"Successfully populated and saved HTML: {target_path_for_file}")
+                        except Exception as e_html_pop:
+                            logging.error(f"Error populating HTML content for {target_path_for_file}: {e_html_pop}", exc_info=True)
+                            QMessageBox.warning(self, self.tr("Erreur HTML"), self.tr("Erreur lors de la population du contenu HTML pour {0}:\n{1}").format(actual_template_filename, str(e_html_pop)))
+                            # Continue, as file is copied, DB entry made, but content might be unpopulated/default.
+                    created_files_count += 1
+                except (IOError, shutil.Error) as e_copy:
+                    logging.error(f"Error copying template '{template_file_on_disk_abs}' to '{target_path_for_file}': {e_copy}", exc_info=True)
+                    QMessageBox.warning(self, self.tr("Erreur Copie Fichier"), self.tr("Impossible de copier le fichier modèle '{0}' vers la destination:\n{1}").format(actual_template_filename, str(e_copy)))
+                except Exception as e_create:
+                    logging.error(f"General error creating document '{actual_template_filename}': {e_create}", exc_info=True)
+                    QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, str(e_create)))
+            else:
+                logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'")
+                QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
+
+        if created_files_count > 0:
+            QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
+            self.accept()
+        elif not selected_items:
+            # This case should be handled by the initial check, but good to have robustness
+            pass
+        else: # Some items were selected, but none were created
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les messages d'erreur précédents ou les logs pour plus de détails."))

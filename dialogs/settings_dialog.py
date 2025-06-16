@@ -2,9 +2,10 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QTabWidget, QWidget, QFormLayout,
     QLineEdit, QPushButton, QComboBox, QSpinBox, QDialogButtonBox,
-    QFileDialog, QLabel, QHBoxLayout
+    QFileDialog, QLabel, QHBoxLayout, QCheckBox
 )
 # Note: QHBoxLayout was added as it's used for template/client dir browsing lines.
+# Note: QCheckBox was added for the new setting.
 # Note: utils_load_config was not found in use in the SettingsDialog, only utils_save_config.
 from utils import save_config as utils_save_config
 from company_management import CompanyTabWidget
@@ -65,6 +66,11 @@ class SettingsDialog(QDialog):
         self.google_maps_url_input.setPlaceholderText(self.tr("Entrez l'URL complète pour les avis Google Maps"))
         general_form_layout.addRow(self.tr("Lien Avis Google Maps:"), self.google_maps_url_input)
 
+        # Show initial setup prompt checkbox
+        self.show_setup_prompt_checkbox = QCheckBox()
+        self.show_setup_prompt_checkbox.setChecked(self.current_config_data.get("show_initial_setup_on_startup", False))
+        general_form_layout.addRow(self.tr("Show setup prompt on next start (if no company configured):"), self.show_setup_prompt_checkbox)
+
         self.tabs_widget.addTab(general_tab_widget, self.tr("Général"))
         email_tab_widget = QWidget(); email_form_layout = QFormLayout(email_tab_widget)
         self.smtp_server_input_field = QLineEdit(self.current_config_data.get("smtp_server", ""))
@@ -100,7 +106,8 @@ class SettingsDialog(QDialog):
             "smtp_port": self.smtp_port_spinbox.value(),
             "smtp_user": self.smtp_user_input_field.text(),
             "smtp_password": self.smtp_pass_input_field.text(),
-            "google_maps_review_url": self.google_maps_url_input.text().strip()
+            "google_maps_review_url": self.google_maps_url_input.text().strip(),
+            "show_initial_setup_on_startup": self.show_setup_prompt_checkbox.isChecked()
         }
         # The CompanyTabWidget data needs to be retrieved and merged here
         # Assuming company_tab has a method like get_data() or get_company_config()
