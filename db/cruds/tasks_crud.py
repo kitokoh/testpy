@@ -186,6 +186,7 @@ def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list
     logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
     return []
 
+
 # def remove_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Connection = None) -> bool:
 #     pass
 
@@ -207,4 +208,5 @@ __all__ = [
     "get_tasks_by_assignee_id",
     "add_task_dependency",
     "get_predecessor_tasks",
+    "add_task_dependency"
 ]
