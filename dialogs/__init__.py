@@ -7,6 +7,7 @@ from .edit_product_line_dialog import EditProductLineDialog
 from .create_document_dialog import CreateDocumentDialog
 from .compile_pdf_dialog import CompilePdfDialog
 from .edit_client_dialog import EditClientDialog
+from .manage_product_master_dialog import ManageProductMasterDialog
 from .send_email_dialog import SendEmailDialog
 from .product_equivalency_dialog import ProductEquivalencyDialog
 from .select_contacts_dialog import SelectContactsDialog
