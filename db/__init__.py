@@ -55,6 +55,8 @@ from .cruds.tasks_crud import (
     get_tasks_by_assignee_id,
     get_tasks_by_project_id_ordered_by_sequence,
     add_task_dependency,
+    get_predecessor_tasks,
+
 )
 from .cruds.kpis_crud import get_kpis_for_project
 from .cruds.activity_logs_crud import add_activity_log, get_activity_logs
@@ -244,6 +246,8 @@ __all__ = [
     "get_tasks_by_assignee_id",
     "get_tasks_by_project_id_ordered_by_sequence",
     "add_task_dependency",
+    "get_predecessor_tasks",
+
     "get_kpis_for_project",
     "add_activity_log",
     "get_activity_logs",
