@@ -806,8 +806,23 @@ def initialize_database():
             created_by_user_id TEXT,
             FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
             FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            UNIQUE (template_name, template_type, language_code, version)
+            client_id TEXT DEFAULT NULL, -- New column for client-specific templates
+            FOREIGN KEY (client_id) REFERENCES Clients(client_id) ON DELETE SET NULL, -- Added FK for client_id
+            UNIQUE (template_name, template_type, language_code, version) -- Existing unique constraint, client_id not added here for simplicity in ALTER
         )""")
+
+    # Idempotently add client_id column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(Templates)")
+    templates_columns = [column['name'] for column in cursor.fetchall()]
+    if 'client_id' not in templates_columns:
+        try:
+            cursor.execute("ALTER TABLE Templates ADD COLUMN client_id TEXT DEFAULT NULL")
+            # Note: Adding FOREIGN KEY constraint via ALTER TABLE is tricky in older SQLite.
+            # The FK definition in CREATE TABLE handles new DBs. For existing DBs, this adds the column.
+            # Full FK enforcement for old DBs might require more complex migration (recreate table).
+            print("Added 'client_id' column to Templates table.")
+        except sqlite3.Error as e_alter_templates:
+            print(f"Error adding 'client_id' column to Templates table: {e_alter_templates}")
 
     # Create Tasks table (from ca.py)
     cursor.execute("""
@@ -1269,6 +1284,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_language_code ON Templates(language_code)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_category_id ON Templates(category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_is_default_for_type_lang ON Templates(is_default_for_type_lang)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_client_id ON Templates(client_id)") # Index for the new column
     # ClientDocuments
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_client_id ON ClientDocuments(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")

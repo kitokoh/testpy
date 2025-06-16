@@ -2032,12 +2032,125 @@ class ClientWidget(QWidget):
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
             pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+
+            source_template_id = doc_data.get('source_template_id')
+            # Disable PDF generation for actual PDFs that came from a template (they are already PDFs)
+            # The _handle_open_pdf_action might need to distinguish between generating from source and just opening if it's already PDF.
+            # For now, if it's a PDF in the list, pdf_btn will just open it if it exists.
+
             source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
-            if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
+
+            can_edit_source_template = False
+            if source_template_id:
+                template_info_for_edit_btn = db_manager.get_template_by_id(source_template_id)
+                if template_info_for_edit_btn and template_info_for_edit_btn.get('template_type', '').startswith('html'):
+                    can_edit_source_template = True
+
+            if can_edit_source_template:
+                edit_source_template_btn = QPushButton(""); edit_source_template_btn.setIcon(QIcon.fromTheme("accessories-text-editor", QIcon(":/icons/pencil.svg"))); edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document")); edit_source_template_btn.setFixedSize(30,30); edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d)); action_layout.addWidget(edit_source_template_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for direct editability if not from template or template not HTML
                 edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
+            else:
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+
             delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+
+    def handle_edit_source_template(self, document_data):
+        source_template_id = document_data.get('source_template_id')
+        current_client_id = self.client_info.get('client_id')
+
+        if not source_template_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun ID de modèle source associé à ce document."))
+            return
+
+        original_template = db_manager.get_template_by_id(source_template_id)
+        if not original_template:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Modèle source (ID: {0}) introuvable.").format(source_template_id))
+            return
+
+        template_to_edit_id = source_template_id
+        template_for_editor = original_template.copy() # Work with a copy
+
+        if original_template.get('client_id') is None: # Global template
+            reply = QMessageBox.question(self, self.tr("Modèle Global"),
+                                         self.tr("Ce document a été généré à partir d'un modèle global. Voulez-vous créer une copie spécifique à ce client ({0}) pour modification?").format(self.client_info.get('client_name', current_client_id)),
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if reply == QMessageBox.Yes:
+                new_template_data = template_for_editor # Already a copy
+                new_template_data['client_id'] = current_client_id
+                new_template_data['template_name'] = f"{original_template.get('template_name', 'Template')} ({self.client_info.get('client_name', current_client_id)[:15]} Copy)"
+                new_template_data.pop('template_id', None)
+                new_template_data['is_default_for_type_lang'] = False
+
+                new_id = db_manager.add_template(new_template_data)
+                if new_id:
+                    template_to_edit_id = new_id
+                    template_for_editor = db_manager.get_template_by_id(new_id) # Get the full new template data
+                    QMessageBox.information(self, self.tr("Copie Créée"), self.tr("Une copie client-spécifique du modèle a été créée et va maintenant être ouverte pour édition."))
+                    self.populate_doc_table() # Refresh doc list if template source ID might change (though it doesn't for existing docs)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Impossible de créer la copie client-spécifique du modèle."))
+                    return
+            else: # User chose not to create a copy
+                return
+        elif original_template.get('client_id') != current_client_id:
+            QMessageBox.warning(self, self.tr("Accès Interdit"), self.tr("Ce modèle appartient à un autre client et ne peut pas être modifié directement ici. Une copie pour le client actuel peut être envisagée si nécessaire (fonctionnalité à implémenter)."))
+            return # Or implement copy logic similar to global templates
+
+        # At this point, template_for_editor is the correct one to edit (original or new copy)
+        raw_html_content = template_for_editor.get('raw_template_file_data')
+        base_file_name = template_for_editor.get('base_file_name')
+        lang_code = template_for_editor.get('language_code')
+
+        if not base_file_name or not lang_code:
+            QMessageBox.critical(self, self.tr("Erreur Modèle"), self.tr("Les informations du fichier de base du modèle (nom ou langue) sont manquantes."))
+            return
+
+        # Construct path in the central template store
+        template_file_path_for_editor = os.path.join(self.config.get("templates_dir", "templates"), lang_code, base_file_name)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(template_file_path_for_editor), exist_ok=True)
+
+        # Write DB content to file for editor, to ensure editor loads the canonical version
+        try:
+            content_to_write = raw_html_content
+            if isinstance(raw_html_content, bytes):
+                content_to_write = raw_html_content.decode('utf-8')
+
+            with open(template_file_path_for_editor, 'w', encoding='utf-8') as f:
+                f.write(content_to_write if content_to_write else "")
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Écriture Fichier"), self.tr("Impossible d'écrire le contenu du modèle vers le fichier temporaire pour édition: {0}").format(str(e)))
+            return
+
+        editor_client_data = self.client_info.copy() # Pass a copy
+        html_editor = HtmlEditor(
+            file_path=template_file_path_for_editor,
+            client_data=editor_client_data,
+            template_id=template_to_edit_id, # Pass the ID of the template being edited
+            parent=self
+        )
+        if html_editor.exec_() == QDialog.Accepted:
+            try:
+                with open(template_file_path_for_editor, 'r', encoding='utf-8') as f:
+                    updated_html_content = f.read()
+
+                # Save updated content back to DB
+                update_payload = {'raw_template_file_data': updated_html_content}
+                # Optionally, update 'updated_at' or 'version' if those fields are important here
+                if db_manager.update_template(template_to_edit_id, update_payload):
+                    QMessageBox.information(self, self.tr("Modèle Sauvegardé"), self.tr("Les modifications du modèle ont été sauvegardées dans la base de données."))
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur Sauvegarde DB"), self.tr("Impossible de sauvegarder les modifications du modèle dans la base de données."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Lecture Fichier"), self.tr("Impossible de relire le fichier modèle modifié: {0}").format(str(e)))
+
+        # Clean up temporary file if it was solely for this edit session and raw_template_file_data is truth
+        # For now, assume file is persistent in templates_dir. If base_file_name was temporary, then:
+        # if os.path.exists(template_file_path_for_editor) and is_temp_file: os.remove(template_file_path_for_editor)
+
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
