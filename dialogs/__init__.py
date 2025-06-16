@@ -6,3 +6,4 @@ from .product_dialog import ProductDialog
 from .edit_product_line_dialog import EditProductLineDialog
 from .create_document_dialog import CreateDocumentDialog
 from .compile_pdf_dialog import CompilePdfDialog
+from .edit_client_dialog import EditClientDialog
