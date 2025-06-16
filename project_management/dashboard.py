@@ -359,6 +359,37 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(activities_widget)
         self.main_content.addWidget(page)
 
+    def update_dashboard(self, selected_date=None):
+        if selected_date is None:
+            # If called by refresh button, use current date from picker
+            selected_date = self.date_picker.date().toPyDate()
+        else:
+            # If called by dateChanged signal, selected_date is a QDate object
+            selected_date = selected_date.toPyDate() # Convert QDate to Python date
+
+        print(f"update_dashboard called. Selected date: {selected_date}")
+
+        # Placeholder: Load/update Key Performance Indicators (KPIs)
+        # self.load_kpis(selected_date)
+        print("Placeholder: Would load KPIs for", selected_date)
+
+        # Placeholder: Load/update performance graph
+        # self.load_performance_graph(selected_date)
+        print("Placeholder: Would load performance graph for", selected_date)
+
+        # Placeholder: Load/update project progress graph
+        # self.load_project_progress_graph(selected_date)
+        print("Placeholder: Would load project progress graph for", selected_date)
+
+        # Placeholder: Load/update recent activities
+        # self.load_recent_activities(selected_date)
+        print("Placeholder: Would load recent activities for", selected_date)
+
+        # Example of how you might log this activity
+        # if self.current_user:
+        #     user_id = self.current_user.get('user_id')
+        #     log_activity(user_id, "Refreshed dashboard view", f"Date: {selected_date}")
+
     def setup_team_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
