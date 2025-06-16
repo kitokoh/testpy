@@ -371,7 +371,7 @@ class CompanyDialog(QDialog):
                             is_uuid_filename = str(uuid.UUID(os.path.splitext(temp_logo_filename)[0])) == os.path.splitext(temp_logo_filename)[0]
                         except ValueError:
                             is_uuid_filename = False
-
+                        
                         if is_uuid_filename:
                             new_proper_filename = f"{self.company_id}{os.path.splitext(temp_logo_filename)[1]}"
                             old_full_path = os.path.join(self.app_root_dir, LOGO_SUBDIR, temp_logo_filename)
@@ -767,7 +767,7 @@ class CompanyTabWidget(QWidget):
                 if delete_company(self.current_selected_company_id): # Changed to direct call
                     QMessageBox.information(self, self.tr("Success"), self.tr("Company deleted successfully."))
                     self.load_companies()
-                else:
+                else: 
                     QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to delete company from database."))
             # else: QMessageBox.critical(self, self.tr("Error"), self.tr("Database functions not available.")) # Assuming instance available
 

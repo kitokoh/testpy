@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import io
+from PyQt5.QtWidgets import QScrollArea
+from PyQt5.QtCore import QDir
 
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QFormLayout,
@@ -28,7 +30,7 @@ from reportlab.pdfgen import canvas
 
 import db as db_manager # Keep for now
 from db.cruds.clients_crud import clients_crud_instance
-# Removed: from db.cruds.templates_crud import templates_crud_instance
+
 from db.cruds.template_categories_crud import get_all_template_categories
 # templates_crud functions get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
 # are likely class methods on templates_crud_instance or static methods.
@@ -44,6 +46,7 @@ from db.cruds.templates_crud import (
     get_templates_by_type, # Added for SendEmailDialog
     get_template_by_id # Added for SendEmailDialog (replaces db_manager.get_template_details_by_id)
 )
+
 from company_management import CompanyTabWidget
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
@@ -538,12 +541,27 @@ class TemplateDialog(QDialog):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
         try:
             categories = get_all_template_categories()
-            if categories:
-                for category in categories:
-                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+            if not categories:
+                logging.critical("TemplateDialog: populate_category_filter: No template categories found in the database. This is unexpected as categories should be seeded. Check database initialization and seeding process.")
+                QMessageBox.critical(self, self.tr("Critical Error"),
+                                     self.tr("No template categories could be loaded. This is essential for managing templates. Please check the application logs and ensure the database is correctly initialized. The template management dialog may not function correctly."))
+                self.category_filter_combo.setEnabled(False)
+                # Consider disabling other parts of the dialog or preventing full display
+                return # Stop further processing in this method
+
+            # If categories were found (even if it's an empty list, though 'if not categories' handles that)
+            # The original 'if categories:' check is slightly redundant now but harmless.
+            for category in categories: # This loop won't run if categories is empty or None
+                self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+
         except Exception as e:
-            print(f"Error populating category filter: {e}") # Log error
-            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template categories for filtering."))
+            # This block now specifically handles errors during the fetching process itself,
+            # not the case of "successfully fetched but no categories".
+            logging.error(f"TemplateDialog: populate_category_filter: Failed to load template categories: {e}")
+            QMessageBox.warning(self, self.tr("Filter Error"),
+                                self.tr("An error occurred while trying to load template categories for filtering. Please check logs for details."))
+            # Optionally, disable the combo here too, or let it be usable if some categories were added before exception.
+            # self.category_filter_combo.setEnabled(False)
 
     def populate_language_filter(self):
         self.language_filter_combo.addItem(self.tr("All Languages"), "all")
@@ -2209,11 +2227,7 @@ class SendEmailDialog(QDialog):
             all_templates_for_lang = []
             for template_type in self.email_template_types:
                 # Corrected function call: get_templates_by_type
-                # templates = db_manager.get_templates_by_type(
-                #     template_type=template_type,
-                #     language_code=language_code
-                # )
-                # Corrected to use directly imported function:
+
                 templates = get_templates_by_type(
                     template_type=template_type,
                     language_code=language_code
