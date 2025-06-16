@@ -462,6 +462,27 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addWidget(header); layout.addWidget(filters); layout.addWidget(self.projects_table)
         self.main_content.addWidget(page)
 
+    def filter_projects(self, _=None): # Argument can be ignored for now
+        search_text = self.project_search.text().lower()
+        status_filter_text = self.status_filter_proj.currentText()
+        priority_filter_text = self.priority_filter.currentText()
+
+        print(f"filter_projects called. Search: '{search_text}', Status: '{status_filter_text}', Priority: '{priority_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all projects (e.g., from a database or a cached list).
+        # 2. Filtering them based on the criteria.
+        # 3. Clearing self.projects_table.
+        # 4. Populating self.projects_table with the filtered projects.
+
+        # For now, let's assume there's a method that reloads all projects.
+        if hasattr(self, 'load_projects'):
+            print("Calling self.load_projects() to refresh table (actual filtering not implemented yet).")
+            self.load_projects() # This will just reload all projects without filtering
+        else:
+            print("Placeholder: Would update projects table with filtered data. 'load_projects' not found.")
+
     def setup_tasks_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
@@ -494,6 +515,105 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         layout.addLayout(tasks_pagination_layout)
         self.main_content.addWidget(page)
 
+    def filter_tasks(self, _=None): # Argument can be ignored for now
+        search_text = self.task_search.text().lower()
+        status_filter_text = self.task_status_filter.currentText()
+        priority_filter_text = self.task_priority_filter.currentText()
+        project_filter_text = self.task_project_filter.currentText() # Assuming it stores text
+        # If task_project_filter stores project ID in currentData(), you might use:
+        # project_filter_id = self.task_project_filter.currentData()
+
+        print(f"filter_tasks called. Search: '{search_text}', Status: '{status_filter_text}', Priority: '{priority_filter_text}', Project: '{project_filter_text}'")
+
+        # Placeholder: Actual filtering logic should go here.
+        # This would typically involve:
+        # 1. Getting all tasks (e.g., from a database or a cached list).
+        # 2. Filtering them based on the criteria.
+        # 3. Clearing self.tasks_table.
+        # 4. Populating self.tasks_table with the filtered tasks.
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() to refresh table (actual filtering not implemented yet).")
+            self.load_tasks() # This will just reload all tasks without filtering
+        else:
+            print("Placeholder: Would update tasks table with filtered data. 'load_tasks' not found.")
+
+    def prev_task_page(self):
+        print(f"prev_task_page called. Current offset: {self.current_task_offset}")
+
+        # Placeholder: Actual pagination logic should go here.
+        # This would typically involve:
+        # 1. Decrementing self.current_task_offset by self.TASK_PAGE_LIMIT.
+        # 2. Ensuring self.current_task_offset doesn't go below 0.
+        # 3. Calling self.load_tasks() to fetch and display the previous page.
+        # 4. Updating pagination buttons and label.
+
+        # Example of what might be here:
+        # if self.current_task_offset > 0:
+        #     self.current_task_offset -= self.TASK_PAGE_LIMIT
+        #     if hasattr(self, 'load_tasks'):
+        #         self.load_tasks()
+        #     else:
+        #         print("Placeholder: 'load_tasks' method not found.")
+        # else:
+        #     print("Already on the first page.")
+        # self.update_task_pagination_controls() # Assuming such a method updates buttons/label
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() (actual pagination logic not fully implemented here).")
+            # This basic call won't change page; load_tasks would need to use self.current_task_offset
+            self.load_tasks()
+        else:
+            print("Placeholder: Would load previous page of tasks. 'load_tasks' not found.")
+        if hasattr(self, 'update_task_pagination_controls'):
+            self.update_task_pagination_controls()
+        else:
+            print("Placeholder: Would update pagination controls.")
+
+    def update_task_pagination_controls(self):
+        print(f"update_task_pagination_controls called. Offset: {self.current_task_offset}, Total: {self.total_tasks_count}, Limit: {self.TASK_PAGE_LIMIT}")
+        # Placeholder:
+        # current_page = (self.current_task_offset // self.TASK_PAGE_LIMIT) + 1
+        # total_pages = math.ceil(self.total_tasks_count / self.TASK_PAGE_LIMIT)
+        # if total_pages == 0: total_pages = 1 # Avoid Page X / 0
+        # self.task_page_info_label.setText(f"Page {current_page} / {total_pages}")
+        # self.prev_task_button.setEnabled(self.current_task_offset > 0)
+        # self.next_task_button.setEnabled((self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count)
+        pass
+
+    def next_task_page(self):
+        print(f"next_task_page called. Current offset: {self.current_task_offset}, Total tasks: {self.total_tasks_count}")
+
+        # Placeholder: Actual pagination logic should go here.
+        # This would typically involve:
+        # 1. Incrementing self.current_task_offset by self.TASK_PAGE_LIMIT.
+        # 2. Ensuring self.current_task_offset doesn't exceed total_tasks_count.
+        # 3. Calling self.load_tasks() to fetch and display the next page.
+        # 4. Updating pagination buttons and label.
+
+        # Example of what might be here:
+        # if (self.current_task_offset + self.TASK_PAGE_LIMIT) < self.total_tasks_count:
+        #     self.current_task_offset += self.TASK_PAGE_LIMIT
+        #     if hasattr(self, 'load_tasks'):
+        #         self.load_tasks()
+        #     else:
+        #         print("Placeholder: 'load_tasks' method not found.")
+        # else:
+        #     print("Already on the last page or no more tasks.")
+        # self.update_task_pagination_controls()
+
+        if hasattr(self, 'load_tasks'):
+            print("Calling self.load_tasks() (actual pagination logic not fully implemented here).")
+            # This basic call won't change page; load_tasks would need to use self.current_task_offset
+            self.load_tasks()
+        else:
+            print("Placeholder: Would load next page of tasks. 'load_tasks' not found.")
+
+        if hasattr(self, 'update_task_pagination_controls'):
+            self.update_task_pagination_controls()
+        else:
+            print("Placeholder: Would update pagination controls.")
+
     def setup_reports_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
         layout.setContentsMargins(20,20,20,20); layout.setSpacing(20)
@@ -513,6 +633,50 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         self.report_view.addTab(self.graph_tab, "Visualization"); self.report_view.addTab(self.data_tab, "Data")
         layout.addWidget(title); layout.addWidget(report_options); layout.addWidget(self.report_view)
         self.main_content.addWidget(page)
+
+    def generate_report(self, _=None): # Argument can be ignored (e.g., index from currentIndexChanged)
+        report_type_text = self.report_type.currentText()
+        report_period_text = self.report_period.currentText()
+
+        print(f"generate_report called. Type: '{report_type_text}', Period: '{report_period_text}'")
+
+        # Placeholder: Actual report generation logic should go here.
+        # This would typically involve:
+        # 1. Fetching data based on report_type_text and report_period_text.
+        # 2. Processing the data.
+        # 3. Displaying the data in self.report_view (e.g., populating graphs in self.graph_tab
+        #    and table in self.data_tab/self.report_data_table).
+
+        print("Placeholder: Would fetch data and populate report views (graph_tab, data_tab).")
+
+        # Example: you might have specific methods to update parts of the report view
+        # if hasattr(self, 'update_report_graph'):
+        #     self.update_report_graph(report_type_text, report_period_text)
+        # if hasattr(self, 'update_report_table'):
+        #     self.update_report_table(report_type_text, report_period_text)
+
+    def export_report(self):
+        report_type_text = self.report_type.currentText() # Get current settings
+        report_period_text = self.report_period.currentText()
+
+        print(f"export_report called. Would export report for Type: '{report_type_text}', Period: '{report_period_text}'")
+
+        # Placeholder: Actual report export logic should go here.
+        # This would typically involve:
+        # 1. Possibly re-generating the report data or using currently displayed data.
+        # 2. Using a library (e.g., ReportLab, FPDF, or even printing QWidget to PDF) to create a PDF file.
+        # 3. Prompting the user for a save location using QFileDialog.
+        # 4. Writing the report to the selected file.
+
+        # Example:
+        # file_path, _ = QFileDialog.getSaveFileName(self, "Save Report as PDF", "", "PDF Files (*.pdf)")
+        # if file_path:
+        #     print(f"Placeholder: Would save PDF to {file_path}")
+        #     # self.generate_pdf_report(file_path, report_type_text, report_period_text)
+        # else:
+        #     print("Export cancelled by user.")
+
+        print("Placeholder: Actual PDF export logic needs implementation.")
 
     def setup_settings_page(self):
         page = QWidget(); layout = QVBoxLayout(page)
