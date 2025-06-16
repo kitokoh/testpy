@@ -10,15 +10,15 @@ from html_to_pdf_util import render_html_template, convert_html_to_pdf, WeasyPri
 # Adjust import path based on actual project structure
 # If this file is in, e.g., an 'invoicing' or 'logic' subdirectory:
 try:
-    from ..app_config import TEMPLATES_DIR
+    from ..app_config import CONFIG
     from ..db.cruds import clients_crud # Though not directly used in this func as per spec
 except (ImportError, ValueError):
     # Fallback if running script directly from its folder or structure is different
     # This assumes app_config.py and db/cruds/ are siblings of this file's parent directory
     # For robust imports, ensure your project's root is in PYTHONPATH
     # or use relative imports correctly based on your structure.
-    logging.warning("Could not perform relative imports for TEMPLATES_DIR/clients_crud. Attempting direct. This might fail if not in PYTHONPATH.")
-    from app_config import TEMPLATES_DIR
+    logging.warning("Could not perform relative imports for CONFIG/clients_crud. Attempting direct. This might fail if not in PYTHONPATH.")
+    from app_config import CONFIG
     from db.cruds import clients_crud
 
 
@@ -78,7 +78,7 @@ def generate_final_invoice_pdf(
 
     # Determine Template Path
     template_filename = "final_invoice_template.html"
-    template_path = os.path.join(TEMPLATES_DIR, target_language_code, template_filename)
+    template_path = os.path.join(CONFIG["templates_dir"], target_language_code, template_filename)
 
     if not os.path.exists(template_path):
         logging.error(f"Invoice template not found at: {template_path}")
@@ -200,4 +200,3 @@ if __name__ == '__main__':
     #         pprint.pprint(context_used)
 
     logging.info("Please run tests or integrate into the main application to use generate_final_invoice_pdf.")
-```

@@ -76,27 +76,27 @@ except ImportError:
     from dashboard_extensions import ProjectTemplateManager
 
 
-try:
-    from ..Installsweb.installmodules import InstallerDialog
-except (ImportError, ValueError): # ValueError can happen with relative imports in some cases
-     # Fallback for standalone execution
-    print("Attempting fallback import for ..Installsweb.installmodules")
-    from Installsweb.installmodules import InstallerDialog
+# try:
+#     from ..Installsweb.installmodules import InstallerDialog
+# except (ImportError, ValueError): # ValueError can happen with relative imports in some cases
+#      # Fallback for standalone execution
+#     print("Attempting fallback import for ..Installsweb.installmodules")
+#     from Installsweb.installmodules import InstallerDialog
 
 
-# For FaceMainWindow, its location is unknown. Assuming a placeholder for now.
-try:
-    from ..face_main_window import FaceMainWindow
-except (ImportError, ModuleNotFoundError):
-    print("Warning: FaceMainWindow could not be imported. Feature 'open_facebook' might not work.")
-    # Define a placeholder class if it's critical for the module to load without this file
-    class FaceMainWindow(QWidget):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.label = QLabel("Placeholder for FaceMainWindow")
-            layout = QVBoxLayout()
-            layout.addWidget(self.label)
-            self.setLayout(layout)
+# # For FaceMainWindow, its location is unknown. Assuming a placeholder for now.
+# try:
+#     from ..face_main_window import FaceMainWindow
+# except (ImportError, ModuleNotFoundError):
+#     print("Warning: FaceMainWindow could not be imported. Feature 'open_facebook' might not work.")
+#     # Define a placeholder class if it's critical for the module to load without this file
+#     class FaceMainWindow(QWidget):
+#         def __init__(self, *args, **kwargs):
+#             super().__init__(*args, **kwargs)
+#             self.label = QLabel("Placeholder for FaceMainWindow")
+#             layout = QVBoxLayout()
+#             layout.addWidget(self.label)
+#             self.setLayout(layout)
 
 
 class MainDashboard(QWidget): # Changed from QMainWindow to QWidget

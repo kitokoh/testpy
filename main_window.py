@@ -30,10 +30,7 @@ from app_setup import APP_ROOT_DIR, CONFIG
 # from ui_components import StatisticsWidget # StatisticsWidget removed from main_layout
 from ui_components import StatusDelegate # Still used for QListWidget
 from map_client_dialog import MapClientDialog # Added for new client from map
-# The get_country_by_name, get_or_add_country, etc. specific imports for handle_add_client_from_stats_map might become obsolete.
-from db import get_country_by_name, get_or_add_country, get_city_by_name_and_country_id, get_or_add_city
-
-from dialogs.statistics_add_client_dialog import StatisticsAddClientDialog # Import the new dialog
+from db import get_country_by_name, get_or_add_country, get_city_by_name_and_country_id, get_or_add_city # Added for DB ops
 
 from document_manager_logic import (
     handle_create_client_execution,
@@ -63,9 +60,6 @@ from utils import save_config
 from company_management import CompanyTabWidget
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
-from invoicing.invoice_management_widget import InvoiceManagementWidget # Invoice Management
-from main import get_notification_manager # For notifications
-
 
 
 class SettingsDialog(OriginalSettingsDialog):
@@ -188,8 +182,6 @@ class DocumentManager(QMainWindow):
         self.partner_management_widget_instance = PartnerMainWidget(parent=self)
         self.main_area_stack.addWidget(self.partner_management_widget_instance)
 
-        self.invoice_management_widget_instance = InvoiceManagementWidget(parent=self)
-        self.main_area_stack.addWidget(self.invoice_management_widget_instance)
         self.product_management_page_instance = ProductManagementPage(parent=self)
         self.main_area_stack.addWidget(self.product_management_page_instance)
 
@@ -203,49 +195,80 @@ class DocumentManager(QMainWindow):
 
     @pyqtSlot(str)
     def handle_add_client_from_stats_map(self, country_name_str):
-        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")
-        # Replace MapClientDialog with StatisticsAddClientDialog
-        dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map.")
+        dialog = MapClientDialog(country_name=country_name_str, parent=self)
 
         if dialog.exec_() == QDialog.Accepted:
-            # get_data() from StatisticsAddClientDialog now returns a more comprehensive dict
-            # including resolved country_id and city_id.
-            new_client_data = dialog.get_data()
-            logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
+            client_map_data = dialog.get_data()
+            logging.info(f"MapClientDialog accepted. Data: {client_map_data}")
 
-            # Country and City IDs are now resolved within StatisticsAddClientDialog's accept() method.
-            # No need for manual get_or_add_country/city calls here.
+            country_id = None
+            city_id = None
 
-            if not new_client_data.get('country_id'):
-                QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
+            # Country Handling
+            try:
+                country_obj = get_country_by_name(client_map_data['country_name'])
+                if country_obj:
+                    country_id = country_obj['country_id']
+                else:
+                    logging.info(f"Country '{client_map_data['country_name']}' not found. Adding it.")
+                    # Using get_or_add_country as it's more robust and returns the dict
+                    new_country_obj = get_or_add_country(client_map_data['country_name'])
+                    if new_country_obj and new_country_obj.get('country_id'):
+                        country_id = new_country_obj['country_id']
+                        logging.info(f"Country '{client_map_data['country_name']}' added with ID {country_id}.")
+                    else:
+                        QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer le pays '{0}'.").format(client_map_data['country_name']))
+                        return
+            except Exception as e:
+                logging.error(f"Error handling country '{client_map_data['country_name']}': {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement du pays."))
                 return
 
-            # City ID is optional, so new_client_data.get('city_id') can be None, which is fine.
+            if not country_id: # Should be caught by above, but as a safeguard
+                QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu. Impossible de continuer."))
+                return
+
+            # City Handling
+            city_name_str = client_map_data['city_name']
+            try:
+                # get_city_by_name_and_country_id is not exposed by db/__init__.py in the provided files,
+                # but get_or_add_city is, and is preferred.
+                city_obj = get_or_add_city(city_name_str, country_id)
+                if city_obj and city_obj.get('city_id'):
+                    city_id = city_obj['city_id']
+                    logging.info(f"City '{city_name_str}' found/added with ID {city_id} for country ID {country_id}.")
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer la ville '{0}'.").format(city_name_str))
+                    return
+            except Exception as e:
+                logging.error(f"Error handling city '{city_name_str}': {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement de la ville."))
+                return
+
+            if not city_id: # Safeguard
+                QMessageBox.critical(self, self.tr("Erreur Ville"), self.tr("ID de la ville non obtenu. Impossible de continuer."))
+                return
 
             # Prepare data for client creation
-            # Keys from StatisticsAddClientDialog.get_data():
-            # "client_name", "company_name", "primary_need_description", "project_identifier",
-            # "country_id", "country_name" (for display, not DB usually),
-            # "city_id", "city_name" (for display, not DB usually),
-            # "selected_languages" (comma-separated string)
             client_data_for_db = {
-                "client_name": new_client_data["client_name"],
-                "company_name": new_client_data.get("company_name"),
-                "country_id": new_client_data["country_id"],
-                "city_id": new_client_data.get("city_id"), # Can be None if city was optional and not provided/resolved
-                "project_identifier": new_client_data.get("project_identifier"),
-                "primary_need_description": new_client_data.get("primary_need_description"),
-                "selected_languages": new_client_data.get("selected_languages"), # Already a comma-separated string
+                "client_name": client_map_data["client_name"],
+                "company_name": client_map_data.get("company_name"), # Optional
+                "country_id": country_id,
+                "city_id": city_id,
+                "project_identifier": client_map_data.get("project_identifier"), # Optional
+                "primary_need_description": client_map_data.get("primary_need_description"), # Optional
+                "selected_languages": client_map_data.get("selected_languages"), # Optional
                 "created_by_user_id": self.current_user_id
                 # handle_create_client_execution will set defaults for status, folder path, price etc.
             }
 
-            logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
+            logging.info(f"Proceeding to call handle_create_client_execution with data: {client_data_for_db}")
+            # This existing method should handle the rest (default status, folder, project, etc.)
             handle_create_client_execution(self, client_data_dict=client_data_for_db)
-            # self.load_clients_from_db_slot() is called within execute_create_client_slot,
-            # which is called by handle_create_client_execution's wrapper in DocumentManager.
+            # self.load_clients_from_db_slot() is called within execute_create_client_slot, which is called by handle_create_client_execution's wrapper in DocumentManager
         else:
-            logging.info("StatisticsAddClientDialog cancelled by user.")
+            logging.info("MapClientDialog cancelled by user.")
 
     @pyqtSlot(str)
     def handle_view_client_from_stats_map(self, client_id_str):
@@ -390,67 +413,6 @@ class DocumentManager(QMainWindow):
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
     def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
 
-        self.invoicing_action = QAction(QIcon(":/icons/credit-card.svg"), self.tr("Invoicing & Payments"), self)
-        self.invoicing_action.triggered.connect(self.show_invoicing_view)
-
-    def create_menus_main(self): 
-        menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu(self.tr("Fichier"))
-        file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action)
-        file_menu.addAction(self.product_equivalency_action)
-        file_menu.addSeparator(); file_menu.addAction(self.exit_action)
-        modules_menu = menu_bar.addMenu(self.tr("Modules"))
-        modules_menu.addAction(self.documents_view_action)
-        modules_menu.addAction(self.project_management_action)
-        # modules_menu.addAction(self.statistics_action)
-        modules_menu.addAction(self.product_list_action) # Add new action here
-        modules_menu.addAction(self.partner_management_action) # Add Partner Management action
-        modules_menu.addAction(self.invoicing_action) # Add Invoicing action
-        help_menu = menu_bar.addMenu(self.tr("Aide"))
-        about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog)
-        help_menu.addAction(about_action)
-
-    def show_project_management_view(self):
-        self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
-
-    def show_documents_view(self):
-        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
-
-    # def toggle_collapsible_statistics_panel(self):
-    #     if hasattr(self, 'collapsible_stats_widget'):
-    #         # Ensure the documents page is visible first, as the stats panel is part of it
-    #         self.show_documents_view()
-    #
-    #         # Toggle the button's checked state which in turn calls show_and_expand or hides
-    #         current_state = self.collapsible_stats_widget.toggle_button.isChecked()
-    #         self.collapsible_stats_widget.toggle_button.setChecked(not current_state)
-    #         # If we want to ensure it always expands when menu is clicked:
-    #         # self.collapsible_stats_widget.show_and_expand()
-    #     else:
-    #         QMessageBox.warning(self, self.tr("Erreur"), self.tr("Le panneau de statistiques n'est pas initialisé."))
-        
-    # def show_statistics_view(self):
-    #     # This method might become obsolete or repurposed.
-    #     # For now, ensure it doesn't try to show the old StatisticsDashboard in the stack
-    #     # if that instance is being dismantled.
-    #     # Option 1: Do nothing / Log deprecation
-    #     # print("show_statistics_view is being phased out. Use toggle_collapsible_statistics_panel.")
-    #     # Option 2: Redirect to the new toggle functionality
-    #     self.toggle_collapsible_statistics_panel()
-    #     # Option 3: If StatisticsDashboard still holds other views for a dedicated page, keep:
-    #     # self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
-
-
-    def show_partner_management_view(self):
-        self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
-
-    def show_invoicing_view(self):
-        self.main_area_stack.setCurrentWidget(self.invoice_management_widget_instance)
-        if hasattr(self.invoice_management_widget_instance, 'load_invoices'):
-            self.invoice_management_widget_instance.load_invoices()
-
-    def show_about_dialog(self): 
-        QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
     def show_product_management_page(self):
         self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
 
@@ -528,18 +490,13 @@ class DocumentManager(QMainWindow):
         self.status_filter_combo.addItem(self.tr("Tous les statuts"), None)
         try:
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
-            client_statuses = client_statuses or [] # Ensure it's a list, not None
-
+            if client_statuses is None: client_statuses = []
             for status_dict in client_statuses:
                 self.status_filter_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
-
             index = self.status_filter_combo.findData(current_selection_data)
-            if index != -1:
-                self.status_filter_combo.setCurrentIndex(index)
+            if index != -1: self.status_filter_combo.setCurrentIndex(index)
         except Exception as e:
-            logging.error(f"Error loading statuses for filter: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Avertissement Chargement"),
-                                self.tr("Impossible de charger les filtres de statut des clients. Le filtrage par statut peut être indisponible."))
+            print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)))
             
     def handle_client_list_click(self, item): 
         client_data = item.data(Qt.UserRole)
