@@ -3,8 +3,7 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QComboBox, QLineEdit,
     QDialogButtonBox, QMessageBox
 )
-# No specific QtGui or QtCore imports noted as directly used by this class methods
-# other than those implicitly handled by QtWidgets.
+from PyQt5.QtCore import Qt # Added for Qt.UserRole
 
 import db as db_manager
 
@@ -19,6 +18,9 @@ class AssignPersonnelDialog(QDialog):
         self.setMinimumWidth(400)
         self.setup_ui()
         self.load_available_personnel()
+        if self.personnel_combo.count() > 0:
+            self._on_personnel_selected(self.personnel_combo.currentIndex())
+
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -43,6 +45,26 @@ class AssignPersonnelDialog(QDialog):
         main_layout.addWidget(self.button_box)
         self.setLayout(main_layout)
 
+        self.personnel_combo.currentIndexChanged.connect(self._on_personnel_selected)
+
+    def _on_personnel_selected(self, index):
+        if index < 0: # Should not happen if combo has items, but good check
+            self.role_in_project_edit.clear()
+            return
+
+        general_role = self.personnel_combo.itemData(index, Qt.UserRole + 1)
+
+        if general_role and general_role not in ['N/A', '']:
+            self.role_in_project_edit.setText(general_role)
+        else:
+            # Optional: Use self.role_filter if it's descriptive and general_role is not useful
+            # For now, just clearing if personnel's own role isn't specific enough.
+            self.role_in_project_edit.clear()
+            if self.role_filter: # If a filter was provided, it might be a good default
+                 # This could be refined, e.g. "technical_manager" might map to "Technical Manager"
+                self.role_in_project_edit.setPlaceholderText(self.tr("Rôle suggéré: {0}").format(self.role_filter))
+
+
     def load_available_personnel(self):
         self.personnel_combo.clear()
         try:
@@ -55,13 +77,27 @@ class AssignPersonnelDialog(QDialog):
             self.personnel_combo.setEnabled(True) # Ensure it's enabled if there was data
             for p in personnel_list:
                 display_text = f"{p.get('name', 'N/A')} ({p.get('role', 'N/A')})"
-                self.personnel_combo.addItem(display_text, p.get('personnel_id'))
+                personnel_id = p.get('personnel_id')
+                general_role = p.get('role', 'N/A')
+
+                # Add item and store personnel_id in UserRole
+                self.personnel_combo.addItem(display_text, personnel_id)
+
+                # Store general_role in UserRole + 1
+                # Need to get the index of the item just added to set its data for UserRole + 1
+                # This is a bit inefficient. A QStandardItemModel would be better for complex data.
+                # For now, find the item if only one was added, or manage index.
+                # Assuming addItem appends, so last item is count - 1
+                item_index = self.personnel_combo.count() - 1
+                if item_index >= 0: # Should always be true here
+                    self.personnel_combo.setItemData(item_index, general_role, Qt.UserRole + 1)
+
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Impossible de charger le personnel: {0}").format(str(e)))
             self.personnel_combo.setEnabled(False)
 
     def accept(self):
-        selected_personnel_id = self.personnel_combo.currentData()
+        selected_personnel_id = self.personnel_combo.currentData(Qt.UserRole) # Explicitly get UserRole for ID
         role_in_project_text = self.role_in_project_edit.text().strip()
 
         if selected_personnel_id is None: # Check if data is None (e.g. "Aucun personnel..." item)

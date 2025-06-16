@@ -490,13 +490,18 @@ class DocumentManager(QMainWindow):
         self.status_filter_combo.addItem(self.tr("Tous les statuts"), None)
         try:
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
-            if client_statuses is None: client_statuses = []
+            client_statuses = client_statuses or [] # Ensure it's a list, not None
+
             for status_dict in client_statuses:
                 self.status_filter_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+
             index = self.status_filter_combo.findData(current_selection_data)
-            if index != -1: self.status_filter_combo.setCurrentIndex(index)
+            if index != -1:
+                self.status_filter_combo.setCurrentIndex(index)
         except Exception as e:
-            print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)))
+            logging.error(f"Error loading statuses for filter: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Avertissement Chargement"),
+                                self.tr("Impossible de charger les filtres de statut des clients. Le filtrage par statut peut être indisponible."))
             
     def handle_client_list_click(self, item): 
         client_data = item.data(Qt.UserRole)
