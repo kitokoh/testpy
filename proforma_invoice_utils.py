@@ -1,7 +1,7 @@
 import sqlite3 # Standard library, typically not used directly with SQLAlchemy
 import uuid
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import os
 import logging
@@ -29,8 +29,14 @@ try:
         get_products_for_client_or_project as db_get_products_for_client_or_project,
         get_client_document_notes as db_get_client_document_notes,
     )
+    # For _get_batch_products_and_equivalents, it's complex.
+    # If it's in db.py and meant to be shared, it should be importable.
+    # from db import _get_batch_products_and_equivalents
+    from db.cruds.application_settings_crud import get_next_invoice_number # For final invoice numbers
 except ImportError as e:
-    logging.warning(f"Could not import all dependencies from db: {e}. Using placeholder functions.")
+    logging.warning(f"Could not import all dependencies from db or cruds: {e}. Using placeholder functions. Full functionality requires db.py and cruds to be correctly structured and accessible.")
+    # Define placeholder functions if db.py or its functions are not found
+
     def get_db_session(): raise NotImplementedError("get_db_session not imported/defined")
     def db_get_company_by_id(session, company_id): return None
     def db_get_personnel_for_company(session, company_id): return []
@@ -624,3 +630,305 @@ if __name__ == '__main__':
     # except Exception as e:
     #     print(f"Error during example test run: {e}")
     pass
+
+
+def get_final_invoice_context_data(
+    client_id: str,
+    company_id: str,
+    target_language_code: str,
+    project_id: str = None,
+    # line_items can be passed in additional_context:
+    # e.g., additional_context['line_items'] = [{'product_id': X, 'quantity': Y, 'unit_price': Z}, ...]
+    # linked_product_ids_for_doc is less likely for final invoice if prices/qtys are fixed from a quote/order
+    additional_context: dict = None
+) -> dict:
+    if additional_context is None:
+        additional_context = {}
+
+    context = {
+        "doc": {}, "client": {}, "seller": {}, "project": {},
+        "products": [], "lang": {}, "additional": additional_context,
+        "placeholders": {}
+    }
+
+    # --- Language & Static Text ---
+    context["lang"]["target_language_code"] = target_language_code
+    # Title can be set here or in template. If set here, it can be dynamic.
+    # For multilingual, template is better for static titles.
+    # We'll set a default that can be overridden by additional_context or template.
+    context["doc"]["invoice_title"] = additional_context.get("invoice_title", "INVOICE")
+    if target_language_code == "fr":
+        context["doc"]["invoice_title"] = additional_context.get("invoice_title", "FACTURE")
+
+
+    # --- Document Info (defaults and from additional_context) ---
+    doc_ctx = context["doc"]
+    # issue_date and due_date should ideally come from additional_context or be set when the invoice record is created.
+    doc_ctx["issue_date"] = additional_context.get("issue_date", datetime.now(timezone.utc).strftime('%Y-%m-%d'))
+    default_due_date = (datetime.strptime(doc_ctx["issue_date"], '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
+    doc_ctx["due_date"] = additional_context.get("due_date", default_due_date)
+
+    doc_ctx["currency_symbol"] = additional_context.get("currency_symbol", "€")
+    doc_ctx["payment_terms"] = additional_context.get("final_payment_terms",
+        "Payment due within 30 days" if target_language_code == "en" else "Paiement dû sous 30 jours")
+    doc_ctx["notes"] = additional_context.get("invoice_notes", "")
+
+    # Tax details from additional_context or defaults
+    doc_ctx["tax_label"] = additional_context.get("tax_label", "VAT" if target_language_code == "en" else "TVA")
+    doc_ctx["tax_rate_percentage"] = float(additional_context.get("tax_rate_percentage", 20.0)) # Default 20%
+    doc_ctx["discount_rate_percentage"] = float(additional_context.get("discount_rate_percentage", 0.0))
+
+
+    db_session = None
+    try:
+        db_session = additional_context.get("db_session") or get_db_session()
+
+        # --- Invoice Number ---
+        # Pass db_session to get_next_invoice_number if it's part of a larger transaction managed by the caller
+        # If get_next_invoice_number manages its own session, conn=None or conn=db_session might not matter as much
+        # but for consistency and potential transaction control, pass it.
+        doc_ctx["invoice_number"] = additional_context.get("invoice_number") or get_next_invoice_number(conn=db_session)
+
+
+        # --- Seller Data (largely reused from proforma) ---
+        seller_ctx = context["seller"]
+        seller_company_data = get_company_by_id(db_session, company_id) if company_id else None
+        if seller_company_data:
+            seller_ctx["id"] = seller_company_data.id
+            seller_ctx["company_name"] = seller_company_data.name or "N/A"
+            seller_ctx["email"] = seller_company_data.email or "N/A"
+            seller_ctx["phone"] = seller_company_data.phone or "N/A"
+            seller_ctx["website"] = seller_company_data.website or "N/A"
+
+            raw_address = seller_company_data.address or ""
+            payment_info = _parse_json_field(seller_company_data.payment_info)
+            other_info_json = _parse_json_field(seller_company_data.other_info)
+
+            # Bank details are crucial for final invoice
+            seller_ctx["bank_name"] = payment_info.get("bank_name", additional_context.get("seller_bank_name", "N/A"))
+            seller_ctx["bank_account_holder_name"] = payment_info.get("account_holder_name", seller_ctx["company_name"])
+            seller_ctx["bank_iban"] = payment_info.get("iban", additional_context.get("seller_bank_iban", "N/A"))
+            seller_ctx["bank_swift_bic"] = payment_info.get("swift_bic", additional_context.get("seller_bank_swift_bic", "N/A"))
+            # seller_ctx["bank_account_number"] = payment_info.get("account_number", "N/A") # IBAN is usually preferred
+            # seller_ctx["bank_address"] = payment_info.get("bank_address", "N/A")
+
+
+            seller_ctx["vat_id"] = other_info_json.get("vat_id", additional_context.get("seller_vat_id", "N/A"))
+            # seller_ctx["registration_number"] = other_info_json.get("registration_number", "N/A")
+
+            seller_ctx["address_line1"] = raw_address
+            seller_ctx["city"] = additional_context.get("seller_city", other_info_json.get("city", "N/A"))
+            seller_ctx["postal_code"] = additional_context.get("seller_postal_code", other_info_json.get("postal_code", "N/A"))
+            seller_ctx["country"] = additional_context.get("seller_country", other_info_json.get("country", "N/A"))
+            seller_ctx["address"] = _format_address_parts(seller_ctx["address_line1"], seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
+            seller_ctx["city_zip_country"] = _format_address_parts(None, seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
+
+
+            logo_filename = seller_company_data.logo_filename or additional_context.get("seller_logo_filename")
+            if logo_filename:
+                 # Ensure APP_ROOT_DIR_CONTEXT is correctly defined for your app structure
+                seller_ctx["logo_path"] = os.path.join(APP_ROOT_DIR_CONTEXT, LOGO_SUBDIR_CONTEXT, logo_filename)
+            else:
+                seller_ctx["logo_path"] = None
+        else: # Fallbacks
+            for k in ["company_name", "email", "phone", "website", "bank_name", "bank_account_holder_name", "bank_iban", "bank_swift_bic", "vat_id", "address_line1", "city", "postal_code", "country", "address", "logo_path", "city_zip_country"]:
+                seller_ctx[k] = additional_context.get(f"seller_{k}", "N/A")
+
+        # --- Client Data (largely reused) ---
+        client_ctx = context["client"]
+        client_data = get_client_by_id(db_session, client_id) if client_id else None
+        if client_data:
+            client_ctx["id"] = client_data.id
+            client_ctx["company_name"] = client_data.company_name or "N/A"
+            client_ctx["representative_name"] = client_data.client_name or "N/A" # Fallback representative
+
+            client_dist_info_json = _parse_json_field(client_data.distributor_specific_info)
+            client_ctx["vat_id"] = client_dist_info_json.get("vat_id", additional_context.get("client_vat_id", "N/A"))
+
+            primary_contacts = get_contacts_for_client(db_session, client_id, is_primary=True)
+            primary_contact = primary_contacts[0] if primary_contacts else None
+
+            if primary_contact:
+                client_ctx["representative_name"] = f"{primary_contact.first_name or ''} {primary_contact.last_name or ''}".strip() or client_ctx["representative_name"]
+                client_ctx["address_line1"] = primary_contact.address_streetAddress or "N/A"
+                client_ctx["city"] = primary_contact.address_city or (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else "N/A")
+                client_ctx["postal_code"] = primary_contact.address_postalCode or "N/A"
+                client_ctx["country"] = primary_contact.address_country or (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else "N/A")
+            else:
+                client_ctx["address_line1"] = additional_context.get("client_address_line1", "N/A")
+                client_ctx["city"] = (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else None) or additional_context.get("client_city", "N/A")
+                client_ctx["postal_code"] = additional_context.get("client_postal_code", "N/A")
+                client_ctx["country"] = (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else None) or additional_context.get("client_country", "N/A")
+
+            client_ctx["address"] = _format_address_parts(client_ctx["address_line1"], client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
+            client_ctx["city_zip_country"] = _format_address_parts(None, client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
+        else:
+             for k in ["company_name", "representative_name", "address_line1", "city", "postal_code", "country", "address", "vat_id", "city_zip_country"]:
+                client_ctx[k] = additional_context.get(f"client_{k}", "N/A")
+
+        # --- Project Data (largely reused) ---
+        project_ctx = context["project"]
+        if project_id:
+            project_data = get_project_by_id(db_session, project_id)
+            if project_data:
+                project_ctx["id"] = project_data.id
+                project_ctx["name"] = project_data.name or "N/A"
+            else: project_ctx["name"] = "Project Not Found"
+        else: project_ctx["name"] = additional_context.get("project_name","N/A")
+
+
+        # --- Products / Line Items ---
+        products_list_for_doc = []
+        subtotal_amount_calculated = 0.0
+
+        # Line items for a final invoice should ideally come from `additional_context`
+        # to reflect agreed-upon quantities and prices from an order or quote.
+        line_items_source = additional_context.get('line_items', [])
+
+        if line_items_source:
+            all_product_ids_from_items = [item["product_id"] for item in line_items_source if "product_id" in item]
+            product_details_batch = _get_batch_products_and_equivalents(db_session, all_product_ids_from_items, target_language_code)
+
+            for item_data in line_items_source:
+                p_id = item_data.get("product_id")
+                original_product_details = product_details_batch.get(p_id)
+                if not original_product_details:
+                    # Product details not found, use provided item_data or skip
+                    product_name_for_doc = item_data.get("name", "Unknown Product")
+                    product_description_for_doc = item_data.get("description", "")
+                    language_match = False # Cannot determine without original details
+                    unit_of_measure = "N/A"
+                else:
+                    product_name_for_doc = original_product_details["original_name"]
+                    product_description_for_doc = original_product_details["original_description"]
+                    language_match = (original_product_details["original_language_code"] == target_language_code)
+                    unit_of_measure = original_product_details["unit_of_measure"]
+                    if not language_match and original_product_details["equivalent_name"]:
+                        product_name_for_doc = original_product_details["equivalent_name"]
+                        product_description_for_doc = original_product_details["equivalent_description"]
+                        language_match = True
+
+                quantity = float(item_data.get("quantity", 0))
+                # Critical: unit_price for final invoice should be from item_data if provided
+                unit_price = float(item_data.get("unit_price", original_product_details.get("base_unit_price", 0) if original_product_details else 0))
+
+                total_price = quantity * unit_price
+                subtotal_amount_calculated += total_price
+
+                product_entry = {
+                    "id": p_id, "name": product_name_for_doc, "description": product_description_for_doc,
+                    "quantity": quantity,
+                    "unit_price_raw": unit_price,
+                    "unit_price_formatted": format_currency(unit_price, doc_ctx["currency_symbol"]),
+                    "total_price_raw": total_price,
+                    "total_price_formatted": format_currency(total_price, doc_ctx["currency_symbol"]),
+                    "unit_of_measure": unit_of_measure, "language_match": language_match,
+                }
+                products_list_for_doc.append(product_entry)
+        else:
+            logging.warning("No 'line_items' provided in additional_context for final invoice. Product list will be empty.")
+            # Optionally, could fall back to ClientProjectProducts like proforma, but this is less typical for final invoices.
+
+        context["products"] = products_list_for_doc
+
+        # --- Totals ---
+        doc_ctx["subtotal_amount_raw"] = subtotal_amount_calculated
+        doc_ctx["subtotal_amount_formatted"] = format_currency(subtotal_amount_calculated, doc_ctx["currency_symbol"])
+
+        discount_amount = (doc_ctx["discount_rate_percentage"] / 100.0) * subtotal_amount_calculated
+        doc_ctx["discount_amount_raw"] = discount_amount # Store raw value for template logic
+        doc_ctx["discount_amount_formatted"] = format_currency(discount_amount, doc_ctx["currency_symbol"])
+
+        amount_after_discount = subtotal_amount_calculated - discount_amount
+        doc_ctx["amount_after_discount_raw"] = amount_after_discount # For tax calculation base
+
+        tax_amount = (doc_ctx["tax_rate_percentage"] / 100.0) * amount_after_discount
+        doc_ctx["tax_amount_raw"] = tax_amount
+        doc_ctx["tax_amount_formatted"] = format_currency(tax_amount, doc_ctx["currency_symbol"])
+
+        grand_total_amount = amount_after_discount + tax_amount
+        doc_ctx["grand_total_amount_raw"] = grand_total_amount
+        doc_ctx["grand_total_amount_formatted"] = format_currency(grand_total_amount, doc_ctx["currency_symbol"])
+        doc_ctx["grand_total_amount_words"] = additional_context.get("grand_total_amount_words", "N/A") # Placeholder
+
+    except Exception as e:
+        logging.error(f"Error in get_final_invoice_context_data: {e}", exc_info=True)
+        # Populate with N/A to prevent crashes in template rendering (similar to proforma)
+        for section_key in ["doc", "client", "seller", "project"]:
+            if not context[section_key]: # if section is empty due to early error
+                context[section_key] = {k: "Error - See Logs" for k in ["name", "id", "address"]}
+        doc_ctx.setdefault("currency_symbol", "$")
+        doc_ctx.setdefault("invoice_number", "ERROR-GEN")
+        # ... (add more critical fallbacks for doc_ctx if needed)
+    finally:
+        # Session management: if this function created the session, it should close it.
+        # Assuming session is managed by caller or a context manager via get_db_session()
+        if db_session and not additional_context.get("db_session"):
+            # This check is problematic if get_db_session() returns a new session each time
+            # and is not a context manager. The caller of this function should manage the session.
+            # For now, let's assume the caller handles session closing.
+            pass
+
+    # --- Final Placeholder Mapping (Flat dictionary for simple template engines) ---
+    # This can be useful but for Handlebars/Jinja2, direct context access (e.g. {{doc.invoice_number}}) is common.
+    # For consistency with proforma and potential simpler template engines, we can populate placeholders.
+
+    # Document details
+    context["placeholders"]["doc.invoice_title"] = doc_ctx.get("invoice_title", "INVOICE")
+    context["placeholders"]["doc.invoice_number"] = doc_ctx.get("invoice_number", "N/A")
+    context["placeholders"]["doc.issue_date"] = doc_ctx.get("issue_date", "N/A")
+    context["placeholders"]["doc.due_date"] = doc_ctx.get("due_date", "N/A")
+    context["placeholders"]["doc.payment_terms"] = doc_ctx.get("payment_terms", "N/A")
+    context["placeholders"]["doc.notes"] = doc_ctx.get("notes", "")
+    context["placeholders"]["doc.currency_symbol"] = doc_ctx.get("currency_symbol", "€")
+
+    # Seller details
+    context["placeholders"]["seller.company_name"] = seller_ctx.get("company_name", "N/A")
+    context["placeholders"]["seller.address_line1"] = seller_ctx.get("address_line1", "N/A")
+    context["placeholders"]["seller.city_zip_country"] = seller_ctx.get("city_zip_country", "N/A")
+    context["placeholders"]["seller.phone"] = seller_ctx.get("phone", "N/A")
+    context["placeholders"]["seller.email"] = seller_ctx.get("email", "N/A")
+    context["placeholders"]["seller.website"] = seller_ctx.get("website", "N/A")
+    context["placeholders"]["seller.vat_id"] = seller_ctx.get("vat_id", "N/A")
+    context["placeholders"]["seller.logo_path"] = seller_ctx.get("logo_path")
+    context["placeholders"]["seller.bank_name"] = seller_ctx.get("bank_name", "N/A")
+    context["placeholders"]["seller.bank_account_holder_name"] = seller_ctx.get("bank_account_holder_name", "N/A")
+    context["placeholders"]["seller.bank_iban"] = seller_ctx.get("bank_iban", "N/A")
+    context["placeholders"]["seller.bank_swift_bic"] = seller_ctx.get("bank_swift_bic", "N/A")
+
+    # Client details
+    context["placeholders"]["client.company_name"] = client_ctx.get("company_name", "N/A")
+    context["placeholders"]["client.representative_name"] = client_ctx.get("representative_name", "N/A")
+    context["placeholders"]["client.address_line1"] = client_ctx.get("address_line1", "N/A")
+    context["placeholders"]["client.city_zip_country"] = client_ctx.get("city_zip_country", "N/A")
+    context["placeholders"]["client.vat_id"] = client_ctx.get("vat_id", "N/A")
+
+    # Project details
+    context["placeholders"]["project.name"] = project_ctx.get("name", "N/A")
+
+    # Totals and Tax
+    context["placeholders"]["doc.subtotal_amount_formatted"] = doc_ctx.get("subtotal_amount_formatted", "N/A")
+    context["placeholders"]["doc.discount_rate_percentage"] = str(doc_ctx.get("discount_rate_percentage", "0.0"))
+    context["placeholders"]["doc.discount_amount_raw"] = doc_ctx.get("discount_amount_raw", 0.0) # For conditional display
+    context["placeholders"]["doc.discount_amount_formatted"] = doc_ctx.get("discount_amount_formatted", "N/A")
+    context["placeholders"]["doc.tax_label"] = doc_ctx.get("tax_label", "VAT")
+    context["placeholders"]["doc.tax_rate_percentage"] = str(doc_ctx.get("tax_rate_percentage", "0.0"))
+    context["placeholders"]["doc.tax_amount_formatted"] = doc_ctx.get("tax_amount_formatted", "N/A")
+    context["placeholders"]["doc.grand_total_amount_formatted"] = doc_ctx.get("grand_total_amount_formatted", "N/A")
+    context["placeholders"]["doc.grand_total_amount_words"] = doc_ctx.get("grand_total_amount_words", "N/A")
+
+
+    # Update main context sections for direct access if templates use e.g. {{doc.invoice_number}}
+    context["doc"].update(doc_ctx)
+    context["seller"].update(seller_ctx)
+    context["client"].update(client_ctx)
+    context["project"].update(project_ctx)
+
+    # It's useful to return the full context dict which has nested structure
+    # and also the flat placeholders dict if needed by a specific template engine.
+    # For Handlebars/Jinja2, the nested context is usually preferred.
+    # The template examples given use dot notation (e.g. {{doc.invoice_number}}),
+    # so the nested context structure is what they'd use.
+    # The `context["placeholders"]` can be removed if not used by the template engine.
+
+    return context
