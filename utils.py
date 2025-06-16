@@ -50,6 +50,7 @@ def load_config(app_root_dir, default_templates_dir, default_clients_dir):
     return {
         "templates_dir": default_templates_dir, # Use passed default
         "clients_dir": default_clients_dir,     # Use passed default
+        "database_path": os.path.join(app_root_dir, "app_data.db"),
         "language": "fr",
         "smtp_server": "",
         "smtp_port": 587,

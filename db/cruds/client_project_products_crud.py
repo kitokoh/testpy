@@ -40,9 +40,12 @@ def add_product_to_client_or_project(link_data: dict, conn: sqlite3.Connection =
     params=(client_id, link_data.get('project_id'), product_id, qty, override_price,
             total_price, link_data.get('serial_number'),
             link_data.get('purchase_confirmed_at'), datetime.utcnow().isoformat()+"Z")
+    logger.debug(f"Executing SQL: {sql} with params: {params}")
     try:
         cursor.execute(sql,params)
-        return cursor.lastrowid
+        last_id = cursor.lastrowid
+        logger.info(f"Product linked to client/project. New ClientProjectProducts ID: {last_id}")
+        return last_id
     except sqlite3.Error as e:
         logger.error(f"DB error in add_product_to_client_or_project: {e}")
         return None

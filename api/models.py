@@ -6,6 +6,7 @@ from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
+
 from typing import Optional, List, Dict, Any # Keep existing Pydantic imports for now
 
 # SQLAlchemy Base
@@ -243,7 +244,7 @@ class ProductImageLinkResponse(ProductImageLinkBase):
     media_title: Optional[str] = Field(None, description="Title of the media item.")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ProductBase(BaseModel):
     product_name: str = Field(..., description="Name of the product.")
@@ -275,7 +276,7 @@ class ProductResponse(ProductBase):
     media_links: List[ProductImageLinkResponse] = Field([], description="List of associated media items (images).")
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class LinkMediaToProductRequest(BaseModel):
     media_item_id: str = Field(..., description="The ID of the MediaItem to link.")
@@ -325,4 +326,4 @@ class Invoice(InvoiceBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True

@@ -68,6 +68,10 @@ def setup_logging():
 
     logging.info("Logging configured.")
 
+def get_app_config():
+    """Returns the global CONFIG object."""
+    return CONFIG
+
 def load_stylesheet_global(app):
     """Loads the global stylesheet."""
     # Assuming APP_ROOT_DIR is defined in this module (app_setup.py)

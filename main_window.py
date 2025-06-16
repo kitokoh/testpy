@@ -55,7 +55,7 @@ from product_management.page import ProductManagementPage # Added
 
 
 from client_widget import ClientWidget
-from projectManagement import MainDashboard as ProjectManagementDashboard
+from project_management import MainDashboard as ProjectManagementDashboard
 from statistics_module import StatisticsDashboard
 from statistics_panel import CollapsibleStatisticsWidget
 
