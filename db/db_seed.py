@@ -172,7 +172,7 @@ def seed_initial_data(cursor: sqlite3.Cursor):
             try:
                 op_user_result = users_crud_instance.add_user(operational_user_data, conn=conn)
                 if op_user_result['success']:
-                    logger.info(f"Successfully created default operational user '{DEFAULT_OPERATIONAL_USERNAME}' with ID: {op_user_result['user_id']}.")
+                    logger.info(f"Successfully created default operational user '{DEFAULT_OPERATIONAL_USERNAME}' with ID: {op_user_result['id']}.")
                 else:
                     logger.error(f"Failed to create default operational user '{DEFAULT_OPERATIONAL_USERNAME}'. Error: {op_user_result.get('error', 'Unknown error')}")
             except Exception as e_op_user:

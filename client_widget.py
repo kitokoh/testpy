@@ -159,7 +159,7 @@ class ClientWidget(QWidget):
         action_layout.addWidget(self.edit_save_client_btn)
 
         self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
-        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/message-circle.svg"))) # Placeholder icon
+        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Changed placeholder
         self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
         self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
         action_layout.addWidget(self.send_whatsapp_btn)
@@ -1158,7 +1158,7 @@ class ClientWidget(QWidget):
             # Fetch all globally available products for selection.
             # Assuming db_manager.get_all_products() returns a list of product dictionaries
             # with at least 'product_id', 'product_name', 'language_code'.
-            all_global_products = db_manager.get_all_products(filters=None, sort_by='product_name', sort_order='ASC')
+            all_global_products = db_manager.get_all_products(filters=None)
 
             if all_global_products:
                 # Global products should be unique by their definition (product_id).
