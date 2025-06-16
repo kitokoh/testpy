@@ -117,6 +117,33 @@ def initialize_database():
     )
     """)
 
+    # Ensure salt, is_deleted, and deleted_at columns exist in Users table
+    cursor.execute("PRAGMA table_info(Users)")
+    users_columns_info = cursor.fetchall()
+    users_column_names = [info['name'] for info in users_columns_info]
+
+    if 'salt' not in users_column_names:
+        try:
+            # Using a temporary default for NOT NULL. Real salting should occur on user creation/update.
+            cursor.execute("ALTER TABLE Users ADD COLUMN salt TEXT NOT NULL DEFAULT 'tempsalt'")
+            print("Added 'salt' column to Users table with a temporary default.")
+        except sqlite3.Error as e_alter_salt:
+            print(f"Error adding 'salt' column to Users table: {e_alter_salt}")
+
+    if 'is_deleted' not in users_column_names:
+        try:
+            cursor.execute("ALTER TABLE Users ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            print("Added 'is_deleted' column to Users table.")
+        except sqlite3.Error as e_alter_is_deleted:
+            print(f"Error adding 'is_deleted' column to Users table: {e_alter_is_deleted}")
+
+    if 'deleted_at' not in users_column_names:
+        try:
+            cursor.execute("ALTER TABLE Users ADD COLUMN deleted_at TEXT")
+            print("Added 'deleted_at' column to Users table.")
+        except sqlite3.Error as e_alter_deleted_at:
+            print(f"Error adding 'deleted_at' column to Users table: {e_alter_deleted_at}")
+
     # Create Companies table (base from ca.py)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Companies (
@@ -509,6 +536,25 @@ def initialize_database():
         UNIQUE (product_name, language_code)
     )
     """)
+
+    # Ensure is_deleted and deleted_at columns exist for soft delete in Products table
+    cursor.execute("PRAGMA table_info(Products)")
+    products_columns_info = cursor.fetchall()
+    products_column_names = [info['name'] for info in products_columns_info]
+
+    if 'is_deleted' not in products_column_names:
+        try:
+            cursor.execute("ALTER TABLE Products ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            print("Added 'is_deleted' column to Products table.")
+        except sqlite3.Error as e_alter_is_deleted_prod:
+            print(f"Error adding 'is_deleted' column to Products table: {e_alter_is_deleted_prod}")
+
+    if 'deleted_at' not in products_column_names:
+        try:
+            cursor.execute("ALTER TABLE Products ADD COLUMN deleted_at TEXT")
+            print("Added 'deleted_at' column to Products table.")
+        except sqlite3.Error as e_alter_deleted_at_prod:
+            print(f"Error adding 'deleted_at' column to Products table: {e_alter_deleted_at_prod}")
 
     # Create ProductDimensions table (from ca.py)
     cursor.execute("""
