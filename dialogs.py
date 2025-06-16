@@ -57,304 +57,304 @@ import shutil # Ensure shutil is imported
 # class ProductDimensionUIDialog(QDialog): pass
 
 
-class AddNewClientDialog(QDialog):
-    def __init__(self, parent=None, initial_country_name=None):
-        super().__init__(parent)
-        self.initial_country_name = initial_country_name
-        self.setWindowTitle(self.tr("Ajouter un Nouveau Client"))
-        self.setMinimumSize(500, 400) # Adjust as needed
-        self.country_id = None # To store determined country_id
-        self.city_id = None # To store determined city_id
-        self.setup_ui()
+# class AddNewClientDialog(QDialog):
+#     def __init__(self, parent=None, initial_country_name=None):
+#         super().__init__(parent)
+#         self.initial_country_name = initial_country_name
+#         self.setWindowTitle(self.tr("Ajouter un Nouveau Client"))
+#         self.setMinimumSize(500, 400) # Adjust as needed
+#         self.country_id = None # To store determined country_id
+#         self.city_id = None # To store determined city_id
+#         self.setup_ui()
 
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        self.form_layout = QFormLayout()
-        self.form_layout.setLabelAlignment(Qt.AlignRight)
-        self.form_layout.setSpacing(10)
+#     def setup_ui(self):
+#         layout = QVBoxLayout(self)
+#         self.form_layout = QFormLayout()
+#         self.form_layout.setLabelAlignment(Qt.AlignRight)
+#         self.form_layout.setSpacing(10)
 
-        self.client_name_input = QLineEdit()
-        self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
-        self.form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
+#         self.client_name_input = QLineEdit()
+#         self.client_name_input.setPlaceholderText(self.tr("Nom du client"))
+#         self.form_layout.addRow(self.tr("Nom Client:"), self.client_name_input)
 
-        self.company_name_input = QLineEdit()
-        self.company_name_input.setPlaceholderText(self.tr("Nom entreprise (optionnel)"))
-        self.form_layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
+#         self.company_name_input = QLineEdit()
+#         self.company_name_input.setPlaceholderText(self.tr("Nom entreprise (optionnel)"))
+#         self.form_layout.addRow(self.tr("Nom Entreprise:"), self.company_name_input)
 
-        self.client_need_input = QLineEdit()
-        self.client_need_input.setPlaceholderText(self.tr("Besoin principal du client"))
-        self.form_layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
+#         self.client_need_input = QLineEdit()
+#         self.client_need_input.setPlaceholderText(self.tr("Besoin principal du client"))
+#         self.form_layout.addRow(self.tr("Besoin Client:"), self.client_need_input)
 
-        country_hbox_layout = QHBoxLayout()
-        self.country_select_combo = QComboBox()
-        self.country_select_combo.setEditable(True)
-        self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
-        self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
-        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country)
-        country_hbox_layout.addWidget(self.country_select_combo)
-        self.add_country_button = QPushButton("+")
-        self.add_country_button.setFixedSize(30, 30)
-        self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
-        self.add_country_button.clicked.connect(self.add_new_country_dialog)
-        country_hbox_layout.addWidget(self.add_country_button)
-        self.form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
+#         country_hbox_layout = QHBoxLayout()
+#         self.country_select_combo = QComboBox()
+#         self.country_select_combo.setEditable(True)
+#         self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
+#         self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+#         self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
+#         self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country)
+#         country_hbox_layout.addWidget(self.country_select_combo)
+#         self.add_country_button = QPushButton("+")
+#         self.add_country_button.setFixedSize(30, 30)
+#         self.add_country_button.setToolTip(self.tr("Ajouter un nouveau pays"))
+#         self.add_country_button.clicked.connect(self.add_new_country_dialog)
+#         country_hbox_layout.addWidget(self.add_country_button)
+#         self.form_layout.addRow(self.tr("Pays Client:"), country_hbox_layout)
 
-        city_hbox_layout = QHBoxLayout()
-        self.city_select_combo = QComboBox()
-        self.city_select_combo.setEditable(True)
-        self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
-        self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
-        self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
-        city_hbox_layout.addWidget(self.city_select_combo)
-        self.add_city_button = QPushButton("+")
-        self.add_city_button.setFixedSize(30, 30)
-        self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
-        self.add_city_button.clicked.connect(self.add_new_city_dialog)
-        city_hbox_layout.addWidget(self.add_city_button)
-        self.form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
+#         city_hbox_layout = QHBoxLayout()
+#         self.city_select_combo = QComboBox()
+#         self.city_select_combo.setEditable(True)
+#         self.city_select_combo.setInsertPolicy(QComboBox.NoInsert)
+#         self.city_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
+#         self.city_select_combo.completer().setFilterMode(Qt.MatchContains)
+#         city_hbox_layout.addWidget(self.city_select_combo)
+#         self.add_city_button = QPushButton("+")
+#         self.add_city_button.setFixedSize(30, 30)
+#         self.add_city_button.setToolTip(self.tr("Ajouter une nouvelle ville"))
+#         self.add_city_button.clicked.connect(self.add_new_city_dialog)
+#         city_hbox_layout.addWidget(self.add_city_button)
+#         self.form_layout.addRow(self.tr("Ville Client:"), city_hbox_layout)
 
-        self.project_id_input_field = QLineEdit()
-        self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))
-        self.form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
+#         self.project_id_input_field = QLineEdit()
+#         self.project_id_input_field.setPlaceholderText(self.tr("Identifiant unique du projet"))
+#         self.form_layout.addRow(self.tr("ID Projet:"), self.project_id_input_field)
 
-        self.language_select_combo = QComboBox()
-        self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
-        # Language options should be consistent with main_window.py's original setup
-        self.language_options_map = {
-            self.tr("English only (en)"): ["en"],
-            self.tr("French only (fr)"): ["fr"],
-            self.tr("Arabic only (ar)"): ["ar"],
-            self.tr("Turkish only (tr)"): ["tr"],
-            self.tr("Portuguese only (pt)"): ["pt"],
-            self.tr("Russian only (ru)"): ["ru"],
-            self.tr("All supported languages (en, fr, ar, tr, pt, ru)"): ["en", "fr", "ar", "tr", "pt", "ru"]
-        }
-        self.language_select_combo.addItems(list(self.language_options_map.keys()))
-        self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
+#         self.language_select_combo = QComboBox()
+#         self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
+#         # Language options should be consistent with main_window.py's original setup
+#         self.language_options_map = {
+#             self.tr("English only (en)"): ["en"],
+#             self.tr("French only (fr)"): ["fr"],
+#             self.tr("Arabic only (ar)"): ["ar"],
+#             self.tr("Turkish only (tr)"): ["tr"],
+#             self.tr("Portuguese only (pt)"): ["pt"],
+#             self.tr("Russian only (ru)"): ["ru"],
+#             self.tr("All supported languages (en, fr, ar, tr, pt, ru)"): ["en", "fr", "ar", "tr", "pt", "ru"]
+#         }
+#         self.language_select_combo.addItems(list(self.language_options_map.keys()))
+#         self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
 
-        layout.addLayout(self.form_layout)
+#         layout.addLayout(self.form_layout)
 
-        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.buttons.button(QDialogButtonBox.Ok).setText(self.tr("Créer Client"))
-        self.buttons.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
+#         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+#         self.buttons.button(QDialogButtonBox.Ok).setText(self.tr("Créer Client"))
+#         self.buttons.button(QDialogButtonBox.Ok).setObjectName("primaryButton")
+#         self.buttons.accepted.connect(self.accept)
+#         self.buttons.rejected.connect(self.reject)
+#         layout.addWidget(self.buttons)
 
-        self.load_countries_into_combo()
-        self._handle_initial_country()
+#         self.load_countries_into_combo()
+#         self._handle_initial_country()
 
-    def _handle_initial_country(self):
-        if self.initial_country_name:
-            print(f"Attempting to pre-select country: {self.initial_country_name}")
-            country_index = self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) # More precise match
-            if country_index >= 0:
-                self.country_select_combo.setCurrentIndex(country_index)
-                print(f"Country '{self.initial_country_name}' pre-selected at index {country_index}.")
-                # self.load_cities_for_country(self.initial_country_name) # Trigger city loading
-            else:
-                # Country not in combo. It might be new.
-                # The combobox is editable, so user can type it.
-                # Accept logic will handle adding it.
-                self.country_select_combo.lineEdit().setText(self.initial_country_name)
-                print(f"Country '{self.initial_country_name}' not in list, set as editable text.")
-                # self.load_cities_for_country(self.initial_country_name) # Try loading cities, will likely be empty
+#     def _handle_initial_country(self):
+#         if self.initial_country_name:
+#             print(f"Attempting to pre-select country: {self.initial_country_name}")
+#             country_index = self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) # More precise match
+#             if country_index >= 0:
+#                 self.country_select_combo.setCurrentIndex(country_index)
+#                 print(f"Country '{self.initial_country_name}' pre-selected at index {country_index}.")
+#                 # self.load_cities_for_country(self.initial_country_name) # Trigger city loading
+#             else:
+#                 # Country not in combo. It might be new.
+#                 # The combobox is editable, so user can type it.
+#                 # Accept logic will handle adding it.
+#                 self.country_select_combo.lineEdit().setText(self.initial_country_name)
+#                 print(f"Country '{self.initial_country_name}' not in list, set as editable text.")
+#                 # self.load_cities_for_country(self.initial_country_name) # Try loading cities, will likely be empty
 
-    def load_countries_into_combo(self):
-        current_country_text = self.country_select_combo.lineEdit().text() if self.country_select_combo.isEditable() else self.country_select_combo.currentText()
-        self.country_select_combo.clear()
-        try:
-            countries = db_manager.get_all_countries()
-            if countries is None: countries = []
-            for country_dict in countries:
-                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
+#     def load_countries_into_combo(self):
+#         current_country_text = self.country_select_combo.lineEdit().text() if self.country_select_combo.isEditable() else self.country_select_combo.currentText()
+#         self.country_select_combo.clear()
+#         try:
+#             countries = db_manager.get_all_countries()
+#             if countries is None: countries = []
+#             for country_dict in countries:
+#                 self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
 
-            # Restore previous text if it was being edited or if it's a new country
-            if self.initial_country_name and self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) == -1 :
-                 self.country_select_combo.lineEdit().setText(self.initial_country_name)
-            elif current_country_text:
-                 idx = self.country_select_combo.findText(current_country_text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
-                 if idx != -1:
-                     self.country_select_combo.setCurrentIndex(idx)
-                 elif self.country_select_combo.isEditable():
-                      self.country_select_combo.lineEdit().setText(current_country_text)
+#             # Restore previous text if it was being edited or if it's a new country
+#             if self.initial_country_name and self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) == -1 :
+#                  self.country_select_combo.lineEdit().setText(self.initial_country_name)
+#             elif current_country_text:
+#                  idx = self.country_select_combo.findText(current_country_text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
+#                  if idx != -1:
+#                      self.country_select_combo.setCurrentIndex(idx)
+#                  elif self.country_select_combo.isEditable():
+#                       self.country_select_combo.lineEdit().setText(current_country_text)
 
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
+#         except Exception as e:
+#             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
 
-    def load_cities_for_country(self, country_name_or_id):
-        self.city_select_combo.clear()
-        country_id_to_load = None
+#     def load_cities_for_country(self, country_name_or_id):
+#         self.city_select_combo.clear()
+#         country_id_to_load = None
 
-        if isinstance(country_name_or_id, int): # if ID is passed
-            country_id_to_load = country_name_or_id
-        elif isinstance(country_name_or_id, str) and country_name_or_id: # if name is passed
-            selected_country_id_from_combo = self.country_select_combo.currentData()
-            if selected_country_id_from_combo is not None and self.country_select_combo.currentText() == country_name_or_id:
-                country_id_to_load = selected_country_id_from_combo
-            else: # Country name might be new or different from combo's currentData
-                country_obj_by_name = db_manager.get_country_by_name(country_name_or_id)
-                if country_obj_by_name:
-                    country_id_to_load = country_obj_by_name['country_id']
-                # If country_obj_by_name is None, it's a new country, so no cities to load yet.
+#         if isinstance(country_name_or_id, int): # if ID is passed
+#             country_id_to_load = country_name_or_id
+#         elif isinstance(country_name_or_id, str) and country_name_or_id: # if name is passed
+#             selected_country_id_from_combo = self.country_select_combo.currentData()
+#             if selected_country_id_from_combo is not None and self.country_select_combo.currentText() == country_name_or_id:
+#                 country_id_to_load = selected_country_id_from_combo
+#             else: # Country name might be new or different from combo's currentData
+#                 country_obj_by_name = db_manager.get_country_by_name(country_name_or_id)
+#                 if country_obj_by_name:
+#                     country_id_to_load = country_obj_by_name['country_id']
+#                 # If country_obj_by_name is None, it's a new country, so no cities to load yet.
 
-        if not country_id_to_load:
-            # This can happen if country_name_or_id is empty, or if it's a new country name not yet in DB.
-            # City combo should remain empty.
-            return
+#         if not country_id_to_load:
+#             # This can happen if country_name_or_id is empty, or if it's a new country name not yet in DB.
+#             # City combo should remain empty.
+#             return
 
-        try:
-            cities = db_manager.get_all_cities(country_id=country_id_to_load)
-            if cities is None: cities = []
-            for city_dict in cities:
-                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
-
-
-    def add_new_country_dialog(self):
-        country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
-        if ok and country_text.strip():
-            try:
-                returned_country_id = db_manager.add_country({'country_name': country_text.strip()})
-                if returned_country_id is not None:
-                    self.load_countries_into_combo() # Reloads all countries
-                    # Attempt to find and set the newly added country
-                    index_to_select = -1
-                    for i in range(self.country_select_combo.count()):
-                        if self.country_select_combo.itemData(i) == returned_country_id:
-                            index_to_select = i
-                            break
-                    if index_to_select != -1:
-                        self.country_select_combo.setCurrentIndex(index_to_select)
-                    else: # Fallback if ID not found, try by text
-                        index_by_text = self.country_select_combo.findText(country_text.strip())
-                        if index_by_text >=0: self.country_select_combo.setCurrentIndex(index_by_text)
-                else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
-
-    def add_new_city_dialog(self):
-        current_country_id_from_combo = self.country_select_combo.currentData()
-        current_country_name = self.country_select_combo.currentText()
-
-        final_country_id_for_city = None
-        if current_country_id_from_combo is not None:
-            final_country_id_for_city = current_country_id_from_combo
-        elif current_country_name: # If country was typed and not in DB yet
-            country_data = db_manager.get_or_add_country(current_country_name) # Add it now
-            if country_data and country_data.get('country_id'):
-                final_country_id_for_city = country_data['country_id']
-                self.load_countries_into_combo() # Refresh countries
-                # Reselect the country that was just added
-                idx = self.country_select_combo.findData(final_country_id_for_city)
-                if idx != -1: self.country_select_combo.setCurrentIndex(idx)
+#         try:
+#             cities = db_manager.get_all_cities(country_id=country_id_to_load)
+#             if cities is None: cities = []
+#             for city_dict in cities:
+#                 self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
+#         except Exception as e:
+#             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
 
 
-        if not final_country_id_for_city:
-            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner ou entrer un pays valide."))
-            return
+#     def add_new_country_dialog(self):
+#         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
+#         if ok and country_text.strip():
+#             try:
+#                 returned_country_id = db_manager.add_country({'country_name': country_text.strip()})
+#                 if returned_country_id is not None:
+#                     self.load_countries_into_combo() # Reloads all countries
+#                     # Attempt to find and set the newly added country
+#                     index_to_select = -1
+#                     for i in range(self.country_select_combo.count()):
+#                         if self.country_select_combo.itemData(i) == returned_country_id:
+#                             index_to_select = i
+#                             break
+#                     if index_to_select != -1:
+#                         self.country_select_combo.setCurrentIndex(index_to_select)
+#                     else: # Fallback if ID not found, try by text
+#                         index_by_text = self.country_select_combo.findText(country_text.strip())
+#                         if index_by_text >=0: self.country_select_combo.setCurrentIndex(index_by_text)
+#                 else:
+#                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
+#             except Exception as e:
+#                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
 
-        city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
-        if ok and city_text.strip():
-            try:
-                # Use get_or_add_city here
-                city_data = db_manager.get_or_add_city(city_name=city_text.strip(), country_id=final_country_id_for_city)
-                if city_data and city_data.get('city_id') is not None:
-                    self.load_cities_for_country(final_country_id_for_city) # Reload cities for the relevant country ID
-                    # Attempt to find and set the newly added/found city
-                    index_to_select = -1
-                    for i in range(self.city_select_combo.count()):
-                        if self.city_select_combo.itemData(i) == city_data['city_id']:
-                            index_to_select = i
-                            break
-                    if index_to_select != -1:
-                        self.city_select_combo.setCurrentIndex(index_to_select)
-                    else: # Fallback if ID not found, try by text
-                        index_by_text = self.city_select_combo.findText(city_text.strip())
-                        if index_by_text >=0: self.city_select_combo.setCurrentIndex(index_by_text)
+#     def add_new_city_dialog(self):
+#         current_country_id_from_combo = self.country_select_combo.currentData()
+#         current_country_name = self.country_select_combo.currentText()
 
-                else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout ou de récupération de la ville. Vérifiez les logs."))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
+#         final_country_id_for_city = None
+#         if current_country_id_from_combo is not None:
+#             final_country_id_for_city = current_country_id_from_combo
+#         elif current_country_name: # If country was typed and not in DB yet
+#             country_data = db_manager.get_or_add_country(current_country_name) # Add it now
+#             if country_data and country_data.get('country_id'):
+#                 final_country_id_for_city = country_data['country_id']
+#                 self.load_countries_into_combo() # Refresh countries
+#                 # Reselect the country that was just added
+#                 idx = self.country_select_combo.findData(final_country_id_for_city)
+#                 if idx != -1: self.country_select_combo.setCurrentIndex(idx)
 
-    def accept(self):
-        # Get final country name and ID
-        country_name = self.country_select_combo.currentText().strip()
-        country_id_from_combo = self.country_select_combo.currentData()
 
-        if not country_name:
-            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du pays est requis."))
-            self.country_select_combo.setFocus()
-            return
+#         if not final_country_id_for_city:
+#             QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner ou entrer un pays valide."))
+#             return
 
-        final_country_id = country_id_from_combo
-        if final_country_id is None: # Country was typed or not found
-            country_data = db_manager.get_or_add_country(country_name)
-            if country_data and country_data.get('country_id'):
-                final_country_id = country_data['country_id']
-            else:
-                QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr("Impossible de déterminer ou d'ajouter le pays: {0}").format(country_name))
-                return
-        self.country_id = final_country_id # Store for get_data
+#         city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
+#         if ok and city_text.strip():
+#             try:
+#                 # Use get_or_add_city here
+#                 city_data = db_manager.get_or_add_city(city_name=city_text.strip(), country_id=final_country_id_for_city)
+#                 if city_data and city_data.get('city_id') is not None:
+#                     self.load_cities_for_country(final_country_id_for_city) # Reload cities for the relevant country ID
+#                     # Attempt to find and set the newly added/found city
+#                     index_to_select = -1
+#                     for i in range(self.city_select_combo.count()):
+#                         if self.city_select_combo.itemData(i) == city_data['city_id']:
+#                             index_to_select = i
+#                             break
+#                     if index_to_select != -1:
+#                         self.city_select_combo.setCurrentIndex(index_to_select)
+#                     else: # Fallback if ID not found, try by text
+#                         index_by_text = self.city_select_combo.findText(city_text.strip())
+#                         if index_by_text >=0: self.city_select_combo.setCurrentIndex(index_by_text)
 
-        # Get final city name and ID
-        city_name = self.city_select_combo.currentText().strip()
-        city_id_from_combo = self.city_select_combo.currentData()
-        final_city_id = city_id_from_combo
+#                 else:
+#                     QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout ou de récupération de la ville. Vérifiez les logs."))
+#             except Exception as e:
+#                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
 
-        if city_name: # City is optional, but if provided, ensure it's processed
-            if final_city_id is None: # City was typed or not found
-                # db_manager.get_or_add_city expects country_id
-                if not self.country_id: # Should not happen if country logic above is correct
-                     QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("ID Pays non défini avant traitement de la ville."))
-                     return
-                city_data = db_manager.get_or_add_city(city_name, self.country_id)
-                if city_data and city_data.get('city_id'):
-                    final_city_id = city_data['city_id']
-                else:
-                    QMessageBox.warning(self, self.tr("Erreur Ville"), self.tr("Impossible de déterminer ou d'ajouter la ville: {0}").format(city_name))
-                    # If city is optional and fails, we might want to proceed with city_id=None
-                    # For now, let's assume if a city name is typed, it should be valid or addable.
-                    # If strictly optional even if typed and fails, this could be changed.
-                    final_city_id = None # Set to None if it fails, effectively making it optional
-            self.city_id = final_city_id
-        else: # No city name provided
-            self.city_id = None
+#     def accept(self):
+#         # Get final country name and ID
+#         country_name = self.country_select_combo.currentText().strip()
+#         country_id_from_combo = self.country_select_combo.currentData()
 
-        # Validate other fields before calling super().accept()
-        client_name = self.client_name_input.text().strip()
-        if not client_name:
-            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du client est requis."))
-            self.client_name_input.setFocus()
-            return # Don't call super().accept()
+#         if not country_name:
+#             QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du pays est requis."))
+#             self.country_select_combo.setFocus()
+#             return
 
-        super().accept() # This will allow get_data to be called by the main window if QDialog.Accepted
+#         final_country_id = country_id_from_combo
+#         if final_country_id is None: # Country was typed or not found
+#             country_data = db_manager.get_or_add_country(country_name)
+#             if country_data and country_data.get('country_id'):
+#                 final_country_id = country_data['country_id']
+#             else:
+#                 QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr("Impossible de déterminer ou d'ajouter le pays: {0}").format(country_name))
+#                 return
+#         self.country_id = final_country_id # Store for get_data
 
-    def get_data(self):
-        client_name = self.client_name_input.text().strip()
-        company_name = self.company_name_input.text().strip()
-        client_need = self.client_need_input.text().strip()
-        project_id_text = self.project_id_input_field.text().strip()
+#         # Get final city name and ID
+#         city_name = self.city_select_combo.currentText().strip()
+#         city_id_from_combo = self.city_select_combo.currentData()
+#         final_city_id = city_id_from_combo
 
-        selected_lang_display_text = self.language_select_combo.currentText()
-        selected_languages = self.language_options_map.get(selected_lang_display_text, ["fr"])
+#         if city_name: # City is optional, but if provided, ensure it's processed
+#             if final_city_id is None: # City was typed or not found
+#                 # db_manager.get_or_add_city expects country_id
+#                 if not self.country_id: # Should not happen if country logic above is correct
+#                      QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("ID Pays non défini avant traitement de la ville."))
+#                      return
+#                 city_data = db_manager.get_or_add_city(city_name, self.country_id)
+#                 if city_data and city_data.get('city_id'):
+#                     final_city_id = city_data['city_id']
+#                 else:
+#                     QMessageBox.warning(self, self.tr("Erreur Ville"), self.tr("Impossible de déterminer ou d'ajouter la ville: {0}").format(city_name))
+#                     # If city is optional and fails, we might want to proceed with city_id=None
+#                     # For now, let's assume if a city name is typed, it should be valid or addable.
+#                     # If strictly optional even if typed and fails, this could be changed.
+#                     final_city_id = None # Set to None if it fails, effectively making it optional
+#             self.city_id = final_city_id
+#         else: # No city name provided
+#             self.city_id = None
 
-        # self.country_id and self.city_id are set in the overridden accept() method
-        return {
-            "client_name": client_name,
-            "company_name": company_name,
-            "primary_need_description": client_need,
-            "country_id": self.country_id, # Use the ID determined in accept()
-            "country_name": self.country_select_combo.currentText().strip(), # Current text for display
-            "city_id": self.city_id, # Use the ID determined in accept()
-            "city_name": self.city_select_combo.currentText().strip(), # Current text for display
-            "project_identifier": project_id_text,
-            "selected_languages": ",".join(selected_languages)
-        }
+#         # Validate other fields before calling super().accept()
+#         client_name = self.client_name_input.text().strip()
+#         if not client_name:
+#             QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du client est requis."))
+#             self.client_name_input.setFocus()
+#             return # Don't call super().accept()
+
+#         super().accept() # This will allow get_data to be called by the main window if QDialog.Accepted
+
+#     def get_data(self):
+#         client_name = self.client_name_input.text().strip()
+#         company_name = self.company_name_input.text().strip()
+#         client_need = self.client_need_input.text().strip()
+#         project_id_text = self.project_id_input_field.text().strip()
+
+#         selected_lang_display_text = self.language_select_combo.currentText()
+#         selected_languages = self.language_options_map.get(selected_lang_display_text, ["fr"])
+
+#         # self.country_id and self.city_id are set in the overridden accept() method
+#         return {
+#             "client_name": client_name,
+#             "company_name": company_name,
+#             "primary_need_description": client_need,
+#             "country_id": self.country_id, # Use the ID determined in accept()
+#             "country_name": self.country_select_combo.currentText().strip(), # Current text for display
+#             "city_id": self.city_id, # Use the ID determined in accept()
+#             "city_name": self.city_select_combo.currentText().strip(), # Current text for display
+#             "project_identifier": project_id_text,
+#             "selected_languages": ",".join(selected_languages)
+#         }
 
 
 class SettingsDialog(QDialog):
@@ -1792,158 +1792,158 @@ class CreateDocumentDialog(QDialog):
         elif not selected_items: pass
         else: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les erreurs précédentes."))
 
-class CompilePdfDialog(QDialog):
-    def __init__(self, client_info, config, app_root_dir, parent=None): # Added config and app_root_dir
-        super().__init__(parent)
-        self.client_info = client_info
-        self.config = config # Store config
-        self.app_root_dir = app_root_dir # Store app_root_dir
-        self.setWindowTitle(self.tr("Compiler des PDF"))
-        self.setMinimumSize(700, 500)
-        self.setup_ui()
+# class CompilePdfDialog(QDialog):
+#     def __init__(self, client_info, config, app_root_dir, parent=None): # Added config and app_root_dir
+#         super().__init__(parent)
+#         self.client_info = client_info
+#         self.config = config # Store config
+#         self.app_root_dir = app_root_dir # Store app_root_dir
+#         self.setWindowTitle(self.tr("Compiler des PDF"))
+#         self.setMinimumSize(700, 500)
+#         self.setup_ui()
 
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(self.tr("Sélectionnez les PDF à compiler:")))
-        self.pdf_list = QTableWidget(); self.pdf_list.setColumnCount(4)
-        self.pdf_list.setHorizontalHeaderLabels([self.tr("Sélection"), self.tr("Nom du fichier"), self.tr("Chemin"), self.tr("Pages (ex: 1-3,5)")])
-        self.pdf_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.pdf_list.setSelectionBehavior(QAbstractItemView.SelectRows)
-        layout.addWidget(self.pdf_list)
-        btn_layout = QHBoxLayout()
-        add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/plus.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
-        remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/trash.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
-        move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn) # go-up not in list
-        move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn) # go-down not in list
-        layout.addLayout(btn_layout)
-        options_layout = QHBoxLayout(); options_layout.addWidget(QLabel(self.tr("Nom du fichier compilé:")))
-        self.output_name = QLineEdit(f"{self.tr('compilation')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"); options_layout.addWidget(self.output_name); layout.addLayout(options_layout)
-        action_layout = QHBoxLayout()
-        compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/download.svg")); compile_btn.setObjectName("primaryButton")
-        compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
-        cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
-        layout.addLayout(action_layout)
-        self.load_existing_pdfs()
+#     def setup_ui(self):
+#         layout = QVBoxLayout(self)
+#         layout.addWidget(QLabel(self.tr("Sélectionnez les PDF à compiler:")))
+#         self.pdf_list = QTableWidget(); self.pdf_list.setColumnCount(4)
+#         self.pdf_list.setHorizontalHeaderLabels([self.tr("Sélection"), self.tr("Nom du fichier"), self.tr("Chemin"), self.tr("Pages (ex: 1-3,5)")])
+#         self.pdf_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.pdf_list.setSelectionBehavior(QAbstractItemView.SelectRows)
+#         layout.addWidget(self.pdf_list)
+#         btn_layout = QHBoxLayout()
+#         add_btn = QPushButton(self.tr("Ajouter PDF")); add_btn.setIcon(QIcon(":/icons/plus.svg")); add_btn.clicked.connect(self.add_pdf); btn_layout.addWidget(add_btn)
+#         remove_btn = QPushButton(self.tr("Supprimer")); remove_btn.setIcon(QIcon(":/icons/trash.svg")); remove_btn.clicked.connect(self.remove_selected); btn_layout.addWidget(remove_btn)
+#         move_up_btn = QPushButton(self.tr("Monter")); move_up_btn.setIcon(QIcon.fromTheme("go-up")); move_up_btn.clicked.connect(self.move_up); btn_layout.addWidget(move_up_btn) # go-up not in list
+#         move_down_btn = QPushButton(self.tr("Descendre")); move_down_btn.setIcon(QIcon.fromTheme("go-down")); move_down_btn.clicked.connect(self.move_down); btn_layout.addWidget(move_down_btn) # go-down not in list
+#         layout.addLayout(btn_layout)
+#         options_layout = QHBoxLayout(); options_layout.addWidget(QLabel(self.tr("Nom du fichier compilé:")))
+#         self.output_name = QLineEdit(f"{self.tr('compilation')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"); options_layout.addWidget(self.output_name); layout.addLayout(options_layout)
+#         action_layout = QHBoxLayout()
+#         compile_btn = QPushButton(self.tr("Compiler PDF")); compile_btn.setIcon(QIcon(":/icons/download.svg")); compile_btn.setObjectName("primaryButton")
+#         compile_btn.clicked.connect(self.compile_pdf); action_layout.addWidget(compile_btn)
+#         cancel_btn = QPushButton(self.tr("Annuler")); cancel_btn.setIcon(QIcon(":/icons/dialog-cancel.svg")); cancel_btn.clicked.connect(self.reject); action_layout.addWidget(cancel_btn)
+#         layout.addLayout(action_layout)
+#         self.load_existing_pdfs()
 
-    def load_existing_pdfs(self):
-        client_dir = self.client_info["base_folder_path"]; pdf_files = []
-        for root, dirs, files in os.walk(client_dir):
-            for file in files:
-                if file.lower().endswith('.pdf'): pdf_files.append(os.path.join(root, file))
-        self.pdf_list.setRowCount(len(pdf_files))
-        for i, file_path in enumerate(pdf_files):
-            chk = QCheckBox(); chk.setChecked(True); self.pdf_list.setCellWidget(i, 0, chk)
-            self.pdf_list.setItem(i, 1, QTableWidgetItem(os.path.basename(file_path)))
-            self.pdf_list.setItem(i, 2, QTableWidgetItem(file_path))
-            pages_edit = QLineEdit("all"); pages_edit.setPlaceholderText(self.tr("all ou 1-3,5")); self.pdf_list.setCellWidget(i, 3, pages_edit)
+#     def load_existing_pdfs(self):
+#         client_dir = self.client_info["base_folder_path"]; pdf_files = []
+#         for root, dirs, files in os.walk(client_dir):
+#             for file in files:
+#                 if file.lower().endswith('.pdf'): pdf_files.append(os.path.join(root, file))
+#         self.pdf_list.setRowCount(len(pdf_files))
+#         for i, file_path in enumerate(pdf_files):
+#             chk = QCheckBox(); chk.setChecked(True); self.pdf_list.setCellWidget(i, 0, chk)
+#             self.pdf_list.setItem(i, 1, QTableWidgetItem(os.path.basename(file_path)))
+#             self.pdf_list.setItem(i, 2, QTableWidgetItem(file_path))
+#             pages_edit = QLineEdit("all"); pages_edit.setPlaceholderText(self.tr("all ou 1-3,5")); self.pdf_list.setCellWidget(i, 3, pages_edit)
 
-    def add_pdf(self):
-        file_paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Sélectionner des PDF"), "", self.tr("Fichiers PDF (*.pdf)"));
-        if not file_paths: return
-        current_row_count = self.pdf_list.rowCount(); self.pdf_list.setRowCount(current_row_count + len(file_paths))
-        for i, file_path in enumerate(file_paths):
-            row = current_row_count + i; chk = QCheckBox(); chk.setChecked(True); self.pdf_list.setCellWidget(row, 0, chk)
-            self.pdf_list.setItem(row, 1, QTableWidgetItem(os.path.basename(file_path))); self.pdf_list.setItem(row, 2, QTableWidgetItem(file_path))
-            pages_edit = QLineEdit("all"); pages_edit.setPlaceholderText(self.tr("all ou 1-3,5")); self.pdf_list.setCellWidget(row, 3, pages_edit)
+#     def add_pdf(self):
+#         file_paths, _ = QFileDialog.getOpenFileNames(self, self.tr("Sélectionner des PDF"), "", self.tr("Fichiers PDF (*.pdf)"));
+#         if not file_paths: return
+#         current_row_count = self.pdf_list.rowCount(); self.pdf_list.setRowCount(current_row_count + len(file_paths))
+#         for i, file_path in enumerate(file_paths):
+#             row = current_row_count + i; chk = QCheckBox(); chk.setChecked(True); self.pdf_list.setCellWidget(row, 0, chk)
+#             self.pdf_list.setItem(row, 1, QTableWidgetItem(os.path.basename(file_path))); self.pdf_list.setItem(row, 2, QTableWidgetItem(file_path))
+#             pages_edit = QLineEdit("all"); pages_edit.setPlaceholderText(self.tr("all ou 1-3,5")); self.pdf_list.setCellWidget(row, 3, pages_edit)
 
-    def remove_selected(self):
-        selected_rows = set(index.row() for index in self.pdf_list.selectedIndexes())
-        for row in sorted(selected_rows, reverse=True): self.pdf_list.removeRow(row)
+#     def remove_selected(self):
+#         selected_rows = set(index.row() for index in self.pdf_list.selectedIndexes())
+#         for row in sorted(selected_rows, reverse=True): self.pdf_list.removeRow(row)
 
-    def move_up(self):
-        current_row = self.pdf_list.currentRow()
-        if current_row > 0: self.swap_rows(current_row, current_row - 1); self.pdf_list.setCurrentCell(current_row - 1, 0)
+#     def move_up(self):
+#         current_row = self.pdf_list.currentRow()
+#         if current_row > 0: self.swap_rows(current_row, current_row - 1); self.pdf_list.setCurrentCell(current_row - 1, 0)
 
-    def move_down(self):
-        current_row = self.pdf_list.currentRow()
-        if current_row < self.pdf_list.rowCount() - 1: self.swap_rows(current_row, current_row + 1); self.pdf_list.setCurrentCell(current_row + 1, 0)
+#     def move_down(self):
+#         current_row = self.pdf_list.currentRow()
+#         if current_row < self.pdf_list.rowCount() - 1: self.swap_rows(current_row, current_row + 1); self.pdf_list.setCurrentCell(current_row + 1, 0)
 
-    def swap_rows(self, row1, row2):
-        for col in range(self.pdf_list.columnCount()):
-            item1 = self.pdf_list.takeItem(row1, col); item2 = self.pdf_list.takeItem(row2, col)
-            self.pdf_list.setItem(row1, col, item2); self.pdf_list.setItem(row2, col, item1)
-        widget1 = self.pdf_list.cellWidget(row1,0); widget3 = self.pdf_list.cellWidget(row1,3); widget2 = self.pdf_list.cellWidget(row2,0); widget4 = self.pdf_list.cellWidget(row2,3)
-        self.pdf_list.setCellWidget(row1,0,widget2); self.pdf_list.setCellWidget(row1,3,widget4); self.pdf_list.setCellWidget(row2,0,widget1); self.pdf_list.setCellWidget(row2,3,widget3)
+#     def swap_rows(self, row1, row2):
+#         for col in range(self.pdf_list.columnCount()):
+#             item1 = self.pdf_list.takeItem(row1, col); item2 = self.pdf_list.takeItem(row2, col)
+#             self.pdf_list.setItem(row1, col, item2); self.pdf_list.setItem(row2, col, item1)
+#         widget1 = self.pdf_list.cellWidget(row1,0); widget3 = self.pdf_list.cellWidget(row1,3); widget2 = self.pdf_list.cellWidget(row2,0); widget4 = self.pdf_list.cellWidget(row2,3)
+#         self.pdf_list.setCellWidget(row1,0,widget2); self.pdf_list.setCellWidget(row1,3,widget4); self.pdf_list.setCellWidget(row2,0,widget1); self.pdf_list.setCellWidget(row2,3,widget3)
 
-    def compile_pdf(self):
-        merger = PdfMerger(); output_name = self.output_name.text().strip()
-        if not output_name: QMessageBox.warning(self, self.tr("Nom manquant"), self.tr("Veuillez spécifier un nom de fichier pour la compilation.")); return
-        if not output_name.lower().endswith('.pdf'): output_name += '.pdf'
-        output_path = os.path.join(self.client_info["base_folder_path"], output_name)
-        cover_path = self.create_cover_page()
-        if cover_path: merger.append(cover_path)
-        for row in range(self.pdf_list.rowCount()):
-            chk = self.pdf_list.cellWidget(row, 0)
-            if chk and chk.isChecked():
-                file_path = self.pdf_list.item(row, 2).text(); pages_spec = self.pdf_list.cellWidget(row, 3).text().strip()
-                try:
-                    if pages_spec.lower() == "all" or not pages_spec: merger.append(file_path)
-                    else:
-                        pages = [];
-                        for part in pages_spec.split(','):
-                            if '-' in part: start, end = part.split('-'); pages.extend(range(int(start), int(end)+1))
-                            else: pages.append(int(part))
-                        merger.append(file_path, pages=[p-1 for p in pages])
-                except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout de {0}:\n{1}").format(os.path.basename(file_path), str(e)))
-        try:
-            with open(output_path, 'wb') as f: merger.write(f)
-            if cover_path and os.path.exists(cover_path): os.remove(cover_path)
-            QMessageBox.information(self, self.tr("Compilation réussie"), self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(output_path))
-            self.offer_download_or_email(output_path); self.accept()
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF:\n{0}").format(str(e)))
+#     def compile_pdf(self):
+#         merger = PdfMerger(); output_name = self.output_name.text().strip()
+#         if not output_name: QMessageBox.warning(self, self.tr("Nom manquant"), self.tr("Veuillez spécifier un nom de fichier pour la compilation.")); return
+#         if not output_name.lower().endswith('.pdf'): output_name += '.pdf'
+#         output_path = os.path.join(self.client_info["base_folder_path"], output_name)
+#         cover_path = self.create_cover_page()
+#         if cover_path: merger.append(cover_path)
+#         for row in range(self.pdf_list.rowCount()):
+#             chk = self.pdf_list.cellWidget(row, 0)
+#             if chk and chk.isChecked():
+#                 file_path = self.pdf_list.item(row, 2).text(); pages_spec = self.pdf_list.cellWidget(row, 3).text().strip()
+#                 try:
+#                     if pages_spec.lower() == "all" or not pages_spec: merger.append(file_path)
+#                     else:
+#                         pages = [];
+#                         for part in pages_spec.split(','):
+#                             if '-' in part: start, end = part.split('-'); pages.extend(range(int(start), int(end)+1))
+#                             else: pages.append(int(part))
+#                         merger.append(file_path, pages=[p-1 for p in pages])
+#                 except Exception as e: QMessageBox.warning(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout de {0}:\n{1}").format(os.path.basename(file_path), str(e)))
+#         try:
+#             with open(output_path, 'wb') as f: merger.write(f)
+#             if cover_path and os.path.exists(cover_path): os.remove(cover_path)
+#             QMessageBox.information(self, self.tr("Compilation réussie"), self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(output_path))
+#             self.offer_download_or_email(output_path); self.accept()
+#         except Exception as e: QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de la compilation du PDF:\n{0}").format(str(e)))
 
-    def create_cover_page(self):
-        config_dict = {'title': self.tr("Compilation de Documents - Projet: {0}").format(self.client_info.get('project_identifier', self.tr('N/A'))),
-                       'subtitle': self.tr("Client: {0}").format(self.client_info.get('client_name', self.tr('N/A'))),
-                       'author': self.client_info.get('company_name', PAGEDEGRDE_APP_CONFIG.get('default_institution', self.tr('Votre Entreprise'))),
-                       'institution': "", 'department': "", 'doc_type': self.tr("Compilation de Documents"),
-                       'date': datetime.now().strftime('%d/%m/%Y %H:%M'), 'version': "1.0",
-                       'font_name': PAGEDEGRDE_APP_CONFIG.get('default_font', 'Helvetica'), 'font_size_title': 20, 'font_size_subtitle': 16, 'font_size_author': 10,
-                       'text_color': PAGEDEGRDE_APP_CONFIG.get('default_text_color', '#000000'), 'template_style': 'Moderne', 'show_horizontal_line': True, 'line_y_position_mm': 140,
-                       'logo_data': None, 'logo_width_mm': 40, 'logo_height_mm': 40, 'logo_x_mm': 25, 'logo_y_mm': 297 - 25 - 40,
-                       'margin_top': 25, 'margin_bottom': 25, 'margin_left': 20, 'margin_right': 20,
-                       'footer_text': self.tr("Document compilé le {0}").format(datetime.now().strftime('%d/%m/%Y'))}
-        logo_path = os.path.join(self.app_root_dir, "logo.png") # Use self.app_root_dir
-        if os.path.exists(logo_path):
-            try:
-                with open(logo_path, "rb") as f_logo: config_dict['logo_data'] = f_logo.read()
-            except Exception as e_logo: print(self.tr("Erreur chargement logo.png: {0}").format(e_logo))
-        try:
-            pdf_bytes = generate_cover_page_logic(config_dict) # Uses imported generate_cover_page_logic
-            base_temp_dir = self.client_info.get("base_folder_path", QDir.tempPath()); temp_cover_filename = f"cover_page_generated_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
-            temp_cover_path = os.path.join(base_temp_dir, temp_cover_filename)
-            with open(temp_cover_path, "wb") as f: f.write(pdf_bytes)
-            return temp_cover_path
-        except Exception as e: print(self.tr("Erreur lors de la génération de la page de garde via pagedegrde: {0}").format(e)); QMessageBox.warning(self, self.tr("Erreur Page de Garde"), self.tr("Impossible de générer la page de garde personnalisée: {0}").format(e)); return None
+#     def create_cover_page(self):
+#         config_dict = {'title': self.tr("Compilation de Documents - Projet: {0}").format(self.client_info.get('project_identifier', self.tr('N/A'))),
+#                        'subtitle': self.tr("Client: {0}").format(self.client_info.get('client_name', self.tr('N/A'))),
+#                        'author': self.client_info.get('company_name', PAGEDEGRDE_APP_CONFIG.get('default_institution', self.tr('Votre Entreprise'))),
+#                        'institution': "", 'department': "", 'doc_type': self.tr("Compilation de Documents"),
+#                        'date': datetime.now().strftime('%d/%m/%Y %H:%M'), 'version': "1.0",
+#                        'font_name': PAGEDEGRDE_APP_CONFIG.get('default_font', 'Helvetica'), 'font_size_title': 20, 'font_size_subtitle': 16, 'font_size_author': 10,
+#                        'text_color': PAGEDEGRDE_APP_CONFIG.get('default_text_color', '#000000'), 'template_style': 'Moderne', 'show_horizontal_line': True, 'line_y_position_mm': 140,
+#                        'logo_data': None, 'logo_width_mm': 40, 'logo_height_mm': 40, 'logo_x_mm': 25, 'logo_y_mm': 297 - 25 - 40,
+#                        'margin_top': 25, 'margin_bottom': 25, 'margin_left': 20, 'margin_right': 20,
+#                        'footer_text': self.tr("Document compilé le {0}").format(datetime.now().strftime('%d/%m/%Y'))}
+#         logo_path = os.path.join(self.app_root_dir, "logo.png") # Use self.app_root_dir
+#         if os.path.exists(logo_path):
+#             try:
+#                 with open(logo_path, "rb") as f_logo: config_dict['logo_data'] = f_logo.read()
+#             except Exception as e_logo: print(self.tr("Erreur chargement logo.png: {0}").format(e_logo))
+#         try:
+#             pdf_bytes = generate_cover_page_logic(config_dict) # Uses imported generate_cover_page_logic
+#             base_temp_dir = self.client_info.get("base_folder_path", QDir.tempPath()); temp_cover_filename = f"cover_page_generated_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+#             temp_cover_path = os.path.join(base_temp_dir, temp_cover_filename)
+#             with open(temp_cover_path, "wb") as f: f.write(pdf_bytes)
+#             return temp_cover_path
+#         except Exception as e: print(self.tr("Erreur lors de la génération de la page de garde via pagedegrde: {0}").format(e)); QMessageBox.warning(self, self.tr("Erreur Page de Garde"), self.tr("Impossible de générer la page de garde personnalisée: {0}").format(e)); return None
 
-    def offer_download_or_email(self, pdf_path):
-        msg_box = QMessageBox(self); msg_box.setWindowTitle(self.tr("Compilation réussie")); msg_box.setText(self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(pdf_path))
-        download_btn = msg_box.addButton(self.tr("Télécharger"), QMessageBox.ActionRole); email_btn = msg_box.addButton(self.tr("Envoyer par email"), QMessageBox.ActionRole)
-        close_btn = msg_box.addButton(self.tr("Fermer"), QMessageBox.RejectRole)
-        msg_box.exec_()
-        if msg_box.clickedButton() == download_btn: QDesktopServices.openUrl(QUrl.fromLocalFile(pdf_path))
-        elif msg_box.clickedButton() == email_btn: self.send_email(pdf_path)
+#     def offer_download_or_email(self, pdf_path):
+#         msg_box = QMessageBox(self); msg_box.setWindowTitle(self.tr("Compilation réussie")); msg_box.setText(self.tr("Le PDF compilé a été sauvegardé dans:\n{0}").format(pdf_path))
+#         download_btn = msg_box.addButton(self.tr("Télécharger"), QMessageBox.ActionRole); email_btn = msg_box.addButton(self.tr("Envoyer par email"), QMessageBox.ActionRole)
+#         close_btn = msg_box.addButton(self.tr("Fermer"), QMessageBox.RejectRole)
+#         msg_box.exec_()
+#         if msg_box.clickedButton() == download_btn: QDesktopServices.openUrl(QUrl.fromLocalFile(pdf_path))
+#         elif msg_box.clickedButton() == email_btn: self.send_email(pdf_path)
 
-    def send_email(self, pdf_path):
-        primary_email = None; client_uuid = self.client_info.get("client_id")
-        if client_uuid:
-            contacts_for_client = db_manager.get_contacts_for_client(client_uuid)
-            if contacts_for_client:
-                for contact in contacts_for_client:
-                    if contact.get('is_primary_for_client'): primary_email = contact.get('email'); break
-        email, ok = QInputDialog.getText(self, self.tr("Envoyer par email"), self.tr("Adresse email du destinataire:"), text=primary_email or "")
-        if not ok or not email.strip(): return
-        # Use self.config for SMTP settings
-        if not self.config.get("smtp_server") or not self.config.get("smtp_user"): QMessageBox.warning(self, self.tr("Configuration manquante"), self.tr("Veuillez configurer les paramètres SMTP dans les paramètres de l'application.")); return
-        msg = MIMEMultipart(); msg['From'] = self.config["smtp_user"]; msg['To'] = email; msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info['client_name'])
-        body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier']); msg.attach(MIMEText(body, 'plain'))
-        with open(pdf_path, 'rb') as f: part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
-        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'; msg.attach(part)
-        try:
-            server = smtplib.SMTP(self.config["smtp_server"], self.config.get("smtp_port", 587))
-            if self.config.get("smtp_port", 587) == 587: server.starttls()
-            server.login(self.config["smtp_user"], self.config["smtp_password"]); server.send_message(msg); server.quit()
-            QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
-        except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))
+#     def send_email(self, pdf_path):
+#         primary_email = None; client_uuid = self.client_info.get("client_id")
+#         if client_uuid:
+#             contacts_for_client = db_manager.get_contacts_for_client(client_uuid)
+#             if contacts_for_client:
+#                 for contact in contacts_for_client:
+#                     if contact.get('is_primary_for_client'): primary_email = contact.get('email'); break
+#         email, ok = QInputDialog.getText(self, self.tr("Envoyer par email"), self.tr("Adresse email du destinataire:"), text=primary_email or "")
+#         if not ok or not email.strip(): return
+#         # Use self.config for SMTP settings
+#         if not self.config.get("smtp_server") or not self.config.get("smtp_user"): QMessageBox.warning(self, self.tr("Configuration manquante"), self.tr("Veuillez configurer les paramètres SMTP dans les paramètres de l'application.")); return
+#         msg = MIMEMultipart(); msg['From'] = self.config["smtp_user"]; msg['To'] = email; msg['Subject'] = self.tr("Documents compilés - {0}").format(self.client_info['client_name'])
+#         body = self.tr("Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe").format(self.client_info['project_identifier']); msg.attach(MIMEText(body, 'plain'))
+#         with open(pdf_path, 'rb') as f: part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
+#         part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'; msg.attach(part)
+#         try:
+#             server = smtplib.SMTP(self.config["smtp_server"], self.config.get("smtp_port", 587))
+#             if self.config.get("smtp_port", 587) == 587: server.starttls()
+#             server.login(self.config["smtp_user"], self.config["smtp_password"]); server.send_message(msg); server.quit()
+#             QMessageBox.information(self, self.tr("Email envoyé"), self.tr("Le document a été envoyé avec succès."))
+#         except Exception as e: QMessageBox.critical(self, self.tr("Erreur d'envoi"), self.tr("Erreur lors de l'envoi de l'email:\n{0}").format(str(e)))
 
 class EditClientDialog(QDialog):
     def __init__(self, client_info, config, parent=None): # Config is passed but not explicitly used in original for DB path
