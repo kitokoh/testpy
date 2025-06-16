@@ -75,14 +75,7 @@ try:
 except ImportError:
     from dashboard_extensions import ProjectTemplateManager
 
-
-# try:
-#     from ..Installsweb.installmodules import InstallerDialog
-# except (ImportError, ValueError): # ValueError can happen with relative imports in some cases
-#      # Fallback for standalone execution
-#     print("Attempting fallback import for ..Installsweb.installmodules")
-#     from Installsweb.installmodules import InstallerDialog
-
+from Installsweb.installmodules import InstallerDialog
 
 # # For FaceMainWindow, its location is unknown. Assuming a placeholder for now.
 # try:
