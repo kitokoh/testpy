@@ -193,7 +193,7 @@ class ClientWidget(QWidget):
         client_info_group_layout.addWidget(self.info_container_widget)
 
         # Connect toggled signal and set initial state
-        self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
+        # self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
         self.client_info_group_box.setChecked(True) # Initially expanded
 
         layout.addWidget(self.client_info_group_box) # Add the group box to the main layout
@@ -218,13 +218,13 @@ class ClientWidget(QWidget):
         # Move self.notes_edit into this new group box
         # notes_group_layout.addWidget(self.notes_edit) # Directly adding notes_edit
 
-        self.notes_group_box.setChecked(True) # Expanded by default
+        self.notes_group_box.setChecked(False) # Expanded by default
         self.notes_container_widget = QWidget() # Create a container for the notes_edit
         notes_container_layout = QVBoxLayout(self.notes_container_widget)
         notes_container_layout.setContentsMargins(0, 5, 0, 0)
         notes_container_layout.addWidget(self.notes_edit) # Add notes_edit to the container
         notes_group_layout.addWidget(self.notes_container_widget) # Add container to group_layout
-        self.notes_group_box.toggled.connect(self.notes_container_widget.setVisible)
+        # self.notes_group_box.toggled.connect(self.notes_container_widget.setVisible)
 
         # Add the new notes group box to the main layout
         layout.addWidget(self.notes_group_box)
@@ -632,6 +632,11 @@ class ClientWidget(QWidget):
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
+        # Connect new accordion handlers
+        self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+
     def open_send_whatsapp_dialog(self):
        client_uuid = self.client_info.get("client_id")
        client_name = self.client_info.get("client_name", "")
@@ -675,18 +680,91 @@ class ClientWidget(QWidget):
            QMessageBox.critical(self, self.tr("Error Fetching Contacts"), self.tr("Could not retrieve contact information: {0}").format(str(e)))
 
         # Accordion logic connections
-       if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
-            self.notes_group_box.toggled.connect(self._handle_notes_toggled)
-            self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
+       # if hasattr(self, 'notes_group_box') and hasattr(self, 'tabs_group_box'):
+            # self.notes_group_box.toggled.connect(self._handle_notes_toggled)
+            # self.tabs_group_box.toggled.connect(self._handle_tabs_toggled)
 
+    def _handle_client_info_section_toggled(self, checked):
+        # Ensure the container widget exists
+        if not hasattr(self, 'info_container_widget'):
+            return
+        self.info_container_widget.setVisible(checked)
 
-    def _handle_notes_toggled(self, checked):
-        if checked and hasattr(self, 'tabs_group_box') and self.tabs_group_box.isChecked():
-            self.tabs_group_box.setChecked(False)
+        if checked:
+            # Block signals to prevent infinite loops or unintended recursive calls
+            if hasattr(self, 'notes_group_box'):
+                self.notes_group_box.blockSignals(True)
+                self.notes_group_box.setChecked(False)
+                if hasattr(self, 'notes_container_widget'): # Ensure notes_container_widget also exists
+                    self.notes_container_widget.setVisible(False) # Explicitly hide content
+                self.notes_group_box.blockSignals(False)
 
-    def _handle_tabs_toggled(self, checked):
-        if checked and hasattr(self, 'notes_group_box') and self.notes_group_box.isChecked():
-            self.notes_group_box.setChecked(False)
+            if hasattr(self, 'tabs_group_box'):
+                self.tabs_group_box.blockSignals(True)
+                self.tabs_group_box.setChecked(False)
+                if hasattr(self, 'tab_widget'): # Ensure tab_widget exists
+                    self.tab_widget.setVisible(False) # Explicitly hide content
+                self.tabs_group_box.blockSignals(False)
+        elif not self.notes_group_box.isChecked() and not self.tabs_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.client_info_group_box.blockSignals(True)
+            self.client_info_group_box.setChecked(True)
+            self.info_container_widget.setVisible(True) # Ensure content visibility matches state
+            self.client_info_group_box.blockSignals(False)
+
+    def _handle_notes_section_toggled(self, checked):
+        # Ensure the container widget exists
+        if not hasattr(self, 'notes_container_widget'):
+            return
+        self.notes_container_widget.setVisible(checked)
+
+        if checked:
+            if hasattr(self, 'client_info_group_box'):
+                self.client_info_group_box.blockSignals(True)
+                self.client_info_group_box.setChecked(False)
+                if hasattr(self, 'info_container_widget'): # Ensure info_container_widget also exists
+                    self.info_container_widget.setVisible(False) # Explicitly hide content
+                self.client_info_group_box.blockSignals(False)
+
+            if hasattr(self, 'tabs_group_box'):
+                self.tabs_group_box.blockSignals(True)
+                self.tabs_group_box.setChecked(False)
+                if hasattr(self, 'tab_widget'): # Ensure tab_widget exists
+                     self.tab_widget.setVisible(False) # Explicitly hide content
+                self.tabs_group_box.blockSignals(False)
+        elif not self.client_info_group_box.isChecked() and not self.tabs_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.notes_group_box.blockSignals(True)
+            self.notes_group_box.setChecked(True)
+            self.notes_container_widget.setVisible(True) # Ensure content visibility matches state
+            self.notes_group_box.blockSignals(False)
+
+    def _handle_tabs_section_toggled(self, checked):
+        # Ensure the tab_widget (content) exists
+        if not hasattr(self, 'tab_widget'):
+            return
+        self.tab_widget.setVisible(checked)
+
+        if checked:
+            if hasattr(self, 'client_info_group_box'):
+                self.client_info_group_box.blockSignals(True)
+                self.client_info_group_box.setChecked(False)
+                if hasattr(self, 'info_container_widget'): # Ensure info_container_widget also exists
+                     self.info_container_widget.setVisible(False) # Explicitly hide content
+                self.client_info_group_box.blockSignals(False)
+
+            if hasattr(self, 'notes_group_box'):
+                self.notes_group_box.blockSignals(True)
+                self.notes_group_box.setChecked(False)
+                if hasattr(self, 'notes_container_widget'): # Ensure notes_container_widget also exists
+                     self.notes_container_widget.setVisible(False) # Explicitly hide content
+                self.notes_group_box.blockSignals(False)
+        elif not self.client_info_group_box.isChecked() and not self.notes_group_box.isChecked():
+            # If this is the only one checked, and user tried to uncheck it, re-check it.
+            self.tabs_group_box.blockSignals(True)
+            self.tabs_group_box.setChecked(True)
+            self.tab_widget.setVisible(True) # Ensure content visibility matches state
+            self.tabs_group_box.blockSignals(False)
 
     def load_sav_tickets_table(self):
         # Ensure sav_tickets_table is initialized before use
