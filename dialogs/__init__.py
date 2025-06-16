@@ -15,3 +15,9 @@ from .manage_product_master_dialog import ManageProductMasterDialog
 from .client_document_note_dialog import ClientDocumentNoteDialog
 from .product_dimension_ui_dialog import ProductDimensionUIDialog
 from .select_utility_attachment_dialog import SelectUtilityAttachmentDialog
+from .client_product_dimension_dialog import ClientProductDimensionDialog
+from .transporter_dialog import TransporterDialog
+from .freight_forwarder_dialog import FreightForwarderDialog
+from .assign_personnel_dialog import AssignPersonnelDialog
+from .assign_transporter_dialog import AssignTransporterDialog
+from .assign_freight_forwarder_dialog import AssignFreightForwarderDialog
