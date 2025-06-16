@@ -181,6 +181,13 @@ def add_task_dependency(task_id: int, depends_on_task_id: int, conn: sqlite3.Con
     logger.info(f"Attempting to add dependency: task {task_id} depends on {depends_on_task_id}")
     return True
 
+
+@_manage_conn
+def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
+    logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
+    return []
+
+
 @_manage_conn
 def get_predecessor_tasks(task_id: int, conn: sqlite3.Connection = None) -> list[dict]:
     logger.info(f"Fetching predecessor tasks for task_id: {task_id}")
@@ -210,4 +217,5 @@ __all__ = [
     "add_task_dependency",
     "get_predecessor_tasks",
     "remove_task_dependency",
+
 ]

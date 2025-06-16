@@ -57,6 +57,7 @@ from .cruds.tasks_crud import (
     add_task_dependency,
     get_predecessor_tasks,
     remove_task_dependency,
+
 )
 from .cruds.kpis_crud import get_kpis_for_project
 from .cruds.activity_logs_crud import add_activity_log, get_activity_logs
@@ -248,6 +249,7 @@ __all__ = [
     "add_task_dependency",
     "get_predecessor_tasks",
     "remove_task_dependency",
+
     "get_kpis_for_project",
     "add_activity_log",
     "get_activity_logs",
