@@ -284,6 +284,18 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         topbar_layout.addWidget(user_widget)
         self.nav_buttons[0].setObjectName("selected")
 
+    def logout(self):
+        print("Logout button clicked. Attempting to signal parent...")
+        if self.parent() and hasattr(self.parent(), 'handle_logout'):
+            self.parent().handle_logout()
+        else:
+            print("Parent has no 'handle_logout' method or parent is None.")
+            # As a fallback, if this dashboard is the main window, it might close itself.
+            # However, since it's a QWidget hosted by DocumentManager, this is less likely.
+            # For now, just printing is safest if parent communication fails.
+            # If direct parent communication is not desired, a signal/slot mechanism
+            # would be more appropriate, but requires changes in the parent class too.
+
     # ... (Placeholder methods gestion_notification, gestion_prospects, etc. remain unchanged) ...
     def gestion_notification(self): print("Notification management enabled.")
     def gestion_prospects(self): print("Prospect management enabled.")
