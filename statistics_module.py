@@ -316,7 +316,6 @@ class StatisticsDashboard(QWidget):
                 folium.Choropleth(
                     geo_data=geojson_path, name="choropleth", data=df,
                     columns=["country_name", "client_count"], key_on="feature.properties.name",
-                    fill_color=client_colormap, # Use the StepColormap instance
 
                     fill_opacity=0.7, # Slightly more opaque for better color visibility
                     line_opacity=0.3,
