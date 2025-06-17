@@ -824,6 +824,7 @@ CREATE TABLE IF NOT EXISTS Templates (
 )
 """)
 
+
     # Idempotently add client_id column if it doesn't exist (for existing databases)
     cursor.execute("PRAGMA table_info(Templates)")
     templates_columns = [column['name'] for column in cursor.fetchall()]
