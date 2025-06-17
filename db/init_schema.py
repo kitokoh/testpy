@@ -1028,6 +1028,9 @@ CREATE TABLE IF NOT EXISTS Templates (
     CREATE TABLE IF NOT EXISTS Transporters (
         transporter_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
         phone TEXT, email TEXT, address TEXT, service_area TEXT, notes TEXT,
+        latitude REAL,
+        longitude REAL,
+        current_cargo TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
 

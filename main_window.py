@@ -60,6 +60,7 @@ from statistics_panel import CollapsibleStatisticsWidget
 from utils import save_config
 from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
+from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
@@ -284,13 +285,28 @@ class DocumentManager(QMainWindow):
         self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product Management"), self); self.product_list_action.triggered.connect(self.show_product_management_page) # Connect to new method
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self); self.partner_management_action.triggered.connect(self.show_partner_management_view)
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
+        self.open_carrier_map_action = QAction(QIcon(":/icons/map.svg"), self.tr("Carrier Map"), self) # Assuming map.svg or similar exists
+        self.open_carrier_map_action.triggered.connect(self.open_carrier_map_dialog)
+
 
     def create_menus_main(self): 
         menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); # file_menu.addAction(self.product_equivalency_action);
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
-        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
+        modules_menu = menu_bar.addMenu(self.tr("Modules"))
+        modules_menu.addAction(self.documents_view_action)
+        modules_menu.addAction(self.project_management_action)
+        modules_menu.addAction(self.product_list_action)
+        modules_menu.addAction(self.partner_management_action)
+        modules_menu.addAction(self.statistics_action)
+        modules_menu.addSeparator() # Optional separator
+        modules_menu.addAction(self.open_carrier_map_action)
+
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
+
+    def open_carrier_map_dialog(self):
+        dialog = CarrierMapDialog(self)
+        dialog.exec_()
 
     def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
