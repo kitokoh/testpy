@@ -43,6 +43,8 @@ class TestCreateDocumentDialog(unittest.TestCase):
         # if the dialog imports db_manager at the module level and uses it in __init__ or setup_ui.
         # However, the provided dialog seems to call db_manager.get_all_templates within load_templates,
         # so patching it via @patch decorator on the test method or setUp should be fine.
+        self.DOCUMENT_CATEGORY_ID = 1 # As defined in CreateDocumentDialog.load_templates
+
 
     @patch('dialogs.create_document_dialog.db_manager')
     def test_load_templates_no_default_templates(self, mock_db_manager):
@@ -53,9 +55,15 @@ class TestCreateDocumentDialog(unittest.TestCase):
         ]
 
         dialog = CreateDocumentDialog(self.mock_client_info, self.mock_config)
+        # load_templates is called during __init__ via setup_ui.
 
-        # Call load_templates directly or ensure it's called by dialog setup
-        # dialog.load_templates() # setup_ui calls load_templates, so this might be redundant if instance creation is enough
+        mock_db_manager.get_all_templates.assert_called_with(
+            template_type_filter='document_html',  # Based on default extension filter "HTML"
+            language_code_filter=self.mock_client_info['selected_languages'][0], # Default to client's primary language
+            client_id_filter=self.mock_client_info['client_id'],
+            category_id_filter=self.DOCUMENT_CATEGORY_ID
+        )
+
 
         self.assertEqual(dialog.templates_list.count(), 2)
         for i in range(dialog.templates_list.count()):
@@ -78,6 +86,13 @@ class TestCreateDocumentDialog(unittest.TestCase):
             {'template_id': 2, 'template_name': 'T2', 'language_code': 'en', 'base_file_name': 't2.html', 'template_type': 'document_html', 'is_default_for_type_lang': False, 'client_id': 'test_client_1'},
         ]
         dialog = CreateDocumentDialog(self.mock_client_info, self.mock_config)
+
+        mock_db_manager.get_all_templates.assert_called_with(
+            template_type_filter='document_html',
+            language_code_filter=self.mock_client_info['selected_languages'][0],
+            client_id_filter=self.mock_client_info['client_id'],
+            category_id_filter=self.DOCUMENT_CATEGORY_ID
+        )
 
         self.assertEqual(dialog.templates_list.count(), 2)
 
@@ -114,7 +129,18 @@ class TestCreateDocumentDialog(unittest.TestCase):
             {'template_id': 1, 'template_name': 'T1', 'language_code': 'fr', 'base_file_name': 't1.html', 'template_type': 'document_html', 'is_default_for_type_lang': False, 'client_id': None},
             {'template_id': 2, 'template_name': 'ClientDefault', 'language_code': 'en', 'base_file_name': 'cd.html', 'template_type': 'document_html', 'is_default_for_type_lang': True, 'client_id': 'test_client_1'},
         ]
+        # Change client's primary language to 'en' to match the ClientDefault template for this test's initial load
+        self.mock_client_info['selected_languages'] = ['en', 'fr']
         dialog = CreateDocumentDialog(self.mock_client_info, self.mock_config)
+
+        mock_db_manager.get_all_templates.assert_called_with(
+            template_type_filter='document_html',
+            language_code_filter='en', # Client's primary lang
+            client_id_filter=self.mock_client_info['client_id'],
+            category_id_filter=self.DOCUMENT_CATEGORY_ID
+        )
+
+
         self.assertEqual(dialog.templates_list.count(), 2)
 
         default_item_text_prefix = "[D] ClientDefault"
@@ -149,9 +175,52 @@ class TestCreateDocumentDialog(unittest.TestCase):
             {'template_id': 3, 'template_name': 'OtherEN', 'language_code': 'en', 'base_file_name': 'oen.html', 'template_type': 'document_html', 'is_default_for_type_lang': False, 'client_id': None},
         ]
         dialog = CreateDocumentDialog(self.mock_client_info, self.mock_config)
-        self.assertEqual(dialog.templates_list.count(), 3)
 
-        client_default_count = 0
+        mock_db_manager.get_all_templates.assert_called_with(
+            template_type_filter='document_html',
+            language_code_filter=self.mock_client_info['selected_languages'][0], # fr
+            client_id_filter=self.mock_client_info['client_id'],
+            category_id_filter=self.DOCUMENT_CATEGORY_ID
+        )
+        # Note: The return value has 'OtherEN', but client's primary lang is 'fr'.
+        # So, initial load might only show 'fr' templates if language filter is strict.
+        # The current mock return includes 'fr' and 'en'. If dialog defaults to client's first lang ('fr'),
+        # then 'OtherEN' and 'ClientDefault' (if it were 'en') wouldn't show unless lang filter is 'All' or 'en'.
+        # The current test setup returns GlobalFR, ClientFR, and OtherEN.
+        # If lang filter is 'fr', only GlobalFR and ClientFR are processed.
+        # The dialog's load_templates logic will filter based on selected language.
+        # For this test, the mock returns templates that should mostly match the default 'fr' + 'document_html' + category 1.
+        # GlobalFR and ClientFR match this. OtherEN does not match language.
+        # So, only 2 items should be in the list if lang filter is 'fr'.
+        # Let's adjust the expectation or the setup for this test.
+        # To test the override, we need both GlobalFR and ClientFR to be processed.
+        # The current mock_client_info has 'fr' as primary.
+
+        # The current mock returns 3 items. If lang filter is 'fr', only 2 will be shown.
+        # If lang filter is 'All', all 3 will be shown.
+        # The dialog initializes with client's primary language.
+
+        # Let's assume the test implies that the mock_db_manager.get_all_templates
+        # is what's returned *after* the dialog's internal filters (lang, type) are applied by get_all_templates call.
+        # The test asserts dialog.templates_list.count() == 3 which means it expects all 3 to be shown.
+        # This implies the language_filter_combo was set to "All" or the effective_lang_filter was None.
+        # For the initial call, language_code_filter is set to client's primary lang.
+        # So, if primary lang is 'fr', only 'fr' templates are fetched.
+
+        # Re-evaluating: The mock_db_manager.get_all_templates is called by load_templates.
+        # The values passed to it are determined by the dialog's state.
+        # On initial load: lang = client's primary ('fr'), ext = 'HTML' (type='document_html'), category=1.
+        # So, get_all_templates would be called with these.
+        # The mock should return what matches these filters.
+
+        # If mock_db_manager.get_all_templates returns these 3 items, despite being called with lang='fr',
+        # then the test is effectively saying "if these 3 items were somehow loaded (ignoring strict initial filter for a moment),
+        # how would they be processed for default status?" This is fine for testing the default logic itself.
+        # The number of items in list would be 3.
+
+        self.assertEqual(dialog.templates_list.count(), 3) # This holds if the mock is what's directly processed.
+
+
         displayed_as_default_count = 0
 
         for i in range(dialog.templates_list.count()):
@@ -185,13 +254,29 @@ class TestCreateDocumentDialog(unittest.TestCase):
         ]
         dialog = CreateDocumentDialog(self.mock_client_info, self.mock_config)
         # Simulate selecting "All" for language and extension to ensure all these are processed
-        dialog.language_filter_combo.setCurrentText("All")
-        dialog.extension_filter_combo.setCurrentText("All") # This will trigger load_templates
-        # Note: direct call to dialog.load_templates() might be needed if signals aren't firing in test env
-        # or if setup_ui's initial call isn't sufficient after filter changes.
-        # The provided CreateDocumentDialog calls load_templates in setup_ui, and signals connect to it.
-        # Forcing a reload after filter changes:
-        dialog.load_templates()
+        # and then explicitly call load_templates to reflect these changes.
+        dialog.language_filter_combo.setCurrentText(dialog.tr("All"))
+        dialog.extension_filter_combo.setCurrentText(dialog.tr("All"))
+
+        # Store the expected call for "All" filters
+        # When "All" is selected for language, language_code_filter becomes None.
+        # When "All" is selected for extension, template_type_filter becomes None.
+        mock_db_manager.reset_mock() # Reset call stats before the explicit load_templates
+        mock_db_manager.get_all_templates.return_value = [ # Return all templates for "All" scenario
+            {'template_id': 1, 'template_name': 'GlobalFR_HTML', 'language_code': 'fr', 'base_file_name': 'gfr.html', 'template_type': 'document_html', 'is_default_for_type_lang': True, 'client_id': None},
+            {'template_id': 2, 'template_name': 'ClientEN_HTML', 'language_code': 'en', 'base_file_name': 'cen.html', 'template_type': 'document_html', 'is_default_for_type_lang': True, 'client_id': 'test_client_1'},
+            {'template_id': 3, 'template_name': 'GlobalFR_DOCX', 'language_code': 'fr', 'base_file_name': 'gfr.docx', 'template_type': 'document_word', 'is_default_for_type_lang': True, 'client_id': None},
+            {'template_id': 4, 'template_name': 'NonDefault', 'language_code': 'fr', 'base_file_name': 'nd.html', 'template_type': 'document_html', 'is_default_for_type_lang': False, 'client_id': None},
+        ]
+
+        dialog.load_templates() # Manually call after changing filters
+
+        mock_db_manager.get_all_templates.assert_called_with(
+            template_type_filter=None, # "All" extensions
+            language_code_filter=None, # "All" languages
+            client_id_filter=self.mock_client_info['client_id'],
+            category_id_filter=self.DOCUMENT_CATEGORY_ID
+        )
 
 
         self.assertEqual(dialog.templates_list.count(), 4)
