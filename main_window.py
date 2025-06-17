@@ -60,6 +60,7 @@ from statistics_panel import CollapsibleStatisticsWidget
 from utils import save_config
 from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
+
 from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
