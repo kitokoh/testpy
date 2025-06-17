@@ -42,11 +42,9 @@ from document_manager_logic import (
     permanently_delete_client
 )
 from dialogs import (
-    SettingsDialog as OriginalSettingsDialog, TemplateDialog, AddNewClientDialog,
-    ManageProductMasterDialog,
-    TransporterDialog,
-    FreightForwarderDialog
+    TemplateDialog, AddNewClientDialog, ManageProductMasterDialog
 )
+# Removed: SettingsDialog as OriginalSettingsDialog, TransporterDialog, FreightForwarderDialog
 # from product_management.list_dialog import ProductListDialog # Removed
 from product_management.page import ProductManagementPage # Added
 
@@ -58,95 +56,10 @@ from statistics_panel import CollapsibleStatisticsWidget
 
 from utils import save_config
 from company_management import CompanyTabWidget
+from settings_page import SettingsPage # Import the new SettingsPage
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
-
-class SettingsDialog(OriginalSettingsDialog):
-    def __init__(self, main_config, parent=None):
-        super().__init__(main_config, parent)
-        self._add_transporters_tab()
-        self._add_freight_forwarders_tab()
-        self.load_transporters_table()
-        self.load_forwarders_table()
-
-    def _add_transporters_tab(self):
-        transporters_tab = QWidget()
-        transporters_layout = QVBoxLayout(transporters_tab)
-        self.transporters_table = QTableWidget()
-        self.transporters_table.setColumnCount(6)
-        self.transporters_table.setHorizontalHeaderLabels(["ID", self.tr("Nom"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Email"), self.tr("Zone de Service")])
-        self.transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.transporters_table.horizontalHeader().setStretchLastSection(True); self.transporters_table.hideColumn(0)
-        self.transporters_table.itemSelectionChanged.connect(self.update_transporter_button_states)
-        transporters_layout.addWidget(self.transporters_table)
-        btns_layout = QHBoxLayout()
-        self.add_transporter_btn = QPushButton(self.tr("Ajouter Transporteur")); self.add_transporter_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_transporter_btn.clicked.connect(self.handle_add_transporter)
-        self.edit_transporter_btn = QPushButton(self.tr("Modifier Transporteur")); self.edit_transporter_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_transporter_btn.clicked.connect(self.handle_edit_transporter); self.edit_transporter_btn.setEnabled(False)
-        self.delete_transporter_btn = QPushButton(self.tr("Supprimer Transporteur")); self.delete_transporter_btn.setIcon(QIcon.fromTheme("list-remove", QIcon(":/icons/trash.svg"))); self.delete_transporter_btn.setObjectName("dangerButton"); self.delete_transporter_btn.clicked.connect(self.handle_delete_transporter); self.delete_transporter_btn.setEnabled(False)
-        btns_layout.addWidget(self.add_transporter_btn); btns_layout.addWidget(self.edit_transporter_btn); btns_layout.addWidget(self.delete_transporter_btn)
-        transporters_layout.addLayout(btns_layout)
-        self.tabs_widget.addTab(transporters_tab, self.tr("Transporteurs"))
-
-    def _add_freight_forwarders_tab(self):
-        tab = QWidget(); layout = QVBoxLayout(tab)
-        self.forwarders_table = QTableWidget(); self.forwarders_table.setColumnCount(6)
-        self.forwarders_table.setHorizontalHeaderLabels(["ID", self.tr("Nom"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Email"), self.tr("Services Offerts")])
-        self.forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.forwarders_table.horizontalHeader().setStretchLastSection(True); self.forwarders_table.hideColumn(0)
-        self.forwarders_table.itemSelectionChanged.connect(self.update_forwarder_button_states); layout.addWidget(self.forwarders_table)
-        btns_layout = QHBoxLayout()
-        self.add_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire")); self.add_forwarder_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_forwarder_btn.clicked.connect(self.handle_add_forwarder)
-        self.edit_forwarder_btn = QPushButton(self.tr("Modifier Transitaire")); self.edit_forwarder_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_forwarder_btn.clicked.connect(self.handle_edit_forwarder); self.edit_forwarder_btn.setEnabled(False)
-        self.delete_forwarder_btn = QPushButton(self.tr("Supprimer Transitaire")); self.delete_forwarder_btn.setIcon(QIcon.fromTheme("list-remove", QIcon(":/icons/trash.svg"))); self.delete_forwarder_btn.setObjectName("dangerButton"); self.delete_forwarder_btn.clicked.connect(self.handle_delete_forwarder); self.delete_forwarder_btn.setEnabled(False)
-        btns_layout.addWidget(self.add_forwarder_btn); btns_layout.addWidget(self.edit_forwarder_btn); btns_layout.addWidget(self.delete_forwarder_btn)
-        layout.addLayout(btns_layout)
-        self.tabs_widget.addTab(tab, self.tr("Transitaires"))
-
-    def load_transporters_table(self):
-        self.transporters_table.setRowCount(0); self.transporters_table.setSortingEnabled(False)
-        try:
-            for r, t in enumerate(db_manager.get_all_transporters() or []):
-                self.transporters_table.insertRow(r)
-                id_item = QTableWidgetItem(t.get('transporter_id')); self.transporters_table.setItem(r,0,id_item)
-                name_item = QTableWidgetItem(t.get('name')); name_item.setData(Qt.UserRole, t.get('transporter_id')); self.transporters_table.setItem(r,1,name_item)
-                self.transporters_table.setItem(r,2,QTableWidgetItem(t.get('contact_person'))); self.transporters_table.setItem(r,3,QTableWidgetItem(t.get('phone'))); self.transporters_table.setItem(r,4,QTableWidgetItem(t.get('email'))); self.transporters_table.setItem(r,5,QTableWidgetItem(t.get('service_area')))
-        except Exception as e: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Erreur de chargement des transporteurs: {0}").format(str(e)))
-        self.transporters_table.setSortingEnabled(True); self.update_transporter_button_states()
-    def handle_add_transporter(self):
-        if TransporterDialog(parent=self).exec_()==QDialog.Accepted: self.load_transporters_table()
-    def handle_edit_transporter(self):
-        if not self.transporters_table.selectedItems(): return
-        t_id=self.transporters_table.item(self.transporters_table.currentRow(),0).text()
-        if db_manager.get_transporter_by_id(t_id) and TransporterDialog(db_manager.get_transporter_by_id(t_id),self).exec_()==QDialog.Accepted: self.load_transporters_table()
-    def handle_delete_transporter(self):
-        if not self.transporters_table.selectedItems(): return
-        t_id=self.transporters_table.item(self.transporters_table.currentRow(),0).text()
-        if QMessageBox.question(self,self.tr("Confirmer Suppression"),self.tr("Supprimer ce transporteur?"),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes and db_manager.delete_transporter(t_id): self.load_transporters_table()
-        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer le transporteur."))
-    def update_transporter_button_states(self): en=bool(self.transporters_table.selectedItems()); self.edit_transporter_btn.setEnabled(en); self.delete_transporter_btn.setEnabled(en)
-    def load_forwarders_table(self):
-        self.forwarders_table.setRowCount(0); self.forwarders_table.setSortingEnabled(False)
-        try:
-            for r,f in enumerate(db_manager.get_all_freight_forwarders() or []):
-                self.forwarders_table.insertRow(r)
-                id_item=QTableWidgetItem(f.get('forwarder_id')); self.forwarders_table.setItem(r,0,id_item)
-                name_item=QTableWidgetItem(f.get('name')); name_item.setData(Qt.UserRole,f.get('forwarder_id')); self.forwarders_table.setItem(r,1,name_item)
-                self.forwarders_table.setItem(r,2,QTableWidgetItem(f.get('contact_person'))); self.forwarders_table.setItem(r,3,QTableWidgetItem(f.get('phone'))); self.forwarders_table.setItem(r,4,QTableWidgetItem(f.get('email'))); self.forwarders_table.setItem(r,5,QTableWidgetItem(f.get('services_offered')))
-        except Exception as e: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Erreur de chargement des transitaires: {0}").format(str(e)))
-        self.forwarders_table.setSortingEnabled(True); self.update_forwarder_button_states()
-    def handle_add_forwarder(self):
-        if FreightForwarderDialog(parent=self).exec_()==QDialog.Accepted: self.load_forwarders_table()
-    def handle_edit_forwarder(self):
-        if not self.forwarders_table.selectedItems(): return
-        f_id=self.forwarders_table.item(self.forwarders_table.currentRow(),0).text()
-        if db_manager.get_freight_forwarder_by_id(f_id) and FreightForwarderDialog(db_manager.get_freight_forwarder_by_id(f_id),self).exec_()==QDialog.Accepted: self.load_forwarders_table()
-    def handle_delete_forwarder(self):
-        if not self.forwarders_table.selectedItems(): return
-        f_id=self.forwarders_table.item(self.forwarders_table.currentRow(),0).text()
-        if QMessageBox.question(self,self.tr("Confirmer Suppression"),self.tr("Supprimer ce transitaire?"),QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes and db_manager.delete_freight_forwarder(f_id): self.load_forwarders_table()
-        else: QMessageBox.warning(self,self.tr("Erreur DB"),self.tr("Impossible de supprimer le transitaire."))
-    def update_forwarder_button_states(self): en=bool(self.forwarders_table.selectedItems()); self.edit_forwarder_btn.setEnabled(en); self.delete_forwarder_btn.setEnabled(en)
 
 class DocumentManager(QMainWindow):
     def __init__(self, app_root_dir, current_user_id):
@@ -184,6 +97,15 @@ class DocumentManager(QMainWindow):
 
         self.product_management_page_instance = ProductManagementPage(parent=self)
         self.main_area_stack.addWidget(self.product_management_page_instance)
+
+        # Instantiate SettingsPage and add to stack
+        self.settings_page_instance = SettingsPage(
+            main_config=self.config,
+            app_root_dir=self.app_root_dir,
+            current_user_id=self.current_user_id,
+            parent=self
+        )
+        self.main_area_stack.addWidget(self.settings_page_instance)
 
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         self.create_actions_main(); self.create_menus_main()
@@ -391,7 +313,7 @@ class DocumentManager(QMainWindow):
             if client_data: handle_create_client_execution(self, client_data_dict=client_data)
 
     def create_actions_main(self): 
-        self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.open_settings_dialog)
+        self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.show_settings_page) # Changed to show_settings_page
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
         self.status_action = QAction(QIcon(":/icons/check-square.svg"), self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog); self.status_action.setEnabled(False); self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
         self.exit_action = QAction(QIcon(":/icons/log-out.svg"), self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
@@ -573,22 +495,24 @@ class DocumentManager(QMainWindow):
             self.notify(title=self.tr("Accès Dossier Échoué"),
                         message=self.tr("Chemin du dossier non trouvé pour le client '{0}'.").format(client_info.get('client_name', 'N/A') if client_info else 'N/A'),
                         type='WARNING')
-            
-    def open_settings_dialog(self): 
-        dialog = SettingsDialog(self.config, self)
-        if dialog.exec_() == QDialog.Accepted:
-            new_conf = dialog.get_config() 
-            google_maps_url_from_dialog = new_conf.get("google_maps_review_url")
-            if google_maps_url_from_dialog is not None:
-                db_manager.set_setting('google_maps_review_url', google_maps_url_from_dialog)
-                self.config['google_maps_review_url'] = google_maps_url_from_dialog
-            self.config.update(new_conf); save_config(self.config)
-            new_language_code = self.config.get('language')
-            if new_language_code:
-                try: db_manager.set_setting('user_selected_language', new_language_code)
-                except Exception as e: logging.error(f"Error saving language preference: {e}", exc_info=True); self.notify(title=self.tr("Erreur Sauvegarde Langue"),message=self.tr("Impossible d'enregistrer la préférence linguistique."),type='ERROR')
-            os.makedirs(self.config["templates_dir"], exist_ok=True); os.makedirs(self.config["clients_dir"], exist_ok=True)
-            self.notify(title=self.tr("Paramètres Sauvegardés"), message=self.tr("Les nouveaux paramètres ont été enregistrés."), type='SUCCESS')
+
+    def show_settings_page(self):
+        self.main_area_stack.setCurrentWidget(self.settings_page_instance)
+        # Ensure data is fresh when page is shown
+        # SettingsPage's own _load_all_settings_from_config handles general/email tabs
+        if hasattr(self.settings_page_instance, '_load_all_settings_from_config'):
+            self.settings_page_instance._load_all_settings_from_config()
+        # Transporters and Forwarders tabs load data from DB via their specific load methods
+        if hasattr(self.settings_page_instance, '_load_transporters_table'):
+            self.settings_page_instance._load_transporters_table()
+        if hasattr(self.settings_page_instance, '_load_forwarders_table'):
+            self.settings_page_instance._load_forwarders_table()
+        # CompanyTabWidget loads its own data on init, but if a refresh is needed:
+        if hasattr(self.settings_page_instance, 'company_tab') and \
+           hasattr(self.settings_page_instance.company_tab, 'load_all_data'): # Assuming CompanyTabWidget has this
+            self.settings_page_instance.company_tab.load_all_data()
+
+        logging.info("Switched to Settings Page and refreshed its data.")
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
     def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
