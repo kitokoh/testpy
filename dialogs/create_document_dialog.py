@@ -71,6 +71,10 @@ class CreateDocumentDialog(QDialog):
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
         combined_filter_layout.addWidget(self.search_bar)
+
+        from PyQt5.QtWidgets import QSizePolicy
+
+
         self.search_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         main_layout.addWidget(filters_group)

@@ -209,6 +209,7 @@ class TestClientWidgetAddProduct(unittest.TestCase):
         mock_qmessagebox.warning.assert_not_called()
 
 
+
     def test_add_product_multiple_products_one_invalid_data(self, mock_db_manager, MockProductDialog):
         """Test adding multiple products, one with invalid quantity."""
         mock_dialog_instance = MockProductDialog.return_value
@@ -300,6 +301,7 @@ class TestClientWidgetAddProduct(unittest.TestCase):
         actual_row_1_items = {args[0][1]: args[0][2].text() for args in set_item_calls if args[0][0] == 1}
         for col_idx, expected_text in expected_row_1_texts.items():
             self.assertEqual(actual_row_1_items.get(col_idx), expected_text, f"Mismatch in Prod3, row 1, col {col_idx}")
+
 
 
     def test_add_product_db_failure(self, mock_db_manager, MockProductDialog):
