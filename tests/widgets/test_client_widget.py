@@ -137,13 +137,77 @@ class TestClientWidgetAddProduct(unittest.TestCase):
         # Check that load_products was called (implicitly by checking get_products_for_client_or_project)
         mock_db_manager.get_products_for_client_or_project.assert_called_once_with(self.mock_client_info['client_id'], project_id=None)
 
-        # Check if products_table was populated (simplified check)
+        # Check if products_table was populated
         self.widget.products_table.setRowCount.assert_called_with(0) # Cleared first
-        self.widget.products_table.insertRow.assert_called_once() # One product added
-        self.widget.products_table.setItem.assert_any_call(0, 1, ANY) # Check if name column was set for row 0
+        self.widget.products_table.insertRow.assert_called_once_with(0) # Row 0 for the first product
 
-        mock_qmessagebox.information.assert_called_once() # Success message
-        mock_qmessagebox.warning.assert_not_called() # No warnings for data issues
+        # Verify setItem calls for the single product
+        # Expected data from mock_db_manager.get_products_for_client_or_project
+        # {'client_project_product_id': 1, 'product_id': 'prod1', 'product_name': 'Product 1',
+        #  'quantity': 2.0, 'unit_price_override': 10.50, 'base_unit_price': 10.0,
+        #  'total_price_calculated': 21.0, 'language_code': 'fr',
+        #  'product_description': '', 'weight': None, 'dimensions': None } # Assuming defaults if not in mock
+
+        # Helper to get text from QTableWidgetItem mock calls
+        def get_item_text_from_call(call_obj):
+            # setItem(row, col, QTableWidgetItem_instance)
+            # QTableWidgetItem_instance is call_obj[0][2]
+            # QTableWidgetItem is instantiated with text: QTableWidgetItem("text")
+            # The mock for QTableWidgetItem needs to capture this text or have a text() method.
+            # For simplicity, if QTableWidgetItem is not deeply mocked, we assume its string representation
+            # or a 'text' attribute holds the value if it were a custom mock.
+            # Given QTableWidgetItem is a real class, its instance will have .text()
+            qt_item = call_obj[0][2]
+            return qt_item.text()
+
+        # Expected calls for row 0
+        # Column indices: ID=0(hidden), Name=1, Desc=2, Weight=3, Dims=4, Qty=5, UnitPrice=6, TotalPrice=7
+        # Data from mock: 'product_name': 'Product 1', 'quantity': 2.0, unit_price_override (or base for effective): 10.50, total_price_calculated: 21.0
+        # description, weight, dimensions might be missing or default from prod_link_data.get
+        # Let's assume product_description, weight, dimensions are part of the mock return from get_products_for_client_or_project
+        # For example:
+        mock_product_data_for_table = {
+            'client_project_product_id': 1, 'product_name': 'Product 1', 'product_description': 'Desc 1',
+            'weight': 0.5, 'dimensions': '10x5x2', 'quantity': 2.0,
+            'unit_price_override': 10.50, 'base_unit_price': 10.0, 'total_price_calculated': 21.0
+        }
+        # Update the mock return to include these for a more complete test
+        mock_db_manager.get_products_for_client_or_project.return_value = [mock_product_data_for_table]
+
+        # Re-run add_product with the updated mock if necessary, or ensure this mock is set before add_product call.
+        # The current structure sets it before, which is fine.
+
+        # Check specific cells
+        # We need to iterate through call_args_list of setItem
+        # This is more robust than assert_has_calls with ANY for the item.
+
+        # Get all calls to setItem
+        set_item_calls = self.widget.products_table.setItem.call_args_list
+
+        # Expected values for row 0
+        expected_row_0_texts = {
+            0: str(mock_product_data_for_table['client_project_product_id']), # ID
+            1: mock_product_data_for_table['product_name'],                   # Name
+            2: mock_product_data_for_table['product_description'],            # Description
+            3: f"{mock_product_data_for_table['weight']} kg",                 # Weight
+            4: mock_product_data_for_table['dimensions'],                     # Dimensions
+            5: str(mock_product_data_for_table['quantity']),                  # Qty
+            6: f"{mock_product_data_for_table['unit_price_override']:.2f}",   # Unit Price (effective)
+            7: f"€ {mock_product_data_for_table['total_price_calculated']:.2f}"# Total Price
+        }
+
+        actual_row_0_items = {}
+        for call_args in set_item_calls:
+            args = call_args[0] # (row, col, QTableWidgetItem_instance)
+            if args[0] == 0: # Filter for row 0
+                actual_row_0_items[args[1]] = args[2].text() # Store text by col_idx
+
+        for col_idx, expected_text in expected_row_0_texts.items():
+            self.assertEqual(actual_row_0_items.get(col_idx), expected_text, f"Mismatch in row 0, col {col_idx}")
+
+        mock_qmessagebox.information.assert_called_once()
+        mock_qmessagebox.warning.assert_not_called()
+
 
 
     def test_add_product_multiple_products_one_invalid_data(self, mock_db_manager, MockProductDialog):
@@ -186,8 +250,58 @@ class TestClientWidgetAddProduct(unittest.TestCase):
         # Check that load_products was called
         mock_db_manager.get_products_for_client_or_project.assert_called_once_with(self.mock_client_info['client_id'], project_id=None)
 
-        # Check table population
+        # Check table population for 2 valid products
+        self.widget.products_table.setRowCount.assert_called_with(0)
         self.assertEqual(self.widget.products_table.insertRow.call_count, 2) # Prod1 and Prod3
+        self.widget.products_table.insertRow.assert_any_call(0) # For Prod1
+        self.widget.products_table.insertRow.assert_any_call(1) # For Prod3
+
+        # Verify setItem calls for the two valid products
+        # Prod1 data (from mock_dialog_instance.get_data)
+        prod1_data_for_table = {
+            'client_project_product_id': 1, 'product_name': 'Product 1', 'product_description': '',
+            'weight': None, 'dimensions': 'N/A', 'quantity': 2.0,
+            'unit_price_override': 10.00, 'base_unit_price': 10.00, # Assuming base matches if override is same
+            'total_price_calculated': 20.0
+        }
+        # Prod3 data
+        prod3_data_for_table = {
+            'client_project_product_id': 2, 'product_name': 'Product 3', 'product_description': '',
+            'weight': None, 'dimensions': 'N/A', 'quantity': 3.0,
+            'unit_price_override': 5.00, 'base_unit_price': 5.00,
+            'total_price_calculated': 15.0
+        }
+
+        # Update the mock return to include these details if they are used by setItem
+        # The current mock for get_products_for_client_or_project is already structured this way.
+
+        set_item_calls = self.widget.products_table.setItem.call_args_list
+
+        # Check Prod1 (row 0)
+        expected_row_0_texts = {
+            0: str(prod1_data_for_table['client_project_product_id']),
+            1: prod1_data_for_table['product_name'],
+            # Add more columns if their data is explicitly set and verifiable
+            5: str(prod1_data_for_table['quantity']),
+            6: f"{prod1_data_for_table['unit_price_override']:.2f}",
+            7: f"€ {prod1_data_for_table['total_price_calculated']:.2f}"
+        }
+        actual_row_0_items = {args[0][1]: args[0][2].text() for args in set_item_calls if args[0][0] == 0}
+        for col_idx, expected_text in expected_row_0_texts.items():
+            self.assertEqual(actual_row_0_items.get(col_idx), expected_text, f"Mismatch in Prod1, row 0, col {col_idx}")
+
+        # Check Prod3 (row 1)
+        expected_row_1_texts = {
+            0: str(prod3_data_for_table['client_project_product_id']),
+            1: prod3_data_for_table['product_name'],
+            5: str(prod3_data_for_table['quantity']),
+            6: f"{prod3_data_for_table['unit_price_override']:.2f}",
+            7: f"€ {prod3_data_for_table['total_price_calculated']:.2f}"
+        }
+        actual_row_1_items = {args[0][1]: args[0][2].text() for args in set_item_calls if args[0][0] == 1}
+        for col_idx, expected_text in expected_row_1_texts.items():
+            self.assertEqual(actual_row_1_items.get(col_idx), expected_text, f"Mismatch in Prod3, row 1, col {col_idx}")
+
 
 
     def test_add_product_db_failure(self, mock_db_manager, MockProductDialog):
