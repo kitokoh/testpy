@@ -35,40 +35,48 @@ class CreateDocumentDialog(QDialog):
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(15) # Increased main layout spacing
 
         header_label = QLabel(self.tr("Sélectionner Documents à Créer"))
         header_label.setObjectName("dialogHeaderLabel")
         main_layout.addWidget(header_label)
 
         filters_group = QGroupBox(self.tr("Filtres"))
-        filters_group_layout = QVBoxLayout(filters_group)
-        filters_group_layout.setSpacing(10)
+        # Create a single QHBoxLayout for all filter controls and set it directly for the group
+        combined_filter_layout = QHBoxLayout(filters_group) # Set as layout for filters_group
+        combined_filter_layout.setSpacing(10)
+        combined_filter_layout.setContentsMargins(10, 10, 10, 10) # Add some margins inside the group box
 
-        filter_row1_layout = QHBoxLayout()
+        # Language Filter
         self.language_filter_label = QLabel(self.tr("Langue:"))
-        filter_row1_layout.addWidget(self.language_filter_label)
+        combined_filter_layout.addWidget(self.language_filter_label)
         self.language_filter_combo = QComboBox()
         self.language_filter_combo.addItems([self.tr("All"), "fr", "en", "ar", "tr", "pt"])
         self.language_filter_combo.setCurrentText(self.tr("All"))
-        filter_row1_layout.addWidget(self.language_filter_combo)
-        filter_row1_layout.addSpacing(20)
+        combined_filter_layout.addWidget(self.language_filter_combo)
+
+        # Extension Filter
+        combined_filter_layout.addSpacing(15)
         self.extension_filter_label = QLabel(self.tr("Extension:"))
-        filter_row1_layout.addWidget(self.extension_filter_label)
+        combined_filter_layout.addWidget(self.extension_filter_label)
         self.extension_filter_combo = QComboBox()
         self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
         self.extension_filter_combo.setCurrentText("HTML")
-        filter_row1_layout.addWidget(self.extension_filter_combo)
-        filter_row1_layout.addStretch()
-        filters_group_layout.addLayout(filter_row1_layout)
+        combined_filter_layout.addWidget(self.extension_filter_combo)
 
-        filter_row2_layout = QHBoxLayout()
+        # Search Bar
+        combined_filter_layout.addSpacing(15)
         self.search_bar_label = QLabel(self.tr("Rechercher:"))
-        filter_row2_layout.addWidget(self.search_bar_label)
+        combined_filter_layout.addWidget(self.search_bar_label)
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText(self.tr("Filtrer par nom..."))
-        filter_row2_layout.addWidget(self.search_bar)
-        filters_group_layout.addLayout(filter_row2_layout)
+        combined_filter_layout.addWidget(self.search_bar)
+
+        from PyQt5.QtWidgets import QSizePolicy
+
+
+        self.search_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
         main_layout.addWidget(filters_group)
 
         self.order_select_combo = None
@@ -81,7 +89,9 @@ class CreateDocumentDialog(QDialog):
 
         if client_category == 'Distributeur' or has_multiple_events:
             order_group = QGroupBox(self.tr("Association Commande"))
-            order_group_layout = QHBoxLayout(order_group)
+            order_group_layout = QHBoxLayout(order_group) # Set as layout for order_group
+            order_group_layout.setSpacing(10)
+            order_group_layout.setContentsMargins(10, 10, 10, 10) # Add margins
 
             self.order_select_combo = QComboBox()
             self.order_select_combo.addItem(self.tr("Document Général (pas de commande spécifique)"), "NONE")
@@ -103,7 +113,9 @@ class CreateDocumentDialog(QDialog):
             main_layout.addWidget(order_group)
 
         templates_group = QGroupBox(self.tr("Modèles Disponibles"))
-        templates_group_layout = QVBoxLayout(templates_group)
+        templates_group_layout = QVBoxLayout(templates_group) # Set as layout for templates_group
+        templates_group_layout.setSpacing(10) # Or keep default if it looks better
+        templates_group_layout.setContentsMargins(10, 10, 10, 10) # Add margins
         self.templates_list = QListWidget()
         self.templates_list.setSelectionMode(QListWidget.MultiSelection)
         self.templates_list.setAlternatingRowColors(True)
@@ -154,52 +166,111 @@ class CreateDocumentDialog(QDialog):
             self._initial_load_complete = True
 
         selected_lang = self.language_filter_combo.currentText(); selected_ext_display = self.extension_filter_combo.currentText(); search_text = self.search_bar.text().lower()
-        ext_map = {"HTML": ".html", "XLSX": ".xlsx", "DOCX": ".docx"}; selected_ext = ext_map.get(selected_ext_display)
+        ext_map = {"HTML": ".html", "XLSX": ".xlsx", "DOCX": ".docx"}
+        type_map_from_ext = {".html": "document_html", ".xlsx": "document_excel", ".docx": "document_word"} # Add other types if needed
+
+        selected_ext_val = ext_map.get(selected_ext_display)
+        template_type_filter = None
+        if selected_ext_display != self.tr("All"):
+            template_type_filter = type_map_from_ext.get(selected_ext_val)
+
+        effective_lang_filter = selected_lang if selected_lang != self.tr("All") else None
+        current_client_id = self.client_info.get('client_id')
 
         try:
-            all_file_templates = db_manager.get_all_file_based_templates()
-            if all_file_templates is None: all_file_templates = []
+            # Fetch client-specific and global templates based on filters
+            # get_all_templates is now client-aware and handles other filters
+            # Assuming '1' is the category_id for "document" templates.
+            # This ID should be confirmed or fetched dynamically if possible in a real scenario.
+            DOCUMENT_CATEGORY_ID = 1
+            templates_from_db = db_manager.get_all_templates(
+                template_type_filter=template_type_filter,
+                language_code_filter=effective_lang_filter,
+                client_id_filter=current_client_id,
+                category_id_filter=DOCUMENT_CATEGORY_ID
+            )
+            if templates_from_db is None: templates_from_db = []
 
-            default_templates = []
-            other_templates = []
+            # Apply search text filter locally first
+            if search_text:
+                templates_from_db = [
+                    t for t in templates_from_db
+                    if search_text in t.get('template_name', '').lower()
+                ]
 
-            for template_dict in all_file_templates:
-                if template_dict.get('is_default_for_type_lang'):
-                    default_templates.append(template_dict)
+            # Refine default status based on client-specificity
+            # Key: (template_type, language_code)
+            # Value: template_dict (prioritizing client-specific default)
+            effective_defaults_map = {}
+            client_specific_defaults_found = {} # Stores client-specific defaults: key=(type,lang), value=template_dict
+
+            # First, identify all client-specific defaults from the filtered list
+            for t_dict in templates_from_db:
+                if t_dict.get('client_id') and t_dict.get('is_default_for_type_lang'):
+                    key = (t_dict.get('template_type'), t_dict.get('language_code'))
+                    # If multiple client-specific defaults for same type/lang (should ideally not happen if set_default is used)
+                    # we prefer the first one encountered or based on some criteria, here just overwriting.
+                    client_specific_defaults_found[key] = t_dict
+
+            effective_defaults_map.update(client_specific_defaults_found)
+
+            # Second, add global defaults only if no client-specific default exists for that type/lang
+            for t_dict in templates_from_db:
+                if not t_dict.get('client_id') and t_dict.get('is_default_for_type_lang'):
+                    key = (t_dict.get('template_type'), t_dict.get('language_code'))
+                    if key not in effective_defaults_map: # No client-specific default for this type/lang
+                        effective_defaults_map[key] = t_dict
+
+            processed_templates_display_list = []
+            for t_dict in templates_from_db:
+                display_dict = t_dict.copy()
+                key = (t_dict.get('template_type'), t_dict.get('language_code'))
+
+                # Is this template the one chosen as the "effective" default for its type/lang?
+                # We compare using object identity (id()) in case of identical dicts from different sources (unlikely here but safe)
+                # or more simply, if the template_id matches (assuming template_id is unique and present)
+                effective_default_for_key = effective_defaults_map.get(key)
+                if effective_default_for_key and effective_default_for_key.get('template_id') == t_dict.get('template_id'):
+                    display_dict['is_display_default'] = True
                 else:
-                    other_templates.append(template_dict)
+                    display_dict['is_display_default'] = False
+                processed_templates_display_list.append(display_dict)
 
-            processed_templates = []
-            for template_list_segment in [default_templates, other_templates]:
-                for template_dict in template_list_segment:
-                    name = template_dict.get('template_name', 'N/A')
-                    lang_code = template_dict.get('language_code', 'N/A')
-                    base_file_name = template_dict.get('base_file_name', 'N/A')
+            # Sort: display_defaults first, then by name/lang
+            # Global templates (client_id is None) should generally come after client-specific ones if names are similar etc.
+            # The primary sort is by the new 'is_display_default' flag.
+            processed_templates_display_list.sort(key=lambda t: (
+                not t['is_display_default'], # False (is_display_default=True) comes before True (is_display_default=False)
+                bool(t.get('client_id')),    # Client-specific (True) before global (False) for non-defaults or secondary sort
+                t.get('template_name', '').lower(),
+                t.get('language_code', '').lower()
+            ))
 
-                    if selected_lang != self.tr("All") and lang_code != selected_lang:
-                        continue
-                    file_actual_ext = os.path.splitext(base_file_name)[1].lower()
-                    if selected_ext_display != self.tr("All"):
-                        if not selected_ext or file_actual_ext != selected_ext:
-                            continue
-                    if search_text and search_text not in name.lower():
-                        continue
-                    processed_templates.append(template_dict)
+            for template_dict_display_item in processed_templates_display_list:
+                name = template_dict_display_item.get('template_name', 'N/A')
+                lang = template_dict_display_item.get('language_code', 'N/A')
+                base_file_name = template_dict_display_item.get('base_file_name', 'N/A')
+                # Use 'is_display_default' for the UI indication
+                is_default_for_display = template_dict_display_item.get('is_display_default', False)
 
-            for template_dict in processed_templates:
-                name = template_dict.get('template_name', 'N/A')
-                lang = template_dict.get('language_code', 'N/A')
-                base_file_name = template_dict.get('base_file_name', 'N/A')
-                is_default = template_dict.get('is_default_for_type_lang', False)
                 item_text = f"{name} ({lang}) - {base_file_name}"
-                if is_default: item_text = f"[D] {item_text}"
+                if is_default_for_display:
+                    item_text = f"[D] {item_text}"
+
                 item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, template_dict)
-                if is_default:
-                    font = item.font(); font.setBold(True); item.setFont(font)
-                    # item.setBackground(QColor("#E0F0E0")) # QColor needs import
+                # Store the original template_dict (or its copy if modification is an issue) in UserRole
+                # Here, template_dict_display_item contains the original data + 'is_display_default'
+                item.setData(Qt.UserRole, template_dict_display_item)
+
+                if is_default_for_display:
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
+                    # item.setBackground(QColor("#E0F0E0")) # Optional: QColor needs import
                 self.templates_list.addItem(item)
         except Exception as e:
+            # Log the full traceback for detailed debugging
+            logging.error("Error loading templates in dialog", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):

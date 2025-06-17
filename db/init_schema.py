@@ -797,17 +797,46 @@ def initialize_database():
             print(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.")
     else:
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
-            description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-            category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
-            cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
-            version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by_user_id TEXT,
-            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            UNIQUE (template_name, template_type, language_code, version)
-        )""")
+CREATE TABLE IF NOT EXISTS Templates (
+    template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_name TEXT NOT NULL,
+    template_type TEXT NOT NULL,
+    description TEXT,
+    base_file_name TEXT,
+    language_code TEXT,
+    is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+    category_id INTEGER,
+    content_definition TEXT,
+    email_subject_template TEXT,
+    email_variables_info TEXT,
+    cover_page_config_json TEXT,
+    document_mapping_config_json TEXT,
+    raw_template_file_data BLOB,
+    version TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id TEXT,
+    client_id TEXT DEFAULT NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+    FOREIGN KEY (category_id) REFERENCES TemplateCategories (category_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
+    UNIQUE (template_name, template_type, language_code, version)
+)
+""")
+
+
+    # Idempotently add client_id column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(Templates)")
+    templates_columns = [column['name'] for column in cursor.fetchall()]
+    if 'client_id' not in templates_columns:
+        try:
+            cursor.execute("ALTER TABLE Templates ADD COLUMN client_id TEXT DEFAULT NULL")
+            # Note: Adding FOREIGN KEY constraint via ALTER TABLE is tricky in older SQLite.
+            # The FK definition in CREATE TABLE handles new DBs. For existing DBs, this adds the column.
+            # Full FK enforcement for old DBs might require more complex migration (recreate table).
+            print("Added 'client_id' column to Templates table.")
+        except sqlite3.Error as e_alter_templates:
+            print(f"Error adding 'client_id' column to Templates table: {e_alter_templates}")
 
     # Create Tasks table (from ca.py)
     cursor.execute("""
@@ -999,6 +1028,9 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS Transporters (
         transporter_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
         phone TEXT, email TEXT, address TEXT, service_area TEXT, notes TEXT,
+        latitude REAL,
+        longitude REAL,
+        current_cargo TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
 
@@ -1269,6 +1301,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_language_code ON Templates(language_code)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_category_id ON Templates(category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_is_default_for_type_lang ON Templates(is_default_for_type_lang)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_client_id ON Templates(client_id)") # Index for the new column
     # ClientDocuments
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_client_id ON ClientDocuments(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")

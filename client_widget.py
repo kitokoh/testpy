@@ -2032,12 +2032,125 @@ class ClientWidget(QWidget):
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
             pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+
+            source_template_id = doc_data.get('source_template_id')
+            # Disable PDF generation for actual PDFs that came from a template (they are already PDFs)
+            # The _handle_open_pdf_action might need to distinguish between generating from source and just opening if it's already PDF.
+            # For now, if it's a PDF in the list, pdf_btn will just open it if it exists.
+
             source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
-            if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
+
+            can_edit_source_template = False
+            if source_template_id:
+                template_info_for_edit_btn = db_manager.get_template_by_id(source_template_id)
+                if template_info_for_edit_btn and template_info_for_edit_btn.get('template_type', '').startswith('html'):
+                    can_edit_source_template = True
+
+            if can_edit_source_template:
+                edit_source_template_btn = QPushButton(""); edit_source_template_btn.setIcon(QIcon.fromTheme("accessories-text-editor", QIcon(":/icons/pencil.svg"))); edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document")); edit_source_template_btn.setFixedSize(30,30); edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d)); action_layout.addWidget(edit_source_template_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for direct editability if not from template or template not HTML
                 edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
+            else:
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+
             delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+
+    def handle_edit_source_template(self, document_data):
+        source_template_id = document_data.get('source_template_id')
+        current_client_id = self.client_info.get('client_id')
+
+        if not source_template_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun ID de modèle source associé à ce document."))
+            return
+
+        original_template = db_manager.get_template_by_id(source_template_id)
+        if not original_template:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Modèle source (ID: {0}) introuvable.").format(source_template_id))
+            return
+
+        template_to_edit_id = source_template_id
+        template_for_editor = original_template.copy() # Work with a copy
+
+        if original_template.get('client_id') is None: # Global template
+            reply = QMessageBox.question(self, self.tr("Modèle Global"),
+                                         self.tr("Ce document a été généré à partir d'un modèle global. Voulez-vous créer une copie spécifique à ce client ({0}) pour modification?").format(self.client_info.get('client_name', current_client_id)),
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if reply == QMessageBox.Yes:
+                new_template_data = template_for_editor # Already a copy
+                new_template_data['client_id'] = current_client_id
+                new_template_data['template_name'] = f"{original_template.get('template_name', 'Template')} ({self.client_info.get('client_name', current_client_id)[:15]} Copy)"
+                new_template_data.pop('template_id', None)
+                new_template_data['is_default_for_type_lang'] = False
+
+                new_id = db_manager.add_template(new_template_data)
+                if new_id:
+                    template_to_edit_id = new_id
+                    template_for_editor = db_manager.get_template_by_id(new_id) # Get the full new template data
+                    QMessageBox.information(self, self.tr("Copie Créée"), self.tr("Une copie client-spécifique du modèle a été créée et va maintenant être ouverte pour édition."))
+                    self.populate_doc_table() # Refresh doc list if template source ID might change (though it doesn't for existing docs)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Impossible de créer la copie client-spécifique du modèle."))
+                    return
+            else: # User chose not to create a copy
+                return
+        elif original_template.get('client_id') != current_client_id:
+            QMessageBox.warning(self, self.tr("Accès Interdit"), self.tr("Ce modèle appartient à un autre client et ne peut pas être modifié directement ici. Une copie pour le client actuel peut être envisagée si nécessaire (fonctionnalité à implémenter)."))
+            return # Or implement copy logic similar to global templates
+
+        # At this point, template_for_editor is the correct one to edit (original or new copy)
+        raw_html_content = template_for_editor.get('raw_template_file_data')
+        base_file_name = template_for_editor.get('base_file_name')
+        lang_code = template_for_editor.get('language_code')
+
+        if not base_file_name or not lang_code:
+            QMessageBox.critical(self, self.tr("Erreur Modèle"), self.tr("Les informations du fichier de base du modèle (nom ou langue) sont manquantes."))
+            return
+
+        # Construct path in the central template store
+        template_file_path_for_editor = os.path.join(self.config.get("templates_dir", "templates"), lang_code, base_file_name)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(template_file_path_for_editor), exist_ok=True)
+
+        # Write DB content to file for editor, to ensure editor loads the canonical version
+        try:
+            content_to_write = raw_html_content
+            if isinstance(raw_html_content, bytes):
+                content_to_write = raw_html_content.decode('utf-8')
+
+            with open(template_file_path_for_editor, 'w', encoding='utf-8') as f:
+                f.write(content_to_write if content_to_write else "")
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Écriture Fichier"), self.tr("Impossible d'écrire le contenu du modèle vers le fichier temporaire pour édition: {0}").format(str(e)))
+            return
+
+        editor_client_data = self.client_info.copy() # Pass a copy
+        html_editor = HtmlEditor(
+            file_path=template_file_path_for_editor,
+            client_data=editor_client_data,
+            template_id=template_to_edit_id, # Pass the ID of the template being edited
+            parent=self
+        )
+        if html_editor.exec_() == QDialog.Accepted:
+            try:
+                with open(template_file_path_for_editor, 'r', encoding='utf-8') as f:
+                    updated_html_content = f.read()
+
+                # Save updated content back to DB
+                update_payload = {'raw_template_file_data': updated_html_content}
+                # Optionally, update 'updated_at' or 'version' if those fields are important here
+                if db_manager.update_template(template_to_edit_id, update_payload):
+                    QMessageBox.information(self, self.tr("Modèle Sauvegardé"), self.tr("Les modifications du modèle ont été sauvegardées dans la base de données."))
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur Sauvegarde DB"), self.tr("Impossible de sauvegarder les modifications du modèle dans la base de données."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Lecture Fichier"), self.tr("Impossible de relire le fichier modèle modifié: {0}").format(str(e)))
+
+        # Clean up temporary file if it was solely for this edit session and raw_template_file_data is truth
+        # For now, assume file is persistent in templates_dir. If base_file_name was temporary, then:
+        # if os.path.exists(template_file_path_for_editor) and is_temp_file: os.remove(template_file_path_for_editor)
+
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -2260,12 +2373,39 @@ class ClientWidget(QWidget):
                     # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
                     # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
 
-                    global_product_id = product_entry.get('product_id') # This is the ID from Products table
-                    quantity = product_entry.get('quantity')
-                    unit_price_override = product_entry.get('unit_price') # Dialog uses 'unit_price' for the override
+                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
+                    client_id_for_product = self.client_info.get('client_id')
+                    global_product_id = product_entry.get('product_id')
+                    quantity_raw = product_entry.get('quantity')
+                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
+
+                    quantity = None
+                    if quantity_raw is not None:
+                        try:
+                            quantity = float(quantity_raw)
+                            if quantity <= 0:
+                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
+                                quantity = None # Treat as missing/invalid
+                        except ValueError:
+                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
+                            quantity = None # Treat as missing/invalid
+
+                    unit_price_override = None # Initialize to None
+                    # unit_price_override should only be set if unit_price_override_raw is not None.
+                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
+                    # If unit_price_override_raw is provided, it must be a valid float.
+                    if unit_price_override_raw is not None:
+                        try:
+                            unit_price_override = float(unit_price_override_raw)
+                            if unit_price_override < 0: # Negative prices are not allowed for an override
+                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
+                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
+                                unit_price_override = None # Mark as invalid for the 'all' check.
+                        except ValueError:
+                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
+                            unit_price_override = None # Mark as invalid for the 'all' check.
 
                     # Determine project_id. It can be None.
-                    # project_identifier from client_info might be the name/code, not the DB ID.
                     # Assuming self.client_info.get('project_id') is the actual foreign key or None.
                     project_id_for_db = self.client_info.get('project_id', None)
                     if project_id_for_db is None:
@@ -2275,23 +2415,35 @@ class ClientWidget(QWidget):
                         logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
 
 
-                    if not all([client_id_for_product, global_product_id, quantity is not None, unit_price_override is not None]):
-                        logging.error(f"Skipping product entry due to missing data: {product_entry} for client_id {client_id_for_product}")
-                        QMessageBox.warning(self, self.tr("Données Produit Incomplètes"),
-                                            self.tr("Impossible d'ajouter un produit car certaines informations sont manquantes : {0}.").format(product_entry.get('name', 'Nom inconnu')))
+                    # Critical data for adding a link: client_id, product_id, quantity.
+                    # unit_price_override is optional in db_call_payload (None means use base price).
+                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
+                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
+                    # And quantity must always be valid.
+                    conditions_met = all([
+                        client_id_for_product,
+                        global_product_id,
+                        quantity is not None, # Quantity must be valid positive number
+                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
+                    ])
+
+                    if not conditions_met:
+                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
+                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
                         continue
 
+                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
+                    # The add_product_to_client_or_project function handles None override by using base price.
                     db_call_payload = {
                         'client_id': client_id_for_product,
                         'product_id': global_product_id,
-                        'quantity': quantity,
-                        'unit_price_override': unit_price_override,
+                        'quantity': quantity, # Validated float
+                        'unit_price_override': unit_price_override, # Validated float or None
                         'project_id': project_id_for_db,
-                        # 'serial_number': None, # Default to None if not provided by dialog
-                        # 'purchase_confirmed_at': None, # Default to None
                     }
 
-                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
+                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
 
                     if link_id:
@@ -2504,8 +2656,10 @@ class ClientWidget(QWidget):
             # We also need to call self.load_products_for_dimension_tab() to update its own combo box
             # if this load_products method is the central point of refresh for product data.
 
-            for row_idx, prod_link_data in enumerate(filtered_products):
-                self.products_table.insertRow(row_idx)
+            # The following loop was identified as redundant and causing blank rows.
+            # for row_idx, prod_link_data in enumerate(filtered_products):
+            #     self.products_table.insertRow(row_idx) # DO NOT UNCOMMENT - This is the bug source
+
             if not filtered_products:
                 # Empty state remains: label visible, table hidden
                 # (already set at the beginning of the method)
@@ -2518,61 +2672,63 @@ class ClientWidget(QWidget):
                 self.products_table.setVisible(True)
 
                 for row_idx, prod_link_data in enumerate(filtered_products):
+                # This is the correct loop for inserting and populating rows.
+                # Ensure insertRow is called here, once per product.
                     self.products_table.insertRow(row_idx)
 
-                id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
-                id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
-                id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
-                self.products_table.setItem(row_idx, 0, id_item)
+                    id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
+                    id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
+                    id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                    self.products_table.setItem(row_idx, 0, id_item)
 
-                # Name (Column 1)
-                name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 1, name_item)
+                    # Name (Column 1)
+                    name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 1, name_item)
 
-                desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
-                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 2, desc_item)
+                    desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
+                    desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 2, desc_item)
 
-                # Weight (Column 3 - Not Editable from this table)
-                weight_val = prod_link_data.get('weight')
-                weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
-                weight_item = QTableWidgetItem(weight_str)
-                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
-                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.products_table.setItem(row_idx, 3, weight_item)
+                    # Weight (Column 3 - Not Editable from this table)
+                    weight_val = prod_link_data.get('weight')
+                    weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+                    weight_item = QTableWidgetItem(weight_str)
+                    weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                    weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.products_table.setItem(row_idx, 3, weight_item)
 
-                # Dimensions (Column 4 - Not Editable from this table)
-                dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
-                dimensions_item = QTableWidgetItem(dimensions_val)
-                dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 4, dimensions_item)
+                    # Dimensions (Column 4 - Not Editable from this table)
+                    dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
+                    dimensions_item = QTableWidgetItem(dimensions_val)
+                    dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 4, dimensions_item)
 
-                # Quantity (Column 5 - Editable)
-                qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
-                qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
-                qty_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 5, qty_item)
+                    # Quantity (Column 5 - Editable)
+                    qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
+                    qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                    qty_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 5, qty_item)
 
-                # Unit Price (Column 6 - Editable)
-                unit_price_override = prod_link_data.get('unit_price_override')
-                base_price = prod_link_data.get('base_unit_price')
-                effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
-                effective_unit_price = float(effective_unit_price)
-                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
-                unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
-                unit_price_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 6, unit_price_item)
+                    # Unit Price (Column 6 - Editable)
+                    unit_price_override = prod_link_data.get('unit_price_override')
+                    base_price = prod_link_data.get('base_unit_price')
+                    effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
+                    effective_unit_price = float(effective_unit_price)
+                    unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
+                    unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                    unit_price_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 6, unit_price_item)
 
-                # Total Price (Column 7 - Not Editable)
-                total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
-                total_price_calculated_val = float(total_price_calculated_val)
-                total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
-                total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 7, total_price_item)
+                    # Total Price (Column 7 - Not Editable)
+                    total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
+                    total_price_calculated_val = float(total_price_calculated_val)
+                    total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
+                    total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 7, total_price_item)
 
             # self.products_table.resizeColumnsToContents() # Can make UI jumpy, consider specific column resize modes
         except Exception as e:

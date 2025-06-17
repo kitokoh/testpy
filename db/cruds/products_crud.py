@@ -168,10 +168,10 @@ class ProductsCRUD(GenericCRUD):
             return None
 
     @_manage_conn
-    def get_all_products(self, filters: dict = None, conn: sqlite3.Connection = None, limit: int = None, offset: int = 0, include_deleted: bool = False) -> list[dict]:
+    def get_all_products(self, filters: dict = None, conn: sqlite3.Connection = None, limit: int = None, offset: int = 0, include_deleted: bool = False, active_only: bool = None) -> list[dict]:
         """
         Retrieves all products, with optional filtering, pagination, and inclusion
-        of soft-deleted records.
+        of soft-deleted records. Also supports filtering by active status directly.
 
         Args:
             filters (dict, optional): Filters to apply (e.g., {'category': 'Electronics'}).
@@ -181,10 +181,18 @@ class ProductsCRUD(GenericCRUD):
             offset (int, optional): Offset for pagination. Defaults to 0.
             include_deleted (bool, optional): If True, includes soft-deleted products.
                                               Defaults to False.
+            active_only (bool, optional): If True, only active products are returned.
+                                          If False, only inactive products.
+                                          If None, 'is_active' in filters is used or no active filter.
 
         Returns:
             list[dict]: A list of product records.
         """
+        if active_only is not None:
+            if filters is None:
+                filters = {}
+            filters['is_active'] = bool(active_only)
+
         cursor = conn.cursor()
         sql = f"SELECT * FROM {self.table_name} p" # Alias table as p for clarity in conditions
         q_params = []
@@ -201,8 +209,9 @@ class ProductsCRUD(GenericCRUD):
                         conditions.append("p.product_name LIKE ?")
                         q_params.append(f"%{v}%")
                     elif k == 'is_active':
+                        # This will now correctly use the value set by active_only if it was provided
                         conditions.append("p.is_active = ?")
-                        q_params.append(1 if v else 0)
+                        q_params.append(1 if bool(v) else 0) # Ensure v is treated as boolean
                     else:
                         conditions.append(f"p.{k} = ?")
                         q_params.append(v)

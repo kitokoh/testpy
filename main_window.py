@@ -30,7 +30,10 @@ from app_setup import APP_ROOT_DIR, CONFIG
 # from ui_components import StatisticsWidget # StatisticsWidget removed from main_layout
 from ui_components import StatusDelegate # Still used for QListWidget
 from map_client_dialog import MapClientDialog # Added for new client from map
-from db import get_country_by_name, get_or_add_country, get_city_by_name_and_country_id, get_or_add_city # Added for DB ops
+# The get_country_by_name, get_or_add_country, etc. specific imports for handle_add_client_from_stats_map might become obsolete.
+from db import get_country_by_name, get_or_add_country, get_city_by_name_and_country_id, get_or_add_city
+
+from dialogs.statistics_add_client_dialog import StatisticsAddClientDialog # Import the new dialog
 
 from document_manager_logic import (
     handle_create_client_execution,
@@ -57,6 +60,8 @@ from statistics_panel import CollapsibleStatisticsWidget
 from utils import save_config
 from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
+
+from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 
@@ -117,80 +122,39 @@ class DocumentManager(QMainWindow):
 
     @pyqtSlot(str)
     def handle_add_client_from_stats_map(self, country_name_str):
-        logging.info(f"Received request to add client for country: {country_name_str} from statistics map.")
-        dialog = MapClientDialog(country_name=country_name_str, parent=self)
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")        
+        try:
+            dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
 
-        if dialog.exec_() == QDialog.Accepted:
-            client_map_data = dialog.get_data()
-            logging.info(f"MapClientDialog accepted. Data: {client_map_data}")
+            if dialog.exec_() == QDialog.Accepted:
+                new_client_data = dialog.get_data()
+                logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
 
-            country_id = None
-            city_id = None
-
-            # Country Handling
-            try:
-                country_obj = get_country_by_name(client_map_data['country_name'])
-                if country_obj:
-                    country_id = country_obj['country_id']
-                else:
-                    logging.info(f"Country '{client_map_data['country_name']}' not found. Adding it.")
-                    # Using get_or_add_country as it's more robust and returns the dict
-                    new_country_obj = get_or_add_country(client_map_data['country_name'])
-                    if new_country_obj and new_country_obj.get('country_id'):
-                        country_id = new_country_obj['country_id']
-                        logging.info(f"Country '{client_map_data['country_name']}' added with ID {country_id}.")
-                    else:
-                        QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer le pays '{0}'.").format(client_map_data['country_name']))
-                        return
-            except Exception as e:
-                logging.error(f"Error handling country '{client_map_data['country_name']}': {e}", exc_info=True)
-                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement du pays."))
-                return
-
-            if not country_id: # Should be caught by above, but as a safeguard
-                QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu. Impossible de continuer."))
-                return
-
-            # City Handling
-            city_name_str = client_map_data['city_name']
-            try:
-                # get_city_by_name_and_country_id is not exposed by db/__init__.py in the provided files,
-                # but get_or_add_city is, and is preferred.
-                city_obj = get_or_add_city(city_name_str, country_id)
-                if city_obj and city_obj.get('city_id'):
-                    city_id = city_obj['city_id']
-                    logging.info(f"City '{city_name_str}' found/added with ID {city_id} for country ID {country_id}.")
-                else:
-                    QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Impossible d'ajouter/récupérer la ville '{0}'.").format(city_name_str))
+                if not new_client_data.get('country_id'):
+                    QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
                     return
-            except Exception as e:
-                logging.error(f"Error handling city '{city_name_str}': {e}", exc_info=True)
-                QMessageBox.critical(self, self.tr("Erreur Base de Données"), self.tr("Erreur lors du traitement de la ville."))
-                return
 
-            if not city_id: # Safeguard
-                QMessageBox.critical(self, self.tr("Erreur Ville"), self.tr("ID de la ville non obtenu. Impossible de continuer."))
-                return
+                client_data_for_db = {
+                    "client_name": new_client_data["client_name"],
+                    "company_name": new_client_data.get("company_name"),
+                    "country_id": new_client_data["country_id"],
+                    "city_id": new_client_data.get("city_id"),
+                    "project_identifier": new_client_data.get("project_identifier"),
+                    "primary_need_description": new_client_data.get("primary_need_description"),
+                    "selected_languages": new_client_data.get("selected_languages"),
+                    "created_by_user_id": self.current_user_id
+                }
 
-            # Prepare data for client creation
-            client_data_for_db = {
-                "client_name": client_map_data["client_name"],
-                "company_name": client_map_data.get("company_name"), # Optional
-                "country_id": country_id,
-                "city_id": city_id,
-                "project_identifier": client_map_data.get("project_identifier"), # Optional
-                "primary_need_description": client_map_data.get("primary_need_description"), # Optional
-                "selected_languages": client_map_data.get("selected_languages"), # Optional
-                "created_by_user_id": self.current_user_id
-                # handle_create_client_execution will set defaults for status, folder path, price etc.
-            }
+                logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
+                handle_create_client_execution(self, client_data_dict=client_data_for_db)
+            else:
+                logging.info("StatisticsAddClientDialog cancelled by user.")
+        except Exception as e:
+            logging.error(f"Error opening or executing StatisticsAddClientDialog for country {country_name_str}: {e}", exc_info=True)
+            QMessageBox.critical(self,
+                                 self.tr("Erreur Dialogue"),
+                                 self.tr("Impossible d'ouvrir le dialogue 'Ajouter Client'. Veuillez consulter les logs de l'application pour plus de détails."))
 
-            logging.info(f"Proceeding to call handle_create_client_execution with data: {client_data_for_db}")
-            # This existing method should handle the rest (default status, folder, project, etc.)
-            handle_create_client_execution(self, client_data_dict=client_data_for_db)
-            # self.load_clients_from_db_slot() is called within execute_create_client_slot, which is called by handle_create_client_execution's wrapper in DocumentManager
-        else:
-            logging.info("MapClientDialog cancelled by user.")
 
     @pyqtSlot(str)
     def handle_view_client_from_stats_map(self, client_id_str):
@@ -322,13 +286,28 @@ class DocumentManager(QMainWindow):
         self.product_list_action = QAction(QIcon(":/icons/book.svg"), self.tr("Product Management"), self); self.product_list_action.triggered.connect(self.show_product_management_page) # Connect to new method
         self.partner_management_action = QAction(QIcon(":/icons/team.svg"), self.tr("Partner Management"), self); self.partner_management_action.triggered.connect(self.show_partner_management_view)
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
+        self.open_carrier_map_action = QAction(QIcon(":/icons/map.svg"), self.tr("Carrier Map"), self) # Assuming map.svg or similar exists
+        self.open_carrier_map_action.triggered.connect(self.open_carrier_map_dialog)
+
 
     def create_menus_main(self): 
         menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); # file_menu.addAction(self.product_equivalency_action);
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
-        modules_menu = menu_bar.addMenu(self.tr("Modules")); modules_menu.addAction(self.documents_view_action); modules_menu.addAction(self.project_management_action); modules_menu.addAction(self.product_list_action); modules_menu.addAction(self.partner_management_action); modules_menu.addAction(self.statistics_action)
+        modules_menu = menu_bar.addMenu(self.tr("Modules"))
+        modules_menu.addAction(self.documents_view_action)
+        modules_menu.addAction(self.project_management_action)
+        modules_menu.addAction(self.product_list_action)
+        modules_menu.addAction(self.partner_management_action)
+        modules_menu.addAction(self.statistics_action)
+        modules_menu.addSeparator() # Optional separator
+        modules_menu.addAction(self.open_carrier_map_action)
+
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
+
+    def open_carrier_map_dialog(self):
+        dialog = CarrierMapDialog(self)
+        dialog.exec_()
 
     def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)

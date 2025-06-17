@@ -16,8 +16,8 @@ except ImportError:
 
 # Attempt to import from db module
 try:
-    from db import (
-        get_db_session,
+    from db.connection import get_db_connection # Corrected import
+    from db import ( # Assuming other db functions are still directly under db or in db.__init__
         get_company_by_id as db_get_company_by_id,
         get_personnel_for_company as db_get_personnel_for_company,
         get_client_by_id as db_get_client_by_id,
@@ -34,10 +34,11 @@ try:
     # from db import _get_batch_products_and_equivalents
     from db.cruds.application_settings_crud import get_next_invoice_number # For final invoice numbers
 except ImportError as e:
-    logging.warning(f"Could not import all dependencies from db or cruds: {e}. Using placeholder functions. Full functionality requires db.py and cruds to be correctly structured and accessible.")
+    logging.warning(f"Could not import all dependencies from db or cruds: {e}. Using placeholder functions. Full functionality requires db modules to be correctly structured and accessible.")
     # Define placeholder functions if db.py or its functions are not found
 
-    def get_db_session(): raise NotImplementedError("get_db_session not imported/defined")
+    # Updated placeholder to reflect the corrected import path
+    def get_db_connection(): raise NotImplementedError("get_db_connection not imported/defined from db.connection")
     def db_get_company_by_id(session, company_id): return None
     def db_get_personnel_for_company(session, company_id): return []
     def db_get_client_by_id(session, client_id): return None
@@ -216,9 +217,10 @@ def get_proforma_invoice_context_data(
     doc_ctx["current_year"] = str(datetime.now(timezone.utc).year)
 
 
-    db_session = None
+    db_conn = None # Changed variable name for clarity
     try:
-        db_session = additional_context.get("db_session") or get_db_session()
+        # Use the corrected function name here
+        db_conn = additional_context.get("db_session") or get_db_connection() # Assuming db_session in context is a connection
 
         # --- Seller Data ---
         seller_ctx = context["seller"]
@@ -227,7 +229,7 @@ def get_proforma_invoice_context_data(
             seller_company_data = proforma_instance.company
             logging.info(f"Using seller company from proforma_instance: {seller_company_data.id if hasattr(seller_company_data, 'id') else 'N/A'}")
         elif company_id:
-            seller_company_data = db_get_company_by_id(db_session, company_id)
+            seller_company_data = db_get_company_by_id(db_conn, company_id) # Use db_conn
             logging.info(f"Fetched seller company by ID {company_id}: {'Found' if seller_company_data else 'Not Found'}")
 
         if seller_company_data:
@@ -262,7 +264,7 @@ def get_proforma_invoice_context_data(
             seller_ctx["address"] = _format_address_parts(seller_ctx["address_line1"], seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
             seller_ctx["city_zip_country"] = _format_address_parts(None, seller_ctx["city"], seller_ctx["postal_code"], seller_ctx["country"])
 
-            seller_personnel = db_get_personnel_for_company(db_session, seller_ctx["id"])
+            seller_personnel = db_get_personnel_for_company(db_conn, seller_ctx["id"]) # Use db_conn
             seller_rep = seller_personnel[0] if seller_personnel and isinstance(seller_personnel, list) and seller_personnel[0] else {}
             seller_ctx["representative_name"] = f"{seller_rep.get('first_name','')} {seller_rep.get('last_name','')}".strip() or "N/A"
 
@@ -285,7 +287,7 @@ def get_proforma_invoice_context_data(
             client_data = proforma_instance.client
             logging.info(f"Using client from proforma_instance: {client_data.id if hasattr(client_data, 'id') else 'N/A'}")
         elif client_id:
-            client_data = db_get_client_by_id(db_session, client_id)
+            client_data = db_get_client_by_id(db_conn, client_id) # Use db_conn
             logging.info(f"Fetched client by ID {client_id}: {'Found' if client_data else 'Not Found'}")
 
         if client_data:
@@ -304,7 +306,7 @@ def get_proforma_invoice_context_data(
             client_ctx["vat_id"] = client_notes_json.get("vat_id", client_notes_kv.get("vat", client_dist_info_json.get("vat_id", client_dist_info_kv.get("vat", additional_context.get("client_vat_id", "N/A")))))
             client_ctx["registration_number"] = client_notes_json.get("registration_number", client_notes_kv.get("reg", client_dist_info_json.get("registration_number", client_dist_info_kv.get("reg", additional_context.get("client_registration_number", "N/A")))))
 
-            primary_contacts = db_get_contacts_for_client(db_session, client_ctx["id"], is_primary=True)
+            primary_contacts = db_get_contacts_for_client(db_conn, client_ctx["id"], is_primary=True) # Use db_conn
             primary_contact = primary_contacts[0] if primary_contacts and isinstance(primary_contacts, list) and primary_contacts[0] else None
 
             if primary_contact:
@@ -312,20 +314,20 @@ def get_proforma_invoice_context_data(
                 client_ctx["email"] = getattr(primary_contact, 'email', getattr(client_data, 'email', "N/A"))
                 client_ctx["phone"] = getattr(primary_contact, 'phone', getattr(client_data, 'phone', "N/A"))
                 client_ctx["address_line1"] = getattr(primary_contact, 'address_streetAddress', "N/A")
-                client_city_obj = db_get_city_by_id(db_session, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None
+                client_city_obj = db_get_city_by_id(db_conn, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None # Use db_conn
                 client_ctx["city"] = getattr(primary_contact, 'address_city', getattr(client_city_obj, 'name', "N/A"))
                 client_ctx["postal_code"] = getattr(primary_contact, 'address_postalCode', "N/A")
-                client_country_obj = db_get_country_by_id(db_session, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None
+                client_country_obj = db_get_country_by_id(db_conn, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None # Use db_conn
                 client_ctx["country"] = getattr(primary_contact, 'address_country', getattr(client_country_obj, 'name', "N/A"))
             else:
                 client_ctx["representative_name"] = client_ctx["contact_person_name_default"]
                 client_ctx["email"] = getattr(client_data, 'email', additional_context.get("client_email", "N/A"))
                 client_ctx["phone"] = getattr(client_data, 'phone', additional_context.get("client_phone", "N/A"))
                 client_ctx["address_line1"] = getattr(client_data, 'address_line1', additional_context.get("client_address_line1", "N/A")) # Assuming client_data might have address_line1
-                client_city_obj_fallback = db_get_city_by_id(db_session, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None
+                client_city_obj_fallback = db_get_city_by_id(db_conn, getattr(client_data, 'city_id', None)) if getattr(client_data, 'city_id', None) else None # Use db_conn
                 client_ctx["city"] = getattr(client_city_obj_fallback, 'name', additional_context.get("client_city", "N/A"))
                 client_ctx["postal_code"] = additional_context.get("client_postal_code", "N/A") # Assuming client_data might not have postal_code
-                client_country_obj_fallback = db_get_country_by_id(db_session, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None
+                client_country_obj_fallback = db_get_country_by_id(db_conn, getattr(client_data, 'country_id', None)) if getattr(client_data, 'country_id', None) else None # Use db_conn
                 client_ctx["country"] = getattr(client_country_obj_fallback, 'name', additional_context.get("client_country", "N/A"))
 
             client_ctx["address"] = _format_address_parts(client_ctx["address_line1"], client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
@@ -342,7 +344,7 @@ def get_proforma_invoice_context_data(
             project_data = proforma_instance.project
             logging.info(f"Using project from proforma_instance: {project_data.id if hasattr(project_data, 'id') else 'N/A'}")
         elif project_id:
-            project_data = db_get_project_by_id(db_session, project_id)
+            project_data = db_get_project_by_id(db_conn, project_id) # Use db_conn
             logging.info(f"Fetched project by ID {project_id}: {'Found' if project_data else 'Not Found'}")
 
         if project_data:
@@ -396,7 +398,7 @@ def get_proforma_invoice_context_data(
 
         product_details_batch = {}
         if product_ids_for_batch_fetch:
-            product_details_batch = _get_batch_products_and_equivalents(db_session, list(set(product_ids_for_batch_fetch)), target_language_code)
+            product_details_batch = _get_batch_products_and_equivalents(db_conn, list(set(product_ids_for_batch_fetch)), target_language_code) # Use db_conn
 
         for item_data_to_render in product_items_to_process:
             p_id_render = item_data_to_render.get("product_id")
@@ -494,7 +496,7 @@ def get_proforma_invoice_context_data(
         # --- Client Specific Notes ---
         doc_notes_type = additional_context.get("client_document_notes_type", "Proforma") # e.g. Proforma, Invoice
         if client_id: # Only fetch notes if client_id is available
-            notes_text = db_get_client_document_notes(db_session, client_id, doc_notes_type, target_language_code)
+            notes_text = db_get_client_document_notes(db_conn, client_id, doc_notes_type, target_language_code) # Use db_conn
             doc_ctx["client_specific_footer_notes"] = notes_text.replace('\n', '<br>') if notes_text and isinstance(notes_text, str) else ""
         else:
             doc_ctx["client_specific_footer_notes"] = ""
@@ -512,11 +514,11 @@ def get_proforma_invoice_context_data(
         # ... (add more critical fallbacks for doc_ctx if needed)
 
     finally:
-        # If this function created the session, it should close it.
-        # However, it's better practice for the caller to manage session lifecycle.
-        # For now, assuming session is managed by caller or a context manager via get_db_session() if it were a context manager
-        # if db_session and not additional_context.get("db_session"):
-        #     db_session.close()
+        # If this function created the connection, it should close it.
+        # However, it's better practice for the caller to manage connection lifecycle.
+        # For now, assuming connection is managed by caller or a context manager via get_db_connection()
+        # if db_conn and not additional_context.get("db_session"): # "db_session" key in context is a bit misleading now
+        #     db_conn.close()
         pass
 
 
@@ -679,20 +681,18 @@ def get_final_invoice_context_data(
     doc_ctx["discount_rate_percentage"] = float(additional_context.get("discount_rate_percentage", 0.0))
 
 
-    db_session = None
+    db_conn = None # Changed variable name
     try:
-        db_session = additional_context.get("db_session") or get_db_session()
+        db_conn = additional_context.get("db_session") or get_db_connection() # Corrected function call, "db_session" in context is now a connection
 
         # --- Invoice Number ---
-        # Pass db_session to get_next_invoice_number if it's part of a larger transaction managed by the caller
-        # If get_next_invoice_number manages its own session, conn=None or conn=db_session might not matter as much
-        # but for consistency and potential transaction control, pass it.
-        doc_ctx["invoice_number"] = additional_context.get("invoice_number") or get_next_invoice_number(conn=db_session)
+        # Pass db_conn to get_next_invoice_number
+        doc_ctx["invoice_number"] = additional_context.get("invoice_number") or get_next_invoice_number(conn=db_conn)
 
 
         # --- Seller Data (largely reused from proforma) ---
         seller_ctx = context["seller"]
-        seller_company_data = get_company_by_id(db_session, company_id) if company_id else None
+        seller_company_data = get_company_by_id(db_conn, company_id) if company_id else None # Use db_conn
         if seller_company_data:
             seller_ctx["id"] = seller_company_data.id
             seller_ctx["company_name"] = seller_company_data.name or "N/A"
@@ -736,7 +736,7 @@ def get_final_invoice_context_data(
 
         # --- Client Data (largely reused) ---
         client_ctx = context["client"]
-        client_data = get_client_by_id(db_session, client_id) if client_id else None
+        client_data = get_client_by_id(db_conn, client_id) if client_id else None # Use db_conn
         if client_data:
             client_ctx["id"] = client_data.id
             client_ctx["company_name"] = client_data.company_name or "N/A"
@@ -745,20 +745,20 @@ def get_final_invoice_context_data(
             client_dist_info_json = _parse_json_field(client_data.distributor_specific_info)
             client_ctx["vat_id"] = client_dist_info_json.get("vat_id", additional_context.get("client_vat_id", "N/A"))
 
-            primary_contacts = get_contacts_for_client(db_session, client_id, is_primary=True)
+            primary_contacts = get_contacts_for_client(db_conn, client_id, is_primary=True) # Use db_conn
             primary_contact = primary_contacts[0] if primary_contacts else None
 
             if primary_contact:
                 client_ctx["representative_name"] = f"{primary_contact.first_name or ''} {primary_contact.last_name or ''}".strip() or client_ctx["representative_name"]
                 client_ctx["address_line1"] = primary_contact.address_streetAddress or "N/A"
-                client_ctx["city"] = primary_contact.address_city or (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else "N/A")
+                client_ctx["city"] = primary_contact.address_city or (get_city_by_id(db_conn, client_data.city_id).name if client_data.city_id else "N/A") # Use db_conn
                 client_ctx["postal_code"] = primary_contact.address_postalCode or "N/A"
-                client_ctx["country"] = primary_contact.address_country or (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else "N/A")
+                client_ctx["country"] = primary_contact.address_country or (get_country_by_id(db_conn, client_data.country_id).name if client_data.country_id else "N/A") # Use db_conn
             else:
                 client_ctx["address_line1"] = additional_context.get("client_address_line1", "N/A")
-                client_ctx["city"] = (get_city_by_id(db_session, client_data.city_id).name if client_data.city_id else None) or additional_context.get("client_city", "N/A")
+                client_ctx["city"] = (get_city_by_id(db_conn, client_data.city_id).name if client_data.city_id else None) or additional_context.get("client_city", "N/A") # Use db_conn
                 client_ctx["postal_code"] = additional_context.get("client_postal_code", "N/A")
-                client_ctx["country"] = (get_country_by_id(db_session, client_data.country_id).name if client_data.country_id else None) or additional_context.get("client_country", "N/A")
+                client_ctx["country"] = (get_country_by_id(db_conn, client_data.country_id).name if client_data.country_id else None) or additional_context.get("client_country", "N/A") # Use db_conn
 
             client_ctx["address"] = _format_address_parts(client_ctx["address_line1"], client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
             client_ctx["city_zip_country"] = _format_address_parts(None, client_ctx["city"], client_ctx["postal_code"], client_ctx["country"])
@@ -769,7 +769,7 @@ def get_final_invoice_context_data(
         # --- Project Data (largely reused) ---
         project_ctx = context["project"]
         if project_id:
-            project_data = get_project_by_id(db_session, project_id)
+            project_data = get_project_by_id(db_conn, project_id) # Use db_conn
             if project_data:
                 project_ctx["id"] = project_data.id
                 project_ctx["name"] = project_data.name or "N/A"
@@ -787,7 +787,7 @@ def get_final_invoice_context_data(
 
         if line_items_source:
             all_product_ids_from_items = [item["product_id"] for item in line_items_source if "product_id" in item]
-            product_details_batch = _get_batch_products_and_equivalents(db_session, all_product_ids_from_items, target_language_code)
+            product_details_batch = _get_batch_products_and_equivalents(db_conn, all_product_ids_from_items, target_language_code) # Use db_conn
 
             for item_data in line_items_source:
                 p_id = item_data.get("product_id")
@@ -861,12 +861,12 @@ def get_final_invoice_context_data(
         doc_ctx.setdefault("invoice_number", "ERROR-GEN")
         # ... (add more critical fallbacks for doc_ctx if needed)
     finally:
-        # Session management: if this function created the session, it should close it.
-        # Assuming session is managed by caller or a context manager via get_db_session()
-        if db_session and not additional_context.get("db_session"):
-            # This check is problematic if get_db_session() returns a new session each time
-            # and is not a context manager. The caller of this function should manage the session.
-            # For now, let's assume the caller handles session closing.
+        # Connection management: if this function created the connection, it should close it.
+        # Assuming connection is managed by caller or a context manager via get_db_connection()
+        if db_conn and not additional_context.get("db_session"): # "db_session" key in context is now a connection
+            # This check is problematic if get_db_connection() returns a new connection each time
+            # and is not a context manager. The caller of this function should manage the connection.
+            # For now, let's assume the caller handles connection closing.
             pass
 
     # --- Final Placeholder Mapping (Flat dictionary for simple template engines) ---

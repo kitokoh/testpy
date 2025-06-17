@@ -101,7 +101,7 @@ def get_document_context_data(
     additional_context: dict = None, conn_passed: sqlite3.Connection = None
 ) -> dict:
     # Import specific CRUD functions to avoid circular dependency with db package
-    from ..cruds.companies_crud import get_company_by_id, get_personnel_for_company
+    from .cruds.companies_crud import get_company_by_id, get_personnel_for_company
     from ..cruds.clients_crud import get_client_by_id
     from ..cruds.locations_crud import get_country_by_id, get_city_by_id
     from ..cruds.contacts_crud import get_contacts_for_client
@@ -149,18 +149,36 @@ def get_document_context_data(
                 context["seller"]["company_logo_path"] = None
 
             seller_personnel_list = get_personnel_for_company(company_id, conn=conn)
-            if seller_personnel_list: # Check if list is not empty
-                 # Assuming the first person is the representative, or apply specific logic
-                context["seller"]["personnel"] = {"representative_name": seller_personnel_list[0].get('name', "N/A")}
-            else:
-                context["seller"]["personnel"] = {"representative_name": "N/A"}
+            context["seller"]["phone"] = seller_company_data.get('phone', "N/A") # New
+            context["seller"]["website"] = seller_company_data.get('website', "N/A") # New
+            context["seller"]["vat_id"] = seller_company_data.get('vat_id', "N/A") # New
+            context["seller"]["registration_number"] = seller_company_data.get('registration_number', "N/A") # New
 
+            seller_personnel_list = get_personnel_for_company(company_id, conn=conn)
+            if seller_personnel_list: # Check if list is not empty
+                representative = seller_personnel_list[0] # Assuming the first person is representative
+                context["seller"]["personnel"] = {
+                    "representative_name": representative.get('name', "N/A"),
+                    "representative_email": representative.get('email', "N/A"), # New
+                    "representative_phone": representative.get('phone', "N/A")  # New
+                }
+            else:
+                context["seller"]["personnel"] = {
+                    "representative_name": "N/A",
+                    "representative_email": "N/A",
+                    "representative_phone": "N/A"
+                }
 
         client_data = get_client_by_id(client_id, conn=conn)
         if client_data:
             context["client"]["id"] = client_data.get('client_id')
+            context["client"]["name"] = client_data.get('client_name', "N/A") # Added for consistency
             context["client"]["company_name"] = client_data.get('company_name', client_data.get('client_name'))
-            context["client"]["address"] = client_data.get('address', "N/A") # Assuming 'address' field exists
+            context["client"]["address"] = client_data.get('address', "N/A")
+            context["client"]["phone"] = client_data.get('phone', "N/A") # New
+            context["client"]["website"] = client_data.get('website', "N/A") # New
+            context["client"]["vat_id"] = client_data.get('vat_id', "N/A") # New
+
 
             if client_data.get('country_id'):
                 country = get_country_by_id(client_data['country_id'], conn=conn)
@@ -174,14 +192,25 @@ def get_document_context_data(
             else:
                 context["client"]["city_name"] = "N/A"
 
-            client_contacts = get_contacts_for_client(client_id, conn=conn)
-            if client_contacts: # Assuming first contact is primary or representative
-                context["client"]["primary_contact_name"] = client_contacts[0].get('name', client_contacts[0].get('displayName', "N/A"))
-                context["client"]["primary_contact_email"] = client_contacts[0].get('email', "N/A")
+            client_contacts = get_contacts_for_client(client_id, conn=conn) # Fetches all contacts
+            primary_contact_data = None
+            if client_contacts:
+                # Try to find the one marked as primary
+                for contact in client_contacts:
+                    if contact.get('is_primary_for_client'): # Assuming 'is_primary_for_client' is set by get_contacts_for_client
+                        primary_contact_data = contact
+                        break
+                if not primary_contact_data: # Fallback to the first contact if no primary is marked
+                    primary_contact_data = client_contacts[0]
+
+            if primary_contact_data:
+                context["client"]["primary_contact_name"] = primary_contact_data.get('name', primary_contact_data.get('displayName', "N/A"))
+                context["client"]["primary_contact_email"] = primary_contact_data.get('email', "N/A")
+                context["client"]["primary_contact_phone"] = primary_contact_data.get('phone', "N/A") # New
             else:
                 context["client"]["primary_contact_name"] = "N/A"
                 context["client"]["primary_contact_email"] = "N/A"
-
+                context["client"]["primary_contact_phone"] = "N/A" # New
 
         if project_id:
             project_data = get_project_by_id(project_id, conn=conn)
@@ -299,8 +328,16 @@ def get_document_context_data(
         context["buyer_company_name"] = context["client"].get("company_name", "N/A")
         context["buyer_contact_name"] = context["client"].get("primary_contact_name", "N/A")
         context["buyer_address"] = context["client"].get("address", "N/A")
+        context["buyer_phone"] = context["client"].get("primary_contact_phone", context["client"].get("phone", "N/A")) # New
+        context["buyer_email"] = context["client"].get("primary_contact_email", "N/A") # New
+
         context["seller_company_name"] = context["seller"].get("name", "N/A")
         context["seller_contact_name"] = context["seller"].get("personnel", {}).get("representative_name", "N/A")
+        context["seller_contact_email"] = context["seller"].get("personnel", {}).get("representative_email", "N/A") # New
+        context["seller_contact_phone"] = context["seller"].get("personnel", {}).get("representative_phone", "N/A") # New
+        context["seller_website"] = context["seller"].get("website", "N/A") # New
+        context["seller_vat_id"] = context["seller"].get("vat_id", "N/A") # New
+
 
     except Exception as e_doc_ctx:
         logging.error(f"Error in get_document_context_data: {e_doc_ctx}")
