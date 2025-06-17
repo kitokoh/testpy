@@ -262,16 +262,43 @@ class ClientWidget(QWidget):
         doc_filter_layout.addWidget(doc_filter_label)
 
         self.doc_order_filter_combo = QComboBox()
-        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # Allow combo to expand but not vertically
+        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
         doc_filter_layout.addWidget(self.doc_order_filter_combo)
+        doc_filter_layout.addSpacing(10)
 
-        # doc_filter_layout.addStretch() # Removing stretch to see if default behavior is better; can be added back if needed.
-                                     # If parent is QVBoxLayout, QHBoxLayout should by default take available width.
-                                     # If it needs to be left-aligned within a wider space, addStretch() is correct.
-                                     # Forcing on single line, it's more about child widget policies.
+        # Language Filter
+        doc_lang_filter_label = QLabel(self.tr("Filtrer par Langue:"))
+        doc_lang_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        doc_filter_layout.addWidget(doc_lang_filter_label)
+
+        self.doc_language_filter_combo = QComboBox()
+        self.doc_language_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.doc_language_filter_combo.addItem(self.tr("Toutes"), "ALL")
+        for lang_code in SUPPORTED_LANGUAGES:
+            self.doc_language_filter_combo.addItem(lang_code, lang_code)
+        self.doc_language_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+        doc_filter_layout.addWidget(self.doc_language_filter_combo)
+        doc_filter_layout.addSpacing(10)
+
+        # Type Filter
+        doc_type_filter_label = QLabel(self.tr("Filtrer par Type:"))
+        doc_type_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        doc_filter_layout.addWidget(doc_type_filter_label)
+
+        self.doc_type_filter_combo = QComboBox()
+        self.doc_type_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.doc_type_filter_combo.addItem(self.tr("Tous"), "ALL")
+        self.doc_type_filter_combo.addItem("HTML", "HTML")
+        self.doc_type_filter_combo.addItem("PDF", "PDF")
+        self.doc_type_filter_combo.addItem("XLSX", "XLSX")
+        self.doc_type_filter_combo.addItem("DOCX", "DOCX")
+        self.doc_type_filter_combo.addItem(self.tr("Autre"), "OTHER")
+        self.doc_type_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+        doc_filter_layout.addWidget(self.doc_type_filter_combo)
+
         docs_layout.addWidget(self.doc_filter_layout_widget)
-        self.doc_filter_layout_widget.setVisible(False) # Initially hidden
+        self.doc_filter_layout_widget.setVisible(True) # Make filter bar always visible
 
         # Create and add the empty state label for documents
         self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
@@ -1558,48 +1585,113 @@ class ClientWidget(QWidget):
 
                 shutil.copy(selected_file_path, target_file_path)
 
-                # Update client's selected languages if necessary
-                current_selected_languages = self.client_info.get("selected_languages", [])
-                # Ensure it's a list, as it might be a comma-separated string from DB
-                if isinstance(current_selected_languages, str):
-                    current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                # Metadata gathering
+                client_id = self.client_info.get("client_id")
+                document_name = os.path.basename(selected_file_path)
+                file_name_on_disk = document_name
+                file_path_relative = os.path.join(selected_doc_language, file_name) # Assuming target_dir structure
 
-                if not current_selected_languages: # Handle empty or None case
-                    current_selected_languages = []
+                # Infer document_type_generated from extension
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext == ".html":
+                    document_type_generated = "HTML"
+                elif ext == ".pdf":
+                    document_type_generated = "PDF"
+                elif ext == ".xlsx":
+                    document_type_generated = "XLSX"
+                elif ext == ".docx":
+                    document_type_generated = "DOCX"
+                else:
+                    document_type_generated = ext.upper().replace(".", "") if ext else "OTHER"
 
-                if selected_doc_language not in current_selected_languages:
-                    add_lang_reply = QMessageBox.question(
-                        self,
-                        self.tr("Ajouter Langue"),
-                        self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes
+                language_code = selected_doc_language
+                source_template_id = None # For imported documents
+
+                order_identifier = None
+                if hasattr(self, 'doc_order_filter_combo') and self.doc_order_filter_combo.isVisible():
+                    current_order_data = self.doc_order_filter_combo.currentData()
+                    if current_order_data not in ["ALL", "NONE"]:
+                        order_identifier = current_order_data
+
+                created_by_user_id = None # ClientWidget does not have self.current_user_id
+                notes = None
+                version_tag = "1.0"
+
+                doc_db_data = {
+                    "client_id": client_id,
+                    "document_name": document_name,
+                    "file_name_on_disk": file_name_on_disk,
+                    "file_path_relative": file_path_relative,
+                    "document_type_generated": document_type_generated,
+                    "language_code": language_code,
+                    "source_template_id": source_template_id,
+                    "order_identifier": order_identifier,
+                    "created_by_user_id": created_by_user_id, # Corrected key for db_manager
+                    "notes": notes,
+                    "version_tag": version_tag,
+                    # project_id is not explicitly gathered here, will be None if not in dict
+                }
+                # The key in add_client_document is 'user_id', not 'created_by_user_id'
+                # Let's adjust doc_db_data to use 'user_id' for the CRUD function based on its definition.
+                doc_db_data_for_crud = doc_db_data.copy()
+                doc_db_data_for_crud['user_id'] = doc_db_data_for_crud.pop('created_by_user_id')
+
+
+                db_success = False
+                try:
+                    new_doc_db_id = db_manager.add_client_document(doc_db_data_for_crud)
+                    if new_doc_db_id:
+                        db_success = True
+                        # Update client's selected languages if necessary
+                        current_selected_languages = self.client_info.get("selected_languages", [])
+                        if isinstance(current_selected_languages, str):
+                            current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                        if not current_selected_languages: current_selected_languages = []
+
+                        if selected_doc_language not in current_selected_languages:
+                            add_lang_reply = QMessageBox.question(
+                                self, self.tr("Ajouter Langue"),
+                                self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                            )
+                            if add_lang_reply == QMessageBox.Yes:
+                                updated_languages_list = current_selected_languages + [selected_doc_language]
+                                updated_languages_str = ",".join(updated_languages_list)
+                                client_id_to_update = self.client_info.get("client_id")
+                                if client_id_to_update:
+                                    if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
+                                        self.client_info["selected_languages"] = updated_languages_list
+                                        print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                                    else:
+                                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
+                                else:
+                                    QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
+
+                        self.populate_doc_table() # Call after successful DB operation
+                        QMessageBox.information(
+                            self, self.tr("Succès"),
+                            self.tr("Document '{0}' importé et enregistré avec succès en langue '{1}'.").format(file_name, selected_doc_language)
+                        )
+                    else:
+                        # db_success remains False
+                        self.populate_doc_table() # Still populate to show the file if copied
+                        QMessageBox.warning(
+                            self, self.tr("Échec Enregistrement DB"),
+                            self.tr("Document '{0}' copié avec succès en langue '{1}', mais échec de l'enregistrement dans la base de données. Le document pourrait ne pas s'afficher correctement.").format(file_name, selected_doc_language)
+                        )
+                except Exception as db_e:
+                    # db_success remains False
+                    logging.error(f"Error during database operation in add_document: {db_e}", exc_info=True)
+                    self.populate_doc_table() # Still populate to show the file if copied
+                    QMessageBox.warning(
+                        self, self.tr("Erreur Base de Données"),
+                        self.tr("Document '{0}' copié, mais une erreur est survenue lors de l'enregistrement dans la base de données: {1}. Le document pourrait ne pas s'afficher correctement.").format(file_name, str(db_e))
                     )
-                    if add_lang_reply == QMessageBox.Yes:
-                        updated_languages_list = current_selected_languages + [selected_doc_language]
-                        updated_languages_str = ",".join(updated_languages_list)
 
-                        client_id_to_update = self.client_info.get("client_id")
-                        if client_id_to_update:
-                            if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
-                                self.client_info["selected_languages"] = updated_languages_list # Update local info
-                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
-                            else:
-                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
-                        else:
-                            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
-
-                self.populate_doc_table()
-
-                QMessageBox.information(
-                    self,
-                    self.tr("Succès"),
-                    self.tr("Document '{0}' ajouté avec succès en langue '{1}'.").format(file_name, selected_doc_language)
-                )
             except Exception as e:
+                logging.error(f"Error copying file or preparing metadata in add_document: {e}", exc_info=True)
                 QMessageBox.warning(
-                    self,
-                    self.tr("Erreur"),
+                    self, self.tr("Erreur"),
                     self.tr("Impossible d'ajouter le document : {0}").format(str(e))
                 )
 
@@ -1909,28 +2001,23 @@ class ClientWidget(QWidget):
             logging.warning("populate_doc_table: client_id is missing from client_info.")
             return
 
+        # Order filter population (existing logic)
         order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
         is_distributor_type = self.client_info.get('category') == 'Distributeur'
         has_multiple_orders = order_events and len(order_events) > 1
-        show_order_filter = is_distributor_type or has_multiple_orders
+        show_order_filter_dropdown = is_distributor_type or has_multiple_orders # Determines if order dropdown is specifically populated/used
 
-        self.doc_filter_layout_widget.setVisible(bool(show_order_filter))
+        # Visibility of the entire filter bar container.
+        # For now, let's make it always visible as per instruction to show filters even for empty list.
+        # self.doc_filter_layout_widget.setVisible(True) # This is now set in setup_ui
 
         current_order_filter_selection = None
-        if show_order_filter:
+        if show_order_filter_dropdown: # Populate order filter only if relevant
             current_order_filter_selection = self.doc_order_filter_combo.currentData()
             self.doc_order_filter_combo.blockSignals(True)
             self.doc_order_filter_combo.clear()
             self.doc_order_filter_combo.addItem(self.tr("Toutes les Commandes"), "ALL")
             self.doc_order_filter_combo.addItem(self.tr("Documents Généraux (sans commande)"), "NONE")
-
-            # Fetch distinct order_identifiers from ClientDocuments for this client
-            # This requires a new DB function: get_distinct_order_identifiers_for_client(client_id)
-            # For now, we'll use purchase_confirmed_at from ClientProjectProducts as a proxy,
-            # assuming documents might be linked to these "order events".
-            # A more robust solution would be to get distinct order_identifier values directly from ClientDocuments.
-
-            # Using order_events (distinct purchase_confirmed_at) for the filter
             if order_events:
                 for event_ts in order_events:
                     if event_ts:
@@ -1940,25 +2027,74 @@ class ClientWidget(QWidget):
                             self.doc_order_filter_combo.addItem(display_text, event_ts)
                         except ValueError:
                             self.doc_order_filter_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
-
             if current_order_filter_selection:
                 index = self.doc_order_filter_combo.findData(current_order_filter_selection)
                 if index >= 0: self.doc_order_filter_combo.setCurrentIndex(index)
-                else: self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+                else: self.doc_order_filter_combo.setCurrentIndex(0)
             else:
-                 self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+                 self.doc_order_filter_combo.setCurrentIndex(0)
             self.doc_order_filter_combo.blockSignals(False)
+        else: # Hide or disable order filter if not applicable
+            self.doc_order_filter_combo.clear()
+            self.doc_order_filter_combo.addItem(self.tr("N/A"), "ALL") # Default to ALL if not used
+            self.doc_order_filter_combo.setEnabled(False)
 
-        filters = {}
-        if show_order_filter:
-            selected_order_filter_data = self.doc_order_filter_combo.currentData()
-            if selected_order_filter_data == "NONE":
-                filters['order_identifier'] = None
-            elif selected_order_filter_data != "ALL":
-                filters['order_identifier'] = selected_order_filter_data
 
-        client_documents = db_manager.get_documents_for_client(client_id, filters=filters)
-        client_documents = client_documents if client_documents else []
+        db_filters = {} # Filters for the DB query (currently only order_identifier)
+        selected_order_filter_data = self.doc_order_filter_combo.currentData()
+        if selected_order_filter_data == "NONE":
+            db_filters['order_identifier'] = None
+        elif selected_order_filter_data != "ALL":
+            db_filters['order_identifier'] = selected_order_filter_data
+
+        # Fetch documents based on DB filters (order filter)
+        client_documents_from_db = db_manager.get_documents_for_client(client_id, filters=db_filters)
+        client_documents_from_db = client_documents_from_db if client_documents_from_db else []
+
+        # Get language and type filter values for client-side filtering
+        selected_lang_filter = self.doc_language_filter_combo.currentData()
+        selected_type_filter = self.doc_type_filter_combo.currentData()
+
+        filtered_list = []
+        for doc_data in client_documents_from_db:
+            doc_passes_lang_filter = True
+            doc_passes_type_filter = True
+
+            # Language Filtering
+            if selected_lang_filter != "ALL":
+                doc_lang = doc_data.get('language_code')
+                # Infer if not present (though it should be from import)
+                if not doc_lang and doc_data.get('file_path_relative'):
+                    path_parts = doc_data.get('file_path_relative').split(os.sep)
+                    if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
+                        doc_lang = path_parts[0]
+                if doc_lang != selected_lang_filter:
+                    doc_passes_lang_filter = False
+
+            # Type Filtering
+            if selected_type_filter != "ALL":
+                doc_type_generated = doc_data.get('document_type_generated', '').upper()
+                file_name_on_disk = doc_data.get('file_name_on_disk', '').lower()
+
+                is_html = doc_type_generated == 'HTML' or file_name_on_disk.endswith('.html')
+                is_pdf = doc_type_generated == 'PDF' or file_name_on_disk.endswith('.pdf')
+                is_xlsx = doc_type_generated == 'XLSX' or file_name_on_disk.endswith('.xlsx')
+                is_docx = doc_type_generated == 'DOCX' or file_name_on_disk.endswith('.docx')
+
+                if selected_type_filter == "HTML":
+                    if not is_html: doc_passes_type_filter = False
+                elif selected_type_filter == "PDF":
+                    if not is_pdf: doc_passes_type_filter = False
+                elif selected_type_filter == "XLSX":
+                    if not is_xlsx: doc_passes_type_filter = False
+                elif selected_type_filter == "DOCX":
+                    if not is_docx: doc_passes_type_filter = False
+                elif selected_type_filter == "OTHER":
+                    if is_html or is_pdf or is_xlsx or is_docx:
+                        doc_passes_type_filter = False
+
+            if doc_passes_lang_filter and doc_passes_type_filter:
+                filtered_list.append(doc_data)
 
         base_client_path = self.client_info.get("base_folder_path")
         if not base_client_path or not os.path.isdir(base_client_path):
@@ -1969,27 +2105,24 @@ class ClientWidget(QWidget):
             self.doc_table.setVisible(False)
             return
 
-        if not client_documents:
+        if not filtered_list: # Check the final filtered list
             if hasattr(self, 'documents_empty_label'):
-                 self.documents_empty_label.setText(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+                 self.documents_empty_label.setText(self.tr("Aucun document ne correspond aux filtres sélectionnés.\nModifiez vos filtres ou ajoutez/générez des documents."))
                  self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
             return
 
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
         self.doc_table.setVisible(True)
-        self.doc_table.setRowCount(len(client_documents))
+        self.doc_table.setRowCount(len(filtered_list))
 
-        for row_idx, doc_data in enumerate(client_documents):
+        for row_idx, doc_data in enumerate(filtered_list):
             document_id = doc_data.get('document_id')
             doc_name = doc_data.get('document_name', 'N/A')
             file_path_relative_from_db = doc_data.get('file_path_relative', '') # e.g., "fr/doc.pdf" or "order_xyz/fr/doc.pdf"
             order_identifier_for_doc = doc_data.get('order_identifier') # This is the raw timestamp or ID
 
             # Determine language code from relative path structure
-            # This assumes path_relative is like "lang_code/filename.ext" OR part of a deeper structure if order_identifier is used
-            # For now, let's simplify and assume file_path_relative from DB is just "lang/filename.ext"
-            # The full path construction will handle the order subfolder.
             language_code = doc_data.get('language_code', "N/A") # Prefer direct field if available
             if language_code == "N/A" and file_path_relative_from_db: # Fallback to inferring from path
                 path_parts = file_path_relative_from_db.split(os.sep)
@@ -2007,7 +2140,6 @@ class ClientWidget(QWidget):
 
                 if not os.path.exists(full_file_path):
                     logging.warning(f"Document file path does not exist: {full_file_path} for doc_id {document_id}")
-                    # Optionally mark this row differently or skip
             else:
                 logging.warning(f"Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
 
@@ -2031,14 +2163,24 @@ class ClientWidget(QWidget):
             self.doc_table.setItem(row_idx, 3, QTableWidgetItem(mod_time_formatted))
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
-            pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+
+            # 1. pdf_btn (Generate/Open PDF)
+            pdf_btn = QPushButton("")
+            pdf_btn.setIcon(QIcon(":/icons/file-text.svg"))
+            pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document"))
+            pdf_btn.setFixedSize(30,30)
+            pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p))
+            action_layout.addWidget(pdf_btn)
 
             source_template_id = doc_data.get('source_template_id')
-            # Disable PDF generation for actual PDFs that came from a template (they are already PDFs)
-            # The _handle_open_pdf_action might need to distinguish between generating from source and just opening if it's already PDF.
-            # For now, if it's a PDF in the list, pdf_btn will just open it if it exists.
 
-            source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
+            # 2. source_btn (View Source File)
+            source_btn = QPushButton("")
+            source_btn.setIcon(QIcon(":/icons/eye.svg")) # Kept as per instruction
+            source_btn.setToolTip(self.tr("Afficher le fichier source"))
+            source_btn.setFixedSize(30,30)
+            source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
+            action_layout.addWidget(source_btn)
 
             can_edit_source_template = False
             if source_template_id:
@@ -2047,13 +2189,32 @@ class ClientWidget(QWidget):
                     can_edit_source_template = True
 
             if can_edit_source_template:
-                edit_source_template_btn = QPushButton(""); edit_source_template_btn.setIcon(QIcon.fromTheme("accessories-text-editor", QIcon(":/icons/pencil.svg"))); edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document")); edit_source_template_btn.setFixedSize(30,30); edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d)); action_layout.addWidget(edit_source_template_btn)
-            elif doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for direct editability if not from template or template not HTML
-                edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
+                # 3. edit_source_template_btn
+                edit_source_template_btn = QPushButton("")
+                edit_source_template_btn.setIcon(QIcon(":/icons/edit-2.svg"))
+                edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document"))
+                edit_source_template_btn.setFixedSize(30,30)
+                edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d))
+                action_layout.addWidget(edit_source_template_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')):
+                # 4. edit_btn (Direct edit for .xlsx, .html)
+                edit_btn = QPushButton("")
+                edit_btn.setIcon(QIcon(":/icons/pencil.svg")) # Kept as per instruction
+                edit_btn.setToolTip(self.tr("Modifier le contenu du document"))
+                edit_btn.setFixedSize(30,30)
+                edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p))
+                action_layout.addWidget(edit_btn)
             else:
                 spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
 
-            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
+            # 5. delete_btn (Delete Document)
+            delete_btn = QPushButton("")
+            delete_btn.setIcon(QIcon(":/icons/trash.svg")) # Kept as per instruction
+            delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)"))
+            delete_btn.setFixedSize(30,30)
+            delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p))
+            action_layout.addWidget(delete_btn)
+
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
 
     def handle_edit_source_template(self, document_data):
