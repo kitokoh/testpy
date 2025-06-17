@@ -120,49 +120,38 @@ class DocumentManager(QMainWindow):
 
     @pyqtSlot(str)
     def handle_add_client_from_stats_map(self, country_name_str):
-        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")
-        # Replace MapClientDialog with StatisticsAddClientDialog
-        dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")        try:
+            dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
 
-        if dialog.exec_() == QDialog.Accepted:
-            # get_data() from StatisticsAddClientDialog now returns a more comprehensive dict
-            # including resolved country_id and city_id.
-            new_client_data = dialog.get_data()
-            logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
+            if dialog.exec_() == QDialog.Accepted:
+                new_client_data = dialog.get_data()
+                logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
 
-            # Country and City IDs are now resolved within StatisticsAddClientDialog's accept() method.
-            # No need for manual get_or_add_country/city calls here.
+                if not new_client_data.get('country_id'):
+                    QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
+                    return
 
-            if not new_client_data.get('country_id'):
-                QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
-                return
+                client_data_for_db = {
+                    "client_name": new_client_data["client_name"],
+                    "company_name": new_client_data.get("company_name"),
+                    "country_id": new_client_data["country_id"],
+                    "city_id": new_client_data.get("city_id"),
+                    "project_identifier": new_client_data.get("project_identifier"),
+                    "primary_need_description": new_client_data.get("primary_need_description"),
+                    "selected_languages": new_client_data.get("selected_languages"),
+                    "created_by_user_id": self.current_user_id
+                }
 
-            # City ID is optional, so new_client_data.get('city_id') can be None, which is fine.
+                logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
+                handle_create_client_execution(self, client_data_dict=client_data_for_db)
+            else:
+                logging.info("StatisticsAddClientDialog cancelled by user.")
+        except Exception as e:
+            logging.error(f"Error opening or executing StatisticsAddClientDialog for country {country_name_str}: {e}", exc_info=True)
+            QMessageBox.critical(self,
+                                 self.tr("Erreur Dialogue"),
+                                 self.tr("Impossible d'ouvrir le dialogue 'Ajouter Client'. Veuillez consulter les logs de l'application pour plus de détails."))
 
-            # Prepare data for client creation
-            # Keys from StatisticsAddClientDialog.get_data():
-            # "client_name", "company_name", "primary_need_description", "project_identifier",
-            # "country_id", "country_name" (for display, not DB usually),
-            # "city_id", "city_name" (for display, not DB usually),
-            # "selected_languages" (comma-separated string)
-            client_data_for_db = {
-                "client_name": new_client_data["client_name"],
-                "company_name": new_client_data.get("company_name"),
-                "country_id": new_client_data["country_id"],
-                "city_id": new_client_data.get("city_id"), # Can be None if city was optional and not provided/resolved
-                "project_identifier": new_client_data.get("project_identifier"),
-                "primary_need_description": new_client_data.get("primary_need_description"),
-                "selected_languages": new_client_data.get("selected_languages"), # Already a comma-separated string
-                "created_by_user_id": self.current_user_id
-                # handle_create_client_execution will set defaults for status, folder path, price etc.
-            }
-
-            logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
-            handle_create_client_execution(self, client_data_dict=client_data_for_db)
-            # self.load_clients_from_db_slot() is called within execute_create_client_slot,
-            # which is called by handle_create_client_execution's wrapper in DocumentManager.
-        else:
-            logging.info("StatisticsAddClientDialog cancelled by user.")
 
     @pyqtSlot(str)
     def handle_view_client_from_stats_map(self, client_id_str):

@@ -45,6 +45,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
         # so patching it via @patch decorator on the test method or setUp should be fine.
         self.DOCUMENT_CATEGORY_ID = 1 # As defined in CreateDocumentDialog.load_templates
 
+
     @patch('dialogs.create_document_dialog.db_manager')
     def test_load_templates_no_default_templates(self, mock_db_manager):
         """Test load_templates when no default templates are returned."""
@@ -62,6 +63,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
             client_id_filter=self.mock_client_info['client_id'],
             category_id_filter=self.DOCUMENT_CATEGORY_ID
         )
+
 
         self.assertEqual(dialog.templates_list.count(), 2)
         for i in range(dialog.templates_list.count()):
@@ -93,6 +95,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
         )
 
         self.assertEqual(dialog.templates_list.count(), 2)
+
         item0_data = dialog.templates_list.item(0).data(Qt.UserRole) # Assuming sort puts default first
         item1_data = dialog.templates_list.item(1).data(Qt.UserRole)
 
@@ -136,6 +139,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
             client_id_filter=self.mock_client_info['client_id'],
             category_id_filter=self.DOCUMENT_CATEGORY_ID
         )
+
 
         self.assertEqual(dialog.templates_list.count(), 2)
 
@@ -216,6 +220,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
 
         self.assertEqual(dialog.templates_list.count(), 3) # This holds if the mock is what's directly processed.
 
+
         displayed_as_default_count = 0
 
         for i in range(dialog.templates_list.count()):
@@ -272,6 +277,7 @@ class TestCreateDocumentDialog(unittest.TestCase):
             client_id_filter=self.mock_client_info['client_id'],
             category_id_filter=self.DOCUMENT_CATEGORY_ID
         )
+
 
         self.assertEqual(dialog.templates_list.count(), 4)
 
