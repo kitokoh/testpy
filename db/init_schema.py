@@ -797,19 +797,33 @@ def initialize_database():
             print(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.")
     else:
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
-            description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-            category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
-            cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
-            version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by_user_id TEXT,
-            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            client_id TEXT DEFAULT NULL,
-            FOREIGN KEY (client_id) REFERENCES Clients(client_id) ON DELETE SET NULL,
-            UNIQUE (template_name, template_type, language_code, version)
-        )""")
+CREATE TABLE IF NOT EXISTS Templates (
+    template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_name TEXT NOT NULL,
+    template_type TEXT NOT NULL,
+    description TEXT,
+    base_file_name TEXT,
+    language_code TEXT,
+    is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+    category_id INTEGER,
+    content_definition TEXT,
+    email_subject_template TEXT,
+    email_variables_info TEXT,
+    cover_page_config_json TEXT,
+    document_mapping_config_json TEXT,
+    raw_template_file_data BLOB,
+    version TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id TEXT,
+    client_id TEXT DEFAULT NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+    FOREIGN KEY (category_id) REFERENCES TemplateCategories (category_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
+    UNIQUE (template_name, template_type, language_code, version)
+)
+""")
+
 
     # Idempotently add client_id column if it doesn't exist (for existing databases)
     cursor.execute("PRAGMA table_info(Templates)")
