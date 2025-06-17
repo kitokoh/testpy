@@ -120,7 +120,8 @@ class DocumentManager(QMainWindow):
 
     @pyqtSlot(str)
     def handle_add_client_from_stats_map(self, country_name_str):
-        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")        try:
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")        
+        try:
             dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
 
             if dialog.exec_() == QDialog.Accepted:
