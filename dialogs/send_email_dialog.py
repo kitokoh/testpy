@@ -165,18 +165,27 @@ class SendEmailDialog(QDialog):
             self.on_template_selected(0)
             return
         try:
-            all_templates_for_lang = []
-            for template_type in self.email_template_types:
-                templates = templates_crud.get_templates_by_type(
+            # Assuming '2' is the category_id for "email" templates.
+            # This ID should be confirmed or fetched dynamically.
+            EMAIL_CATEGORY_ID = 2
 
-                    template_type=template_type, language_code=language_code
-                )
-                if templates: all_templates_for_lang.extend(templates)
+            # Use get_all_templates with category and list of types
+            all_templates_for_lang = db_manager.get_all_templates(
+                language_code_filter=language_code,
+                category_id_filter=EMAIL_CATEGORY_ID,
+                template_type_filter_list=self.email_template_types,
+                client_id_filter=None # Email templates are typically global or not client-specific in this context
+            )
+
+            if all_templates_for_lang is None:
+                all_templates_for_lang = []
+
             all_templates_for_lang.sort(key=lambda x: x.get('template_name', ''))
+
             for template in all_templates_for_lang:
                 self.template_combo.addItem(template['template_name'], template['template_id'])
         except Exception as e:
-            print(f"Error loading email templates for lang {language_code}: {e}")
+            print(f"Error loading email templates for lang {language_code}, category {EMAIL_CATEGORY_ID}: {e}")
             QMessageBox.warning(self, self.tr("Erreur Modèles Email"), self.tr("Impossible de charger les modèles d'email pour la langue {0}:\n{1}").format(language_code, str(e)))
         self.template_combo.blockSignals(False)
         self.on_template_selected(self.template_combo.currentIndex())

@@ -2373,12 +2373,39 @@ class ClientWidget(QWidget):
                     # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
                     # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
 
-                    global_product_id = product_entry.get('product_id') # This is the ID from Products table
-                    quantity = product_entry.get('quantity')
-                    unit_price_override = product_entry.get('unit_price') # Dialog uses 'unit_price' for the override
+                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
+                    client_id_for_product = self.client_info.get('client_id')
+                    global_product_id = product_entry.get('product_id')
+                    quantity_raw = product_entry.get('quantity')
+                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
+
+                    quantity = None
+                    if quantity_raw is not None:
+                        try:
+                            quantity = float(quantity_raw)
+                            if quantity <= 0:
+                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
+                                quantity = None # Treat as missing/invalid
+                        except ValueError:
+                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
+                            quantity = None # Treat as missing/invalid
+
+                    unit_price_override = None # Initialize to None
+                    # unit_price_override should only be set if unit_price_override_raw is not None.
+                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
+                    # If unit_price_override_raw is provided, it must be a valid float.
+                    if unit_price_override_raw is not None:
+                        try:
+                            unit_price_override = float(unit_price_override_raw)
+                            if unit_price_override < 0: # Negative prices are not allowed for an override
+                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
+                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
+                                unit_price_override = None # Mark as invalid for the 'all' check.
+                        except ValueError:
+                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
+                            unit_price_override = None # Mark as invalid for the 'all' check.
 
                     # Determine project_id. It can be None.
-                    # project_identifier from client_info might be the name/code, not the DB ID.
                     # Assuming self.client_info.get('project_id') is the actual foreign key or None.
                     project_id_for_db = self.client_info.get('project_id', None)
                     if project_id_for_db is None:
@@ -2388,23 +2415,35 @@ class ClientWidget(QWidget):
                         logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
 
 
-                    if not all([client_id_for_product, global_product_id, quantity is not None, unit_price_override is not None]):
-                        logging.error(f"Skipping product entry due to missing data: {product_entry} for client_id {client_id_for_product}")
-                        QMessageBox.warning(self, self.tr("Données Produit Incomplètes"),
-                                            self.tr("Impossible d'ajouter un produit car certaines informations sont manquantes : {0}.").format(product_entry.get('name', 'Nom inconnu')))
+                    # Critical data for adding a link: client_id, product_id, quantity.
+                    # unit_price_override is optional in db_call_payload (None means use base price).
+                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
+                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
+                    # And quantity must always be valid.
+                    conditions_met = all([
+                        client_id_for_product,
+                        global_product_id,
+                        quantity is not None, # Quantity must be valid positive number
+                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
+                    ])
+
+                    if not conditions_met:
+                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
+                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
                         continue
 
+                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
+                    # The add_product_to_client_or_project function handles None override by using base price.
                     db_call_payload = {
                         'client_id': client_id_for_product,
                         'product_id': global_product_id,
-                        'quantity': quantity,
-                        'unit_price_override': unit_price_override,
+                        'quantity': quantity, # Validated float
+                        'unit_price_override': unit_price_override, # Validated float or None
                         'project_id': project_id_for_db,
-                        # 'serial_number': None, # Default to None if not provided by dialog
-                        # 'purchase_confirmed_at': None, # Default to None
                     }
 
-                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
+                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
 
                     if link_id:
@@ -2617,8 +2656,10 @@ class ClientWidget(QWidget):
             # We also need to call self.load_products_for_dimension_tab() to update its own combo box
             # if this load_products method is the central point of refresh for product data.
 
-            for row_idx, prod_link_data in enumerate(filtered_products):
-                self.products_table.insertRow(row_idx)
+            # The following loop was identified as redundant and causing blank rows.
+            # for row_idx, prod_link_data in enumerate(filtered_products):
+            #     self.products_table.insertRow(row_idx) # DO NOT UNCOMMENT - This is the bug source
+
             if not filtered_products:
                 # Empty state remains: label visible, table hidden
                 # (already set at the beginning of the method)
@@ -2631,7 +2672,9 @@ class ClientWidget(QWidget):
                 self.products_table.setVisible(True)
 
                 for row_idx, prod_link_data in enumerate(filtered_products):
-                    self.products_table.insertRow(row_idx)
+                # This is the correct loop for inserting and populating rows.
+                # Ensure insertRow is called here, once per product.
+                self.products_table.insertRow(row_idx)
 
                 id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
                 id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))

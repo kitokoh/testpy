@@ -343,18 +343,33 @@ def get_template_by_type_lang_default(template_type: str, language_code: str, cl
         return None
 
 @_manage_conn
-def get_all_templates(template_type_filter: str = None, language_code_filter: str = None, client_id_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+def get_all_templates(
+    template_type_filter: str = None,
+    language_code_filter: str = None,
+    client_id_filter: str = None,
+    category_id_filter: int = None,
+    template_type_filter_list: list[str] = None,  # New parameter for list of types
+    conn: sqlite3.Connection = None
+) -> list[dict]:
     cursor = conn.cursor()
     sql = "SELECT * FROM Templates"
     params = []
     clauses = []
 
-    if template_type_filter:
+    if template_type_filter_list and isinstance(template_type_filter_list, list) and len(template_type_filter_list) > 0:
+        placeholders = ','.join('?' for _ in template_type_filter_list)
+        clauses.append(f"template_type IN ({placeholders})")
+        params.extend(template_type_filter_list)
+    elif template_type_filter: # Keep single type filter if list is not provided
         clauses.append("template_type = ?")
         params.append(template_type_filter)
+
     if language_code_filter:
         clauses.append("language_code = ?")
         params.append(language_code_filter)
+    if category_id_filter is not None: # New condition
+        clauses.append("category_id = ?")
+        params.append(category_id_filter)
 
     if client_id_filter is not None: # Explicitly check for None, as empty string could be a valid (though unlikely) client_id
         clauses.append("(client_id = ? OR client_id IS NULL)")
@@ -364,13 +379,17 @@ def get_all_templates(template_type_filter: str = None, language_code_filter: st
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
 
-    sql += " ORDER BY client_id, template_name, language_code" # Added client_id to order
+    sql += " ORDER BY client_id, category_id, template_name, language_code" # Added category_id to order for consistency
 
     try:
         cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get all templates with filters type='{template_type_filter}', lang='{language_code_filter}', client='{client_id_filter}': {e}")
+        logging.error(
+            f"Failed to get all templates with filters type='{template_type_filter if not template_type_filter_list else template_type_filter_list}', "
+            f"lang='{language_code_filter}', client='{client_id_filter}', "
+            f"category_id='{category_id_filter}': {e}"
+        )
         return []
 
 @_manage_conn
