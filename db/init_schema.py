@@ -806,9 +806,9 @@ def initialize_database():
             created_by_user_id TEXT,
             FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
             FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            client_id TEXT DEFAULT NULL, -- New column for client-specific templates
-            FOREIGN KEY (client_id) REFERENCES Clients(client_id) ON DELETE SET NULL, -- Added FK for client_id
-            UNIQUE (template_name, template_type, language_code, version) -- Existing unique constraint, client_id not added here for simplicity in ALTER
+            client_id TEXT DEFAULT NULL,
+            FOREIGN KEY (client_id) REFERENCES Clients(client_id) ON DELETE SET NULL,
+            UNIQUE (template_name, template_type, language_code, version)
         )""")
 
     # Idempotently add client_id column if it doesn't exist (for existing databases)
