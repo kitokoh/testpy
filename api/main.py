@@ -27,5 +27,4 @@ app.include_router(auth_router_module.router)
 app.include_router(products.router) # Register the new products router
 app.include_router(payments.router, prefix="/api/v1/payments", tags=["Payments Management"]) # Register the payments router
 
-
 # Further routers will be added here (for documents, auth, etc.)

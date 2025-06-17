@@ -23,23 +23,83 @@ class ClientProductDimensionDialog(QDialog):
 
         self.setWindowTitle(self.tr("Gérer Dimensions Produit Client") + f" (Produit ID: {self.product_id})")
         self.setMinimumSize(500, 600)
+        self.more_dimension_widgets = [] # For rows G-H and I-J
+        self.are_more_dimensions_visible = False # State tracker
 
         self.setup_ui()
         self.load_dimensions()
+        # Set initial state for G-J and button after UI is built
+        self._toggle_more_dimensions_visibility(initial_setup=True)
+
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         form_group = QGroupBox(self.tr("Dimensions Spécifiques"))
         form_layout = QFormLayout(form_group)
         form_layout.setSpacing(10)
+        main_layout.addWidget(form_group)
 
         self.dimension_inputs = {}
-        for i in range(10):
-            dim_label_key = f"dim_{chr(65 + i)}"
-            line_edit = QLineEdit()
-            self.dimension_inputs[dim_label_key.lower()] = line_edit # Use lowercase for dict key "dim_a"
-            form_layout.addRow(self.tr(f"Dimension {chr(65+i)}:"), line_edit)
-        main_layout.addWidget(form_group)
+        dim_labels = [chr(65 + i) for i in range(10)] # A, B, C, ..., J
+
+        # Dimensions A-F (3 rows, 2 per row)
+        for i in range(0, 6, 2): # Loops for A-B, C-D, E-F
+            row_widget = QWidget()
+            row_h_layout = QHBoxLayout(row_widget)
+            row_h_layout.setContentsMargins(0,0,0,0)
+
+            # First dimension in pair (A, C, E)
+            label1_text = dim_labels[i]
+            line_edit1 = QLineEdit()
+            self.dimension_inputs[f'dim_{label1_text.lower()}'] = line_edit1
+            row_h_layout.addWidget(QLabel(self.tr(f"{label1_text}:")))
+            row_h_layout.addWidget(line_edit1)
+
+            row_h_layout.addSpacing(20)
+
+            # Second dimension in pair (B, D, F)
+            label2_text = dim_labels[i+1]
+            line_edit2 = QLineEdit()
+            self.dimension_inputs[f'dim_{label2_text.lower()}'] = line_edit2
+            row_h_layout.addWidget(QLabel(self.tr(f"{label2_text}:")))
+            row_h_layout.addWidget(line_edit2)
+
+            form_layout.addRow(row_widget) # Add the composite widget for the row
+
+        # Toggle Button for G-J
+        self.toggle_more_dims_button = QPushButton(self.tr("Show More Dimensions"))
+        self.toggle_more_dims_button.clicked.connect(self._toggle_more_dimensions_visibility)
+        form_layout.addRow(self.toggle_more_dims_button) # Add button below A-F
+
+        # Dimensions G-J (2 rows, 2 per row, initially hidden)
+        for i in range(6, 10, 2): # Loops for G-H, I-J
+            row_widget = QWidget() # This is the QWidget for the entire row in QFormLayout
+            row_h_layout = QHBoxLayout(row_widget)
+            row_h_layout.setContentsMargins(0,0,0,0)
+
+            # First dimension in pair (G, I)
+            label1_text = dim_labels[i]
+            line_edit1 = QLineEdit()
+            self.dimension_inputs[f'dim_{label1_text.lower()}'] = line_edit1
+            row_h_layout.addWidget(QLabel(self.tr(f"{label1_text}:")))
+            row_h_layout.addWidget(line_edit1)
+
+            row_h_layout.addSpacing(20)
+
+            # Second dimension in pair (H, J)
+            label2_text = dim_labels[i+1]
+            line_edit2 = QLineEdit()
+            self.dimension_inputs[f'dim_{label2_text.lower()}'] = line_edit2
+            row_h_layout.addWidget(QLabel(self.tr(f"{label2_text}:")))
+            row_h_layout.addWidget(line_edit2)
+
+            # Add the QWidget (row_widget) to form_layout and store it for toggling
+            # QFormLayout wraps its rows. We need to get the row widget itself.
+            # A common way is to add the widget directly, and it spans both columns.
+            # Or, add a label and then the widget.
+            # Let's add it directly, and it will span.
+            form_layout.addRow(row_widget)
+            self.more_dimension_widgets.append(row_widget) # Store the QWidget containing G-H or I-J
 
         tech_image_group = QGroupBox(self.tr("Image Technique"))
         tech_image_layout = QVBoxLayout(tech_image_group)
@@ -70,13 +130,35 @@ class ClientProductDimensionDialog(QDialog):
         main_layout.addWidget(self.button_box)
         self.setLayout(main_layout)
 
+    def _toggle_more_dimensions_visibility(self, initial_setup=False):
+        if not initial_setup: # Regular click
+            self.are_more_dimensions_visible = not self.are_more_dimensions_visible
+        else: # Initial setup, set to hidden by default
+            self.are_more_dimensions_visible = False
+
+        for widget_row in self.more_dimension_widgets:
+            # widget_row is the QWidget that was added to the form_layout.
+            # We also need to toggle the label associated with this row if QFormLayout created one.
+            # However, by adding row_widget directly (form_layout.addRow(row_widget)), it spans both columns.
+            # So, toggling row_widget.setVisible() is sufficient.
+            widget_row.setVisible(self.are_more_dimensions_visible)
+
+        if self.are_more_dimensions_visible:
+            self.toggle_more_dims_button.setText(self.tr("Show Less Dimensions"))
+        else:
+            self.toggle_more_dims_button.setText(self.tr("Show More Dimensions"))
+
+        # Adjust dialog height if needed, might be automatic
+        self.adjustSize()
+
+
     def load_dimensions(self):
         try:
             # Using db_manager as per original class structure for this dialog
             dimension_data = db_manager.get_product_dimension(self.product_id)
             if dimension_data:
                 for dim_ui_key, input_widget in self.dimension_inputs.items(): # dim_ui_key is "dim_a" etc
-                    input_widget.setText(dimension_data.get(dim_ui_key, ""))
+                    input_widget.setText(str(dimension_data.get(dim_ui_key, ""))) # Ensure text is string
 
                 technical_image_path_from_db = dimension_data.get('technical_image_path', '')
                 self.current_tech_image_path = technical_image_path_from_db

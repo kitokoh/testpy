@@ -29,6 +29,10 @@ from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignT
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
 
+from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
+from document_manager_logic import create_final_invoice_and_update_db
+
+
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
 
@@ -633,6 +637,17 @@ class ClientWidget(QWidget):
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
+        # --- Billing Tab ---
+        self.billing_tab = QWidget()
+        self.billing_tab_layout = QVBoxLayout(self.billing_tab)
+
+        self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
+        self.generate_invoice_button.setToolTip(self.tr("Open dialog to prepare and generate a final invoice for this client."))
+        self.generate_invoice_button.clicked.connect(self.handle_generate_final_invoice)
+        self.billing_tab_layout.addWidget(self.generate_invoice_button)
+        self.billing_tab_layout.addStretch()
+
+        self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
         # Connect new accordion handlers
         self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
         self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
@@ -2017,12 +2032,125 @@ class ClientWidget(QWidget):
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
             pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
+
+            source_template_id = doc_data.get('source_template_id')
+            # Disable PDF generation for actual PDFs that came from a template (they are already PDFs)
+            # The _handle_open_pdf_action might need to distinguish between generating from source and just opening if it's already PDF.
+            # For now, if it's a PDF in the list, pdf_btn will just open it if it exists.
+
             source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
-            if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
+
+            can_edit_source_template = False
+            if source_template_id:
+                template_info_for_edit_btn = db_manager.get_template_by_id(source_template_id)
+                if template_info_for_edit_btn and template_info_for_edit_btn.get('template_type', '').startswith('html'):
+                    can_edit_source_template = True
+
+            if can_edit_source_template:
+                edit_source_template_btn = QPushButton(""); edit_source_template_btn.setIcon(QIcon.fromTheme("accessories-text-editor", QIcon(":/icons/pencil.svg"))); edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document")); edit_source_template_btn.setFixedSize(30,30); edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d)); action_layout.addWidget(edit_source_template_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for direct editability if not from template or template not HTML
                 edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
+            else:
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+
             delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+
+    def handle_edit_source_template(self, document_data):
+        source_template_id = document_data.get('source_template_id')
+        current_client_id = self.client_info.get('client_id')
+
+        if not source_template_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun ID de modèle source associé à ce document."))
+            return
+
+        original_template = db_manager.get_template_by_id(source_template_id)
+        if not original_template:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Modèle source (ID: {0}) introuvable.").format(source_template_id))
+            return
+
+        template_to_edit_id = source_template_id
+        template_for_editor = original_template.copy() # Work with a copy
+
+        if original_template.get('client_id') is None: # Global template
+            reply = QMessageBox.question(self, self.tr("Modèle Global"),
+                                         self.tr("Ce document a été généré à partir d'un modèle global. Voulez-vous créer une copie spécifique à ce client ({0}) pour modification?").format(self.client_info.get('client_name', current_client_id)),
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if reply == QMessageBox.Yes:
+                new_template_data = template_for_editor # Already a copy
+                new_template_data['client_id'] = current_client_id
+                new_template_data['template_name'] = f"{original_template.get('template_name', 'Template')} ({self.client_info.get('client_name', current_client_id)[:15]} Copy)"
+                new_template_data.pop('template_id', None)
+                new_template_data['is_default_for_type_lang'] = False
+
+                new_id = db_manager.add_template(new_template_data)
+                if new_id:
+                    template_to_edit_id = new_id
+                    template_for_editor = db_manager.get_template_by_id(new_id) # Get the full new template data
+                    QMessageBox.information(self, self.tr("Copie Créée"), self.tr("Une copie client-spécifique du modèle a été créée et va maintenant être ouverte pour édition."))
+                    self.populate_doc_table() # Refresh doc list if template source ID might change (though it doesn't for existing docs)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Impossible de créer la copie client-spécifique du modèle."))
+                    return
+            else: # User chose not to create a copy
+                return
+        elif original_template.get('client_id') != current_client_id:
+            QMessageBox.warning(self, self.tr("Accès Interdit"), self.tr("Ce modèle appartient à un autre client et ne peut pas être modifié directement ici. Une copie pour le client actuel peut être envisagée si nécessaire (fonctionnalité à implémenter)."))
+            return # Or implement copy logic similar to global templates
+
+        # At this point, template_for_editor is the correct one to edit (original or new copy)
+        raw_html_content = template_for_editor.get('raw_template_file_data')
+        base_file_name = template_for_editor.get('base_file_name')
+        lang_code = template_for_editor.get('language_code')
+
+        if not base_file_name or not lang_code:
+            QMessageBox.critical(self, self.tr("Erreur Modèle"), self.tr("Les informations du fichier de base du modèle (nom ou langue) sont manquantes."))
+            return
+
+        # Construct path in the central template store
+        template_file_path_for_editor = os.path.join(self.config.get("templates_dir", "templates"), lang_code, base_file_name)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(template_file_path_for_editor), exist_ok=True)
+
+        # Write DB content to file for editor, to ensure editor loads the canonical version
+        try:
+            content_to_write = raw_html_content
+            if isinstance(raw_html_content, bytes):
+                content_to_write = raw_html_content.decode('utf-8')
+
+            with open(template_file_path_for_editor, 'w', encoding='utf-8') as f:
+                f.write(content_to_write if content_to_write else "")
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Écriture Fichier"), self.tr("Impossible d'écrire le contenu du modèle vers le fichier temporaire pour édition: {0}").format(str(e)))
+            return
+
+        editor_client_data = self.client_info.copy() # Pass a copy
+        html_editor = HtmlEditor(
+            file_path=template_file_path_for_editor,
+            client_data=editor_client_data,
+            template_id=template_to_edit_id, # Pass the ID of the template being edited
+            parent=self
+        )
+        if html_editor.exec_() == QDialog.Accepted:
+            try:
+                with open(template_file_path_for_editor, 'r', encoding='utf-8') as f:
+                    updated_html_content = f.read()
+
+                # Save updated content back to DB
+                update_payload = {'raw_template_file_data': updated_html_content}
+                # Optionally, update 'updated_at' or 'version' if those fields are important here
+                if db_manager.update_template(template_to_edit_id, update_payload):
+                    QMessageBox.information(self, self.tr("Modèle Sauvegardé"), self.tr("Les modifications du modèle ont été sauvegardées dans la base de données."))
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur Sauvegarde DB"), self.tr("Impossible de sauvegarder les modifications du modèle dans la base de données."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Lecture Fichier"), self.tr("Impossible de relire le fichier modèle modifié: {0}").format(str(e)))
+
+        # Clean up temporary file if it was solely for this edit session and raw_template_file_data is truth
+        # For now, assume file is persistent in templates_dir. If base_file_name was temporary, then:
+        # if os.path.exists(template_file_path_for_editor) and is_temp_file: os.remove(template_file_path_for_editor)
+
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -2235,52 +2363,103 @@ class ClientWidget(QWidget):
             # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
 
             # Example of what might be happening and how to fix it:
-            # (This is illustrative as the actual product saving loop is not shown in the provided code)
-
-            client_country_id = self.client_info.get('country_id') # Get country_id from ClientWidget's info
+            products_list_data = dialog.get_data() # This is a list of product_entry dicts
 
             processed_count = 0
             if products_list_data:
                 for product_entry in products_list_data:
-                    # product_entry is a dict from ProductDialog.get_data(), which now includes:
-                    # 'client_id', 'product_id' (global ID), 'name', 'quantity', 'unit_price',
-                    # 'language_code', 'weight', 'dimensions',
-                    # 'client_country_id', 'client_city_id'
+                    client_id_for_product = self.client_info.get('client_id')
+                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
+                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
+                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
 
-                    # If there was faulty logic here like:
-                    # city_name_from_client = self.client_info.get('city')
-                    # if city_name_from_client:
-                    #     # Incorrect call: db_manager.get_or_add_city(city_name=city_name_from_client, country_id=None)
-                    #     # Corrected call would be:
-                    #     db_manager.get_or_add_city(city_name=city_name_from_client, country_id=client_country_id)
-                    # This part is speculative as the original call to City() is not found.
+                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
+                    client_id_for_product = self.client_info.get('client_id')
+                    global_product_id = product_entry.get('product_id')
+                    quantity_raw = product_entry.get('quantity')
+                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
 
-                    # The primary action is linking the product:
-                    # Ensure product_entry has all necessary fields for add_product_to_client_or_project
-                    # It already contains client_id, product_id (as 'product_id'), quantity, unit_price_override (as 'unit_price')
+                    quantity = None
+                    if quantity_raw is not None:
+                        try:
+                            quantity = float(quantity_raw)
+                            if quantity <= 0:
+                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
+                                quantity = None # Treat as missing/invalid
+                        except ValueError:
+                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
+                            quantity = None # Treat as missing/invalid
 
+                    unit_price_override = None # Initialize to None
+                    # unit_price_override should only be set if unit_price_override_raw is not None.
+                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
+                    # If unit_price_override_raw is provided, it must be a valid float.
+                    if unit_price_override_raw is not None:
+                        try:
+                            unit_price_override = float(unit_price_override_raw)
+                            if unit_price_override < 0: # Negative prices are not allowed for an override
+                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
+                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
+                                unit_price_override = None # Mark as invalid for the 'all' check.
+                        except ValueError:
+                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
+                            unit_price_override = None # Mark as invalid for the 'all' check.
+
+                    # Determine project_id. It can be None.
+                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
+                    project_id_for_db = self.client_info.get('project_id', None)
+                    if project_id_for_db is None:
+                        # If 'project_id' is not directly in client_info,
+                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
+                        # For now, assume if 'project_id' is not there, it's None.
+                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
+
+
+                    # Critical data for adding a link: client_id, product_id, quantity.
+                    # unit_price_override is optional in db_call_payload (None means use base price).
+                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
+                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
+                    # And quantity must always be valid.
+                    conditions_met = all([
+                        client_id_for_product,
+                        global_product_id,
+                        quantity is not None, # Quantity must be valid positive number
+                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
+                    ])
+
+                    if not conditions_met:
+                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
+                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
+                        continue
+
+                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
+                    # The add_product_to_client_or_project function handles None override by using base price.
                     db_call_payload = {
-                        'client_id': product_entry.get('client_id'),
-                        'product_id': product_entry.get('product_id'), # This is the global product_id
-                        'quantity': product_entry.get('quantity'),
-                        'unit_price_override': product_entry.get('unit_price'), # ProductDialog uses 'unit_price' for this
-                        'project_id': self.client_info.get('project_id'), # Or from a project selector if applicable
-                        # serial_number, purchase_confirmed_at would be None unless set explicitly
+                        'client_id': client_id_for_product,
+                        'product_id': global_product_id,
+                        'quantity': quantity, # Validated float
+                        'unit_price_override': unit_price_override, # Validated float or None
+                        'project_id': project_id_for_db,
                     }
 
+                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
+
                     if link_id:
                         processed_count += 1
+                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
                     else:
-                        QMessageBox.warning(self, self.tr("DB Error"),
-                                            self.tr(f"Failed to add product '{product_entry.get('name')}' to client."))
+                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        QMessageBox.warning(self, self.tr("Erreur Base de Données"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
 
             if processed_count > 0:
-                 QMessageBox.information(self, self.tr("Success"),
-                                         self.tr(f"{processed_count} product(s) added to client successfully."))
-            # --- END HYPOTHETICAL ACTUAL FIX AREA ---
+                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                                         self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
 
-            if products_list_data: self.load_products() # Refresh UI
+            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+                self.load_products()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
@@ -3066,13 +3245,19 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def eventFilter(self, obj, event):
-        if obj is self.notes_edit and event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
-                    return super().eventFilter(obj, event)
-                else: # Enter pressed
-                    self.append_new_note_with_timestamp()
-                    return True # Event handled
+        if obj is self.notes_edit:
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
+                        # Let the base class handle Shift+Enter for newline
+                        return super().eventFilter(obj, event)
+                    else: # Enter pressed
+                        self.append_new_note_with_timestamp()
+                        return True # Event handled, stop further processing for this Enter key press
+            elif event.type() == QEvent.FocusOut:
+                self.save_client_notes()
+                # Return False to allow normal FocusOut processing after saving
+                return False
         return super().eventFilter(obj, event)
 
     def append_new_note_with_timestamp(self):
@@ -3138,7 +3323,108 @@ class ClientWidget(QWidget):
 
         self.save_client_notes()
 
+    def handle_generate_final_invoice(self):
+        if not self.client_info or not self.client_info.get('client_id'):
+            QMessageBox.warning(self, self.tr("Client Error"), self.tr("Client information is not available."))
+            return
 
+        client_id = self.client_info.get('client_id')
+
+        current_default_company_id = "0e718801-9f2f-4e6a-9254-80c738f991F9" # Fallback Placeholder UUID
+        if hasattr(self, 'config') and self.config.get('default_company_id'):
+            current_default_company_id = self.config.get('default_company_id')
+        elif hasattr(self.parent(), 'config') and self.parent().config.get('default_company_id'): # Check main window
+            current_default_company_id = self.parent().config.get('default_company_id')
+        elif self.default_company_id: # from __init__
+             current_default_company_id = self.default_company_id
+        else:
+             QMessageBox.critical(self, self.tr("Configuration Error"),
+                                 self.tr("Default selling company ID is not configured. Cannot generate invoice."))
+             return
+
+        client_langs = self.client_info.get('selected_languages', 'en')
+        if isinstance(client_langs, str):
+            client_langs_list = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+        elif isinstance(client_langs, list):
+            client_langs_list = client_langs
+        else:
+            client_langs_list = ['en']
+
+        lang_code = client_langs_list[0].strip() if client_langs_list else 'en'
+
+        # Determine project_id for the invoice. ClientWidget might be specific to a project,
+        # or it might be a general client view. If general, project_id might be None here,
+        # and selected within FinalInvoiceDataDialog or not used if it's a client-level invoice.
+        # For this integration, let's assume it's a client-level invoice for now, or
+        # FinalInvoiceDataDialog handles project selection if necessary.
+        # If ClientWidget is contextually aware of a single project, pass that.
+        # Let's assume for now project_id is not directly passed from ClientWidget context,
+        # but could be part of self.client_info if ClientWidget is for a specific project view.
+        active_project_id_for_invoice = self.client_info.get('project_id_context', None) # Example if such context exists
+
+        dialog = FinalInvoiceDataDialog(
+            client_id=client_id,
+            project_id=active_project_id_for_invoice,
+            company_id=current_default_company_id,
+            parent=self
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            line_items, additional_context = dialog.get_data()
+
+            if not line_items:
+                QMessageBox.warning(self, self.tr("No Items"), self.tr("Cannot generate an invoice with no line items."))
+                return
+
+            current_user_id = None
+            main_window = self # Start with self, then try parent
+            # Traverse up to find DocumentManager instance which should have current_user
+            # This assumes ClientWidget is always a child of DocumentManager or a similar structure
+            # Maximum of, say, 5 levels up to prevent infinite loops in weird scenarios
+            for _ in range(5):
+                if hasattr(main_window, 'current_user') and main_window.current_user:
+                    current_user_id = main_window.current_user.get('user_id')
+                    break
+                if hasattr(main_window, 'parent') and callable(main_window.parent):
+                    main_window = main_window.parent()
+                    if main_window is None: # Reached top level QApplication object or similar
+                        break
+                else: # No more parents
+                    main_window = None
+                    break
+
+            if not current_user_id:
+                logging.warning("Could not determine current_user_id for invoice generation in ClientWidget.")
+
+            try:
+                success, new_invoice_id, new_doc_id = create_final_invoice_and_update_db(
+                    client_id=client_id,
+                    company_id=current_default_company_id,
+                    target_language_code=lang_code,
+                    line_items=line_items,
+                    project_id=active_project_id_for_invoice,
+                    additional_context_overrides=additional_context,
+                    created_by_user_id=current_user_id
+                )
+
+                if success:
+                    QMessageBox.information(self, self.tr("Success"),
+                                            self.tr("Invoice successfully generated and saved (Invoice DB ID: {0}, Document ID: {1}).").format(new_invoice_id, new_doc_id))
+                    if hasattr(self, 'populate_doc_table'):
+                        self.populate_doc_table()
+
+                    if main_window and hasattr(main_window, 'invoice_management_widget_instance'):
+                        if hasattr(main_window.invoice_management_widget_instance, 'load_invoices'):
+                             main_window.invoice_management_widget_instance.load_invoices()
+                             logging.info("Refreshed global invoice list.")
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to generate or save the final invoice. Check logs for details."))
+            except Exception as e_gen:
+                logging.error(f"Exception during final invoice creation process from ClientWidget: {e_gen}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Critical Error"), self.tr("An unexpected error occurred: {0}").format(str(e_gen)))
+
+
+# Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # are correctly available either as methods of ClientWidget or properly imported.
 # The dynamic import _import_main_elements() is a temporary measure.

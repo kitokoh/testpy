@@ -223,6 +223,7 @@ class StatisticsDashboard(QWidget):
                 self.stats_stack.setCurrentWidget(self.client_details_widget)
                 return
 
+
             country_name = self.tr("N/A")
             if client_data.get('country_id'):
                 country_obj = get_country_by_id(client_data['country_id'])
@@ -316,6 +317,7 @@ class StatisticsDashboard(QWidget):
                     geo_data=geojson_path, name="choropleth", data=df,
                     columns=["country_name", "client_count"], key_on="feature.properties.name",
                     fill_color=client_colormap, # Use the StepColormap instance
+
                     fill_opacity=0.7, # Slightly more opaque for better color visibility
                     line_opacity=0.3,
                     highlight=True,
@@ -324,6 +326,7 @@ class StatisticsDashboard(QWidget):
 
                 # Add the colormap itself to the map to generate the legend
                 client_colormap.add_to(m)
+
 
             # Fetch active client data for interactive markers/popups
             # This is a simplified version; in DocumentManager it's get_active_clients_per_country
