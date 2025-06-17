@@ -2656,8 +2656,10 @@ class ClientWidget(QWidget):
             # We also need to call self.load_products_for_dimension_tab() to update its own combo box
             # if this load_products method is the central point of refresh for product data.
 
-            for row_idx, prod_link_data in enumerate(filtered_products):
-                self.products_table.insertRow(row_idx)
+            # The following loop was identified as redundant and causing blank rows.
+            # for row_idx, prod_link_data in enumerate(filtered_products):
+            #     self.products_table.insertRow(row_idx) # DO NOT UNCOMMENT - This is the bug source
+
             if not filtered_products:
                 # Empty state remains: label visible, table hidden
                 # (already set at the beginning of the method)
@@ -2670,7 +2672,9 @@ class ClientWidget(QWidget):
                 self.products_table.setVisible(True)
 
                 for row_idx, prod_link_data in enumerate(filtered_products):
-                    self.products_table.insertRow(row_idx)
+                # This is the correct loop for inserting and populating rows.
+                # Ensure insertRow is called here, once per product.
+                self.products_table.insertRow(row_idx)
 
                 id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
                 id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
