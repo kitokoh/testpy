@@ -101,7 +101,7 @@ def get_document_context_data(
     additional_context: dict = None, conn_passed: sqlite3.Connection = None
 ) -> dict:
     # Import specific CRUD functions to avoid circular dependency with db package
-    from ..cruds.companies_crud import get_company_by_id, get_personnel_for_company
+    from .cruds.companies_crud import get_company_by_id, get_personnel_for_company
     from ..cruds.clients_crud import get_client_by_id
     from ..cruds.locations_crud import get_country_by_id, get_city_by_id
     from ..cruds.contacts_crud import get_contacts_for_client

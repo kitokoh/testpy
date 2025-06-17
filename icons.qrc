@@ -57,5 +57,8 @@
     <file alias="plus-square.svg">icons/plus-square.svg</file>
     <file alias="modern/templates.svg">icons/placeholder_icon.svg</file>
     <file alias="modern/link.svg">icons/placeholder_icon.svg</file>
+    <file alias="map.svg">icons/placeholder_icon.svg</file>
+    <file alias="credit-card.svg">icons/placeholder_icon.svg</file>
+    <file alias="modern/settings.svg">icons/settings.svg</file>
 </qresource>
 </RCC>
