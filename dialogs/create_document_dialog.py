@@ -176,10 +176,14 @@ class CreateDocumentDialog(QDialog):
         try:
             # Fetch client-specific and global templates based on filters
             # get_all_templates is now client-aware and handles other filters
+            # Assuming '1' is the category_id for "document" templates.
+            # This ID should be confirmed or fetched dynamically if possible in a real scenario.
+            DOCUMENT_CATEGORY_ID = 1
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
-                client_id_filter=current_client_id
+                client_id_filter=current_client_id,
+                category_id_filter=DOCUMENT_CATEGORY_ID
             )
             if templates_from_db is None: templates_from_db = []
 
