@@ -2674,61 +2674,61 @@ class ClientWidget(QWidget):
                 for row_idx, prod_link_data in enumerate(filtered_products):
                 # This is the correct loop for inserting and populating rows.
                 # Ensure insertRow is called here, once per product.
-                self.products_table.insertRow(row_idx)
+                    self.products_table.insertRow(row_idx)
 
-                id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
-                id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
-                id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
-                self.products_table.setItem(row_idx, 0, id_item)
+                    id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
+                    id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
+                    id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                    self.products_table.setItem(row_idx, 0, id_item)
 
-                # Name (Column 1)
-                name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 1, name_item)
+                    # Name (Column 1)
+                    name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 1, name_item)
 
-                desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
-                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 2, desc_item)
+                    desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
+                    desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 2, desc_item)
 
-                # Weight (Column 3 - Not Editable from this table)
-                weight_val = prod_link_data.get('weight')
-                weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
-                weight_item = QTableWidgetItem(weight_str)
-                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
-                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.products_table.setItem(row_idx, 3, weight_item)
+                    # Weight (Column 3 - Not Editable from this table)
+                    weight_val = prod_link_data.get('weight')
+                    weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+                    weight_item = QTableWidgetItem(weight_str)
+                    weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                    weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.products_table.setItem(row_idx, 3, weight_item)
 
-                # Dimensions (Column 4 - Not Editable from this table)
-                dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
-                dimensions_item = QTableWidgetItem(dimensions_val)
-                dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 4, dimensions_item)
+                    # Dimensions (Column 4 - Not Editable from this table)
+                    dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
+                    dimensions_item = QTableWidgetItem(dimensions_val)
+                    dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 4, dimensions_item)
 
-                # Quantity (Column 5 - Editable)
-                qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
-                qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
-                qty_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 5, qty_item)
+                    # Quantity (Column 5 - Editable)
+                    qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
+                    qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                    qty_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 5, qty_item)
 
-                # Unit Price (Column 6 - Editable)
-                unit_price_override = prod_link_data.get('unit_price_override')
-                base_price = prod_link_data.get('base_unit_price')
-                effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
-                effective_unit_price = float(effective_unit_price)
-                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
-                unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
-                unit_price_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 6, unit_price_item)
+                    # Unit Price (Column 6 - Editable)
+                    unit_price_override = prod_link_data.get('unit_price_override')
+                    base_price = prod_link_data.get('base_unit_price')
+                    effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
+                    effective_unit_price = float(effective_unit_price)
+                    unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
+                    unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                    unit_price_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 6, unit_price_item)
 
-                # Total Price (Column 7 - Not Editable)
-                total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
-                total_price_calculated_val = float(total_price_calculated_val)
-                total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
-                total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 7, total_price_item)
+                    # Total Price (Column 7 - Not Editable)
+                    total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
+                    total_price_calculated_val = float(total_price_calculated_val)
+                    total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
+                    total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 7, total_price_item)
 
             # self.products_table.resizeColumnsToContents() # Can make UI jumpy, consider specific column resize modes
         except Exception as e:
