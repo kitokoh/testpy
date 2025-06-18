@@ -63,6 +63,7 @@ class ProductManagementPage(QWidget):
         self.filter_group_box = QGroupBox(self.tr("Filters")) # Changed to self.filter_group_box
         # self.filter_group_box.setContentsMargins(10, 15, 10, 10) # QSS already provides padding: 10px. Adjust top for title.
         filter_group_main_layout = QVBoxLayout(self.filter_group_box) # Main layout for the group box
+
         # filter_group_main_layout.setContentsMargins(5, 5, 5, 5) # Margins for the layout within the groupbox
 
         filter_search_layout = QHBoxLayout() # Layout for language, category, search
@@ -102,6 +103,7 @@ class ProductManagementPage(QWidget):
         filter_group_main_layout.addWidget(self.include_deleted_checkbox)
 
         main_layout.addWidget(self.filter_group_box) # Changed to self.filter_group_box
+
         main_layout.addSpacing(10) # Spacing after filter_group_box
 
         self.product_table = QTableWidget()

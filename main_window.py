@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+# import logging # logging is already imported
 import logging
 
 from PyQt5.QtWidgets import (
@@ -239,26 +240,27 @@ class DocumentManager(QMainWindow):
 
         # Search Input
         search_layout = QVBoxLayout()
-        search_label = QLabel(self.tr("Recherche:"))
-        search_layout.addWidget(search_label) # Add label first
+        self.search_label = QLabel(self.tr("Recherche:")) # Store label as instance member to toggle visibility
+        self.search_label.setVisible(False) # Initially hidden
+        search_layout.addWidget(self.search_label)
 
-        search_bar_line_layout = QHBoxLayout() # Horizontal layout for button and field
-        self.toggle_search_bar_btn = QPushButton() # Text set in toggle method
-        self.toggle_search_bar_btn.setCheckable(True)
-        self.toggle_search_bar_btn.setFixedWidth(30) # Small fixed width for the button
-        search_bar_line_layout.addWidget(self.toggle_search_bar_btn)
+        search_bar_line_layout = QHBoxLayout()
+        self.search_icon_btn = QPushButton()
+        self.search_icon_btn.setIcon(QIcon.fromTheme("edit-find", QIcon(":/icons/search.svg"))) # Set icon
+        # Removed setCheckable and setFixedWidth
+        search_bar_line_layout.addWidget(self.search_icon_btn)
 
         self.search_input_field = QLineEdit(); self.search_input_field.setPlaceholderText(self.tr("Rechercher client..."))
+        self.search_input_field.setVisible(False) # Initially hidden
         self.search_input_field.textChanged.connect(self.filter_client_list_display_slot)
         search_bar_line_layout.addWidget(self.search_input_field)
 
-        search_layout.addLayout(search_bar_line_layout) # Add the line layout to the main search_layout
+        search_layout.addLayout(search_bar_line_layout)
         filter_search_main_layout.addLayout(search_layout)
 
-        self.toggle_search_bar_btn.toggled.connect(self.toggle_search_bar_visibility)
-        # Initialize search bar state (visible)
-        self.search_input_field.setVisible(True)
-        self.toggle_search_bar_btn.setChecked(True) # This will call toggle_search_bar_visibility
+        self.search_icon_btn.clicked.connect(self.toggle_search_input_visibility) # Connect to clicked
+        # Removed setVisible(True) for search_input_field and setChecked(True) for the button
+
 
         filter_search_main_layout.addStretch(1) # Add stretch to push filters to the left
         left_pane_layout.addWidget(filter_search_group)
@@ -286,7 +288,8 @@ class DocumentManager(QMainWindow):
         right_pane_splitter.addWidget(self.client_tabs_widget) # Add client tabs to the right_pane_splitter
         main_splitter.addWidget(right_pane_splitter) # Add the right_pane_splitter to the main_splitter
 
-        main_splitter.setSizes([int(self.width()*0.25), int(self.width()*0.75)]) # Adjust as needed
+        main_splitter.setSizes([int(self.width()*0.20), int(self.width()*0.80)]) # Adjust as needed
+
 
         docs_page_layout = QVBoxLayout(self.documents_page_widget)
         docs_page_layout.addWidget(main_splitter)
@@ -399,12 +402,14 @@ class DocumentManager(QMainWindow):
     def set_client_status_archived_slot(self, client_id): archive_client_status(self, client_id)
     def delete_client_permanently_slot(self, client_id): permanently_delete_client(self, client_id)
 
-    def toggle_search_bar_visibility(self, checked):
-        self.search_input_field.setVisible(checked)
-        if checked:
-            self.toggle_search_bar_btn.setText("<")
-        else:
-            self.toggle_search_bar_btn.setText(">")
+    def toggle_search_input_visibility(self): # Renamed and removed 'checked' argument
+        is_visible = not self.search_input_field.isVisible()
+        self.search_input_field.setVisible(is_visible)
+        self.search_label.setVisible(is_visible) # Toggle label visibility
+        if is_visible:
+            self.search_input_field.setFocus()
+        # Removed button text change logic
+
 
     def execute_create_client(self, client_data_dict=None): self.execute_create_client_slot(client_data_dict=client_data_dict)
     def load_clients_from_db(self): self.load_clients_from_db_slot()
@@ -479,6 +484,10 @@ class DocumentManager(QMainWindow):
             status_obj = db_manager.get_status_setting_by_id(client_data_to_show['status_id'])
             client_data_to_show['status'] = status_obj.get('status_name', "N/A") if status_obj else "N/A"
 
+        logging.info(f"open_client_tab_by_id: client_id_to_open={client_id_to_open}, "
+                     f"client_data_to_show name={client_data_to_show.get('client_name')}, "
+                     f"email={client_data_to_show.get('email')}, phone={client_data_to_show.get('phone')}")
+
         # Ensure selected_languages is a list, even if it's null/empty from DB
         selected_languages_str = client_data_to_show.get('selected_languages')
         if isinstance(selected_languages_str, str) and selected_languages_str.strip():
@@ -490,11 +499,13 @@ class DocumentManager(QMainWindow):
         for i in range(self.client_tabs_widget.count()):
             tab_widget_ref = self.client_tabs_widget.widget(i) 
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
+                logging.info(f"Refreshing existing tab for client ID {client_id_to_open}")
                 self.client_tabs_widget.setCurrentIndex(i)
                 if hasattr(tab_widget_ref, 'refresh_display'):
                     tab_widget_ref.refresh_display(client_data_to_show)
                 return
 
+        logging.info(f"Creating new tab for client ID {client_id_to_open}")
         notification_manager = QApplication.instance().notification_manager
         client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
