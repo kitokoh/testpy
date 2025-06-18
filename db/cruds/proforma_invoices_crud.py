@@ -364,6 +364,7 @@ def get_total_sales_amount_for_period(db: Session, start_date_iso: str, end_date
         result = db.execute(sql, params).fetchone() # SQLAlchemy Core execution
         if result and result['total_sales'] is not None: # Access by column name from result
             total_sales = float(result['total_sales'])
+
         logger.debug(f"Total sales for period {start_date_iso} to {end_date_iso}: {total_sales}")
         return total_sales
     except Exception as e: # Catch broader exceptions as SQLAlchemy might raise different errors

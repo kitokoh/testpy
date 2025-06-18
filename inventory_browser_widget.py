@@ -360,6 +360,7 @@ class InventoryBrowserWidget(QWidget):
         #     # Clear UI or show default state
         pass
 
+
     def update_assign_button_state(self):
         """
         Enables or disables the 'Assign Product to Selected Location' button.
