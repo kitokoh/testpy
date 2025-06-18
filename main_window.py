@@ -61,7 +61,7 @@ from statistics_panel import CollapsibleStatisticsWidget
 from utils import save_config
 from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
-
+from botpress_integration.ui_components import BotpressIntegrationUI # Import Botpress UI
 from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
@@ -112,6 +112,10 @@ class DocumentManager(QMainWindow):
             parent=self
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
+
+        # Instantiate BotpressIntegrationUI and add to stack
+        self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
+        self.main_area_stack.addWidget(self.botpress_integration_ui_instance)
 
         self.main_area_stack.setCurrentWidget(self.documents_page_widget)
         self.create_actions_main(); self.create_menus_main()
@@ -342,6 +346,8 @@ class DocumentManager(QMainWindow):
         self.statistics_action = QAction(QIcon(":/icons/bar-chart.svg"), self.tr("Statistiques"), self); self.statistics_action.triggered.connect(self.show_statistics_view)
         self.open_carrier_map_action = QAction(QIcon(":/icons/map.svg"), self.tr("Carrier Map"), self) # Assuming map.svg or similar exists
         self.open_carrier_map_action.triggered.connect(self.open_carrier_map_dialog)
+        self.botpress_integration_action = QAction(QIcon(":/icons/placeholder_icon.svg"), self.tr("Botpress Integration"), self) # Add a placeholder icon
+        self.botpress_integration_action.triggered.connect(self.show_botpress_integration_view)
 
 
     def create_menus_main(self): 
@@ -354,6 +360,7 @@ class DocumentManager(QMainWindow):
         modules_menu.addAction(self.product_list_action)
         modules_menu.addAction(self.partner_management_action)
         modules_menu.addAction(self.statistics_action)
+        modules_menu.addAction(self.botpress_integration_action) # Add Botpress action
         modules_menu.addSeparator() # Optional separator
         modules_menu.addAction(self.open_carrier_map_action)
 
@@ -367,6 +374,7 @@ class DocumentManager(QMainWindow):
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
     def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
     def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+    def show_botpress_integration_view(self): self.main_area_stack.setCurrentWidget(self.botpress_integration_ui_instance)
 
     def show_product_management_page(self):
         self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
