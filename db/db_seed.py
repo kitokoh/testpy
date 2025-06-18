@@ -549,7 +549,7 @@ def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connec
         # Let's assume the `template_type` (e.g., 'document_html') is used as the subfolder for organization within templates_dir.
 
         expected_runtime_template_path = os.path.join(
-            CONFIG.get("templates_dir", "templates"), # e.g., /app/templates
+            CONFIG.get("default_templates_dir", "templates"), # e.g., /app/templates
             template_type, # e.g., document_html (derived from extension)
             language_code, # e.g., en
             base_file_name # e.g., contact_page_template.html
