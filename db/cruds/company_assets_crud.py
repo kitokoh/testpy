@@ -1,7 +1,9 @@
 import sqlite3
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from typing import Optional, List, Dict, Any
+
 
 from ..database_manager import get_db_connection
 from .generic_crud import GenericCRUD # Assuming GenericCRUD has _manage_conn
@@ -124,27 +126,78 @@ class CompanyAssetsCRUD(GenericCRUD):
         Returns:
             list[dict]: A list of assets, or an empty list if none found or error.
         """
-        query = f"SELECT * FROM {self.table_name}"
+        base_query = f"SELECT * FROM {self.table_name}"
         conditions = []
         params = []
 
+        valid_columns = self._get_column_names(conn) # Get valid column names for basic filtering
+
         if filters:
             for key, value in filters.items():
-                # Basic protection against SQL injection for keys, assumes keys are valid column names
-                if key in self._get_column_names(conn): # Ensure key is a valid column
+                if value is None or (isinstance(value, list) and not value): # Skip None values or empty lists
+                    continue
+
+                if key == "purchase_date_after":
+                    conditions.append("purchase_date >= ?")
+                    params.append(value)
+                elif key == "purchase_date_before":
+                    conditions.append("purchase_date <= ?")
+                    params.append(value)
+                elif key == "created_at_after":
+                    conditions.append("created_at >= ?")
+                    params.append(value)
+                elif key == "created_at_before":
+                    conditions.append("created_at <= ?")
+                    params.append(value)
+                elif key == "updated_at_after":
+                    conditions.append("updated_at >= ?")
+                    params.append(value)
+                elif key == "updated_at_before":
+                    conditions.append("updated_at <= ?")
+                    params.append(value)
+                elif key == "purchase_value_min":
+                    conditions.append("purchase_value >= ?")
+                    params.append(value)
+                elif key == "purchase_value_max":
+                    conditions.append("purchase_value <= ?")
+                    params.append(value)
+                elif key == "asset_type_in" and isinstance(value, list):
+                    placeholders = ','.join(['?'] * len(value))
+                    conditions.append(f"asset_type IN ({placeholders})")
+                    params.extend(value)
+                elif key == "current_status_in" and isinstance(value, list):
+                    placeholders = ','.join(['?'] * len(value))
+                    conditions.append(f"current_status IN ({placeholders})")
+                    params.extend(value)
+                elif key == "q": # General text search
+                    q_conditions = []
+                    search_columns = ["asset_name", "description", "serial_number", "notes"]
+                    for col in search_columns:
+                        if col in valid_columns:
+                             q_conditions.append(f"{col} LIKE ?")
+                             params.append(f"%{value}%")
+                    if q_conditions:
+                        conditions.append("(" + " OR ".join(q_conditions) + ")")
+                elif key == "is_not_assigned" and isinstance(value, bool) and value:
+                    # Ensure CompanyAssets table is aliased if needed, or use its actual name if unambiguous
+                    # For this subquery, CompanyAssets.asset_id should be clear enough if self.table_name is CompanyAssets
+                    conditions.append(f"NOT EXISTS (SELECT 1 FROM AssetAssignments aa WHERE aa.asset_id = {self.table_name}.asset_id AND aa.assignment_status = 'Active')")
+                    # No parameters added for this specific condition
+                elif key in valid_columns: # Handle direct equality filters last
                     conditions.append(f"{key} = ?")
                     params.append(value)
                 else:
-                    logger.warning(f"Filter key '{key}' is not a valid column name. Ignoring.")
-
+                    logger.warning(f"Filter key '{key}' is not a standard column or known advanced filter. Ignoring.")
 
         if not include_deleted:
-            conditions.append("is_deleted = 0")
+            conditions.append(f"{self.table_name}.is_deleted = 0") # Qualify with table name for clarity with potential joins/subqueries
 
+        query = base_query
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
 
-        query += " ORDER BY created_at DESC" # Default ordering
+        query += " ORDER BY CompanyAssets.created_at DESC" # Default ordering, qualified
+
 
         if limit is not None:
             query += " LIMIT ?"
@@ -260,12 +313,161 @@ class CompanyAssetsCRUD(GenericCRUD):
             logger.error(f"An unexpected error occurred during soft delete of asset '{asset_id}': {e}")
             return False
 
+ 
+    def _build_filter_conditions(self, filters: Optional[dict] = None, include_deleted: bool = False, conn: Optional[sqlite3.Connection] = None) -> tuple[str, list]:
+        """
+        Helper function to build WHERE clause conditions and parameters based on filters.
+        This adapts the logic from get_assets for reuse in aggregation methods.
+        """
+        conditions = []
+        params = []
+
+        valid_columns = self._get_column_names(conn)
+
+        if filters:
+            for key, value in filters.items():
+                if value is None or (isinstance(value, list) and not value):
+                    continue
+
+                if key == "purchase_date_after": conditions.append("purchase_date >= ?"); params.append(value)
+                elif key == "purchase_date_before": conditions.append("purchase_date <= ?"); params.append(value)
+                elif key == "created_at_after": conditions.append("created_at >= ?"); params.append(value)
+                elif key == "created_at_before": conditions.append("created_at <= ?"); params.append(value)
+                elif key == "updated_at_after": conditions.append("updated_at >= ?"); params.append(value)
+                elif key == "updated_at_before": conditions.append("updated_at <= ?"); params.append(value)
+                elif key == "purchase_value_min": conditions.append("purchase_value >= ?"); params.append(value)
+                elif key == "purchase_value_max": conditions.append("purchase_value <= ?"); params.append(value)
+                elif key == "asset_type_in" and isinstance(value, list):
+                    placeholders = ','.join(['?'] * len(value))
+                    conditions.append(f"asset_type IN ({placeholders})"); params.extend(value)
+                elif key == "current_status_in" and isinstance(value, list):
+                    placeholders = ','.join(['?'] * len(value))
+                    conditions.append(f"current_status IN ({placeholders})"); params.extend(value)
+                elif key == "q":
+                    q_conditions = []
+                    search_columns = ["asset_name", "description", "serial_number", "notes"]
+                    for col in search_columns:
+                        if col in valid_columns:
+                             q_conditions.append(f"{col} LIKE ?"); params.append(f"%{value}%")
+                    if q_conditions: conditions.append("(" + " OR ".join(q_conditions) + ")")
+                elif key == "is_not_assigned" and isinstance(value, bool) and value:
+                    conditions.append(f"NOT EXISTS (SELECT 1 FROM AssetAssignments aa WHERE aa.asset_id = {self.table_name}.asset_id AND aa.assignment_status = 'Active')")
+                elif key in valid_columns:
+                    conditions.append(f"{key} = ?"); params.append(value)
+                # else: logger.warning - already handled in get_assets, can be omitted here if this helper is only for known keys
+
+        # Default to not including deleted unless `include_deleted` is True (or specified in filters, which is not standard for this helper)
+        if not include_deleted: # This parameter now directly controls this aspect for aggregations
+            conditions.append(f"{self.table_name}.is_deleted = 0")
+
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        return where_clause, params
+
+    def get_total_asset_count(self, filters: Optional[dict] = None, include_deleted: bool = False, conn: Optional[sqlite3.Connection] = None) -> int:
+        """Calculates the total number of assets, applying optional filters."""
+        where_clause, params = self._build_filter_conditions(filters, include_deleted, conn)
+        query = f"SELECT COUNT(*) as total_count FROM {self.table_name} {where_clause}"
+
+        db_conn = conn if conn else get_db_connection(self.db_path)
+        cursor = db_conn.cursor()
+        try:
+            cursor.execute(query, tuple(params))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except sqlite3.Error as e:
+            logger.error(f"Error getting total asset count with filters '{filters}': {e}")
+            return 0
+        finally:
+            if not conn: # Close only if this function opened it.
+                db_conn.close()
+
+    def get_total_asset_value(self, filters: Optional[dict] = None, include_deleted: bool = False, conn: Optional[sqlite3.Connection] = None) -> float:
+        """Calculates the sum of purchase_value for assets, applying optional filters."""
+        # Ensure 'is_deleted' is handled by default unless overridden by include_deleted
+        effective_filters = (filters or {}).copy()
+        # `_build_filter_conditions` now handles include_deleted directly.
+
+        where_clause, params = self._build_filter_conditions(effective_filters, include_deleted, conn)
+        query = f"SELECT SUM(purchase_value) as total_value FROM {self.table_name} {where_clause}"
+
+        db_conn = conn if conn else get_db_connection(self.db_path)
+        cursor = db_conn.cursor()
+        try:
+            cursor.execute(query, tuple(params))
+            result = cursor.fetchone()
+            return result[0] if result and result[0] is not None else 0.0
+        except sqlite3.Error as e:
+            logger.error(f"Error getting total asset value with filters '{filters}': {e}")
+            return 0.0
+        finally:
+            if not conn:
+                db_conn.close()
+
+    def get_asset_counts_by_field(self, field_name: str, filters: Optional[dict] = None, include_deleted: bool = False, conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+        """Performs a GROUP BY on the specified field_name and counts assets in each group."""
+        ALLOWED_GROUP_BY_FIELDS = ['current_status', 'asset_type'] # Whitelist
+        if field_name not in ALLOWED_GROUP_BY_FIELDS:
+            logger.error(f"Invalid field_name '{field_name}' for grouping. Allowed fields: {ALLOWED_GROUP_BY_FIELDS}")
+            raise ValueError(f"Grouping by '{field_name}' is not allowed.")
+
+        where_clause, params = self._build_filter_conditions(filters, include_deleted, conn)
+        # Ensure field_name is safe as it's directly in SQL. Already whitelisted.
+        query = f"SELECT {field_name} as value, COUNT(*) as count FROM {self.table_name} {where_clause} GROUP BY {field_name} ORDER BY count DESC"
+
+        results = []
+        db_conn = conn if conn else get_db_connection(self.db_path)
+        db_conn.row_factory = sqlite3.Row # Ensure dict-like rows
+        cursor = db_conn.cursor()
+        try:
+            cursor.execute(query, tuple(params))
+            results = [dict(row) for row in cursor.fetchall()]
+            return results
+        except sqlite3.Error as e:
+            logger.error(f"Error getting asset counts by field '{field_name}' with filters '{filters}': {e}")
+            return []
+        finally:
+            if not conn:
+                db_conn.close()
+
+    def get_recently_added_count(self, days: int, conn: Optional[sqlite3.Connection] = None) -> int:
+        """Counts non-deleted assets where created_at is within the last `days`."""
+        if not isinstance(days, int) or days < 0:
+            logger.error(f"Invalid 'days' parameter: {days}. Must be a non-negative integer.")
+            return 0
+
+        past_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+        # Use _build_filter_conditions for consistency in handling is_deleted=0
+        # and to potentially add other base filters if needed in the future.
+        filters = {"created_at_after": past_date}
+        where_clause, params = self._build_filter_conditions(filters, include_deleted=False, conn=conn)
+
+        query = f"SELECT COUNT(*) as total_count FROM {self.table_name} {where_clause}"
+
+        db_conn = conn if conn else get_db_connection(self.db_path)
+        cursor = db_conn.cursor()
+        try:
+            cursor.execute(query, tuple(params))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except sqlite3.Error as e:
+            logger.error(f"Error getting recently added asset count for last {days} days: {e}")
+            return 0
+        finally:
+            if not conn:
+                db_conn.close()
+
+
 # Instance for easy import
 company_assets_crud = CompanyAssetsCRUD()
 
 __all__ = [
     "CompanyAssetsCRUD",
     "company_assets_crud"
+
 ]
 
 # Example Usage (for testing purposes, can be removed or commented out)

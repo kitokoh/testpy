@@ -1,7 +1,10 @@
 import sqlite3
 import uuid
 import logging
+from datetime import datetime, timezone, date, timedelta
+from typing import Optional, List, Dict, Any # Added for type hints
 from datetime import datetime, timezone
+
 
 from ..database_manager import get_db_connection
 from .generic_crud import GenericCRUD
@@ -286,6 +289,54 @@ class AssetAssignmentsCRUD(GenericCRUD):
         except Exception as e:
             logger.error(f"An unexpected error occurred during hard delete of assignment '{assignment_id}': {e}")
             return False
+
+    def get_assignments_due_count(self, days: int, conn: Optional[sqlite3.Connection] = None) -> int:
+        """
+        Counts active assignments where expected_return_date is within the next `days`.
+
+        Args:
+            days (int): Number of days from today to look forward for expected return dates.
+            conn (sqlite3.Connection, optional): Database connection.
+
+        Returns:
+            int: The count of assignments due for return.
+        """
+        if not isinstance(days, int) or days < 0:
+            logger.error(f"Invalid 'days' parameter: {days}. Must be a non-negative integer.")
+            return 0 # Or raise ValueError
+
+        today_date = date.today()
+        future_date = today_date + timedelta(days=days)
+
+        # SQLite stores TIMESTAMPS typically as ISO8601 strings.
+        # We need to compare the date part of expected_return_date.
+        # Using YYYY-MM-DD format for date comparisons in SQL.
+        today_str = today_date.isoformat()
+        future_date_str = future_date.isoformat()
+
+        query = f"""
+            SELECT COUNT(*)
+            FROM {self.table_name}
+            WHERE assignment_status = 'Active'
+            AND expected_return_date IS NOT NULL
+            AND DATE(expected_return_date) >= ?
+            AND DATE(expected_return_date) <= ?
+        """
+        params = (today_str, future_date_str)
+
+        db_conn = conn if conn else get_db_connection(self.db_path)
+        cursor = db_conn.cursor()
+        try:
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except sqlite3.Error as e:
+            logger.error(f"Error counting assignments due in next {days} days: {e}")
+            return 0
+        finally:
+            if not conn: # Close only if this function opened it.
+                db_conn.close()
+
 
 # Instance for easy import
 asset_assignments_crud = AssetAssignmentsCRUD()

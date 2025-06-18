@@ -1302,6 +1302,18 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_created_by_user_id ON Clients(created_by_user_id)")
+
+    # ReportConfigurations Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_report_name ON ReportConfigurations(report_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_target_entity ON ReportConfigurations(target_entity)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_created_by_user_id ON ReportConfigurations(created_by_user_id)")
+
+    # ReportConfigFields Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfields_report_config_id ON ReportConfigFields(report_config_id)")
+
+    # ReportConfigFilters Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfilters_report_config_id ON ReportConfigFilters(report_config_id)")
+
     # Projects
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_client_id ON Projects(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_status_id ON Projects(status_id)")
@@ -1405,6 +1417,7 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
 
+
     # ItemLocations
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_parent_id ON ItemLocations(parent_location_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_type ON ItemLocations(location_type)")
@@ -1473,6 +1486,51 @@ CREATE TABLE IF NOT EXISTS Templates (
         UNIQUE (asset_id, display_order)
     )
     """)
+
+    # ReportConfigurations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigurations (
+        report_config_id TEXT PRIMARY KEY, -- UUID
+        report_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        target_entity TEXT NOT NULL, -- e.g., 'Assets', 'Clients', 'Projects'
+        output_format TEXT NOT NULL, -- e.g., 'PDF', 'CSV', 'JSON'
+        created_by_user_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_system_report BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
+    # ReportConfigFields Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFields (
+        report_config_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL, -- Original field name from the entity
+        display_name TEXT,        -- Custom display name for the report
+        sort_order INTEGER DEFAULT 0,     -- 0 for no sort, 1 for primary sort, 2 for secondary, etc.
+        sort_direction TEXT,      -- 'ASC' or 'DESC', NULL if not sorted
+        group_by_priority INTEGER DEFAULT 0, -- 0 for no group, 1 for primary group, etc.
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ReportConfigFilters Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFilters (
+        report_config_filter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        operator TEXT NOT NULL, -- e.g., '=', '!=', '>', '<', 'IN', 'NOT IN', 'LIKE', 'BETWEEN'
+        filter_value_1 TEXT,    -- Primary value, or start value for BETWEEN
+        filter_value_2 TEXT,    -- End value for BETWEEN, NULL otherwise
+        logical_group TEXT DEFAULT 'AND', -- 'AND' or 'OR' for grouping with next filter
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
 
     # ProformaInvoices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
