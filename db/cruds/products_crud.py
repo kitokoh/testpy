@@ -33,13 +33,14 @@ class ProductsCRUD(GenericCRUD):
         """
         Adds a new product to the database.
 
-        Validates required fields ('product_name', 'base_unit_price') and 'base_unit_price' type.
+        Validates required fields ('product_name', 'product_code', 'base_unit_price') and 'base_unit_price' type.
         Sets 'is_deleted' to 0 and 'is_active' to True by default for new products.
 
         Args:
             product_data (dict): Data for the new product. Expected keys include:
-                                 'product_name', 'base_unit_price', 'description' (optional),
-                                 'category' (optional), 'language_code' (optional, default 'fr'),
+                                 'product_name', 'product_code', 'base_unit_price',
+                                 'description' (optional), 'category' (optional),
+                                 'language_code' (optional, default 'fr'),
                                  'unit_of_measure' (optional), 'weight' (optional),
                                  'dimensions' (optional), 'is_active' (optional, default True).
             conn (sqlite3.Connection, optional): Database connection.
@@ -48,9 +49,9 @@ class ProductsCRUD(GenericCRUD):
             dict: {'success': True, 'id': new_product_id} on success,
                   {'success': False, 'error': 'message'} on failure.
         """
-        required_fields = ['product_name', 'base_unit_price']
+        required_fields = ['product_name', 'product_code', 'base_unit_price']
         for field in required_fields:
-            if not product_data.get(field):
+            if not product_data.get(field): # Also checks for empty string for product_code implicitly here
                 logging.error(f"Missing required field: {field} in add_product")
                 return {'success': False, 'error': f"Missing required field: {field}"}
 
@@ -67,16 +68,16 @@ class ProductsCRUD(GenericCRUD):
 
 
         sql = """INSERT INTO Products
-                 (product_name, description, category, language_code, base_unit_price,
+                 (product_name, product_code, description, category, language_code, base_unit_price,
                   unit_of_measure, weight, dimensions, is_active, created_at, updated_at,
                   is_deleted, deleted_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-        params = (product_data.get('product_name'), product_data.get('description'),
-                  product_data.get('category'), product_data.get('language_code', 'fr'),
-                  product_data.get('base_unit_price'), product_data.get('unit_of_measure'),
-                  product_data.get('weight'), product_data.get('dimensions'), # This might be complex, consider JSON or separate table
-                  product_data.get('is_active', True), now, now,
-                  product_data.get('is_deleted', 0), product_data.get('deleted_at', None))
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+        params = (product_data.get('product_name'), product_data.get('product_code'),
+                  product_data.get('description'), product_data.get('category'),
+                  product_data.get('language_code', 'fr'), product_data.get('base_unit_price'),
+                  product_data.get('unit_of_measure'), product_data.get('weight'),
+                  product_data.get('dimensions'), product_data.get('is_active', True),
+                  now, now, product_data.get('is_deleted', 0), product_data.get('deleted_at', None))
         try:
             cursor.execute(sql, params)
             new_id = cursor.lastrowid
@@ -202,11 +203,14 @@ class ProductsCRUD(GenericCRUD):
             conditions.append("(p.is_deleted IS NULL OR p.is_deleted = 0)")
 
         if filters:
-            valid_filters = ['category', 'product_name', 'is_active', 'language_code']
+            valid_filters = ['category', 'product_name', 'is_active', 'language_code', 'product_code_like'] # Added product_code_like
             for k, v in filters.items():
                 if k in valid_filters:
                     if k == 'product_name':
                         conditions.append("p.product_name LIKE ?")
+                        q_params.append(f"%{v}%")
+                    elif k == 'product_code_like': # Added handler for product_code_like
+                        conditions.append("p.product_code LIKE ?")
                         q_params.append(f"%{v}%")
                     elif k == 'is_active':
                         # This will now correctly use the value set by active_only if it was provided
@@ -257,7 +261,7 @@ class ProductsCRUD(GenericCRUD):
         now = datetime.utcnow().isoformat() + "Z"
         data['updated_at'] = now
 
-        valid_cols = ['product_name', 'description', 'category', 'language_code',
+        valid_cols = ['product_name', 'product_code', 'description', 'category', 'language_code',
                       'base_unit_price', 'unit_of_measure', 'weight', 'dimensions',
                       'is_active', 'updated_at', 'is_deleted', 'deleted_at']
 
@@ -779,6 +783,48 @@ class ProductsCRUD(GenericCRUD):
             logging.error(f"Error removing product equivalence {equivalence_id}: {e}")
             return {'success': False, 'error': str(e)}
 
+    @_manage_conn
+    def get_product_by_code(self, product_code: str, conn: sqlite3.Connection = None, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
+        """
+        Fetches a single product by its product_code, along with its media links.
+
+        Args:
+            product_code (str): The product_code of the product to fetch.
+            conn (sqlite3.Connection, optional): Database connection.
+            include_deleted (bool, optional): If True, includes soft-deleted products.
+                                              Defaults to False.
+
+        Returns:
+            Optional[Dict[str, Any]]: Product data as a dictionary if found and not excluded,
+                                      otherwise None. Includes 'media_links'.
+        """
+        cursor = conn.cursor()
+        sql = f"SELECT * FROM {self.table_name} WHERE product_code = ?"
+        params = [product_code]
+
+        try:
+            cursor.execute(sql, tuple(params))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            product_dict = dict(row)
+
+            if not include_deleted and (product_dict.get('is_deleted') == 1 or product_dict.get('is_deleted') is True):
+                return None # Product is soft-deleted
+
+            product_id = product_dict.get(self.id_column)
+            if product_id is not None and self.media_links_crud:
+                media_links = self.media_links_crud.get_media_links_for_product(product_id=product_id, conn=conn)
+                product_dict['media_links'] = media_links
+            else:
+                product_dict['media_links'] = []
+
+            return product_dict
+        except sqlite3.Error as e:
+            logging.error(f"Error getting product by code '{product_code}': {e}")
+            return None
+
 # Instantiate the CRUD class for easy import and use elsewhere
 products_crud_instance = ProductsCRUD()
 
@@ -786,6 +832,7 @@ products_crud_instance = ProductsCRUD()
 get_product_by_id = products_crud_instance.get_product_by_id
 add_product = products_crud_instance.add_product
 get_product_by_name = products_crud_instance.get_product_by_name
+get_product_by_code = products_crud_instance.get_product_by_code
 get_all_products = products_crud_instance.get_all_products
 update_product = products_crud_instance.update_product
 delete_product = products_crud_instance.delete_product
@@ -821,6 +868,7 @@ __all__ = [
     "get_equivalent_products",
     "get_all_product_equivalencies",
     "remove_product_equivalence",
+    "get_product_by_code", # Added new function
     "ProductsCRUD", # Exporting the class itself for type hinting or direct instantiation
     "products_crud_instance" # Exporting the instance if needed elsewhere
 ]

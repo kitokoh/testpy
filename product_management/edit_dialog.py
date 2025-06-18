@@ -190,6 +190,7 @@ class ProductEditDialog(QDialog):
         basic_info_layout = QVBoxLayout(self.basic_info_tab)
         form_layout = QFormLayout() # This is for basic product data
         self.name_edit = QLineEdit()
+        self.product_code_edit = QLineEdit() # Added product_code field
         self.description_edit = QTextEdit()
         self.description_edit.setFixedHeight(80)
         self.category_edit = QLineEdit()
@@ -213,6 +214,7 @@ class ProductEditDialog(QDialog):
         self.is_active_check = QCheckBox(self.tr("Is Active"))
 
         form_layout.addRow(self.tr("Name:"), self.name_edit)
+        form_layout.addRow(self.tr("Product Code (SDK):"), self.product_code_edit) # Added product_code field
         form_layout.addRow(self.tr("Description:"), self.description_edit)
         form_layout.addRow(self.tr("Category:"), self.category_edit)
         form_layout.addRow(self.tr("Base Unit Price:"), self.price_edit)
@@ -385,6 +387,7 @@ class ProductEditDialog(QDialog):
                 self.language_code_combo.setEnabled(True)
             # Clear fields for new product entry
             self.name_edit.clear()
+            self.product_code_edit.clear() # Added product_code field
             self.description_edit.clear()
             self.category_edit.clear()
             if self.language_code_combo: # If it's a new product, combo is used
@@ -423,6 +426,7 @@ class ProductEditDialog(QDialog):
             return
 
         self.name_edit.setText(self.db_product_data.get('product_name', ''))
+        self.product_code_edit.setText(self.db_product_data.get('product_code', '')) # Added product_code field
         self.description_edit.setPlainText(self.db_product_data.get('description', ''))
         self.category_edit.setText(self.db_product_data.get('category', ''))
 
@@ -564,6 +568,11 @@ class ProductEditDialog(QDialog):
                 QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Product name cannot be empty."))
                 return
 
+            product_code = self.product_code_edit.text().strip() # Added product_code field
+            if not product_code: # Added product_code field validation
+                QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Product code cannot be empty."))
+                return
+
             description = self.description_edit.toPlainText().strip()
             category = self.category_edit.text().strip()
 
@@ -611,6 +620,7 @@ class ProductEditDialog(QDialog):
 
         updated_product_data = {
             'product_name': product_name,
+            'product_code': product_code, # Added product_code field
             'description': description,
             'category': category,
             'language_code': language_code,

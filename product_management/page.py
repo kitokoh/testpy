@@ -91,6 +91,14 @@ class ProductManagementPage(QWidget):
         self.search_product_input.textChanged.connect(self.apply_filters_and_reload)
         filter_search_layout.addWidget(QLabel(self.tr("Search Name:")))
         filter_search_layout.addWidget(self.search_product_input)
+        filter_search_layout.addSpacing(10)
+
+        # Search Product Code Input
+        self.search_product_code_input = QLineEdit()
+        self.search_product_code_input.setPlaceholderText(self.tr("Search by product code..."))
+        self.search_product_code_input.textChanged.connect(self.apply_filters_and_reload)
+        filter_search_layout.addWidget(QLabel(self.tr("Search Code:")))
+        filter_search_layout.addWidget(self.search_product_code_input)
 
         filter_search_layout.addStretch()
 
@@ -107,18 +115,19 @@ class ProductManagementPage(QWidget):
         main_layout.addSpacing(10) # Spacing after filter_group_box
 
         self.product_table = QTableWidget()
-        self.product_table.setColumnCount(7)
+        self.product_table.setColumnCount(8) # Increased column count for Product Code
         self.product_table.setHorizontalHeaderLabels([
-            "ID", self.tr("Product Name"), self.tr("Description"), self.tr("Price"),
+            "ID", self.tr("Product Name"), self.tr("Product Code"), self.tr("Description"), self.tr("Price"),
             self.tr("Language"), self.tr("Tech Specs"), self.tr("Translations")
         ])
-        self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.product_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Interactive)
-        self.product_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.product_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        self.product_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.product_table.hideColumn(0)
+        self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
+        self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive) # Product Code
+        self.product_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch) # Description
+        self.product_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive) # Price
+        self.product_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Language
+        self.product_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents) # Tech Specs
+        self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents) # Translations
+        self.product_table.hideColumn(0) # Hide ID column
         self.product_table.itemChanged.connect(self.handle_price_change)
         self.product_table.itemSelectionChanged.connect(self._update_button_states)
         self.product_table.itemDoubleClicked.connect(self._open_edit_product_dialog_from_item)
@@ -233,11 +242,14 @@ class ProductManagementPage(QWidget):
 
         category_filter = self.category_filter_input.text().strip()
         search_name_filter = self.search_product_input.text().strip()
+        search_code_filter = self.search_product_code_input.text().strip() # Added product_code filter
         include_deleted = self.include_deleted_checkbox.isChecked()
         filters = {}
         if language_code: filters['language_code'] = language_code
         if category_filter: filters['category'] = category_filter
-        if search_name_filter: filters['product_name'] = f"%{search_name_filter}%"
+        if search_name_filter: filters['product_name'] = f"%{search_name_filter}%" # Assuming backend handles LIKE
+        if search_code_filter: filters['product_code_like'] = f"%{search_code_filter}%" # Assuming backend handles LIKE for product_code
+
         try:
             products = products_crud_instance.get_all_products(
                 filters=filters, limit=self.limit_per_page, offset=self.current_offset, include_deleted=include_deleted
@@ -246,27 +258,38 @@ class ProductManagementPage(QWidget):
                 self.product_table.setRowCount(len(products))
                 for row, product_data in enumerate(products):
                     product_id = product_data.get("product_id")
+                    col = 0
                     id_item = QTableWidgetItem(str(product_id)); id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 0, id_item)
+                    self.product_table.setItem(row, col, id_item); col += 1
+
                     name_item = QTableWidgetItem(product_data.get("product_name")); name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable); name_item.setData(Qt.UserRole, product_id)
-                    self.product_table.setItem(row, 1, name_item)
+                    self.product_table.setItem(row, col, name_item); col += 1
+
+                    code_item = QTableWidgetItem(product_data.get("product_code", "")); code_item.setFlags(code_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, col, code_item); col += 1
+
                     desc_item = QTableWidgetItem(product_data.get("description")); desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 2, desc_item)
+                    self.product_table.setItem(row, col, desc_item); col += 1
+
                     price_val = product_data.get("base_unit_price"); price_str = f"{price_val:.2f}" if isinstance(price_val, (float, int)) else str(price_val)
-                    price_item = QTableWidgetItem(price_str)
-                    self.product_table.setItem(row, 3, price_item)
+                    price_item = QTableWidgetItem(price_str) # Price editable by default based on itemChanged connection
+                    self.product_table.setItem(row, col, price_item); col += 1
+
                     lang_code_val = product_data.get("language_code", ""); lang_item = QTableWidgetItem(lang_code_val); lang_item.setFlags(lang_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 4, lang_item)
+                    self.product_table.setItem(row, col, lang_item); col += 1
+
                     tech_specs_data = products_crud_instance.get_product_dimension(product_id)
                     has_tech_specs_bool = bool(tech_specs_data and (tech_specs_data.get('technical_image_path') or any(str(tech_specs_data.get(f'dim_{chr(ord("A")+i)}','')).strip() for i in range(10))))
                     tech_specs_indicator = self.tr("Yes") if has_tech_specs_bool else self.tr("No")
                     tech_specs_item = QTableWidgetItem(tech_specs_indicator); tech_specs_item.setFlags(tech_specs_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 5, tech_specs_item)
+                    self.product_table.setItem(row, col, tech_specs_item); col += 1
+
                     equivalent_products = products_crud_instance.get_equivalent_products(product_id, include_deleted=False)
                     translations_count = len(equivalent_products) if equivalent_products else 0
                     translations_indicator = str(translations_count) if translations_count > 0 else self.tr("No")
                     translations_item = QTableWidgetItem(translations_indicator); translations_item.setFlags(translations_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 6, translations_item)
+                    self.product_table.setItem(row, col, translations_item); col += 1
+
             self.update_pagination_controls(len(products) if products else 0)
         except Exception as e:
             print(f"Error loading products to table: {e}")
@@ -291,7 +314,8 @@ class ProductManagementPage(QWidget):
             self.load_products_to_table()
 
     def handle_price_change(self, item):
-        if item.column() == 3:
+        # Column index for price is now 4 due to "Product Code" column insertion
+        if item.column() == 4: # Price column index updated
             row = item.row()
             # Try to get product_id from hidden ID column first
             id_item = self.product_table.item(row, 0)
@@ -368,9 +392,9 @@ class ProductManagementPage(QWidget):
             html_template_string = '''
             <!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ title }}</title>
             <style>body{font-family:sans-serif;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background-color:#f2f2f2;}h1{text-align:center;}</style>
-            </head><body><h1>{{ title }}</h1><table><thead><tr><th>Product Name</th><th>Description</th><th>Price</th><th>Language</th><th>Tech Specs</th><th>Translations</th></tr></thead>
-            <tbody>{{#each products}}<tr><td>{{this.product_name}}</td><td>{{this.description}}</td><td>{{this.base_unit_price}}</td><td>{{this.language_code_display}}</td><td>{{this.tech_specs_indicator}}</td><td>{{this.translations_indicator}}</td></tr>{{/each}}
-            {{#if products_empty}}<tr><td colspan="6" style="text-align:center;">No products to display.</td></tr>{{/if}}
+            </head><body><h1>{{ title }}</h1><table><thead><tr><th>Product Name</th><th>Product Code</th><th>Description</th><th>Price</th><th>Language</th><th>Tech Specs</th><th>Translations</th></tr></thead>
+            <tbody>{{#each products}}<tr><td>{{this.product_name}}</td><td>{{this.product_code}}</td><td>{{this.description}}</td><td>{{this.base_unit_price}}</td><td>{{this.language_code_display}}</td><td>{{this.tech_specs_indicator}}</td><td>{{this.translations_indicator}}</td></tr>{{/each}}
+            {{#if products_empty}}<tr><td colspan="7" style="text-align:center;">No products to display.</td></tr>{{/if}}
             </tbody></table></body></html>'''
             context = {'title': page_title_text, 'products': product_list_for_pdf, 'products_empty': not bool(product_list_for_pdf)}
             rendered_html = html_to_pdf_util.render_html_template(html_template_string, context)
