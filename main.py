@@ -14,7 +14,7 @@ from app_setup import (
     APP_ROOT_DIR, CONFIG,
     setup_logging, load_stylesheet_global, initialize_default_templates
 )
-from app_config import save_config # Added import
+from utils import save_config # Changed import from app_config to utils
 from utils import is_first_launch, mark_initial_setup_complete
 from auth.roles import SUPER_ADMIN
 # Import InitialSetupDialog and PromptCompanyInfoDialog
