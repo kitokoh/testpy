@@ -284,7 +284,7 @@ class DocumentManager(QMainWindow):
 
         # map_group_box removed from here
         left_pane_widget.setLayout(left_pane_layout)
-        main_splitter.addWidget(left_pane_widget)
+        self.main_splitter.addWidget(left_pane_widget)
 
         # Right pane for client tabs (no change here, it's a QSplitter itself)
         right_pane_splitter = QSplitter(Qt.Vertical)
