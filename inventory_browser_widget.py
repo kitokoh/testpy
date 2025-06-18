@@ -312,6 +312,17 @@ class InventoryBrowserWidget(QWidget):
         # QMessageBox.information(self, "Not Implemented", "This feature (edit location) is not yet implemented.")
         pass
 
+    def delete_selected_location(self):
+        # TODO: Implement the logic to delete the selected location.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.delete_selected_location() called.")
+        # Consider actual implementation:
+        # - Get selected item from self.locations_list_widget
+        # - If an item is selected, confirm deletion with QMessageBox
+        # - If confirmed, remove from database and refresh list
+        # - Update button states
+        pass
+
 
     def update_assign_button_state(self):
         """
