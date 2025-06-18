@@ -49,10 +49,21 @@ class ProductManagementPage(QWidget):
         main_layout.addLayout(top_controls_layout)
         main_layout.addSpacing(10) # Spacing after top_controls_layout
 
+        # Filter Toggle Button
+        filter_toggle_layout = QHBoxLayout()
+        self.toggle_filters_button = QPushButton(self.tr("Hide Filters"))
+        self.toggle_filters_button.setObjectName("toggleFiltersButton")
+        self.toggle_filters_button.clicked.connect(self._toggle_filter_visibility)
+        filter_toggle_layout.addWidget(self.toggle_filters_button)
+        filter_toggle_layout.addStretch()
+        main_layout.addLayout(filter_toggle_layout)
+        # main_layout.addSpacing(5) # Optional spacing between toggle button and filter box
+
         # Filters Group Box
-        filter_group_box = QGroupBox(self.tr("Filters"))
-        # filter_group_box.setContentsMargins(10, 15, 10, 10) # QSS already provides padding: 10px. Adjust top for title.
-        filter_group_main_layout = QVBoxLayout(filter_group_box) # Main layout for the group box
+        self.filter_group_box = QGroupBox(self.tr("Filters")) # Changed to self.filter_group_box
+        # self.filter_group_box.setContentsMargins(10, 15, 10, 10) # QSS already provides padding: 10px. Adjust top for title.
+        filter_group_main_layout = QVBoxLayout(self.filter_group_box) # Main layout for the group box
+
         # filter_group_main_layout.setContentsMargins(5, 5, 5, 5) # Margins for the layout within the groupbox
 
         filter_search_layout = QHBoxLayout() # Layout for language, category, search
@@ -91,7 +102,8 @@ class ProductManagementPage(QWidget):
         self.include_deleted_checkbox.stateChanged.connect(self.apply_filters_and_reload)
         filter_group_main_layout.addWidget(self.include_deleted_checkbox)
 
-        main_layout.addWidget(filter_group_box)
+        main_layout.addWidget(self.filter_group_box) # Changed to self.filter_group_box
+
         main_layout.addSpacing(10) # Spacing after filter_group_box
 
         self.product_table = QTableWidget()
@@ -129,6 +141,18 @@ class ProductManagementPage(QWidget):
         self.setLayout(main_layout)
         self.load_products_to_table()
         self._update_button_states()
+
+    def _toggle_filter_visibility(self):
+        if self.filter_group_box.isVisible():
+            self.filter_group_box.setVisible(False)
+            self.toggle_filters_button.setText(self.tr("Show Filters"))
+            # Optionally, set icon for "show" state
+            # self.toggle_filters_button.setIcon(QIcon(":/icons/chevron-right.svg")) # Example
+        else:
+            self.filter_group_box.setVisible(True)
+            self.toggle_filters_button.setText(self.tr("Hide Filters"))
+            # Optionally, set icon for "hide" state
+            # self.toggle_filters_button.setIcon(QIcon(":/icons/chevron-down.svg")) # Example
 
     def _open_add_product_dialog(self):
         # Pass self as parent if ProductEditDialog expects a QWidget parent for modality or window management
