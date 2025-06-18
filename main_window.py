@@ -393,7 +393,7 @@ class DocumentManager(QMainWindow):
         self.main_splitter.addWidget(right_pane_splitter)
 
         # Load or set default splitter sizes
-        saved_splitter_state_hex = db_manager.get_setting('client_list_splitter_state', default_value=None)
+        saved_splitter_state_hex = db_manager.get_setting('client_list_splitter_state', default=None)
         if saved_splitter_state_hex:
             try:
                 splitter_state_byte_array = QByteArray.fromHex(saved_splitter_state_hex.encode('utf-8'))
