@@ -21,7 +21,8 @@ class TestProductsCRUD(unittest.TestCase):
         self.cursor.execute("""
             CREATE TABLE Products (
                 product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_name TEXT NOT NULL UNIQUE,
+                product_name TEXT NOT NULL, -- UNIQUE constraint removed for product_code tests, will be (name, lang) usually
+                product_code TEXT UNIQUE, -- Added product_code
                 description TEXT,
                 category TEXT,
                 language_code TEXT DEFAULT 'fr',
@@ -71,19 +72,25 @@ class TestProductsCRUD(unittest.TestCase):
         # Sample Data
         self.product_data1 = {
             'product_name': 'Test Product 1',
+            'product_code': 'TP001',
             'base_unit_price': 19.99,
             'category': 'Category A',
-            'description': 'Description for product 1'
+            'description': 'Description for product 1',
+            'language_code': 'en'
         }
         self.product_data2 = {
             'product_name': 'Test Product 2',
+            'product_code': 'TP002',
             'base_unit_price': 29.99,
-            'category': 'Category B'
+            'category': 'Category B',
+            'language_code': 'en'
         }
         self.product_data3 = {
             'product_name': 'Test Product 3',
+            'product_code': 'TP003',
             'base_unit_price': 39.99,
-            'category': 'Category A'
+            'category': 'Category A',
+            'language_code': 'fr'
         }
 
     def tearDown(self):
@@ -106,9 +113,17 @@ class TestProductsCRUD(unittest.TestCase):
         db_product = self.cursor.execute("SELECT * FROM Products WHERE product_id = ?", (product_id,)).fetchone()
         self.assertIsNotNone(db_product)
         self.assertEqual(db_product['product_name'], self.product_data1['product_name'])
+        self.assertEqual(db_product['product_code'], self.product_data1['product_code']) # Verify product_code
         self.assertEqual(db_product['is_deleted'], 0)
 
-    def test_add_product_missing_required_field(self):
+    def test_add_product_missing_required_field_product_code(self):
+        invalid_data = self.product_data1.copy()
+        del invalid_data['product_code'] # Test missing product_code
+        res = self.products_crud.add_product(invalid_data, conn=self.conn)
+        self.assertFalse(res['success'])
+        self.assertIn("Missing required field: product_code", res['error'])
+
+    def test_add_product_missing_required_field_name(self): # Keep existing test for name
         invalid_data = self.product_data1.copy()
         del invalid_data['product_name']
         res = self.products_crud.add_product(invalid_data, conn=self.conn)
@@ -387,6 +402,98 @@ class TestProductsCRUD(unittest.TestCase):
         res_remove_non_existent = self.products_crud.remove_product_equivalence(equivalence_id + 10, conn=self.conn)
         self.assertTrue(res_remove_non_existent['success']) # Should be success, nothing to delete.
         self.assertEqual(res_remove_non_existent.get('message'), "Equivalence link not found, nothing to delete.")
+
+    # --- Tests for product_code ---
+
+    def test_add_product_duplicate_product_code_fails(self):
+        self._add_product_get_id(self.product_data1) # Add first product
+        duplicate_code_data = self.product_data2.copy()
+        duplicate_code_data['product_code'] = self.product_data1['product_code'] # Use same code
+
+        res = self.products_crud.add_product(duplicate_code_data, conn=self.conn)
+        self.assertFalse(res['success'])
+        self.assertIn("Product name or other unique constraint violated", res['error']) # Error message might vary slightly based on DB
+        # For SQLite, it's often "UNIQUE constraint failed: Products.product_code"
+
+    def test_update_product_code(self):
+        product_id = self._add_product_get_id(self.product_data1)
+        new_code = "UPDATED_CODE_001"
+        update_data = {'product_code': new_code}
+
+        res = self.products_crud.update_product(product_id, update_data, conn=self.conn)
+        self.assertTrue(res['success'])
+        self.assertEqual(res.get('updated_count', 0), 1)
+
+        updated_db_product = self.products_crud.get_product_by_id(product_id, conn=self.conn)
+        self.assertEqual(updated_db_product['product_code'], new_code)
+
+    def test_update_product_to_duplicate_product_code_fails(self):
+        p1_id = self._add_product_get_id(self.product_data1) # Has TP001
+        p2_id = self._add_product_get_id(self.product_data2) # Has TP002
+
+        update_data = {'product_code': self.product_data1['product_code']} # Try to set p2's code to TP001
+        res = self.products_crud.update_product(p2_id, update_data, conn=self.conn)
+        self.assertFalse(res['success'])
+        self.assertIn("UNIQUE constraint failed", res.get('error', '').upper()) # Check for UNIQUE constraint error
+
+    def test_get_product_by_code(self):
+        p1_id = self._add_product_get_id(self.product_data1)
+
+        # Test fetching existing product
+        fetched_product = self.products_crud.get_product_by_code(self.product_data1['product_code'], conn=self.conn)
+        self.assertIsNotNone(fetched_product)
+        self.assertEqual(fetched_product['product_id'], p1_id)
+        self.assertEqual(fetched_product['product_name'], self.product_data1['product_name'])
+        self.products_crud.media_links_crud.get_media_links_for_product.assert_called_with(product_id=p1_id, conn=self.conn)
+
+
+        # Test fetching non-existing product code
+        non_existent_product = self.products_crud.get_product_by_code("NON_EXISTENT_CODE", conn=self.conn)
+        self.assertIsNone(non_existent_product)
+
+    def test_get_product_by_code_include_deleted(self):
+        p1_id = self._add_product_get_id(self.product_data1)
+        self.products_crud.delete_product(p1_id, conn=self.conn) # Soft delete
+
+        # Should not find without include_deleted=True
+        fetched_product_not_deleted = self.products_crud.get_product_by_code(self.product_data1['product_code'], conn=self.conn)
+        self.assertIsNone(fetched_product_not_deleted)
+
+        # Should find with include_deleted=True
+        fetched_product_deleted = self.products_crud.get_product_by_code(self.product_data1['product_code'], conn=self.conn, include_deleted=True)
+        self.assertIsNotNone(fetched_product_deleted)
+        self.assertEqual(fetched_product_deleted['product_id'], p1_id)
+        self.assertEqual(fetched_product_deleted['is_deleted'], 1)
+
+    def test_get_all_products_filter_by_product_code_like(self):
+        self._add_product_get_id(self.product_data1) # TP001
+        self._add_product_get_id(self.product_data2) # TP002
+        self.products_crud.add_product({
+            'product_name': 'Another Product Same Code Prefix',
+            'product_code': 'TP001-Variant',
+            'base_unit_price': 9.99,
+            'language_code': 'en'
+        }, conn=self.conn)
+
+        # Test partial match
+        filters_partial = {'product_code_like': 'TP001'}
+        filtered_products_partial = self.products_crud.get_all_products(filters=filters_partial, conn=self.conn)
+        self.assertEqual(len(filtered_products_partial), 2)
+        product_codes_partial = {p['product_code'] for p in filtered_products_partial}
+        self.assertIn('TP001', product_codes_partial)
+        self.assertIn('TP001-Variant', product_codes_partial)
+
+        # Test exact match (using LIKE but with full code)
+        filters_exact = {'product_code_like': 'TP002'}
+        filtered_products_exact = self.products_crud.get_all_products(filters=filters_exact, conn=self.conn)
+        self.assertEqual(len(filtered_products_exact), 1)
+        self.assertEqual(filtered_products_exact[0]['product_code'], 'TP002')
+
+        # Test no match
+        filters_no_match = {'product_code_like': 'XYZ'}
+        filtered_products_no_match = self.products_crud.get_all_products(filters=filters_no_match, conn=self.conn)
+        self.assertEqual(len(filtered_products_no_match), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

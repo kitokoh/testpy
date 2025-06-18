@@ -521,6 +521,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_name TEXT NOT NULL,
+        product_code TEXT UNIQUE,
         description TEXT,
         category TEXT,
         language_code TEXT DEFAULT 'fr',

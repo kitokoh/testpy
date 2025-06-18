@@ -75,9 +75,15 @@ async def create_product_api(
 ):
     # product_data should not contain product_id as it's auto-generated
     product_dict = product.dict(exclude_unset=True)
-    db_product_id = products_crud.add_product(product_data=product_dict)
-    if db_product_id is None:
-        raise HTTPException(status_code=400, detail="Failed to create product. Check for duplicate name/language or invalid data.")
+    db_product_result = products_crud.add_product(product_data=product_dict) # Updated CRUD returns a dict
+
+    if not db_product_result.get('success'):
+        error_detail = db_product_result.get('error', "Failed to create product. Check for duplicate name/language or invalid data.")
+        raise HTTPException(status_code=400, detail=error_detail)
+
+    db_product_id = db_product_result.get('id')
+    if db_product_id is None: # Should ideally not happen if success is true
+        raise HTTPException(status_code=500, detail="Product creation succeeded but no ID was returned.")
 
     created_product = products_crud.get_product_by_id(id=db_product_id)
     if not created_product:
@@ -93,6 +99,19 @@ async def get_product_api(
     db_product = products_crud.get_product_by_id(id=product_id)
     if db_product is None:
         raise HTTPException(status_code=404, detail="Product not found")
+    return format_product_response(db_product, request)
+
+@router.get("/code/{product_code}", response_model=ProductResponse)
+async def get_product_by_code_api(
+    product_code: str = Path(..., description="The product code of the product to retrieve"),
+    request: Request,
+    current_user: UserInDB = Depends(get_current_active_user) # Optional auth
+):
+    # products_crud functions are decorated with @_manage_conn
+    db_product = products_crud.get_product_by_code(product_code=product_code)
+    if db_product is None:
+        raise HTTPException(status_code=404, detail=f"Product with code '{product_code}' not found")
+    # The current format_product_response uses ProductBase from ..models which is fine.
     return format_product_response(db_product, request)
 
 @router.get("", response_model=List[ProductResponse]) # Simplified response for list view
@@ -127,17 +146,26 @@ async def update_product_api(
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided.")
 
-    success = products_crud.update_product(product_id=product_id, data=update_data)
-    if not success:
-        # Could be product not found or DB error
-        existing_product = products_crud.get_product_by_id(id=product_id) # Check if it's a 404
-        if not existing_product:
-            raise HTTPException(status_code=404, detail="Product not found")
-        raise HTTPException(status_code=500, detail="Failed to update product.")
+    update_result = products_crud.update_product(product_id=product_id, data=update_data) # Updated CRUD returns a dict
+
+    if not update_result.get('success'):
+        error_detail = update_result.get('error', "Failed to update product.")
+        # Check if product exists, as update_product might fail for other reasons
+        existing_product_check = products_crud.get_product_by_id(id=product_id) # Check if it was a "not found"
+        if not existing_product_check: # Product truly does not exist
+            raise HTTPException(status_code=404, detail="Product not found, cannot update.")
+        # Product exists, but update failed for other reason (e.g. db error, constraint)
+        raise HTTPException(status_code=400, detail=error_detail) # Use 400 for bad data / constraint issues
+
+    # If success is true, but updated_count is 0, it means the data sent was identical to existing data.
+    # Still, we should fetch and return the product.
+    # if update_result.get('updated_count', 0) == 0:
+    #     pass # Not necessarily an error, could be no change in data.
 
     updated_product = products_crud.get_product_by_id(id=product_id)
     if not updated_product:
-         raise HTTPException(status_code=500, detail="Product updated but could not be retrieved.")
+         # This should not happen if update was successful.
+         raise HTTPException(status_code=404, detail="Product not found after update attempt.")
     return format_product_response(updated_product, request)
 
 @router.delete("/{product_id}", status_code=204)
@@ -148,13 +176,21 @@ async def delete_product_api(
     # Consider implications: what happens to linked media items?
     # The DB schema for ProductMediaLinks has ON DELETE CASCADE for product_id,
     # so links will be auto-deleted. MediaItems themselves are not deleted.
-    existing_product = products_crud.get_product_by_id(id=product_id)
+    existing_product = products_crud.get_product_by_id(id=product_id, include_deleted=True) # Check if product exists (even if soft-deleted)
     if not existing_product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    success = products_crud.delete_product(product_id=product_id)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete product.")
+    if existing_product.get('is_deleted') == 1 or existing_product.get('is_deleted') is True: # Already soft deleted
+        # Optionally, you could return a 204 still, or a specific message.
+        # For idempotency, returning 204 is fine.
+        return # No content for 204
+
+    delete_result = products_crud.delete_product(product_id=product_id) # This is a soft delete
+
+    if not delete_result.get('success'):
+        error_detail = delete_result.get('error', "Failed to delete product.")
+        # If product was found initially, this means a DB error during delete.
+        raise HTTPException(status_code=500, detail=error_detail)
     return # No content for 204
 
 
