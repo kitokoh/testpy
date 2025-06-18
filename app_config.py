@@ -26,3 +26,17 @@ else:
 
 DEFAULT_TEMPLATES_DIR = os.path.join(APP_ROOT_DIR, TEMPLATES_SUBDIR)
 DEFAULT_CLIENTS_DIR = os.path.join(APP_ROOT_DIR, CLIENTS_SUBDIR)
+
+CONFIG = {
+    "app_root_dir": APP_ROOT_DIR,
+    "default_templates_dir": DEFAULT_TEMPLATES_DIR,
+    "default_clients_dir": DEFAULT_CLIENTS_DIR,
+    "config_dir_name": CONFIG_DIR_NAME,
+    "config_file_name": CONFIG_FILE_NAME,
+    "templates_subdir": TEMPLATES_SUBDIR,
+    "clients_subdir": CLIENTS_SUBDIR,
+    "spec_tech_template_name": SPEC_TECH_TEMPLATE_NAME,
+    "proforma_template_name": PROFORMA_TEMPLATE_NAME,
+    "contrat_vente_template_name": CONTRAT_VENTE_TEMPLATE_NAME,
+    "packing_liste_template_name": PACKING_LISTE_TEMPLATE_NAME,
+}
