@@ -1413,6 +1413,59 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_product_id ON ProductStorageLocations(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_location_id ON ProductStorageLocations(location_id)")
 
+    # CompanyAssets Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyAssets (
+        asset_id TEXT PRIMARY KEY, -- UUID
+        asset_name TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        serial_number TEXT UNIQUE,
+        description TEXT,
+        purchase_date DATE,
+        purchase_value REAL,
+        current_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TIMESTAMP
+    )
+    """)
+
+    # AssetAssignments Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetAssignments (
+        assignment_id TEXT PRIMARY KEY, -- UUID
+        asset_id TEXT NOT NULL,
+        personnel_id INTEGER NOT NULL,
+        assignment_date TIMESTAMP NOT NULL,
+        expected_return_date TIMESTAMP,
+        actual_return_date TIMESTAMP,
+        assignment_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE RESTRICT
+    )
+    """)
+
+    # AssetMediaLinks Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetMediaLinks (
+        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        alt_text TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+        UNIQUE (asset_id, media_item_id),
+        UNIQUE (asset_id, display_order)
+    )
+    """)
+
     # ProformaInvoices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_client_id ON proforma_invoices(client_id)")
