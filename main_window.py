@@ -406,8 +406,8 @@ class DocumentManager(QMainWindow):
                 logging.error(f"Error restoring splitter state: {e}. Applying defaults.", exc_info=True)
                 self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
         else:
-            self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
-            logging.info("Client list splitter: No saved state found, applied default sizes.")
+            self.main_splitter.setSizes([int(self.width() * 0.15), int(self.width() * 0.85)])
+            logging.info("Client list splitter: No saved state found, applied default sizes 15/85.")
 
         self.main_splitter.splitterMoved.connect(self.save_splitter_state)
 
