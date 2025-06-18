@@ -260,6 +260,7 @@ class DocumentManager(QMainWindow):
         self.search_icon_btn.clicked.connect(self.toggle_search_input_visibility) # Connect to clicked
         # Removed setVisible(True) for search_input_field and setChecked(True) for the button
 
+
         filter_search_main_layout.addStretch(1) # Add stretch to push filters to the left
         left_pane_layout.addWidget(filter_search_group)
         
@@ -287,6 +288,7 @@ class DocumentManager(QMainWindow):
         main_splitter.addWidget(right_pane_splitter) # Add the right_pane_splitter to the main_splitter
 
         main_splitter.setSizes([int(self.width()*0.20), int(self.width()*0.80)]) # Adjust as needed
+
 
         docs_page_layout = QVBoxLayout(self.documents_page_widget)
         docs_page_layout.addWidget(main_splitter)
@@ -406,6 +408,7 @@ class DocumentManager(QMainWindow):
         if is_visible:
             self.search_input_field.setFocus()
         # Removed button text change logic
+
 
     def execute_create_client(self, client_data_dict=None): self.execute_create_client_slot(client_data_dict=client_data_dict)
     def load_clients_from_db(self): self.load_clients_from_db_slot()
