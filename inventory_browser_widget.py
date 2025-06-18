@@ -312,6 +312,7 @@ class InventoryBrowserWidget(QWidget):
         # QMessageBox.information(self, "Not Implemented", "This feature (edit location) is not yet implemented.")
         pass
 
+
     def update_assign_button_state(self):
         """
         Enables or disables the 'Assign Product to Selected Location' button.
