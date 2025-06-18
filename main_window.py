@@ -67,6 +67,7 @@ from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialo
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 from inventory_browser_widget import InventoryBrowserWidget # Inventory Management
 
+
 from download_monitor_service import DownloadMonitorService
 from dialogs.assign_document_dialog import AssignDocumentToClientDialog
 from db.cruds.client_documents_crud import add_client_document # For assign dialog
@@ -447,7 +448,8 @@ class DocumentManager(QMainWindow):
         self.open_carrier_map_action.triggered.connect(self.open_carrier_map_dialog)
         self.botpress_integration_action = QAction(QIcon(":/icons/placeholder_icon.svg"), self.tr("Botpress Integration"), self) # Add a placeholder icon
         self.botpress_integration_action.triggered.connect(self.show_botpress_integration_view)
-        self.inventory_browser_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion Inventaire"), self) # Using book.svg temporarily
+        self.inventory_browser_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion Stock Atelier"), self) # Updated text
+
         self.inventory_browser_action.triggered.connect(self.show_inventory_browser_view)
 
 

@@ -1,3 +1,17 @@
+"""
+Inventory Browser Widget for managing storage locations and product assignments.
+
+This module provides a QWidget that includes:
+- A QTreeView for hierarchical display and management of storage locations.
+- UI elements for searching products and assigning them to selected locations.
+- A QListWidget to display where a selected product is currently stored.
+- A QGraphicsView to visually represent storage locations and highlight product placements.
+- Dialogs for adding/editing locations (`LocationEditDialog`) and assigning products
+  to locations (`AssignProductDialog`).
+
+It interacts with `item_locations_crud` for database operations related to locations
+and product-location links, and with `products_crud` for searching products.
+"""
 import sys
 import json
 from PyQt5.QtWidgets import (
@@ -45,62 +59,76 @@ except ImportError:
 
 class LocationEditDialog(QDialog):
     def __init__(self, location_data=None, parent_id=None, existing_locations=None, parent_widget=None):
-        super().__init__(parent_widget)
-        self.location_data = location_data
-        self.parent_id = parent_id
-        self.existing_locations = existing_locations if existing_locations else [] # List of (name, id) tuples
+        """
+        Initializes the LocationEditDialog.
 
-        self.setWindowTitle("Edit Location" if location_data else "Add Location")
+        Args:
+            location_data (dict, optional): Data of an existing location to edit. Defaults to None (for adding).
+            parent_id (str, optional): ID of the parent location if adding a child. Defaults to None.
+            existing_locations (list, optional): List of (name, id) tuples of all locations, used for parent selection.
+            parent_widget (QWidget, optional): Parent widget for the dialog.
+        """
+        super().__init__(parent_widget)
+        self.location_data = location_data # Stores data of location being edited, if any
+        self.parent_id = parent_id         # Suggested parent_id when adding a new location
+        self.existing_locations = existing_locations if existing_locations else []
+
+        self.setWindowTitle(self.tr("Edit Location") if location_data else self.tr("Add Location"))
         self.setModal(True)
         self.setMinimumWidth(400)
 
         layout = QVBoxLayout(self)
+        # Form layout for input fields
         form_layout = QFormLayout()
 
         self.name_edit = QLineEdit(location_data.get('location_name', '') if location_data else '')
         self.type_combo = QComboBox()
-        self.type_combo.addItems(["Area", "Cupboard", "Shelf", "Bin", "Room", "Building", "Other"])
+        self.type_combo.addItems([self.tr("Area"), self.tr("Cupboard"), self.tr("Shelf"), self.tr("Bin"),
+                                  self.tr("Room"), self.tr("Building"), self.tr("Other")])
         if location_data and location_data.get('location_type'):
             self.type_combo.setCurrentText(location_data.get('location_type'))
 
         self.description_edit = QTextEdit(location_data.get('description', '') if location_data else '')
-        self.description_edit.setFixedHeight(80)
+        self.description_edit.setFixedHeight(80) # Set a reasonable default height
 
+        # Parent location selection
         self.parent_combo = QComboBox()
-        self.parent_combo.addItem("None (Top Level)", None)
-        current_parent_id_to_select = self.parent_id
-        if location_data and location_data.get('parent_location_id'):
+        self.parent_combo.addItem(self.tr("None (Top Level)"), None) # Option for no parent
+        current_parent_id_to_select = self.parent_id # Default to passed parent_id for new locations
+        if location_data and location_data.get('parent_location_id'): # If editing, use existing parent
             current_parent_id_to_select = location_data.get('parent_location_id')
 
         for loc_name, loc_id in self.existing_locations:
-            # Prevent setting a location as its own parent if editing
+            # Prevent a location from being its own parent during editing
             if self.location_data and self.location_data.get('location_id') == loc_id:
                 continue
             self.parent_combo.addItem(loc_name, loc_id)
             if loc_id == current_parent_id_to_select:
-                self.parent_combo.setCurrentIndex(self.parent_combo.count() - 1)
+                self.parent_combo.setCurrentIndex(self.parent_combo.count() - 1) # Select this parent
 
+        # If no specific parent was selected (e.g. adding top-level or parent_id was None)
         if current_parent_id_to_select is None and self.parent_combo.count() > 0:
-             self.parent_combo.setCurrentIndex(0)
+             self.parent_combo.setCurrentIndex(0) # Default to "None (Top Level)"
 
-
+        # Visual coordinates input
         self.visual_coords_edit = QLineEdit(location_data.get('visual_coordinates', '') if location_data else '')
-        self.visual_coords_edit.setPlaceholderText('e.g., {"x":0, "y":0, "width":100, "height":50, "color":"#aabbcc"}')
+        self.visual_coords_edit.setPlaceholderText(self.tr('e.g., {"x":0, "y":0, "width":100, "height":50, "color":"#aabbcc"}'))
         self.visual_coords_edit.setToolTip(
-            'JSON format: {"x": int, "y": int, "width": int, "height": int, "color": "#RRGGBB" (optional)}'
+            self.tr('JSON format: {"x": int, "y": int, "width": int, "height": int, "color": "#RRGGBB" (optional)}')
         )
 
-        form_layout.addRow("Name:", self.name_edit)
-        form_layout.addRow("Type:", self.type_combo)
-        form_layout.addRow("Parent Location:", self.parent_combo)
-        form_layout.addRow("Description:", self.description_edit)
-        form_layout.addRow("Visual Coordinates (JSON):", self.visual_coords_edit)
+        form_layout.addRow(self.tr("Name:"), self.name_edit)
+        form_layout.addRow(self.tr("Type:"), self.type_combo)
+        form_layout.addRow(self.tr("Parent Location:"), self.parent_combo)
+        form_layout.addRow(self.tr("Description:"), self.description_edit)
+        form_layout.addRow(self.tr("Visual Coordinates (JSON):"), self.visual_coords_edit)
 
         layout.addLayout(form_layout)
 
+        # Standard OK and Cancel buttons
         buttons_layout = QHBoxLayout()
-        self.ok_button = QPushButton("OK")
-        self.cancel_button = QPushButton("Cancel")
+        self.ok_button = QPushButton(self.tr("OK"))
+        self.cancel_button = QPushButton(self.tr("Cancel"))
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.ok_button)
         buttons_layout.addWidget(self.cancel_button)
@@ -111,74 +139,90 @@ class LocationEditDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
 
     def accept_data(self):
+        """
+        Validates input data and attempts to save the location (add new or update existing)
+        using the item_locations_crud functions. Closes dialog on success.
+        """
         name = self.name_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, "Input Error", "Location name cannot be empty.")
+            QMessageBox.warning(self, self.tr("Input Error"), self.tr("Location name cannot be empty."))
             return
 
         visual_coords_str = self.visual_coords_edit.text().strip()
-        if visual_coords_str:
+        if visual_coords_str: # Validate JSON format if provided
             try:
-                json.loads(visual_coords_str) # Validate JSON
+                json.loads(visual_coords_str)
             except json.JSONDecodeError:
-                QMessageBox.warning(self, "Input Error", "Visual coordinates must be a valid JSON string.")
+                QMessageBox.warning(self, self.tr("Input Error"), self.tr("Visual coordinates must be a valid JSON string."))
                 return
 
         selected_parent_index = self.parent_combo.currentIndex()
+        # Get the data associated with the selected parent item (which is the parent_location_id or None)
         parent_id_val = self.parent_combo.itemData(selected_parent_index) if selected_parent_index >=0 else None
 
-
+        # Prepare data payload for CRUD operation
         data = {
             'location_name': name,
             'location_type': self.type_combo.currentText(),
             'parent_location_id': parent_id_val,
             'description': self.description_edit.toPlainText().strip(),
-            'visual_coordinates': visual_coords_str if visual_coords_str else None,
+            'visual_coordinates': visual_coords_str if visual_coords_str else None, # Store as string
         }
 
-        if self.location_data: # Editing existing location
+        if self.location_data: # Editing an existing location
             result = update_item_location(self.location_data['location_id'], data)
-        else: # Adding new location
+        else: # Adding a new location
             result = add_item_location(data)
 
         if result.get('success'):
-            QMessageBox.information(self, "Success", "Location saved successfully.")
-            self.accept()
+            QMessageBox.information(self, self.tr("Success"), self.tr("Location saved successfully."))
+            self.accept() # Close dialog with QDialog.Accepted result
         else:
-            QMessageBox.critical(self, "Error", f"Failed to save location: {result.get('error', 'Unknown error')}")
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to save location: {0}").format(result.get('error', 'Unknown error')))
 
 
 class InventoryBrowserWidget(QWidget):
+    """
+    Main widget for browsing and managing inventory locations and product assignments.
+    It features a tree view for location hierarchy, product search capabilities,
+    and a visual map of locations using QGraphicsScene.
+    """
     def __init__(self, parent=None):
+        """
+        Initializes the InventoryBrowserWidget.
+
+        Args:
+            parent (QWidget, optional): Parent widget. Defaults to None.
+        """
         super().__init__(parent)
-        self.setWindowTitle("Inventory Browser")
-        self.setMinimumSize(800, 600) # Increased size
+        self.setWindowTitle(self.tr("Inventory Browser"))
+        self.setMinimumSize(900, 700) # Increased size for better layout with graphics view
 
-        # Main layout
-        main_layout = QHBoxLayout(self) # Changed to QHBoxLayout for splitter
-
-        # Splitter for resizable sections
+        # Main layout structure using a splitter
+        main_layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Horizontal)
         main_layout.addWidget(splitter)
 
-        # Left Panel: Location Hierarchy
+        # --- Left Panel: Location Hierarchy ---
         location_panel = QWidget()
         location_layout = QVBoxLayout(location_panel)
 
+        # Tree view for displaying locations
         self.tree_view = QTreeView()
         self.tree_model = QStandardItemModel()
-        self.tree_model.setHorizontalHeaderLabels(['Location Name', 'Type', 'ID'])
+        self.tree_model.setHorizontalHeaderLabels([self.tr('Location Name'), self.tr('Type'), self.tr('ID')])
         self.tree_view.setModel(self.tree_model)
-        self.tree_view.setColumnWidth(0, 200) # Adjusted width
-        self.tree_view.setColumnWidth(1, 80)
-        self.tree_view.setEditTriggers(QTreeView.NoEditTriggers)
+        self.tree_view.setColumnWidth(0, 220)
+        self.tree_view.setColumnWidth(1, 100)
+        self.tree_view.setEditTriggers(QTreeView.NoEditTriggers) # Disable direct editing
         location_layout.addWidget(self.tree_view)
 
+        # Buttons for location management
         location_buttons_layout = QHBoxLayout()
-        self.add_loc_button = QPushButton("Add Location")
-        self.edit_loc_button = QPushButton("Edit Location")
-        self.delete_loc_button = QPushButton("Delete Location")
-        self.refresh_loc_button = QPushButton("Refresh Tree")
+        self.add_loc_button = QPushButton(self.tr("Add Location"))
+        self.edit_loc_button = QPushButton(self.tr("Edit Location"))
+        self.delete_loc_button = QPushButton(self.tr("Delete Location"))
+        self.refresh_loc_button = QPushButton(self.tr("Refresh Tree"))
         location_buttons_layout.addWidget(self.add_loc_button)
         location_buttons_layout.addWidget(self.edit_loc_button)
         location_buttons_layout.addWidget(self.delete_loc_button)
@@ -188,371 +232,77 @@ class InventoryBrowserWidget(QWidget):
 
         splitter.addWidget(location_panel)
 
-        # Right Panel: Product Management
-        product_panel = QWidget()
-        product_layout = QVBoxLayout(product_panel)
+        # --- Right Panel: Product Management & Visuals ---
+        right_panel_splitter = QSplitter(Qt.Vertical) # Split right panel for product info and visuals
 
-        # Product Search Group
-        product_search_group = QGroupBox("Product Search & Assignment")
+        # Top-Right: Product Search and Assignment
+        product_management_widget = QWidget()
+        product_management_layout = QVBoxLayout(product_management_widget)
+
+        product_search_group = QGroupBox(self.tr("Product Search & Assignment"))
         search_group_layout = QVBoxLayout(product_search_group)
-
         self.product_search_input = QLineEdit()
-        self.product_search_input.setPlaceholderText("Enter product name or code...")
+        self.product_search_input.setPlaceholderText(self.tr("Enter product name or code..."))
         search_group_layout.addWidget(self.product_search_input)
-
-        self.search_product_button = QPushButton("Search Product")
+        self.search_product_button = QPushButton(self.tr("Search Product"))
         search_group_layout.addWidget(self.search_product_button)
-
+        search_group_layout.addWidget(QLabel(self.tr("Search Results:")))
         self.product_search_results_list = QListWidget()
-        search_group_layout.addWidget(QLabel("Search Results:"))
         search_group_layout.addWidget(self.product_search_results_list)
-
-        self.assign_product_button = QPushButton("Assign Selected Product to Selected Location")
-        self.assign_product_button.setEnabled(False) # Disabled by default
+        self.assign_product_button = QPushButton(self.tr("Assign Selected Product to Selected Location"))
+        self.assign_product_button.setEnabled(False)
         search_group_layout.addWidget(self.assign_product_button)
+        product_management_layout.addWidget(product_search_group)
 
-        product_layout.addWidget(product_search_group)
-
-        # Product Locations Display Group
-        product_locations_group = QGroupBox("Product Locations")
+        product_locations_group = QGroupBox(self.tr("Product Locations"))
         locations_group_layout = QVBoxLayout(product_locations_group)
-        self.product_locations_display_list = QListWidget()
+        self.product_locations_display_list = QListWidget() # Displays text of where product is
         locations_group_layout.addWidget(self.product_locations_display_list)
-        product_layout.addWidget(product_locations_group)
+        product_management_layout.addWidget(product_locations_group)
+        right_panel_splitter.addWidget(product_management_widget)
 
-        # Visual Display Group (QGraphicsView)
-        visual_display_group = QGroupBox("Visual Location Map")
+        # Bottom-Right: Visual Location Map
+        visual_display_group = QGroupBox(self.tr("Visual Location Map"))
         visual_display_layout = QVBoxLayout(visual_display_group)
         self.graphics_view = QGraphicsView()
-        self.graphics_scene = QGraphicsScene(self)
+        self.graphics_scene = QGraphicsScene(self) # Scene to draw on
         self.graphics_view.setScene(self.graphics_scene)
-        self.graphics_view.setRenderHint(QColor.Antialiasing, True) # Corrected QPainter import
+        self.graphics_view.setRenderHint(QColor.Antialiasing, True) # Smoother rendering
         visual_display_layout.addWidget(self.graphics_view)
-        product_layout.addWidget(visual_display_group)
+        right_panel_splitter.addWidget(visual_display_group)
 
-        splitter.addWidget(product_panel)
-        # Adjust splitter sizes to accommodate the new visual panel, or make product_panel wider
-        splitter.setSizes([300, 500])
-
-
-        # Instance variable to keep track of drawn graphics items by location_id
-        self.scene_items = {} # {location_id: QGraphicsRectItem}
-        self.highlighted_scene_items = []
+        splitter.addWidget(right_panel_splitter)
+        splitter.setSizes([350, 550]) # Initial sizes for left and right panels
+        right_panel_splitter.setSizes([350, 350]) # Initial sizes for top and bottom of right panel
 
 
-        # Connect signals
+        # --- Instance Variables for State ---
+        self.scene_items = {}  # Maps location_id to its QGraphicsRectItem
+        self.highlighted_scene_items = [] # List of currently highlighted QGraphicsRectItems
+
+
+        # --- Connect Signals to Slots ---
         self.add_loc_button.clicked.connect(self.open_add_location_dialog)
         self.edit_loc_button.clicked.connect(self.open_edit_location_dialog)
         self.delete_loc_button.clicked.connect(self.delete_selected_location)
         self.refresh_loc_button.clicked.connect(self.load_locations_into_tree)
         self.tree_view.doubleClicked.connect(self.open_edit_location_dialog)
-        self.tree_view.selectionModel().selectionChanged.connect(self.on_tree_location_selected) # For visual sync
-        self.tree_view.selectionModel().selectionChanged.connect(self.update_assign_button_state)
-
 
         self.search_product_button.clicked.connect(self.search_products)
+        # Ensure on_product_selection_changed handles both button state and displaying locations
         self.product_search_results_list.itemSelectionChanged.connect(self.on_product_selection_changed)
         self.assign_product_button.clicked.connect(self.open_assign_product_dialog)
 
-        self.load_locations_into_tree() # This will also trigger draw_locations_on_scene
+        # Initial population of the location tree and visual map
+        self.load_locations_into_tree()
 
     def update_assign_button_state(self):
+        """
+        Enables or disables the 'Assign Product to Selected Location' button.
+        The button is enabled only if an item is selected in both the product search results
+        list and the location tree view.
+        """
         product_selected = bool(self.product_search_results_list.currentItem())
-        location_selected = bool(self.tree_view.selectedIndexes())
-        self.assign_product_button.setEnabled(product_selected and location_selected)
-
-    def _get_all_locations_for_parent_combo(self):
-        """Fetches all locations as a flat list of (name, id) for parent selection."""
-        response = get_all_item_locations()
-        if response['success']:
-            return [(loc['location_name'], loc['location_id']) for loc in response['data']]
-        else:
-            QMessageBox.critical(self, "Error", f"Could not load locations for parent selection: {response.get('error')}")
-            return []
-
-    def load_locations_into_tree(self):
-        self.tree_model.removeRows(0, self.tree_model.rowCount())
-        response = get_item_locations_by_parent_id(parent_location_id=None)
-        if response['success']:
-            top_level_locations = response['data']
-            for location in top_level_locations:
-                parent_item_for_tree = self.tree_model.invisibleRootItem()
-                self._add_location_to_tree(parent_item_for_tree, location)
-        else:
-            QMessageBox.critical(self, "Error Loading Locations",
-                                 f"Failed to load top-level locations: {response.get('error', 'Unknown error')}")
-        self.tree_view.expandAll()
-        self.draw_locations_on_scene() # Draw after loading tree
-
-    def _add_location_to_tree(self, parent_item_for_tree: QStandardItem, location_data: dict):
-        item_name = QStandardItem(location_data.get('location_name', 'N/A'))
-        item_name.setData(location_data.get('location_id'), Qt.UserRole) # Store ID
-        item_name.setData(location_data.get('location_name'), Qt.UserRole + 1) # Store name for dialog
-
-        item_type = QStandardItem(location_data.get('location_type', 'N/A'))
-        item_id_display = QStandardItem(location_data.get('location_id', 'N/A'))
-
-        parent_item_for_tree.appendRow([item_name, item_type, item_id_display])
-
-        children_response = get_item_locations_by_parent_id(location_data['location_id'])
-        if children_response['success']:
-            for child_location in children_response['data']:
-                self._add_location_to_tree(item_name, child_location)
-        elif children_response.get('error'):
-             QMessageBox.warning(self, "Error Loading Child Locations",
-                                f"Failed to load children for {location_data.get('location_name')}: {children_response.get('error')}")
-
-    def get_selected_location_data_from_tree(self) -> (dict | None, QStandardItem | None):
-        selected_indexes = self.tree_view.selectedIndexes()
-        if not selected_indexes:
-            return None, None
-
-        selected_item = self.tree_model.itemFromIndex(selected_indexes[0]) # Get item from first column
-        if not selected_item:
-             return None, None
-
-        location_id = selected_item.data(Qt.UserRole)
-        if location_id:
-            # Fetch full data for consistency, though name is also stored
-            response = get_item_location_by_id(location_id)
-            if response['success']:
-                return response['data'], selected_item
-            else:
-                QMessageBox.warning(self, "Error", f"Could not fetch details for location ID {location_id}: {response.get('error')}")
-        return None, selected_item
-
-    def open_add_location_dialog(self):
-        parent_id_for_dialog = None
-        _, selected_tree_item = self.get_selected_location_data_from_tree()
-
-        if selected_tree_item:
-            parent_id_for_dialog = selected_tree_item.data(Qt.UserRole)
-            parent_name_for_dialog = selected_tree_item.data(Qt.UserRole + 1) # Name stored
-            reply = QMessageBox.question(self, 'Select Parent Context',
-                                       f"Add new location under '{parent_name_for_dialog}'?\n"
-                                       "Select 'No' to add as a new top-level location.",
-                                       QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
-            if reply == QMessageBox.Cancel: return
-            if reply == QMessageBox.No: parent_id_for_dialog = None
-
-        all_locs = self._get_all_locations_for_parent_combo()
-        dialog = LocationEditDialog(parent_id=parent_id_for_dialog, existing_locations=all_locs, parent_widget=self)
-        if dialog.exec_():
-            self.load_locations_into_tree() # This will also redraw scene
-
-    def open_edit_location_dialog(self, index: QModelIndex = None):
-        location_to_edit, _ = self.get_selected_location_data_from_tree()
-        if not location_to_edit:
-            QMessageBox.information(self, "Edit Location", "Please select a location from the tree to edit.")
-            return
-        all_locs = self._get_all_locations_for_parent_combo()
-        dialog = LocationEditDialog(location_data=location_to_edit, existing_locations=all_locs, parent_widget=self)
-        if dialog.exec_():
-            self.load_locations_into_tree() # This will also redraw scene
-
-    def delete_selected_location(self):
-        location_to_delete, _ = self.get_selected_location_data_from_tree()
-        if not location_to_delete:
-            QMessageBox.information(self, "Delete Location", "Please select a location to delete.")
-            return
-
-        loc_id = location_to_delete['location_id']
-        loc_name = location_to_delete['location_name']
-        reply = QMessageBox.warning(self, "Confirm Delete",
-                                    f"Delete '{loc_name}' (ID: {loc_id})?\n"
-                                    "Products in this location will be unlinked (due to ON DELETE CASCADE in DB schema for ProductStorageLocations). "
-                                    "Child locations may cause issues if not handled by DB (this UI checks).",
-                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            children_resp = get_item_locations_by_parent_id(loc_id)
-            if children_resp['success'] and children_resp['data']:
-                QMessageBox.warning(self, "Deletion Blocked", f"'{loc_name}' has child locations. Delete or re-parent them first.")
-                return
-
-            del_result = delete_item_location(loc_id)
-            if del_result.get('success'):
-                QMessageBox.information(self, "Success", f"Location '{loc_name}' deleted.")
-                self.load_locations_into_tree() # This will also redraw scene
-            else:
-                QMessageBox.critical(self, "Error", f"Delete failed: {del_result.get('error', 'Unknown error')}")
-
-    def draw_locations_on_scene(self):
-        self.graphics_scene.clear()
-        self.scene_items.clear()
-        # Reset highlights as the items are being redrawn
-        self.highlighted_scene_items.clear()
-
-
-        all_locs_response = get_all_item_locations()
-        if not all_locs_response['success']:
-            QMessageBox.critical(self, "Error Drawing Locations", f"Could not fetch all locations: {all_locs_response.get('error')}")
-            return
-
-        for loc in all_locs_response['data']:
-            coords_str = loc.get('visual_coordinates')
-            if coords_str:
-                try:
-                    coords = json.loads(coords_str)
-                    x, y, w, h = coords.get('x'), coords.get('y'), coords.get('width'), coords.get('height')
-                    color_hex = coords.get('color', "#cccccc") # Default color
-
-                    if None not in [x, y, w, h]:
-                        rect_item = QGraphicsRectItem(x, y, w, h)
-                        rect_item.setBrush(QColor(color_hex))
-                        rect_item.setData(0, loc['location_id']) # Store location_id
-
-                        # Basic click handling
-                        rect_item.setFlag(QGraphicsRectItem.ItemIsSelectable) # Allow selection for visual feedback
-                        # To connect click to tree selection, a custom QGraphicsRectItem or event filter is better.
-                        # For now, this just makes it selectable on scene.
-
-                        self.graphics_scene.addItem(rect_item)
-                        self.scene_items[loc['location_id']] = rect_item
-
-                        text_item = QGraphicsTextItem(loc.get('location_name', 'N/A'), rect_item)
-                        # Center text within the rect item, roughly
-                        text_rect = text_item.boundingRect()
-                        text_item.setPos(x + w/2 - text_rect.width()/2, y + h/2 - text_rect.height()/2)
-                        # self.graphics_scene.addItem(text_item) # Added as child of rect_item
-
-                except json.JSONDecodeError:
-                    print(f"Warning: Invalid JSON for visual_coordinates in location {loc.get('location_id')}: {coords_str}")
-                except Exception as e:
-                    print(f"Warning: Could not draw location {loc.get('location_id')} due to error: {e}")
-
-        # Adjust scene rect to fit all items
-        # self.graphics_scene.setSceneRect(self.graphics_scene.itemsBoundingRect())
-        # Or set a fixed large scene rect if items are spread out
-        self.graphics_view.setSceneRect(self.graphics_scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
-
-
-    def search_products(self):
-        search_term = self.product_search_input.text().strip()
-        if not search_term:
-            QMessageBox.information(self, "Search Product", "Please enter a product name or code to search.")
-            return
-
-        # Assuming get_products_by_name_pattern exists and works as expected
-        result = get_products_by_name_pattern(search_term)
-        self.product_search_results_list.clear()
-        if result['success']:
-            products = result['data']
-            if not products:
-                self.product_search_results_list.addItem("No products found.")
-            for prod in products:
-                # Ensure product_id, product_name, product_code are present
-                item_text = f"{prod.get('product_name', 'N/A')} (Code: {prod.get('product_code', 'N/A')})"
-                list_item = QListWidgetItem(item_text)
-                list_item.setData(Qt.UserRole, prod.get('product_id')) # Store product_id
-                list_item.setData(Qt.UserRole + 1, prod.get('product_name')) # Store name
-                self.product_search_results_list.addItem(list_item)
-        else:
-            QMessageBox.critical(self, "Search Error", f"Failed to search products: {result.get('error', 'Unknown error')}")
-        self.update_assign_button_state()
-        self.product_locations_display_list.clear()
-        self.update_visual_highlights() # Clear highlights from previous search
-
-    def on_product_selection_changed(self):
-        self.update_assign_button_state()
-        self.display_product_locations() # This will also call update_visual_highlights
-
-    def on_tree_location_selected(self):
-        # This is a basic way to sync tree selection to visual map (e.g. by re-applying highlights)
-        # More advanced would be to center view on selected, etc.
-        self.update_visual_highlights(highlight_tree_selection=True)
-
-
-    def display_product_locations(self):
-        self.product_locations_display_list.clear()
-        selected_product_item = self.product_search_results_list.currentItem()
-        # Reset previous highlights first
-        for item in self.highlighted_scene_items:
-            if isinstance(item, QGraphicsRectItem): # Ensure it's a rect item
-                original_pen = item.data(1) # Assuming original pen stored at key 1
-                original_brush = item.data(2) # Assuming original brush stored at key 2
-                if original_pen: item.setPen(original_pen)
-                else: item.setPen(QPen(Qt.black)) # Default
-                if original_brush: item.setBrush(original_brush)
-                else: item.setBrush(QBrush(Qt.lightGray)) # Default
-        self.highlighted_scene_items.clear()
-
-        if not selected_product_item:
-            self.update_visual_highlights() # Call to ensure highlights are cleared
-            return
-
-        product_id = selected_product_item.data(Qt.UserRole)
-        if not product_id:
-            self.update_visual_highlights()
-            return
-
-        product_name = selected_product_item.data(Qt.UserRole + 1)
-
-        result = get_locations_for_product(product_id)
-        found_locations_ids = []
-        if result['success']:
-            locations_data = result['data']
-            if not locations_data:
-                self.product_locations_display_list.addItem(f"'{product_name}' is not currently stored in any location.")
-            else:
-                self.product_locations_display_list.addItem(f"Locations for '{product_name}':")
-                for loc_info in locations_data:
-                    psl_location_id = loc_info.get('location_id')
-                    found_locations_ids.append(psl_location_id)
-                    path_result = get_full_location_path_str(psl_location_id)
-                    path_str = path_result['data'] if path_result['success'] else loc_info.get('location_name', 'Unknown Location')
-                    quantity = loc_info.get('quantity', 'N/A')
-                    notes = loc_info.get('notes', '')
-                    display_text = f"- {path_str} (Qty: {quantity})"
-                    if notes: display_text += f" [Notes: {notes}]"
-                    self.product_locations_display_list.addItem(display_text)
-        else:
-            QMessageBox.critical(self, "Error", f"Failed to get locations for product: {result.get('error', 'Unknown error')}")
-
-        self.update_visual_highlights(product_locations_ids=found_locations_ids)
-
-
-    def update_visual_highlights(self, product_locations_ids=None, highlight_tree_selection=False):
-        # Reset previous product highlights if not handling tree selection highlight
-        if not highlight_tree_selection:
-            for item in self.highlighted_scene_items:
-                original_pen = item.data(1)
-                original_brush = item.data(2)
-                if original_pen: item.setPen(original_pen)
-                else: item.setPen(QPen(Qt.black))
-                if original_brush: item.setBrush(original_brush)
-                else: item.setBrush(QBrush(Qt.lightGray))
-            self.highlighted_scene_items.clear()
-
-        # Highlight locations for the current product
-        if product_locations_ids:
-            for loc_id in product_locations_ids:
-                scene_item = self.scene_items.get(loc_id)
-                if scene_item:
-                    if scene_item not in self.highlighted_scene_items: # Store original only once
-                        scene_item.setData(1, scene_item.pen())
-                        scene_item.setData(2, scene_item.brush())
-                    scene_item.setPen(QPen(QColor("red"), 2)) # Highlight with red border
-                    scene_item.setBrush(QBrush(QColor(255, 0, 0, 50))) # Semi-transparent red fill
-                    self.highlighted_scene_items.append(scene_item)
-
-        # Highlight based on tree selection (can be additive or exclusive)
-        if highlight_tree_selection:
-            selected_loc_data, _ = self.get_selected_location_data_from_tree()
-            if selected_loc_data:
-                tree_selected_loc_id = selected_loc_data.get('location_id')
-                scene_item = self.scene_items.get(tree_selected_loc_id)
-                if scene_item:
-                    if scene_item not in self.highlighted_scene_items:
-                         scene_item.setData(1, scene_item.pen())
-                         scene_item.setData(2, scene_item.brush())
-                    scene_item.setPen(QPen(QColor("blue"), 3, Qt.DashLine)) # Different highlight for tree selection
-                    # scene_item.setBrush(QBrush(QColor(0,0,255,30))) # Optional: different fill
-                    if scene_item not in self.highlighted_scene_items: # Avoid duplicates if also a product location
-                        self.highlighted_scene_items.append(scene_item)
-
-
-    def open_assign_product_dialog(self):
-        selected_product_item = self.product_search_results_list.currentItem()
         selected_location_data, selected_tree_item = self.get_selected_location_data_from_tree()
 
         if not selected_product_item or not selected_location_data:

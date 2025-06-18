@@ -43,13 +43,13 @@ def mock_config_for_db_path():
 # Now import db modules after patching is set up for autouse session fixture
 from db.init_schema import initialize_database
 from db.cruds import item_locations_crud
-from db.cruds import products_crud # For adding mock products
+from db.cruds import internal_stock_items_crud # Changed from products_crud
 
-# Global test product_id for linking, assuming it will be created once
-TEST_PRODUCT_ID = None
-TEST_PRODUCT_CODE = "TP001"
+# Global test item_id for linking
+TEST_ITEM_ID = None
+TEST_ITEM_CODE = "TSI001" # Test Stock Item 001
 
-@pytest.fixture(scope="function") # Changed to function scope for test isolation
+@pytest.fixture(scope="function")
 def db_conn():
     # Initialize schema will use the mocked MOCK_DB_PATH (in-memory)
     # The initialize_database function itself creates and returns a connection
@@ -194,29 +194,123 @@ def _initialize_database_for_test(conn: sqlite3.Connection):
         user_id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, salt TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE, role TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
-    # Products (essential for ProductStorageLocations)
+    # InternalStockItems (replaces Products for these tests)
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Products (
-        product_id INTEGER PRIMARY KEY AUTOINCREMENT, product_name TEXT NOT NULL, product_code TEXT UNIQUE,
-        base_unit_price REAL NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (product_name, product_code)
+    CREATE TABLE IF NOT EXISTS InternalStockItems (
+        item_id TEXT PRIMARY KEY,
+        item_name TEXT NOT NULL,
+        item_code TEXT UNIQUE,
+        description TEXT,
+        category TEXT,
+        manufacturer TEXT,
+        supplier TEXT,
+        unit_of_measure TEXT,
+        current_stock_level INTEGER DEFAULT 0,
+        custom_fields TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
     # ItemLocations
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ItemLocations (
-        location_id TEXT PRIMARY KEY, location_name TEXT NOT NULL, parent_location_id TEXT,
-        location_type TEXT, description TEXT, visual_coordinates TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        location_id TEXT PRIMARY KEY,
+        location_name TEXT NOT NULL,
+        parent_location_id TEXT,
+        location_type TEXT,
+        description TEXT,
+        visual_coordinates TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parent_location_id) REFERENCES ItemLocations(location_id) ON DELETE SET NULL
     )""")
-    # ProductStorageLocations
+    # ItemStorageLocations (replaces ProductStorageLocations)
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ProductStorageLocations (
-        product_storage_location_id TEXT PRIMARY KEY, product_id INTEGER NOT NULL, location_id TEXT NOT NULL,
-        quantity INTEGER, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE,
+    CREATE TABLE IF NOT EXISTS ItemStorageLocations (
+        item_storage_location_id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL,
+        location_id TEXT NOT NULL,
+        quantity INTEGER,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES InternalStockItems(item_id) ON DELETE CASCADE,
         FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
-        UNIQUE (product_id, location_id)
+        UNIQUE (item_id, location_id)
+    )""")
+    conn.commit()
+
+    # Add a mock internal stock item for testing links
+    global TEST_ITEM_ID
+    # Ensure TEST_ITEM_ID is reset for each test function due to function-scoped fixture
+    item_data = {"item_name": "Test Stock Item", "item_code": TEST_ITEM_CODE, "unit_of_measure": "pcs"}
+    # Use the actual add_item function from the crud module being tested elsewhere
+    add_item_result = internal_stock_items_crud.add_item(item_data, conn=conn)
+    assert add_item_result['success'], f"Failed to add test item: {add_item_result.get('error')}"
+    TEST_ITEM_ID = add_item_result['id']
+
+    yield conn
+    conn.close()
+
+def _initialize_database_for_test(conn: sqlite3.Connection):
+    """
+    Manually run main schema creation steps on the provided connection.
+    This is a simplified version of init_schema.initialize_database.
+    Needed because the original initialize_database uses its own connection,
+    which doesn't work well with a passed :memory: connection for tests.
+    """
+    cursor = conn.cursor()
+    # Users (minimal for created_by_user_id if FKs are on, though ItemLocations doesn't have it)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Users (
+        user_id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, salt TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE, role TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    # InternalStockItems (replaces Products for these tests)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS InternalStockItems (
+        item_id TEXT PRIMARY KEY,
+        item_name TEXT NOT NULL,
+        item_code TEXT UNIQUE,
+        description TEXT,
+        category TEXT,
+        manufacturer TEXT,
+        supplier TEXT,
+        unit_of_measure TEXT,
+        current_stock_level INTEGER DEFAULT 0,
+        custom_fields TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )""")
+    # ItemLocations
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemLocations (
+        location_id TEXT PRIMARY KEY,
+        location_name TEXT NOT NULL,
+        parent_location_id TEXT,
+        location_type TEXT,
+        description TEXT,
+        visual_coordinates TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_location_id) REFERENCES ItemLocations(location_id) ON DELETE SET NULL
+    )""")
+    # ItemStorageLocations (replaces ProductStorageLocations)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemStorageLocations (
+        item_storage_location_id TEXT PRIMARY KEY,
+        item_id TEXT NOT NULL,
+        location_id TEXT NOT NULL,
+        quantity INTEGER,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES InternalStockItems(item_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (item_id, location_id)
     )""")
     conn.commit()
 
@@ -310,12 +404,12 @@ def test_delete_item_location(db_conn):
     loc_res = item_locations_crud.add_item_location({"location_name": "To Delete"}, conn=db_conn)
     loc_id_to_delete = loc_res['data']['location_id']
 
-    # Link a product to it (ensure ON DELETE CASCADE for ProductStorageLocations is tested)
-    psl_data = {"product_id": TEST_PRODUCT_ID, "location_id": loc_id_to_delete, "quantity": 10}
-    item_locations_crud.link_product_to_location(psl_data, conn=db_conn)
+    # Link an item to it (ensure ON DELETE CASCADE for ItemStorageLocations is tested)
+    isl_data = {"item_id": TEST_ITEM_ID, "location_id": loc_id_to_delete, "quantity": 10}
+    item_locations_crud.link_item_to_location(isl_data, conn=db_conn) # Use refactored method
 
     # Check it's linked
-    links = item_locations_crud.get_locations_for_product(TEST_PRODUCT_ID, conn=db_conn)['data']
+    links = item_locations_crud.get_locations_for_item(TEST_ITEM_ID, conn=db_conn)['data'] # Use refactored method
     assert any(link['location_id'] == loc_id_to_delete for link in links)
 
     delete_result = item_locations_crud.delete_item_location(loc_id_to_delete, conn=db_conn)
@@ -324,8 +418,8 @@ def test_delete_item_location(db_conn):
     get_deleted_result = item_locations_crud.get_item_location_by_id(loc_id_to_delete, conn=db_conn)
     assert not get_deleted_result['success'] # Should not be found
 
-    # Verify ProductStorageLocations link is gone due to CASCADE
-    links_after_delete = item_locations_crud.get_locations_for_product(TEST_PRODUCT_ID, conn=db_conn)['data']
+    # Verify ItemStorageLocations link is gone due to CASCADE
+    links_after_delete = item_locations_crud.get_locations_for_item(TEST_ITEM_ID, conn=db_conn)['data'] # Use refactored method
     assert not any(link['location_id'] == loc_id_to_delete for link in links_after_delete)
 
 
@@ -355,121 +449,130 @@ def test_get_full_location_path_str(db_conn):
     assert not path_non_existent['success']
 
 
-# --- ProductStorageLocations Tests ---
+# --- ItemStorageLocations Tests (Formerly ProductStorageLocations) ---
 
-def test_link_product_to_location(db_conn):
+def test_link_item_to_location(db_conn): # Renamed
     loc_res = item_locations_crud.add_item_location({"location_name": "Link Test Loc"}, conn=db_conn)['data']
     loc_id = loc_res['location_id']
 
-    link_data = {"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 50, "notes": "Initial stock"}
-    link_result = item_locations_crud.link_product_to_location(link_data, conn=db_conn)
+    link_data = {"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 50, "notes": "Initial stock"} # Use TEST_ITEM_ID
+    link_result = item_locations_crud.link_item_to_location(link_data, conn=db_conn) # Use refactored method
     assert link_result['success']
-    psl_id = link_result['data']['product_storage_location_id']
+    isl_id = link_result['data']['item_storage_location_id'] # Check for new PK name
 
-    retrieved_link = item_locations_crud.get_product_storage_location_by_id(psl_id, conn=db_conn)['data']
-    assert retrieved_link['product_id'] == TEST_PRODUCT_ID
+    retrieved_link = item_locations_crud.get_item_storage_location_by_id(isl_id, conn=db_conn)['data'] # Use refactored method
+    assert retrieved_link['item_id'] == TEST_ITEM_ID
     assert retrieved_link['location_id'] == loc_id
     assert retrieved_link['quantity'] == 50
     assert retrieved_link['notes'] == "Initial stock"
 
-def test_link_product_to_location_duplicate(db_conn):
+def test_link_item_to_location_duplicate(db_conn): # Renamed
     loc_res = item_locations_crud.add_item_location({"location_name": "Duplicate Link Loc"}, conn=db_conn)['data']
     loc_id = loc_res['location_id']
-    link_data = {"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 10}
-    item_locations_crud.link_product_to_location(link_data, conn=db_conn) # First link
+    link_data = {"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 10}
+    item_locations_crud.link_item_to_location(link_data, conn=db_conn) # First link
 
-    duplicate_link_result = item_locations_crud.link_product_to_location(link_data, conn=db_conn) # Second attempt
+    duplicate_link_result = item_locations_crud.link_item_to_location(link_data, conn=db_conn) # Second attempt
     assert not duplicate_link_result['success']
     assert "already linked" in duplicate_link_result['error']
 
 
-def test_get_locations_for_product(db_conn):
-    loc1 = item_locations_crud.add_item_location({"location_name": "ProdLoc 1"}, conn=db_conn)['data']
-    loc2 = item_locations_crud.add_item_location({"location_name": "ProdLoc 2"}, conn=db_conn)['data']
-    item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc1['location_id'], "quantity": 5}, conn=db_conn)
-    item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc2['location_id'], "quantity": 10}, conn=db_conn)
+def test_get_locations_for_item(db_conn): # Renamed
+    loc1 = item_locations_crud.add_item_location({"location_name": "ItemLoc 1"}, conn=db_conn)['data'] # Renamed for clarity
+    loc2 = item_locations_crud.add_item_location({"location_name": "ItemLoc 2"}, conn=db_conn)['data'] # Renamed for clarity
+    item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc1['location_id'], "quantity": 5}, conn=db_conn)
+    item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc2['location_id'], "quantity": 10}, conn=db_conn)
 
-    product_locs = item_locations_crud.get_locations_for_product(TEST_PRODUCT_ID, conn=db_conn)
-    assert product_locs['success']
-    assert len(product_locs['data']) >= 2 # Can be more if TEST_PRODUCT_ID was linked in other tests
+    item_locs = item_locations_crud.get_locations_for_item(TEST_ITEM_ID, conn=db_conn) # Use refactored method
+    assert item_locs['success']
+    # Adjust count based on exact items linked in this test, assuming fresh TEST_ITEM_ID per function run if fixture recreates it
+    # If TEST_ITEM_ID is session-scoped and not cleaned, this count might be higher.
+    # For now, assuming it will find at least these 2 for this specific TEST_ITEM_ID.
+    # A more robust check would be to create a NEW item_id here for this specific test.
+    current_test_item_links = [l for l in item_locs['data'] if l['item_id'] == TEST_ITEM_ID]
+    assert len(current_test_item_links) >= 2
 
-    found_loc_ids = [l['location_id'] for l in product_locs['data']]
+    found_loc_ids = [l['location_id'] for l in current_test_item_links]
     assert loc1['location_id'] in found_loc_ids
     assert loc2['location_id'] in found_loc_ids
-    for item in product_locs['data']:
-        if item['location_id'] == loc1['location_id']: assert item['quantity'] == 5
-        if item['location_id'] == loc2['location_id']: assert item['quantity'] == 10
+    for item_detail in current_test_item_links: # Renamed loop var
+        if item_detail['location_id'] == loc1['location_id']: assert item_detail['quantity'] == 5
+        if item_detail['location_id'] == loc2['location_id']: assert item_detail['quantity'] == 10
 
 
-def test_get_products_in_location(db_conn):
-    loc_res = item_locations_crud.add_item_location({"location_name": "ProductsInLoc Test"}, conn=db_conn)['data']
+def test_get_items_in_location(db_conn): # Renamed
+    loc_res = item_locations_crud.add_item_location({"location_name": "ItemsInLoc Test"}, conn=db_conn)['data']
     loc_id = loc_res['location_id']
 
-    # Add another product for variety
-    prod2_data = {"product_name": "Test Product 2", "product_code": "TP002", "base_unit_price": 20.0}
-    prod2_res = products_crud.add_product(prod2_data, conn=db_conn)
-    prod2_id = prod2_res['id']
+    # Add another item for variety
+    item2_data = {"item_name": "Test Stock Item 2", "item_code": "TSI002"}
+    item2_res = internal_stock_items_crud.add_item(item2_data, conn=db_conn) # Use internal_stock_items_crud
+    item2_id = item2_res['id']
 
-    item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 7}, conn=db_conn)
-    item_locations_crud.link_product_to_location({"product_id": prod2_id, "location_id": loc_id, "quantity": 13}, conn=db_conn)
+    item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 7}, conn=db_conn)
+    item_locations_crud.link_item_to_location({"item_id": item2_id, "location_id": loc_id, "quantity": 13}, conn=db_conn)
 
-    prods_in_loc = item_locations_crud.get_products_in_location(loc_id, conn=db_conn)
-    assert prods_in_loc['success']
-    assert len(prods_in_loc['data']) == 2
+    items_in_loc = item_locations_crud.get_items_in_location(loc_id, conn=db_conn) # Use refactored method
+    assert items_in_loc['success']
+    assert len(items_in_loc['data']) == 2
 
-    found_prod_ids = [p['product_id'] for p in prods_in_loc['data']]
-    assert TEST_PRODUCT_ID in found_prod_ids
-    assert prod2_id in found_prod_ids
-    for item in prods_in_loc['data']:
-        if item['product_id'] == TEST_PRODUCT_ID: assert item['quantity'] == 7
-        if item['product_id'] == prod2_id: assert item['quantity'] == 13
+    found_item_ids = [i['item_id'] for i in items_in_loc['data']] # Check item_id
+    assert TEST_ITEM_ID in found_item_ids
+    assert item2_id in found_item_ids
+    for item_detail in items_in_loc['data']: # Renamed loop var
+        if item_detail['item_id'] == TEST_ITEM_ID:
+            assert item_detail['quantity'] == 7
+            assert item_detail['item_name'] == "Test Stock Item" # Verify join with InternalStockItems
+        if item_detail['item_id'] == item2_id:
+            assert item_detail['quantity'] == 13
+            assert item_detail['item_name'] == "Test Stock Item 2"
 
 
-def test_update_product_in_location(db_conn):
-    loc_id = item_locations_crud.add_item_location({"location_name": "UpdateProdLoc"}, conn=db_conn)['data']['location_id']
-    link_res = item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 20}, conn=db_conn)
-    psl_id = link_res['data']['product_storage_location_id']
+def test_update_item_in_location(db_conn): # Renamed
+    loc_id = item_locations_crud.add_item_location({"location_name": "UpdateItemLoc"}, conn=db_conn)['data']['location_id']
+    link_res = item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 20}, conn=db_conn)
+    isl_id = link_res['data']['item_storage_location_id']
 
     update_payload = {"quantity": 25, "notes": "Stock count updated"}
-    update_res = item_locations_crud.update_product_in_location(psl_id, update_payload, conn=db_conn)
+    update_res = item_locations_crud.update_item_in_location(isl_id, update_payload, conn=db_conn) # Use refactored method
     assert update_res['success']
 
-    updated_link = item_locations_crud.get_product_storage_location_by_id(psl_id, conn=db_conn)['data']
+    updated_link = item_locations_crud.get_item_storage_location_by_id(isl_id, conn=db_conn)['data'] # Use refactored method
     assert updated_link['quantity'] == 25
     assert updated_link['notes'] == "Stock count updated"
 
-def test_unlink_product_from_location(db_conn):
-    loc_id = item_locations_crud.add_item_location({"location_name": "UnlinkTestLoc"}, conn=db_conn)['data']['location_id']
-    link_res = item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 1}, conn=db_conn)
-    psl_id = link_res['data']['product_storage_location_id']
+def test_unlink_item_from_location(db_conn): # Renamed
+    loc_id = item_locations_crud.add_item_location({"location_name": "UnlinkTestItemLoc"}, conn=db_conn)['data']['location_id'] # Renamed for clarity
+    link_res = item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 1}, conn=db_conn)
+    isl_id = link_res['data']['item_storage_location_id']
 
-    unlink_res = item_locations_crud.unlink_product_from_location(psl_id, conn=db_conn)
+    unlink_res = item_locations_crud.unlink_item_from_location(isl_id, conn=db_conn) # Use refactored method
     assert unlink_res['success']
 
-    check_link = item_locations_crud.get_product_storage_location_by_id(psl_id, conn=db_conn)
-    assert not check_link['success'] # Should not be found
+    check_link = item_locations_crud.get_item_storage_location_by_id(isl_id, conn=db_conn) # Use refactored method
+    assert not check_link['success']
 
-def test_unlink_product_from_specific_location(db_conn):
-    loc_id = item_locations_crud.add_item_location({"location_name": "UnlinkSpecificLoc"}, conn=db_conn)['data']['location_id']
-    item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 1}, conn=db_conn)
+def test_unlink_item_from_specific_location(db_conn): # Renamed
+    loc_id = item_locations_crud.add_item_location({"location_name": "UnlinkSpecificItemLoc"}, conn=db_conn)['data']['location_id'] # Renamed
+    item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 1}, conn=db_conn)
 
-    unlink_res = item_locations_crud.unlink_product_from_specific_location(TEST_PRODUCT_ID, loc_id, conn=db_conn)
+    unlink_res = item_locations_crud.unlink_item_from_specific_location(TEST_ITEM_ID, loc_id, conn=db_conn) # Use refactored method
     assert unlink_res['success']
 
-    check_link = item_locations_crud.get_product_in_specific_location(TEST_PRODUCT_ID, loc_id, conn=db_conn)['data']
+    check_link = item_locations_crud.get_item_in_specific_location(TEST_ITEM_ID, loc_id, conn=db_conn)['data'] # Use refactored method
     assert check_link is None
 
 
-def test_get_product_in_specific_location(db_conn):
-    loc_id = item_locations_crud.add_item_location({"location_name": "GetProdSpecificLoc"}, conn=db_conn)['data']['location_id']
-    item_locations_crud.link_product_to_location({"product_id": TEST_PRODUCT_ID, "location_id": loc_id, "quantity": 77}, conn=db_conn)
+def test_get_item_in_specific_location(db_conn): # Renamed
+    loc_id = item_locations_crud.add_item_location({"location_name": "GetItemSpecificLoc"}, conn=db_conn)['data']['location_id'] # Renamed
+    item_locations_crud.link_item_to_location({"item_id": TEST_ITEM_ID, "location_id": loc_id, "quantity": 77}, conn=db_conn)
 
-    link_details = item_locations_crud.get_product_in_specific_location(TEST_PRODUCT_ID, loc_id, conn=db_conn)
+    link_details = item_locations_crud.get_item_in_specific_location(TEST_ITEM_ID, loc_id, conn=db_conn) # Use refactored method
     assert link_details['success']
     assert link_details['data'] is not None
     assert link_details['data']['quantity'] == 77
 
-    non_existent_link = item_locations_crud.get_product_in_specific_location(TEST_PRODUCT_ID, str(uuid.uuid4()), conn=db_conn) # Random location
+    non_existent_link = item_locations_crud.get_item_in_specific_location(TEST_ITEM_ID, str(uuid.uuid4()), conn=db_conn) # Random location
     assert non_existent_link['success']
     assert non_existent_link['data'] is None
 ```
