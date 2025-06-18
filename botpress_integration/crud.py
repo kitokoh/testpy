@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from . import models # Assuming models.py is in the same directory
+from . import models
+from .models import Conversation, Message, UserBotpressSettings, UserPrompt # Explicit imports for clarity
+from typing import Optional
+from datetime import datetime
 import logging
 
 # --- Botpress Settings CRUD ---
@@ -20,7 +23,8 @@ def create_or_update_botpress_settings(
     user_id: str,
     api_key: str,
     bot_id: str,
-    preferred_language: str = "en"
+    preferred_language: str = "en",
+    base_url: str | None = None
 ) -> models.UserBotpressSettings:
     """
     Creates new Botpress settings for a user or updates existing ones.
@@ -32,6 +36,7 @@ def create_or_update_botpress_settings(
             db_settings.api_key = api_key
             db_settings.bot_id = bot_id
             db_settings.preferred_language = preferred_language
+            db_settings.base_url = base_url
             # Update other fields as needed
         else:
             logging.info(f"Creating new Botpress settings for user_id: {user_id}")
@@ -39,7 +44,8 @@ def create_or_update_botpress_settings(
                 user_id=user_id,
                 api_key=api_key,
                 bot_id=bot_id,
-                preferred_language=preferred_language
+                preferred_language=preferred_language,
+                base_url=base_url
             )
             db.add(db_settings)
         db.commit()
@@ -231,7 +237,8 @@ if __name__ == "__main__":
                 db,
                 user_id=USER_ID_TEST,
                 api_key="crud_test_api_key_1",
-                bot_id="crud_test_bot_id_1"
+                bot_id="crud_test_bot_id_1",
+                base_url="http://localhost:3000/api/v1"
             )
             logging.info(f"Created/Updated settings: {settings}")
 
@@ -239,18 +246,21 @@ if __name__ == "__main__":
             logging.info(f"Retrieved settings: {retrieved_settings}")
             assert retrieved_settings is not None
             assert retrieved_settings.api_key == "crud_test_api_key_1"
+            assert retrieved_settings.base_url == "http://localhost:3000/api/v1"
 
-            logging.info("Updating settings...")
+            logging.info("Updating settings (clearing base_url)...")
             settings = create_or_update_botpress_settings(
                 db,
                 user_id=USER_ID_TEST,
                 api_key="crud_test_api_key_updated",
                 bot_id="crud_test_bot_id_updated",
-                preferred_language="fr"
+                preferred_language="fr",
+                base_url=None # Test clearing it
             )
             logging.info(f"Updated settings: {settings}")
             assert settings.api_key == "crud_test_api_key_updated"
             assert settings.preferred_language == "fr"
+            assert settings.base_url is None
 
             # --- Test User Prompts ---
             if retrieved_settings: # Should be true if above passed
@@ -319,6 +329,307 @@ if __name__ == "__main__":
                 logging.info(f"Cleaned up settings for user: {USER_ID_TEST}")
             except Exception as e:
                 logging.error(f"Failed to clean up settings for {USER_ID_TEST} post-test: {e}", exc_info=True)
+
+            if db:
+                db.close()
+                logging.info("CRUD __main__ test: Database session closed.")
+    else:
+        logging.info("Skipping CRUD __main__ tests as database session is not available.")
+
+# --- Conversation CRUD ---
+
+def get_conversation_by_botpress_id(db: Session, botpress_conversation_id: str) -> models.Conversation | None:
+    """Retrieves a conversation by its Botpress ID."""
+    try:
+        return db.query(models.Conversation).filter(models.Conversation.botpress_conversation_id == botpress_conversation_id).first()
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in get_conversation_by_botpress_id for bp_conv_id {botpress_conversation_id}: {e}", exc_info=True)
+        raise
+
+def create_conversation(db: Session, botpress_conversation_id: str, channel_type: Optional[str] = None, user_identifier_on_channel: Optional[str] = None, status: str = 'active') -> models.Conversation:
+    """Creates a new conversation."""
+    try:
+        logging.info(f"Creating new conversation with Botpress ID: {botpress_conversation_id}")
+        db_conversation = models.Conversation(
+            botpress_conversation_id=botpress_conversation_id,
+            channel_type=channel_type,
+            user_identifier_on_channel=user_identifier_on_channel,
+            status=status,
+            last_message_timestamp=datetime.utcnow() # Initialize with current time
+        )
+        db.add(db_conversation)
+        db.commit()
+        db.refresh(db_conversation)
+        return db_conversation
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in create_conversation for bp_conv_id {botpress_conversation_id}: {e}", exc_info=True)
+        db.rollback()
+        raise
+
+def get_or_create_conversation(db: Session, botpress_conversation_id: str, channel_type: Optional[str] = None, user_identifier_on_channel: Optional[str] = None) -> models.Conversation:
+    """Tries to get by botpress_conversation_id, if not found, creates one."""
+    try:
+        conversation = get_conversation_by_botpress_id(db, botpress_conversation_id)
+        if conversation:
+            # Optionally update channel_type or user_identifier if provided and different
+            # For now, just return the existing one.
+            # conversation.last_message_timestamp = datetime.utcnow() # Potentially update this here or in add_message
+            # db.commit()
+            # db.refresh(conversation)
+            return conversation
+        return create_conversation(db, botpress_conversation_id, channel_type, user_identifier_on_channel)
+    except SQLAlchemyError as e: # Should be caught by called functions, but as a safeguard
+        logging.error(f"DB error in get_or_create_conversation for bp_conv_id {botpress_conversation_id}: {e}", exc_info=True)
+        raise
+
+
+def update_conversation_status(db: Session, conversation_id: int, status: str) -> models.Conversation | None:
+    """Updates the status of a conversation."""
+    try:
+        db_conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
+        if db_conversation:
+            logging.info(f"Updating status to '{status}' for conversation ID {conversation_id}")
+            db_conversation.status = status
+            db.commit()
+            db.refresh(db_conversation)
+        return db_conversation
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in update_conversation_status for conv_id {conversation_id}: {e}", exc_info=True)
+        db.rollback()
+        raise
+
+def update_conversation_timestamp(db: Session, conversation_id: int, last_message_timestamp: datetime) -> models.Conversation | None:
+    """Updates the last_message_timestamp of a conversation."""
+    try:
+        db_conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
+        if db_conversation:
+            logging.info(f"Updating last_message_timestamp for conversation ID {conversation_id}")
+            db_conversation.last_message_timestamp = last_message_timestamp
+            db.commit()
+            db.refresh(db_conversation)
+        return db_conversation
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in update_conversation_timestamp for conv_id {conversation_id}: {e}", exc_info=True)
+        db.rollback()
+        raise
+
+def get_recent_conversations(db: Session, limit: int = 20) -> list[models.Conversation]:
+    """Fetches recent conversations, ordered by last_message_timestamp descending."""
+    try:
+        return db.query(models.Conversation).order_by(models.Conversation.last_message_timestamp.desc()).limit(limit).all()
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in get_recent_conversations: {e}", exc_info=True)
+        raise
+
+# --- Message CRUD ---
+
+def add_message(db: Session, conversation_id: int, sender_type: str, content: str, timestamp: datetime, botpress_message_id: Optional[str] = None, suggestions: Optional[str] = None) -> models.Message:
+    """Adds a message to a conversation. Also updates the parent conversation's last_message_timestamp."""
+    try:
+        logging.info(f"Adding message to conversation ID {conversation_id} from '{sender_type}'")
+        db_message = models.Message(
+            conversation_id=conversation_id,
+            botpress_message_id=botpress_message_id,
+            sender_type=sender_type,
+            content=content,
+            timestamp=timestamp,
+            suggestions=suggestions
+        )
+        db.add(db_message)
+
+        # Update conversation's last_message_timestamp
+        conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
+        if conversation:
+            conversation.last_message_timestamp = timestamp
+
+        db.commit()
+        db.refresh(db_message)
+        if conversation: # Refresh conversation if it was updated
+             db.refresh(conversation)
+        return db_message
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in add_message for conv_id {conversation_id}: {e}", exc_info=True)
+        db.rollback()
+        raise
+
+def get_messages_for_conversation(db: Session, conversation_id: int, limit: int = 50, offset: int = 0) -> list[models.Message]:
+    """Fetches messages for a conversation, ordered by timestamp ascending."""
+    try:
+        return db.query(models.Message).filter(models.Message.conversation_id == conversation_id).order_by(models.Message.timestamp.asc()).offset(offset).limit(limit).all()
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in get_messages_for_conversation for conv_id {conversation_id}: {e}", exc_info=True)
+        raise
+
+def get_message_by_botpress_id(db: Session, botpress_message_id: str) -> models.Message | None:
+    """Retrieves a message by its Botpress ID."""
+    try:
+        return db.query(models.Message).filter(models.Message.botpress_message_id == botpress_message_id).first()
+    except SQLAlchemyError as e:
+        logging.error(f"DB error in get_message_by_botpress_id for bp_msg_id {botpress_message_id}: {e}", exc_info=True)
+        raise
+
+if __name__ == "__main__":
+    # This is for example usage and basic testing.
+    # Configure basic logging for testing this module directly
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
+
+    # If running this file directly, you might need to adjust imports.
+    # For direct execution, ensure models.py ran `create_db_and_tables()`
+    # and that `botpress_integration.db` is in the expected location.
+    try:
+        # Ensure models are available for the test
+        from models import SessionLocal, UserBotpressSettings, UserPrompt, Conversation, Message, create_db_and_tables
+    except ImportError:
+        logging.warning("Could not import models directly for __main__ test in crud.py. Assuming DB is set up.")
+        SessionLocal = None
+        pass
+
+
+    if SessionLocal:
+        try:
+            create_db_and_tables()
+            logging.info("Database tables ensured/created for CRUD __main__ test.")
+        except Exception as e:
+            logging.error(f"Failed to create/ensure tables in CRUD __main__: {e}", exc_info=True)
+            SessionLocal = None # Do not proceed if table creation fails
+
+        db: Session = SessionLocal() if SessionLocal else None
+    else:
+        logging.error("SessionLocal is None. Cannot run CRUD __main__ tests.")
+        db = None
+
+    # --- Test Botpress Settings (only if db is available) ---
+    if db:
+        USER_ID_TEST = "crud_test_user_123"
+        BP_CONV_ID_TEST = "bp_conv_crud_test_001"
+        BP_MSG_ID_TEST_1 = "bp_msg_crud_test_001a"
+        BP_MSG_ID_TEST_2 = "bp_msg_crud_test_001b"
+
+        # Clean up previous test data
+        try:
+            logging.info(f"--- Initial Cleanup ---")
+            # Delete messages first due to FK constraints
+            existing_conv_for_cleanup = get_conversation_by_botpress_id(db, BP_CONV_ID_TEST)
+            if existing_conv_for_cleanup:
+                messages_to_delete = get_messages_for_conversation(db, existing_conv_for_cleanup.id)
+                for msg in messages_to_delete:
+                    db.delete(msg)
+                db.commit()
+                db.delete(existing_conv_for_cleanup)
+                db.commit()
+                logging.info(f"Cleaned up old conversation and messages for {BP_CONV_ID_TEST}")
+
+            delete_botpress_settings(db, USER_ID_TEST) # This also cleans its prompts
+            logging.info(f"Cleaned up old settings for {USER_ID_TEST}")
+
+        except Exception as e:
+            logging.warning(f"Could not clean up old data, might not exist: {e}", exc_info=True)
+            db.rollback() # Ensure session is clean if cleanup had issues
+
+        logging.info(f"--- Testing UserBotpressSettings CRUD ---")
+        try:
+            settings = create_or_update_botpress_settings(
+                db, user_id=USER_ID_TEST, api_key="key", bot_id="bot"
+            )
+            logging.info(f"Created settings: {settings}")
+            retrieved_settings = get_botpress_settings(db, USER_ID_TEST)
+            assert retrieved_settings is not None and retrieved_settings.user_id == USER_ID_TEST
+
+            logging.info(f"--- Testing Conversation and Message CRUD ---")
+            # Create conversation
+            logging.info(f"Creating conversation with BP ID: {BP_CONV_ID_TEST}")
+            conv = get_or_create_conversation(db, BP_CONV_ID_TEST, channel_type="test_channel", user_identifier_on_channel="test_user_on_channel")
+            assert conv is not None
+            assert conv.botpress_conversation_id == BP_CONV_ID_TEST
+            assert conv.channel_type == "test_channel"
+            logging.info(f"Created/Retrieved conversation: {conv}")
+
+            # Add messages
+            ts1 = datetime.utcnow()
+            msg1 = add_message(db, conv.id, "user", "Hello Bot!", ts1, BP_MSG_ID_TEST_1)
+            assert msg1 is not None and msg1.botpress_message_id == BP_MSG_ID_TEST_1
+            logging.info(f"Added message 1: {msg1}")
+
+            # Verify conversation timestamp was updated
+            conv_after_msg1 = get_conversation_by_botpress_id(db, BP_CONV_ID_TEST)
+            assert conv_after_msg1 is not None
+            # Timestamps might have microsecond differences from Python's datetime.utcnow() vs DB storage.
+            # Compare by ensuring it's very close or check date and hour/minute.
+            assert conv_after_msg1.last_message_timestamp is not None
+            assert abs((conv_after_msg1.last_message_timestamp - ts1).total_seconds()) < 1 # Check if within 1 second
+
+            ts2 = datetime.utcnow()
+            msg2 = add_message(db, conv.id, "bot", "Hello User!", ts2, BP_MSG_ID_TEST_2)
+            assert msg2 is not None and msg2.content == "Hello User!"
+            logging.info(f"Added message 2: {msg2}")
+
+            conv_after_msg2 = get_conversation_by_botpress_id(db, BP_CONV_ID_TEST)
+            assert conv_after_msg2 is not None
+            assert abs((conv_after_msg2.last_message_timestamp - ts2).total_seconds()) < 1
+
+
+            # Get messages for conversation
+            messages = get_messages_for_conversation(db, conv.id)
+            assert len(messages) == 2
+            assert messages[0].content == "Hello Bot!"
+            assert messages[1].content == "Hello User!"
+            logging.info(f"Retrieved {len(messages)} messages for conversation {conv.id}")
+
+            # Get message by Botpress ID
+            retrieved_msg1 = get_message_by_botpress_id(db, BP_MSG_ID_TEST_1)
+            assert retrieved_msg1 is not None and retrieved_msg1.id == msg1.id
+            logging.info(f"Retrieved message by BP ID '{BP_MSG_ID_TEST_1}': {retrieved_msg1}")
+
+            # Update conversation status
+            updated_conv = update_conversation_status(db, conv.id, "archived")
+            assert updated_conv is not None and updated_conv.status == "archived"
+            logging.info(f"Updated conversation status to '{updated_conv.status}'")
+
+            # Update conversation timestamp explicitly
+            new_timestamp = datetime.utcnow()
+            updated_conv_ts = update_conversation_timestamp(db, conv.id, new_timestamp)
+            assert updated_conv_ts is not None
+            assert abs((updated_conv_ts.last_message_timestamp - new_timestamp).total_seconds()) < 1
+            logging.info(f"Updated conversation timestamp to: {updated_conv_ts.last_message_timestamp}")
+
+            # Get recent conversations
+            recent_convs = get_recent_conversations(db, limit=5)
+            assert len(recent_convs) > 0
+            assert recent_convs[0].id == conv.id # Assuming this is the most recent
+            logging.info(f"Retrieved {len(recent_convs)} recent conversations. Most recent: {recent_convs[0]}")
+
+            logging.info("\n--- Conversation and Message CRUD tests completed successfully. ---")
+
+        except SQLAlchemyError as e:
+            logging.error(f"A SQLAlchemyError occurred during __main__ tests in crud.py: {e}", exc_info=True)
+            db.rollback()
+        except AssertionError as e:
+            logging.error(f"An assertion failed during __main__ tests in crud.py: {e}", exc_info=True)
+            db.rollback()
+        except Exception as e:
+            logging.error(f"An unexpected error occurred during __main__ tests in crud.py: {e}", exc_info=True)
+            db.rollback()
+        finally:
+            # Final cleanup
+            try:
+                logging.info(f"--- Final Cleanup of Test Data ---")
+                if 'conv' in locals() and conv and conv.id is not None : # Check if conv was defined and has an id
+                    messages_to_delete = get_messages_for_conversation(db, conv.id, limit=1000) # high limit
+                    for msg in messages_to_delete:
+                        db.delete(msg)
+                    db.commit()
+                    # Re-fetch conversation to delete, as session might have been rolled back
+                    conv_to_delete = db.query(models.Conversation).filter(models.Conversation.id == conv.id).first()
+                    if conv_to_delete:
+                        db.delete(conv_to_delete)
+                        db.commit()
+                        logging.info(f"Cleaned up conversation and messages for BP ID {BP_CONV_ID_TEST}")
+
+                delete_botpress_settings(db, USER_ID_TEST)
+                logging.info(f"Cleaned up settings for user: {USER_ID_TEST}")
+            except Exception as e:
+                logging.error(f"Failed to clean up all data post-test: {e}", exc_info=True)
+                db.rollback()
 
             if db:
                 db.close()
