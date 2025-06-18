@@ -6,7 +6,6 @@ import sys # Import sys
 from datetime import datetime
 import logging # Keep logging import
 import shutil
-from app_config import CONFIG
 
 # --- Configuration Import ---
 # Get the application root directory (parent of 'db' directory)
@@ -372,6 +371,7 @@ def save_general_document_file(source_file_path: str, document_type_subfolder: s
     Returns:
         str | None: The full path to the saved file on success, or None on error.
     """
+    from app_config import CONFIG
     try:
         templates_dir = CONFIG.get("templates_dir", "templates")
         target_dir = os.path.join(templates_dir, document_type_subfolder, language_code)
@@ -400,6 +400,7 @@ def delete_general_document_file(document_type_subfolder: str, language_code: st
     Returns:
         bool: True if deletion was successful or if the file didn't exist, False on OSError during deletion.
     """
+    from app_config import CONFIG
     try:
         templates_dir = CONFIG.get("templates_dir", "templates")
         file_path_to_delete = os.path.join(templates_dir, document_type_subfolder, language_code, base_file_name)
