@@ -5,11 +5,37 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QIcon
-from db import get_all_clients, get_active_clients_count, get_total_projects_count, get_active_projects_count, get_total_products_count, get_client_counts_by_country, get_client_segmentation_by_city, get_client_segmentation_by_status, get_client_segmentation_by_category # Assuming db_manager is accessible
+# Assuming db_manager is accessible (original imports retained for existing functionality)
+from db import get_all_clients, get_active_clients_count, get_total_projects_count, get_active_projects_count, get_total_products_count, get_client_counts_by_country, get_client_segmentation_by_city, get_client_segmentation_by_status, get_client_segmentation_by_category
+import logging # Added for logging
+
+# Imports for proforma sales
+from db.connection import get_db_connection
+from db.cruds.proforma_invoices_crud import list_proforma_invoices
+
+# Imports for client acquisition stats
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from db.cruds.clients_crud import clients_crud_instance
+
+# Import for product popularity
+from db.cruds.client_project_products_crud import get_product_usage_counts
+
+# Imports for trends and new sales logic
+from PyQt5.QtWidgets import QHBoxLayout # Ensure QHBoxLayout is imported
+from db import get_db_connection # Assuming this is the correct SQLAlchemy session provider
+from db.cruds.proforma_invoices_crud import get_total_sales_amount_for_period
+
 
 class CollapsibleStatisticsWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Basic logging setup if not configured by main app, specific to this widget's context
+        if logging.getLogger().getEffectiveLevel() == logging.DEBUG:
+            logging.debug("CollapsibleStatisticsWidget initialized.")
+        else:
+            logging.basicConfig(level=logging.INFO)
+            logging.info("CollapsibleStatisticsWidget initialized, basic logging configured.")
         self.setObjectName("collapsibleStatisticsWidget")
 
         main_layout = QVBoxLayout(self)
@@ -62,15 +88,52 @@ class CollapsibleStatisticsWidget(QWidget):
         global_stats_group = QGroupBox(self.tr("Statistiques Globales"))
         global_stats_layout = QFormLayout(global_stats_group)
         self.stats_labels = {
-            "total_clients": QLabel("0"), "active_clients": QLabel("0"),
-            "total_projects": QLabel("0"), "active_projects": QLabel("0"),
-            "total_products": QLabel("0")
+            "total_clients": QLabel("0"),
+            "active_clients": QLabel("0"),
+            "total_projects": QLabel("0"),
+            "active_projects": QLabel("0"),
+            "total_products": QLabel("0"),
+            "total_sales_proforma": QLabel("0"),
+            "new_clients_last_month": QLabel("0"),
+            "new_clients_last_quarter": QLabel("0"),
+            "total_clients_trend": QLabel(""),
+            "active_clients_trend": QLabel(""),
+            "total_sales_proforma_trend": QLabel("")
         }
-        global_stats_layout.addRow(self.tr("Nombre total de clients:"), self.stats_labels["total_clients"])
-        global_stats_layout.addRow(self.tr("Nombre de clients actifs:"), self.stats_labels["active_clients"])
+
+        # Total Clients with Trend
+        total_clients_main_layout = QHBoxLayout()
+        total_clients_main_layout.addWidget(self.stats_labels["total_clients"])
+        total_clients_main_layout.addSpacing(10)
+        self.stats_labels["total_clients_trend"].setObjectName("trendLabel")
+        total_clients_main_layout.addWidget(self.stats_labels["total_clients_trend"])
+        total_clients_main_layout.addStretch()
+        global_stats_layout.addRow(self.tr("Nombre total de clients:"), total_clients_main_layout)
+
+        # Active Clients with Trend
+        active_clients_main_layout = QHBoxLayout()
+        active_clients_main_layout.addWidget(self.stats_labels["active_clients"])
+        active_clients_main_layout.addSpacing(10)
+        self.stats_labels["active_clients_trend"].setObjectName("trendLabel")
+        active_clients_main_layout.addWidget(self.stats_labels["active_clients_trend"])
+        active_clients_main_layout.addStretch()
+        global_stats_layout.addRow(self.tr("Nombre de clients actifs:"), active_clients_main_layout)
+
         global_stats_layout.addRow(self.tr("Nombre total de projets:"), self.stats_labels["total_projects"])
         global_stats_layout.addRow(self.tr("Nombre de projets actifs:"), self.stats_labels["active_projects"])
         global_stats_layout.addRow(self.tr("Nombre total de produits (BDD):"), self.stats_labels["total_products"])
+
+        # Total Sales (Proforma) with Trend
+        total_sales_proforma_main_layout = QHBoxLayout()
+        total_sales_proforma_main_layout.addWidget(self.stats_labels["total_sales_proforma"])
+        total_sales_proforma_main_layout.addSpacing(10)
+        self.stats_labels["total_sales_proforma_trend"].setObjectName("trendLabel")
+        total_sales_proforma_main_layout.addWidget(self.stats_labels["total_sales_proforma_trend"])
+        total_sales_proforma_main_layout.addStretch()
+        global_stats_layout.addRow(self.tr("Total Ventes (Proforma):"), total_sales_proforma_main_layout)
+
+        global_stats_layout.addRow(self.tr("Nouveaux Clients (Mois Dernier):"), self.stats_labels["new_clients_last_month"])
+        global_stats_layout.addRow(self.tr("Nouveaux Clients (Trimestre Dernier):"), self.stats_labels["new_clients_last_quarter"])
         layout_to_populate.addWidget(global_stats_group)
 
         # Business Health Score GroupBox
@@ -128,24 +191,189 @@ class CollapsibleStatisticsWidget(QWidget):
 
     def update_global_stats(self):
         try:
-            total_clients = get_all_clients()
-            self.stats_labels["total_clients"].setText(str(len(total_clients) if total_clients else 0))
+            # Total Clients
+            # Using direct function calls as per this file's existing pattern for these counts
+            _total_clients_list = get_all_clients()
+            current_total_clients = len(_total_clients_list) if _total_clients_list else 0
+            self.stats_labels["total_clients"].setText(str(current_total_clients))
+            self.update_total_clients_trend(current_total_clients)
 
-            active_clients = get_active_clients_count()
-            self.stats_labels["active_clients"].setText(str(active_clients))
+            # Active Clients
+            current_active_clients = get_active_clients_count()
+            self.stats_labels["active_clients"].setText(str(current_active_clients))
+            self.update_active_clients_trend(current_active_clients)
 
             total_projects = get_total_projects_count()
             self.stats_labels["total_projects"].setText(str(total_projects))
-
             active_projects = get_active_projects_count()
             self.stats_labels["active_projects"].setText(str(active_projects))
-
-            total_products = get_total_products_count() # Assuming this function exists
+            total_products = get_total_products_count()
             self.stats_labels["total_products"].setText(str(total_products))
+
+            # Total Sales (Proforma) - Current Month
+            sales_current_month = self.get_total_sales_from_proforma_current_month()
+            self.stats_labels["total_sales_proforma"].setText("€ {:,.2f}".format(sales_current_month))
+            self.update_total_sales_proforma_trend(sales_current_month)
+
         except Exception as e:
-            print(f"Error updating global stats: {e}")
-            for label in self.stats_labels.values():
-                label.setText(self.tr("Erreur"))
+            logging.error(f"Error updating global stats in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            for key in self.stats_labels:
+                self.stats_labels[key].setText(self.tr("Erreur"))
+            # Clear trend labels specifically
+            self.stats_labels["total_clients_trend"].setText("")
+            self.stats_labels["active_clients_trend"].setText("")
+            self.stats_labels["total_sales_proforma_trend"].setText("")
+
+        self.update_client_acquisition_stats()
+
+
+    def get_total_sales_from_proforma_current_month(self) -> float:
+        """Fetches total sales from proforma invoices for the current calendar month."""
+        db_session = None
+        try:
+            today = datetime.utcnow().date()
+            start_of_current_month = today.replace(day=1)
+            end_of_current_month = (today.replace(day=1) + relativedelta(months=1)) - relativedelta(days=1)
+            start_iso = start_of_current_month.strftime('%Y-%m-%dT00:00:00.000000Z')
+            end_iso = end_of_current_month.strftime('%Y-%m-%dT23:59:59.999999Z')
+
+            db_session = get_db_connection() # Using the imported session provider
+            current_month_sales = get_total_sales_amount_for_period(db_session, start_iso, end_iso)
+            return current_month_sales
+        except Exception as e:
+            logging.error(f"Error calculating total sales for current month in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            return 0.0
+        finally:
+            if db_session:
+                try:
+                    db_session.close()
+                except Exception as e:
+                    logging.error(f"Error closing db_session in get_total_sales_from_proforma_current_month (CollapsibleStatisticsWidget): {e}", exc_info=True)
+
+    def update_total_clients_trend(self, current_total_clients: int):
+        try:
+            today = datetime.utcnow().date()
+            end_of_last_month_date = today.replace(day=1) - relativedelta(days=1)
+            end_of_last_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
+            previous_total_clients = clients_crud_instance.get_total_clients_count_up_to_date(end_of_last_month_iso)
+            trend_text, style = self._calculate_trend_text_and_style(current_total_clients, previous_total_clients)
+            self.stats_labels["total_clients_trend"].setText(trend_text)
+            self.stats_labels["total_clients_trend"].setStyleSheet(style)
+        except Exception as e:
+            logging.error(f"Error updating total clients trend in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            self.stats_labels["total_clients_trend"].setText("")
+            self.stats_labels["total_clients_trend"].setStyleSheet("")
+
+    def update_active_clients_trend(self, current_active_clients: int):
+        try:
+            today = datetime.utcnow().date()
+            end_of_last_month_date = today.replace(day=1) - relativedelta(days=1)
+            end_of_last_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
+            previous_active_clients = clients_crud_instance.get_active_clients_count_up_to_date(end_of_last_month_iso)
+            trend_text, style = self._calculate_trend_text_and_style(current_active_clients, previous_active_clients)
+            self.stats_labels["active_clients_trend"].setText(trend_text)
+            self.stats_labels["active_clients_trend"].setStyleSheet(style)
+        except Exception as e:
+            logging.error(f"Error updating active clients trend in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            self.stats_labels["active_clients_trend"].setText("")
+            self.stats_labels["active_clients_trend"].setStyleSheet("")
+
+    def update_total_sales_proforma_trend(self, current_month_sales: float):
+        db_session = None
+        try:
+            today = datetime.utcnow().date()
+            end_of_last_month_date = today.replace(day=1) - relativedelta(days=1)
+            start_of_last_month_date = end_of_last_month_date.replace(day=1)
+            start_prev_month_iso = start_of_last_month_date.strftime('%Y-%m-%dT00:00:00.000000Z')
+            end_prev_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
+
+            db_session = get_db_connection()
+            previous_month_total_sales = get_total_sales_amount_for_period(db_session, start_prev_month_iso, end_prev_month_iso)
+            trend_text, style = self._calculate_trend_text_and_style(current_month_sales, previous_month_total_sales, is_currency=True)
+            self.stats_labels["total_sales_proforma_trend"].setText(trend_text)
+            self.stats_labels["total_sales_proforma_trend"].setStyleSheet(style)
+        except Exception as e:
+            logging.error(f"Error updating total sales proforma trend in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            self.stats_labels["total_sales_proforma_trend"].setText("")
+            self.stats_labels["total_sales_proforma_trend"].setStyleSheet("")
+        finally:
+            if db_session:
+                try:
+                    db_session.close()
+                except Exception as e:
+                    logging.error(f"Error closing db_session in update_total_sales_proforma_trend (CollapsibleStatisticsWidget): {e}", exc_info=True)
+
+    def _calculate_trend_text_and_style(self, current_value, previous_value, is_currency=False):
+        trend_text = ""
+        style = "color: gray;" # Default style
+        if previous_value > 0:
+            percentage_change = ((current_value - previous_value) / previous_value) * 100
+            arrow = "→"
+            if percentage_change > 0.5:
+                arrow = "↗"
+                style = "color: green;"
+            elif percentage_change < -0.5:
+                arrow = "↘"
+                style = "color: red;"
+            trend_text = f"{arrow} {percentage_change:.1f}%"
+        elif current_value > 0:
+            trend_text = "↗ New"
+            style = "color: green;"
+        else:
+            trend_text = f"→ {current_value:.1f}%" if is_currency else "→ 0.0%"
+            if is_currency and current_value == 0 : trend_text = "→ €0.00"
+            elif current_value == 0 : trend_text = "→ 0"
+        return trend_text, style
+
+    def update_client_acquisition_stats(self):
+        """Updates labels for new clients acquired in the last month and last quarter."""
+        try:
+            today = datetime.utcnow().date()
+
+            # Last Month Calculation
+            end_of_last_month_date = today.replace(day=1) - relativedelta(days=1)
+            start_of_last_month_date = end_of_last_month_date.replace(day=1)
+
+            start_of_last_month_iso = start_of_last_month_date.strftime('%Y-%m-%dT00:00:00.000000Z')
+            end_of_last_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
+
+            count_last_month = clients_crud_instance.get_clients_count_created_between(
+                start_date_iso=start_of_last_month_iso,
+                end_date_iso=end_of_last_month_iso
+            )
+            self.stats_labels["new_clients_last_month"].setText(str(count_last_month))
+
+            # Last Quarter Calculation
+            current_quarter = (today.month - 1) // 3 + 1
+
+            if current_quarter == 1:
+                start_of_last_quarter_date = datetime(today.year - 1, 10, 1).date()
+                end_of_last_quarter_date = datetime(today.year - 1, 12, 31).date()
+            else:
+                start_month_of_last_quarter = 3 * (current_quarter - 2) + 1
+                end_month_of_last_quarter = 3 * (current_quarter - 1)
+
+                start_of_last_quarter_date = datetime(today.year, start_month_of_last_quarter, 1).date()
+
+                if end_month_of_last_quarter < 12:
+                    last_day_of_end_month = (datetime(today.year, end_month_of_last_quarter + 1, 1).date() - relativedelta(days=1)).day
+                else:
+                    last_day_of_end_month = 31
+                end_of_last_quarter_date = datetime(today.year, end_month_of_last_quarter, last_day_of_end_month).date()
+
+            start_of_last_quarter_iso = start_of_last_quarter_date.strftime('%Y-%m-%dT00:00:00.000000Z')
+            end_of_last_quarter_iso = end_of_last_quarter_date.strftime('%Y-%m-%dT23:59:59.999999Z')
+
+            count_last_quarter = clients_crud_instance.get_clients_count_created_between(
+                start_date_iso=start_of_last_quarter_iso,
+                end_date_iso=end_of_last_quarter_iso
+            )
+            self.stats_labels["new_clients_last_quarter"].setText(str(count_last_quarter))
+
+        except Exception as e:
+            logging.error(f"Error updating client acquisition stats in CollapsibleStatisticsWidget: {e}", exc_info=True)
+            self.stats_labels["new_clients_last_month"].setText(self.tr("Erreur"))
+            self.stats_labels["new_clients_last_quarter"].setText(self.tr("Erreur"))
 
     def update_business_health_score(self):
         # Basic example: score based on ratio of active clients to total clients
@@ -162,7 +390,7 @@ class CollapsibleStatisticsWidget(QWidget):
             self.health_score_value_label.setText(f"{health_score:.0f} %")
             self.health_score_progress_bar.setValue(int(health_score))
         except Exception as e:
-            print(f"Error updating business health score: {e}")
+            logging.error(f"Error updating business health score in CollapsibleStatisticsWidget: {e}", exc_info=True)
             self.health_score_value_label.setText(self.tr("Erreur"))
             self.health_score_progress_bar.setValue(0)
 
@@ -173,6 +401,7 @@ class CollapsibleStatisticsWidget(QWidget):
             ("city", self.tr("Par Ville"), ["Pays", "Ville", "Nombre de Clients"]),
             ("status", self.tr("Par Statut"), ["Statut", "Nombre de Clients"]),
             ("category", self.tr("Par Catégorie"), ["Catégorie", "Nombre de Clients"]),
+            ("product_popularity", self.tr("Par Popularité Produit"), [self.tr("Nom Produit"), self.tr("Nombre d'Utilisations")]) # Added
         ]
 
         for key, title, headers in tab_configs:
@@ -201,9 +430,11 @@ class CollapsibleStatisticsWidget(QWidget):
                 table.insertRow(row_idx)
                 for col_idx, col_key in enumerate(column_keys):
                     item_value = row_data.get(col_key, "")
-                    table.setItem(row_idx, col_idx, QTableWidget(str(item_value))) # This should be QTableWidgetItem
+                    # Corrected: QTableWidget should be QTableWidgetItem
+                    from PyQt5.QtWidgets import QTableWidgetItem
+                    table.setItem(row_idx, col_idx, QTableWidgetItem(str(item_value)))
         except Exception as e:
-            print(f"Error populating table {table_key}: {e}")
+            logging.error(f"Error populating table {table_key} in CollapsibleStatisticsWidget: {e}", exc_info=True)
             # Optionally show error in table or a message box
         finally:
             table.setSortingEnabled(True)
@@ -213,6 +444,7 @@ class CollapsibleStatisticsWidget(QWidget):
         self._populate_table("city", get_client_segmentation_by_city, ["country_name", "city_name", "client_count"])
         self._populate_table("status", get_client_segmentation_by_status, ["status_name", "client_count"])
         self._populate_table("category", get_client_segmentation_by_category, ["category", "client_count"])
+        self._populate_table("product_popularity", get_product_usage_counts, ["product_name", "usage_count"]) # Added
 
 if __name__ == '__main__':
     import sys

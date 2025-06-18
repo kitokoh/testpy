@@ -256,11 +256,13 @@ class ProductBase(BaseModel):
     weight: Optional[float] = Field(None, description="Weight of the product.")
     dimensions: Optional[str] = Field(None, description="Dimensions of the product (e.g., LxWxH cm).")
     is_active: Optional[bool] = Field(True, description="Whether the product is currently active.")
+    product_code: str = Field(..., description="Unique code for the product.")
 
 class ProductCreate(ProductBase):
     pass
 
 class ProductUpdate(BaseModel):
+    product_code: Optional[str] = None
     product_name: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = None
@@ -274,6 +276,7 @@ class ProductUpdate(BaseModel):
 class ProductResponse(ProductBase):
     product_id: int = Field(..., description="Unique identifier for the product.") # This was int, but Product SQLAlchemy model uses String ID.
     media_links: List[ProductImageLinkResponse] = Field([], description="List of associated media items (images).")
+    # product_code will be inherited from ProductBase and is required.
 
     class Config:
         from_attributes = True

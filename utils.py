@@ -2,6 +2,7 @@
 import os
 import json
 import sys
+import logging # Added logging
 from datetime import datetime
 
 from PyQt5.QtCore import QStandardPaths, QCoreApplication, QUrl
@@ -56,7 +57,9 @@ def load_config(app_root_dir, default_templates_dir, default_clients_dir):
         "smtp_port": 587,
         "smtp_user": "",
         "smtp_password": "",
-        "default_reminder_days": 30
+        "default_reminder_days": 30,
+        "download_monitor_enabled": False,
+        "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads')
     }
 
 def save_config(config_data):
@@ -85,6 +88,11 @@ def populate_docx_template(docx_path, client_data):
     Populates a .docx template with client data using placeholders.
     Placeholders should be in the format {{PLACEHOLDER_NAME}}.
     """
+    if not os.path.exists(docx_path):
+        logging.error(f"DOCX template file not found: {docx_path}")
+        QMessageBox.critical(None, "Template Error", f"DOCX template file not found: {docx_path}")
+        return # Implicitly returns None
+
     try:
         document = Document(docx_path)
         placeholders = {
@@ -121,10 +129,13 @@ def populate_docx_template(docx_path, client_data):
                                 if para.text != new_text:
                                     para.text = new_text
         document.save(docx_path)
-        print(f"DOCX template populated: {docx_path}")
+        logging.info(f"DOCX template populated: {docx_path}") # Changed to logging.info
     except Exception as e:
-        print(f"Error populating DOCX template {docx_path}: {e}")
-        raise
+        logging.error(f"Error populating DOCX template {docx_path}: {e}", exc_info=True) # Added exc_info
+        QMessageBox.critical(None, "Population Error", f"Error populating DOCX template {docx_path}: {e}")
+        # Optionally, re-raise if the caller needs to handle it, or just return to signify failure.
+        # For now, matching the new pattern of informing user and returning.
+        return # Implicitly returns None
 
 # --- PDF Generation Logic ---
 def generate_pdf_for_document(source_file_path: str, client_info: dict, app_root_dir:str, parent_widget=None, target_language_code: str = "fr") -> str | None:
@@ -133,6 +144,11 @@ def generate_pdf_for_document(source_file_path: str, client_info: dict, app_root
     Uses app_root_dir for resolving paths to resources like default logos if needed.
     Includes logic to check for product language match for proforma invoices.
     """
+    if not os.path.exists(source_file_path):
+        logging.error(f"Source HTML file not found for PDF generation: {source_file_path}")
+        QMessageBox.critical(parent_widget, "File Error", f"Source HTML file not found for PDF generation: {source_file_path}")
+        return None
+
     if not client_info or 'client_id' not in client_info:
         QMessageBox.warning(parent_widget, QCoreApplication.translate("utils.generate_pdf", "Erreur Client"),
                             QCoreApplication.translate("utils.generate_pdf", "ID Client manquant. Impossible de générer le PDF."))

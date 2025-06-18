@@ -26,6 +26,16 @@ class PartnerMainWidget(QWidget):
         filter_controls_layout.addWidget(QLabel("Filter by Category:")) # Label for clarity
         filter_controls_layout.addWidget(self.category_filter_combo)
 
+        # Status Filter
+        self.status_filter_combo = QComboBox()
+        filter_controls_layout.addWidget(QLabel("Filter by Status:"))
+        filter_controls_layout.addWidget(self.status_filter_combo)
+
+        # Partner Type Filter
+        self.partner_type_filter_combo = QComboBox()
+        filter_controls_layout.addWidget(QLabel("Filter by Type:"))
+        filter_controls_layout.addWidget(self.partner_type_filter_combo)
+
         self.add_partner_button = QPushButton("Add Partner")
         filter_controls_layout.addWidget(self.add_partner_button)
 
@@ -47,14 +57,20 @@ class PartnerMainWidget(QWidget):
 
         # Table for displaying partners
         self.partners_table = QTableWidget()
-        self.partners_table.setColumnCount(5)
-        self.partners_table.setHorizontalHeaderLabels(["Name", "Email", "Phone", "Location", "Categories"])
+        self.partners_table.setColumnCount(7) # Increased for Status and Partner Type
+        self.partners_table.setHorizontalHeaderLabels(["Name", "Email", "Phone", "Location", "Categories", "Status", "Partner Type"])
         self.partners_table.setEditTriggers(QTableWidget.NoEditTriggers) # Non-editable directly
         self.partners_table.setSelectionBehavior(QTableWidget.SelectRows) # Select whole rows
         self.partners_table.setSelectionMode(QAbstractItemView.SingleSelection) # Select one row at a time
         self.partners_table.verticalHeader().setVisible(False) # Hide vertical header
-        self.partners_table.horizontalHeader().setStretchLastSection(True)
-        self.partners_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        # self.partners_table.horizontalHeader().setStretchLastSection(True) # No longer last section stretches
+        self.partners_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # Name
+        self.partners_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents) # Email
+        self.partners_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Phone
+        self.partners_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents) # Location
+        self.partners_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch) # Categories
+        self.partners_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Status
+        self.partners_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents) # Partner Type
         self.partners_table.setSortingEnabled(True)
         layout.addWidget(self.partners_table)
 
@@ -67,10 +83,35 @@ class PartnerMainWidget(QWidget):
         self.send_whatsapp_button.clicked.connect(self.handle_send_whatsapp)
         self.search_input.textChanged.connect(self.filter_partners_list) # Connect search
         self.category_filter_combo.currentIndexChanged.connect(self.filter_partners_list) # Connect category filter
+        self.status_filter_combo.currentIndexChanged.connect(self.filter_partners_list)
+        self.partner_type_filter_combo.currentIndexChanged.connect(self.filter_partners_list)
 
+        self.load_status_filter()
+        self.load_partner_type_filter()
         self.load_category_filter() # Load categories into filter
         self.load_partners() # Initial load of all partners
         self.update_action_button_states() # Initial state for action buttons
+
+    def load_status_filter(self):
+        self.status_filter_combo.blockSignals(True)
+        self.status_filter_combo.clear()
+        self.status_filter_combo.addItem("All Statuses", None) # UserData is None for "All"
+        self.status_filter_combo.addItems(["Active", "Inactive", "Prospect", "Onboarding", "Terminated"])
+        # For actual filtering by text, currentText() will be used if currentData() is not None.
+        # If we wanted to pass the text as currentData for actual items:
+        # for item in ["Active", "Inactive", "Prospect", "Onboarding", "Terminated"]:
+        #    self.status_filter_combo.addItem(item, item) # Store text as data
+        self.status_filter_combo.blockSignals(False)
+
+    def load_partner_type_filter(self):
+        self.partner_type_filter_combo.blockSignals(True)
+        self.partner_type_filter_combo.clear()
+        self.partner_type_filter_combo.addItem("All Types", None) # UserData is None for "All"
+        self.partner_type_filter_combo.addItems(["Supplier", "Reseller", "Service Provider", "Referral", "Other"])
+        # Similar to status filter, if text is needed as data:
+        # for item in ["Supplier", "Reseller", "Service Provider", "Referral", "Other"]:
+        #    self.partner_type_filter_combo.addItem(item, item)
+        self.partner_type_filter_combo.blockSignals(False)
 
     def load_category_filter(self):
         current_category_id = self.category_filter_combo.currentData()
@@ -81,7 +122,9 @@ class PartnerMainWidget(QWidget):
             categories = get_all_partner_categories()
             if categories:
                 for category in categories:
-                    self.category_filter_combo.addItem(category['category_name'], category['category_id'])
+                    # Assuming category_id is the correct key from get_all_partner_categories
+                    self.category_filter_combo.addItem(category['category_name'], category['partner_category_id'])
+
 
             # Restore selection
             if current_category_id is not None:
@@ -141,46 +184,82 @@ class PartnerMainWidget(QWidget):
     def filter_partners_list(self):
         search_text = self.search_input.text().lower().strip()
         selected_category_id = self.category_filter_combo.currentData()
-        self.load_partners(search_term=search_text, category_id_filter=selected_category_id)
+        selected_status = self.status_filter_combo.currentData() if self.status_filter_combo.currentIndex() > 0 else None
+        selected_type = self.partner_type_filter_combo.currentData() if self.partner_type_filter_combo.currentIndex() > 0 else None
+        # Pass text directly for status and type if "All" is not selected, otherwise None
+        status_filter_value = self.status_filter_combo.currentText() if self.status_filter_combo.currentData() is not None else None
+        type_filter_value = self.partner_type_filter_combo.currentText() if self.partner_type_filter_combo.currentData() is not None else None
 
-    def load_partners(self, search_term=None, category_id_filter=None):
+        self.load_partners(search_term=search_text, category_id_filter=selected_category_id,
+                           status_filter=status_filter_value, type_filter=type_filter_value)
+
+    def load_partners(self, search_term=None, category_id_filter=None, status_filter=None, type_filter=None):
         self.partners_table.setRowCount(0)
         try:
-            all_partners = get_all_partners()
+            all_partners = get_all_partners() # This fetches all partners, including new fields
             if all_partners is None: all_partners = []
-            partners_to_display = []
-            if category_id_filter is not None:
-                partner_ids_in_category_list = get_partners_in_category(category_id_filter)
-                if partner_ids_in_category_list is not None:
-                    ids_in_category = {p['partner_id'] for p in partner_ids_in_category_list}
-                    partners_to_display = [p for p in all_partners if p['partner_id'] in ids_in_category]
-                else: partners_to_display = []
-            else:
-                partners_to_display = list(all_partners)
 
+            partners_to_display = list(all_partners) # Start with all partners
+
+            # Filter by Category (DB query if possible, or client-side)
+            # Current implementation: if category_id_filter is applied, it re-queries.
+            # For simplicity with new filters, let's assume all_partners is the base and we filter client-side from here.
+            # If performance becomes an issue, get_all_partners in CRUD would need to accept more filters.
+            if category_id_filter is not None:
+                # This part assumes get_partners_in_category returns full partner details,
+                # or we need to filter all_partners based on IDs from get_partners_in_category.
+                # For now, let's simplify and assume client-side filtering on all_partners for all dropdowns.
+                # This means get_all_partners() is the primary source, and then we filter it.
+                # So, we'll adjust the logic slightly:
+                ids_in_category = {p['partner_id'] for p in get_partners_in_category(category_id_filter) or []}
+                partners_to_display = [p for p in partners_to_display if p['partner_id'] in ids_in_category]
+
+
+            # Client-side filtering for search term
             if search_term:
                 filtered_by_search = []
                 for partner in partners_to_display:
-                    if (search_term in partner.get('name', '').lower() or
+                    # Ensure 'partner_name' is used as 'name' might not be the primary key in the partner dict
+                    if (search_term in partner.get('partner_name', '').lower() or
                         search_term in (partner.get('email', '') or '').lower() or
-                        search_term in (partner.get('location', '') or '').lower() or
+                        # search_term in (partner.get('location', '') or '').lower() or # 'location' is not a direct field
+                        search_term in (partner.get('address', '') or '').lower() or # Use 'address'
                         search_term in (partner.get('notes', '') or '').lower()):
                         filtered_by_search.append(partner)
                 partners_to_display = filtered_by_search
+
+            # Client-side filtering for Status
+            if status_filter:
+                partners_to_display = [p for p in partners_to_display if p.get('status') == status_filter]
+
+            # Client-side filtering for Partner Type
+            if type_filter:
+                partners_to_display = [p for p in partners_to_display if p.get('partner_type') == type_filter]
+
 
             self.partners_table.setSortingEnabled(False)
             for partner in partners_to_display:
                 row_position = self.partners_table.rowCount()
                 self.partners_table.insertRow(row_position)
-                name_item = QTableWidgetItem(partner.get('name'))
+
+                # Use 'partner_name' from DB, fallback to 'name' if necessary
+                name_item = QTableWidgetItem(partner.get('partner_name', partner.get('name', '')))
                 name_item.setData(Qt.UserRole, partner.get('partner_id'))
                 self.partners_table.setItem(row_position, 0, name_item)
-                self.partners_table.setItem(row_position, 1, QTableWidgetItem(partner.get('email')))
-                self.partners_table.setItem(row_position, 2, QTableWidgetItem(partner.get('phone')))
-                self.partners_table.setItem(row_position, 3, QTableWidgetItem(partner.get('location')))
+                self.partners_table.setItem(row_position, 1, QTableWidgetItem(partner.get('email', '')))
+                self.partners_table.setItem(row_position, 2, QTableWidgetItem(partner.get('phone', '')))
+                self.partners_table.setItem(row_position, 3, QTableWidgetItem(partner.get('address', ''))) # Use 'address'
+
+                # Categories
                 categories_list = get_categories_for_partner(partner.get('partner_id'))
-                categories_str = ", ".join([cat.get('name') for cat in categories_list]) if categories_list else ""
+                # Ensure 'category_name' is used as 'name' might be ambiguous
+                categories_str = ", ".join([cat.get('category_name', '') for cat in categories_list]) if categories_list else ""
                 self.partners_table.setItem(row_position, 4, QTableWidgetItem(categories_str))
+
+                # New columns
+                self.partners_table.setItem(row_position, 5, QTableWidgetItem(partner.get('status', '')))
+                self.partners_table.setItem(row_position, 6, QTableWidgetItem(partner.get('partner_type', '')))
+
             self.partners_table.setSortingEnabled(True)
         except Exception as e:
             QMessageBox.critical(self, "Load Error", f"Could not load partners: {e}")
