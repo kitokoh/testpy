@@ -10,7 +10,7 @@ from db import get_all_clients, get_active_clients_count, get_total_projects_cou
 import logging # Added for logging
 
 # Imports for proforma sales
-from db.connection import get_db_session
+from db.connection import get_db_connection
 from db.cruds.proforma_invoices_crud import list_proforma_invoices
 
 # Imports for client acquisition stats
@@ -237,7 +237,7 @@ class CollapsibleStatisticsWidget(QWidget):
             start_iso = start_of_current_month.strftime('%Y-%m-%dT00:00:00.000000Z')
             end_iso = end_of_current_month.strftime('%Y-%m-%dT23:59:59.999999Z')
 
-            db_session = get_db_session() # Using the imported session provider
+            db_session = get_db_connection() # Using the imported session provider
             current_month_sales = get_total_sales_amount_for_period(db_session, start_iso, end_iso)
             return current_month_sales
         except Exception as e:
@@ -287,7 +287,7 @@ class CollapsibleStatisticsWidget(QWidget):
             start_prev_month_iso = start_of_last_month_date.strftime('%Y-%m-%dT00:00:00.000000Z')
             end_prev_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
 
-            db_session = get_db_session()
+            db_session = get_db_connection()
             previous_month_total_sales = get_total_sales_amount_for_period(db_session, start_prev_month_iso, end_prev_month_iso)
             trend_text, style = self._calculate_trend_text_and_style(current_month_sales, previous_month_total_sales, is_currency=True)
             self.stats_labels["total_sales_proforma_trend"].setText(trend_text)
