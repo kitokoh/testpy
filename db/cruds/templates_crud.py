@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import json # For some template fields that might be JSON strings
 import logging
+from typing import List, Optional, Union # Added Union
 import sys # Add sys for path manipulation
 
 # Get the project root directory
@@ -347,7 +348,7 @@ def get_all_templates(
     template_type_filter: str = None,
     language_code_filter: str = None,
     client_id_filter: str = None,
-    category_id_filter: int = None,
+    category_id_filter: Optional[Union[int, List[int]]] = None, # Modified type hint
     template_type_filter_list: list[str] = None,  # New parameter for list of types
     conn: sqlite3.Connection = None
 ) -> list[dict]:
@@ -367,9 +368,17 @@ def get_all_templates(
     if language_code_filter:
         clauses.append("language_code = ?")
         params.append(language_code_filter)
-    if category_id_filter is not None: # New condition
-        clauses.append("category_id = ?")
-        params.append(category_id_filter)
+
+    if category_id_filter is not None:
+        if isinstance(category_id_filter, list):
+            if category_id_filter: # Ensure list is not empty
+                placeholders = ','.join('?' for _ in category_id_filter)
+                clauses.append(f"category_id IN ({placeholders})")
+                params.extend(category_id_filter)
+            # If list is empty, it effectively means no filter on category_id, or you might want to handle it differently
+        else: # Single integer
+            clauses.append("category_id = ?")
+            params.append(category_id_filter)
 
     if client_id_filter is not None: # Explicitly check for None, as empty string could be a valid (though unlikely) client_id
         clauses.append("(client_id = ? OR client_id IS NULL)")

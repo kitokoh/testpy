@@ -13,6 +13,7 @@ from PyQt5.QtGui import QIcon, QColor # QColor was used for item background (opt
 from PyQt5.QtCore import Qt # Qt is used for e.g. Qt.UserRole
 
 import db as db_manager
+from db.cruds.template_categories_crud import get_template_category_by_name # Import for category fetching
 from html_editor import HtmlEditor
 from utils import populate_docx_template
 # clients_crud_instance is not used by CreateDocumentDialog
@@ -180,14 +181,28 @@ class CreateDocumentDialog(QDialog):
         try:
             # Fetch client-specific and global templates based on filters
             # get_all_templates is now client-aware and handles other filters
-            # Assuming '1' is the category_id for "document" templates.
-            # This ID should be confirmed or fetched dynamically if possible in a real scenario.
-            DOCUMENT_CATEGORY_ID = 1
+
+            category_ids_to_filter = []
+            general_cat = get_template_category_by_name('General')
+            if general_cat and 'category_id' in general_cat:
+                category_ids_to_filter.append(general_cat['category_id'])
+
+            doc_util_cat = get_template_category_by_name('Document Utilitaires')
+            if doc_util_cat and 'category_id' in doc_util_cat:
+                category_ids_to_filter.append(doc_util_cat['category_id'])
+
+            if not category_ids_to_filter:
+                # If no specific categories found, this will result in no category-specific filtering by these names.
+                # Depending on requirements, could log a warning or fetch all templates (by passing None or empty list,
+                # assuming get_all_templates handles empty list as "no filter on this criteria").
+                # Current get_all_templates logic should handle empty list correctly (no IN clause added).
+                logging.warning("Neither 'General' nor 'Document Utilitaires' categories found, or they lack IDs. Proceeding without these specific category filters.")
+
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=DOCUMENT_CATEGORY_ID
+                category_id_filter=category_ids_to_filter # Pass the list of category IDs
             )
             if templates_from_db is None: templates_from_db = []
 
