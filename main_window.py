@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
-from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot
+from PyQt5.QtCore import Qt, QUrl, QTimer, pyqtSlot, QByteArray # Added QByteArray
 # QWebEngineView might still be used by ClientWidget or other parts, so keep for now unless confirmed unused.
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 # from PyQt5.QtWebChannel import QWebChannel # QWebChannel removed as DocumentManager no longer uses its own map.
@@ -196,7 +196,7 @@ class DocumentManager(QMainWindow):
         self.main_area_stack = QStackedWidget(); main_layout.addWidget(self.main_area_stack)
         
         self.documents_page_widget = QWidget()
-        main_splitter = QSplitter(Qt.Horizontal, self.documents_page_widget) # This splitter is for client list and client details view
+        self.main_splitter = QSplitter(Qt.Horizontal, self.documents_page_widget) # Store as self.main_splitter
 
         left_pane_widget = QWidget()
         left_pane_layout = QVBoxLayout(left_pane_widget)
@@ -283,20 +283,46 @@ class DocumentManager(QMainWindow):
         main_splitter.addWidget(left_pane_widget)
 
         # Right pane for client tabs (no change here, it's a QSplitter itself)
-        right_pane_splitter = QSplitter(Qt.Vertical) # This was already a QSplitter, good.
+        right_pane_splitter = QSplitter(Qt.Vertical)
         self.client_tabs_widget = QTabWidget(); self.client_tabs_widget.setTabsClosable(True); self.client_tabs_widget.tabCloseRequested.connect(self.close_client_tab)
-        right_pane_splitter.addWidget(self.client_tabs_widget) # Add client tabs to the right_pane_splitter
-        main_splitter.addWidget(right_pane_splitter) # Add the right_pane_splitter to the main_splitter
+        right_pane_splitter.addWidget(self.client_tabs_widget)
+        self.main_splitter.addWidget(right_pane_splitter)
 
-        main_splitter.setSizes([int(self.width()*0.20), int(self.width()*0.80)]) # Adjust as needed
+        # Load or set default splitter sizes
+        saved_splitter_state_hex = db_manager.get_setting('client_list_splitter_state', default_value=None)
+        if saved_splitter_state_hex:
+            try:
+                splitter_state_byte_array = QByteArray.fromHex(saved_splitter_state_hex.encode('utf-8'))
+                if not self.main_splitter.restoreState(splitter_state_byte_array):
+                    logging.warning("Failed to restore splitter state, applying defaults.")
+                    self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+                else:
+                    logging.info("Client list splitter state restored.")
+            except Exception as e:
+                logging.error(f"Error restoring splitter state: {e}. Applying defaults.", exc_info=True)
+                self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+        else:
+            self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+            logging.info("Client list splitter: No saved state found, applied default sizes.")
 
+        self.main_splitter.splitterMoved.connect(self.save_splitter_state)
 
         docs_page_layout = QVBoxLayout(self.documents_page_widget)
-        docs_page_layout.addWidget(main_splitter)
+        docs_page_layout.addWidget(self.main_splitter) # Use self.main_splitter
         docs_page_layout.setContentsMargins(0,0,0,0)
         self.documents_page_widget.setLayout(docs_page_layout)
 
         self.main_area_stack.addWidget(self.documents_page_widget)
+
+    def save_splitter_state(self, pos, index):
+        """Saves the current state of the main_splitter."""
+        try:
+            splitter_state_byte_array = self.main_splitter.saveState()
+            splitter_state_hex = splitter_state_byte_array.toHex().data().decode('utf-8')
+            db_manager.set_setting('client_list_splitter_state', splitter_state_hex)
+            logging.info(f"Client list splitter state saved (pos: {pos}, index: {index}).")
+        except Exception as e:
+            logging.error(f"Error saving splitter state: {e}", exc_info=True)
 
     def open_add_new_client_dialog(self):
         dialog = AddNewClientDialog(self)

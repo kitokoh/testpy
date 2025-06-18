@@ -380,46 +380,52 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Ouvert (FR)', 'template_type': 'email_sav_ticket_opened', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_opened_fr.html', 'description': 'Email envoyé quand un ticket SAV est ouvert.',
-            'category_name': 'Modèles Email SAV', # This will be used by add_template_category within add_default_template_if_not_exists
+            'category_name': 'Modèles Email SAV',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
+        }, cursor=cursor)
         add_default_template_if_not_exists({
             'template_name': 'SAV Ticket Résolu (FR)', 'template_type': 'email_sav_ticket_resolved', 'language_code': 'fr',
             'base_file_name': 'sav_ticket_resolved_fr.html', 'description': 'Email envoyé quand un ticket SAV est résolu.',
             'category_name': 'Modèles Email SAV',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
+        }, cursor=cursor)
         add_default_template_if_not_exists({
             'template_name': 'Suivi Prospect Proforma (FR)', 'template_type': 'email_follow_up_prospect', 'language_code': 'fr',
             'base_file_name': 'follow_up_prospect_fr.html', 'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
             'category_name': 'Modèles Email Marketing/Suivi',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
+        }, cursor=cursor)
         add_default_template_if_not_exists({
             'template_name': 'Vœux Noël (FR)', 'template_type': 'email_greeting_christmas', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_christmas_fr.html', 'description': 'Email de vœux pour Noël.',
             'category_name': 'Modèles Email Vœux',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
+        }, cursor=cursor)
         add_default_template_if_not_exists({
             'template_name': 'Vœux Nouvelle Année (FR)', 'template_type': 'email_greeting_newyear', 'language_code': 'fr',
             'base_file_name': 'greeting_holiday_newyear_fr.html', 'description': 'Email de vœux pour la nouvelle année.',
             'category_name': 'Modèles Email Vœux',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
+        }, cursor=cursor)
         add_default_template_if_not_exists({
             'template_name': 'Message Générique (FR)', 'template_type': 'email_generic_message', 'language_code': 'fr',
             'base_file_name': 'generic_message_fr.html', 'description': 'Modèle générique pour communication spontanée.',
             'category_name': 'Modèles Email Généraux',
+            'category_purpose': 'email', # Added purpose
             'email_subject_template': 'Un message de {{seller.company_name}}',
             'is_default_for_type_lang': True
-        }, cursor=cursor) # Pass cursor
-        logger.info("Seeded new email templates.")
+        }, cursor=cursor)
+        logger.info("Seeded new email templates with category_purpose.")
 
         # 14. CoverPageTemplates: This is now handled by initialize_database from init_schema.py
         logger.info("Cover page templates are expected to be populated by initialize_database from init_schema.py.")
@@ -460,9 +466,11 @@ def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connec
     category_obj = get_template_category_by_name(DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME, conn=conn)
     if not category_obj:
         logger.info(f"Utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' not found, creating it.")
-        # add_template_category expects a dict with category_name and optional description
+        # add_template_category now takes name, description, purpose
         utility_category_id = add_template_category(
-            {'category_name': DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME, 'description': DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC},
+            category_name=DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME,
+            description=DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC,
+            purpose='utility', # Added purpose
             conn=conn
         )
         if not utility_category_id:
