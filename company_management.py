@@ -289,7 +289,7 @@ class CompanyDialog(QDialog):
         self.logo_preview_label.setAlignment(Qt.AlignCenter)
         self.logo_preview_label.setObjectName("logoPreviewLabel")
         self.upload_logo_button = QPushButton(self.tr("Upload Logo"))
-        self.upload_logo_button.setIcon(QIcon.fromTheme("document-open", QIcon(os.path.join(ICON_PATH, "eye.svg"))))
+        self.upload_logo_button.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg")))
         self.upload_logo_button.clicked.connect(self.handle_upload_logo)
 
         layout.addRow(self.tr("Company Name:"), self.company_name_edit)
@@ -671,10 +671,10 @@ class CompanyTabWidget(QWidget):
         # ... (rest of CompanyTabWidget UI setup as before) ...
         left_panel_layout = QVBoxLayout()
         self.company_list_widget = QListWidget(); self.company_list_widget.itemClicked.connect(self.on_company_selected)
-        self.add_company_button = QPushButton(self.tr("Add Company")); self.add_company_button.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_company_button.clicked.connect(self.handle_add_company)
-        self.edit_company_button = QPushButton(self.tr("Edit Company")); self.edit_company_button.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_company_button.clicked.connect(self.handle_edit_company); self.edit_company_button.setEnabled(False)
-        self.delete_company_button = QPushButton(self.tr("Delete Company")); self.delete_company_button.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_company_button.setObjectName("dangerButton"); self.delete_company_button.clicked.connect(self.handle_delete_company); self.delete_company_button.setEnabled(False)
-        self.set_default_button = QPushButton(self.tr("Set as Default")); self.set_default_button.setIcon(QIcon.fromTheme("object-select", QIcon(os.path.join(ICON_PATH,"check.svg")))); self.set_default_button.clicked.connect(self.handle_set_default); self.set_default_button.setEnabled(False)
+        self.add_company_button = QPushButton(self.tr("Add Company")); self.add_company_button.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_company_button.clicked.connect(self.handle_add_company)
+        self.edit_company_button = QPushButton(self.tr("Edit Company")); self.edit_company_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_company_button.clicked.connect(self.handle_edit_company); self.edit_company_button.setEnabled(False)
+        self.delete_company_button = QPushButton(self.tr("Delete Company")); self.delete_company_button.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); self.delete_company_button.setObjectName("dangerButton"); self.delete_company_button.clicked.connect(self.handle_delete_company); self.delete_company_button.setEnabled(False)
+        self.set_default_button = QPushButton(self.tr("Set as Default")); self.set_default_button.setIcon(QIcon.fromTheme("object-select", QIcon(":/icons/check.svg"))); self.set_default_button.clicked.connect(self.handle_set_default); self.set_default_button.setEnabled(False)
         left_panel_layout.addWidget(QLabel(self.tr("Companies:"))); left_panel_layout.addWidget(self.company_list_widget)
         company_button_grid = QGridLayout(); company_button_grid.addWidget(self.add_company_button, 0, 0); company_button_grid.addWidget(self.edit_company_button, 0, 1); company_button_grid.addWidget(self.delete_company_button, 1, 0); company_button_grid.addWidget(self.set_default_button, 1, 1)
         left_panel_layout.addLayout(company_button_grid)
@@ -692,7 +692,7 @@ class CompanyTabWidget(QWidget):
         self.sellers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.sellers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
         sellers_layout.addWidget(self.sellers_table)
-        seller_btn_layout = QHBoxLayout(); self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller')); self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller')); self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_seller_btn.setObjectName("dangerButton"); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
+        seller_btn_layout = QHBoxLayout(); self.add_seller_btn = QPushButton(self.tr("Add Seller")); self.add_seller_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_seller_btn.clicked.connect(lambda: self.handle_add_personnel('seller')); self.edit_seller_btn = QPushButton(self.tr("Edit Seller")); self.edit_seller_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_seller_btn.clicked.connect(lambda: self.handle_edit_personnel('seller')); self.delete_seller_btn = QPushButton(self.tr("Delete Seller")); self.delete_seller_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); self.delete_seller_btn.setObjectName("dangerButton"); self.delete_seller_btn.clicked.connect(lambda: self.handle_delete_personnel('seller'))
         seller_btn_layout.addWidget(self.add_seller_btn); seller_btn_layout.addWidget(self.edit_seller_btn); seller_btn_layout.addWidget(self.delete_seller_btn); sellers_layout.addLayout(seller_btn_layout); self.details_tabs.addTab(sellers_tab, self.tr("Sellers"))
 
         # Technical Managers Tab
@@ -707,7 +707,7 @@ class CompanyTabWidget(QWidget):
         self.tech_managers_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tech_managers_table.setSelectionBehavior(QAbstractItemView.SelectRows) # Select whole rows
         tech_managers_layout.addWidget(self.tech_managers_table)
-        tech_btn_layout = QHBoxLayout(); self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.setIcon(QIcon.fromTheme("list-add", QIcon(os.path.join(ICON_PATH,"plus.svg")))); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager')); self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(os.path.join(ICON_PATH,"pencil.svg")))); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager')); self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(os.path.join(ICON_PATH,"trash.svg")))); self.delete_tech_btn.setObjectName("dangerButton"); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
+        tech_btn_layout = QHBoxLayout(); self.add_tech_btn = QPushButton(self.tr("Add Manager")); self.add_tech_btn.setIcon(QIcon.fromTheme("list-add", QIcon(":/icons/plus.svg"))); self.add_tech_btn.clicked.connect(lambda: self.handle_add_personnel('technical_manager')); self.edit_tech_btn = QPushButton(self.tr("Edit Manager")); self.edit_tech_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); self.edit_tech_btn.clicked.connect(lambda: self.handle_edit_personnel('technical_manager')); self.delete_tech_btn = QPushButton(self.tr("Delete Manager")); self.delete_tech_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); self.delete_tech_btn.setObjectName("dangerButton"); self.delete_tech_btn.clicked.connect(lambda: self.handle_delete_personnel('technical_manager'))
         tech_btn_layout.addWidget(self.add_tech_btn); tech_btn_layout.addWidget(self.edit_tech_btn); tech_btn_layout.addWidget(self.delete_tech_btn); tech_managers_layout.addLayout(tech_btn_layout); self.details_tabs.addTab(tech_managers_tab, self.tr("Technical Managers"))
 
         main_layout.addLayout(left_panel_layout, 1); main_layout.addWidget(self.details_tabs, 2)
