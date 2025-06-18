@@ -360,6 +360,17 @@ class InventoryBrowserWidget(QWidget):
         #     # Clear UI or show default state
         pass
 
+    def open_assign_product_dialog(self):
+        # TODO: Implement logic to open a dialog for assigning products to locations.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.open_assign_product_dialog() called.")
+        # Example:
+        # dialog = AssignProductDialog(self) # Assuming such a dialog exists
+        # if dialog.exec_() == QDialog.Accepted:
+        #     # Handle assignment
+        #     pass
+        pass
+
 
     def update_assign_button_state(self):
         """
