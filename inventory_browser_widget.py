@@ -345,6 +345,21 @@ class InventoryBrowserWidget(QWidget):
         # - Populate self.product_details_table or another widget
         pass
 
+    def on_product_selection_changed(self):
+        # TODO: Implement logic to handle product selection changes.
+        # This might involve updating displayed product details,
+        # enabling/disabling buttons, etc.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.on_product_selection_changed() called.")
+        # Example:
+        # selected_items = self.product_search_results_list.selectedItems()
+        # if selected_items:
+        #     product_data = selected_items[0].data(Qt.UserRole) # Assuming data is stored
+        #     # Update UI with product_data
+        # else:
+        #     # Clear UI or show default state
+        pass
+
 
     def update_assign_button_state(self):
         """
