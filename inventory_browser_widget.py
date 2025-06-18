@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QListWidget, QListWidgetItem, QSpinBox,
     QGraphicsView, QGraphicsScene, QGraphicsRectItem, QGraphicsTextItem
 )
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QColor, QPen, QBrush
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QColor, QPen, QBrush, QPainter
 from PyQt5.QtCore import Qt, QModelIndex, QRectF
 
 # CRUD imports
@@ -267,7 +267,7 @@ class InventoryBrowserWidget(QWidget):
         self.graphics_view = QGraphicsView()
         self.graphics_scene = QGraphicsScene(self) # Scene to draw on
         self.graphics_view.setScene(self.graphics_scene)
-        self.graphics_view.setRenderHint(QColor.Antialiasing, True) # Smoother rendering
+        self.graphics_view.setRenderHint(QPainter.Antialiasing, True) # Smoother rendering
         visual_display_layout.addWidget(self.graphics_view)
         right_panel_splitter.addWidget(visual_display_group)
 
