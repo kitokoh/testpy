@@ -348,8 +348,8 @@ class CreateDocumentDialog(QDialog):
             selected_order_identifier = None
             if self.order_select_combo and self.order_select_combo.isVisible():
                 selected_order_identifier_data = self.order_select_combo.currentData()
-                    if selected_order_identifier_data != "NONE":
-                        selected_order_identifier = selected_order_identifier_data
+                if selected_order_identifier_data != "NONE":
+                    selected_order_identifier = selected_order_identifier_data
 
                 client_base_folder = self.client_info.get("base_folder_path")
                 if not client_base_folder:

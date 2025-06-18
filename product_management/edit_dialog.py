@@ -794,8 +794,8 @@ class ProductEditDialog(QDialog):
     def _remove_product_equivalence(self):
         """Removes the selected product equivalence link."""
         if self.product_id is None: return # Should be disabled (UI should prevent this)
-                return
-
+                # return
+        else:
             try:
                 # Check if the target product exists
                 target_prod = products_crud.get_product_by_id(equivalent_product_id)
