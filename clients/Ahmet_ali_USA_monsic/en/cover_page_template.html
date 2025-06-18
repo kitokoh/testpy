@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{doc.document_title}} - {{ lang.cover_page_title_suffix }}</title>
+    <style>
+        body { font-family: 'Roboto', Arial, sans-serif; margin: 0; padding: 20mm; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: calc(100vh - 40mm); background-color: #eef2f7; color: #333; text-align: center; }
+        .cover-container { width: 100%; max-width: 820px; background-color: #fff; padding: 50px 60px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); border-top: 8px solid #3498db; border-radius: 8px; }
+        .logo { max-width: 180px; max-height: 75px; margin-bottom: 35px; object-fit: contain; }
+        h1 { font-size: 2.6em; color: #3498db; margin-bottom: 15px; font-weight: 500; text-transform: uppercase; }
+        h2 { font-size: 1.6em; color: #718096; margin-bottom: 30px; font-weight: 300; }
+        .meta-info { margin-top: 35px; margin-bottom: 35px; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 20px 0; }
+        .meta-info p { font-size: 1em; margin: 10px 0; line-height: 1.6; }
+        .meta-info strong { color: #3498db; font-weight: 500; }
+        .details-section { display: flex; justify-content: space-between; margin-top: 35px; text-align: left; }
+        .details-column { width: 48%; }
+        .details-column h4 { font-size: 1.1em; color: #2d3748; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 500; }
+        .details-column p { font-size: 0.95em; line-height: 1.5; margin-bottom: 6px; }
+        .footer { margin-top: 45px; font-size: 0.85em; color: #a0aec0; }
+        .footer p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="cover-container">
+        <img src="{{ seller_company_logo_path }}" alt="{{ lang.cover_logo_alt_text }}" class="logo" />
+        <h1>{{ doc.document_title }}</h1>
+        {{#if doc.document_subtitle}}
+        <h2>{{ doc.document_subtitle }}</h2>
+        {{/if}}
+        <div class="meta-info">
+            <p><strong>{{ lang.cover_client_label }}:</strong> {{ client_name }} {{#if client_company_name}}({{client_company_name}}){{/if}}</p>
+            <p><strong>{{ lang.cover_project_id_label }}:</strong> {{ project_id }}</p>
+            <p><strong>{{ lang.cover_date_label }}:</strong> {{ date }}</p>
+            {{#if doc.document_version}}
+            <p><strong>{{ lang.cover_version_label }}:</strong> {{ doc.document_version }}</p>
+            {{/if}}
+        </div>
+        <div class="details-section">
+            <div class="details-column">
+                <h4>{{ lang.cover_prepared_for_title }}</h4>
+                <p>{{ client_name }}</p>
+                <p>{{ client_full_address }}</p>
+            </div>
+            <div class="details-column">
+                <h4>{{ lang.cover_prepared_by_title }}</h4>
+                <p><strong>{{ seller_company_name }}</strong></p>
+                <p>{{ seller_full_address }}</p>
+                <p>{{ lang.cover_contact_label }}: {{ seller_company_email }} | {{ seller_company_phone }}</p>
+            </div>
+        </div>
+        <div class="footer">
+            <p>{{ lang.cover_footer_confidential }}</p>
+            <p>&copy; {{ current_year }} {{ seller_company_name }}</p>
+        </div>
+    </div>
+</body>
+</html>

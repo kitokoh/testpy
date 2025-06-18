@@ -31,7 +31,7 @@ from .cruds.client_documents_crud import (
     delete_client_document_note,
     get_client_document_note_by_id,
 )
-from .utils import get_document_context_data
+from .utils import get_document_context_data, save_general_document_file, delete_general_document_file
 # For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
 # Files using proforma_invoices_crud will import it directly.
 from .cruds.application_settings_crud import get_setting, set_setting
@@ -120,7 +120,9 @@ from .cruds.templates_crud import ( # Modified
     get_distinct_template_languages,
     get_distinct_template_types,
     get_filtered_templates,
-    get_distinct_languages_for_template_type
+    get_distinct_languages_for_template_type,
+    add_utility_document_template,
+    get_utility_documents,
 )
 from .cruds.cover_page_templates_crud import get_cover_page_template_by_id
 from .cruds.milestones_crud import (
@@ -228,6 +230,8 @@ __all__ = [
     "delete_client_document_note",
     "get_client_document_note_by_id",
     "get_document_context_data",
+    "save_general_document_file",
+    "delete_general_document_file",
     "get_all_products", # Added
     "get_all_products_for_selection_filtered", # Added
 
@@ -300,6 +304,8 @@ __all__ = [
     "get_distinct_template_types", # Added from templates_crud.py
     "get_distinct_languages_for_template_type", # Added this line
     "get_filtered_templates", # Added from templates_crud.py
+    "add_utility_document_template", # Added from templates_crud.py
+    "get_utility_documents", # Added from templates_crud.py
     "get_cover_page_template_by_id", # Now from cover_page_templates_crud
     "get_milestones_for_project",
     "add_milestone",

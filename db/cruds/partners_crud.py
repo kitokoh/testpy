@@ -144,16 +144,28 @@ def add_partner(partner_data: dict, conn: sqlite3.Connection = None) -> str | No
 
     sql = """
         INSERT INTO Partners (partner_id, partner_name, partner_category_id, contact_person_name, email,
-                              phone, address, website_url, services_offered, collaboration_start_date,
-                              status, notes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              phone, address, services_offered, notes,
+                              status, website_url, collaboration_start_date, collaboration_end_date, partner_type,
+                              created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     params = (
-        new_partner_id, partner_data['partner_name'], partner_data.get('partner_category_id'),
-        partner_data.get('contact_person_name'), partner_data.get('email'), partner_data.get('phone'),
-        partner_data.get('address'), partner_data.get('website_url'), partner_data.get('services_offered'),
-        partner_data.get('collaboration_start_date'), partner_data.get('status', 'Active'),
-        partner_data.get('notes'), now, now
+        new_partner_id,
+        partner_data['partner_name'],
+        partner_data.get('partner_category_id'),
+        partner_data.get('contact_person_name'),
+        partner_data.get('email'),
+        partner_data.get('phone'),
+        partner_data.get('address'),
+        partner_data.get('services_offered'),
+        partner_data.get('notes'),
+        partner_data.get('status', 'Active'), # Default to 'Active'
+        partner_data.get('website_url'), # Default to None implicitly by .get()
+        partner_data.get('collaboration_start_date'), # Default to None
+        partner_data.get('collaboration_end_date'), # Default to None
+        partner_data.get('partner_type'), # Default to None
+        now,
+        now
     )
     try:
         cursor.execute(sql, params)
@@ -216,8 +228,9 @@ def update_partner(partner_id: str, partner_data: dict, conn: sqlite3.Connection
     now = datetime.utcnow().isoformat()
 
     valid_columns = ['partner_name', 'partner_category_id', 'contact_person_name', 'email', 'phone',
-                     'address', 'website_url', 'services_offered', 'collaboration_start_date',
-                     'status', 'notes']
+                     'address', 'services_offered',
+                     'notes', 'status', 'website_url', 'collaboration_start_date',
+                     'collaboration_end_date', 'partner_type']
 
     fields_to_update = {k: v for k, v in partner_data.items() if k in valid_columns}
     if not fields_to_update:
@@ -625,4 +638,118 @@ __all__ = [
     "get_partner_document_by_id",
     "update_partner_document",
     "delete_partner_document",
+]
+
+# --- PartnerInteractions CRUD ---
+@_manage_conn
+def add_partner_interaction(interaction_data: dict, conn: sqlite3.Connection = None) -> str | None:
+    """Adds a new partner interaction."""
+    cursor = conn.cursor()
+    new_interaction_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    required_fields = ['partner_id', 'interaction_date', 'interaction_type']
+    for field in required_fields:
+        if not interaction_data.get(field):
+            logger.error(f"Field '{field}' is required to add a partner interaction.")
+            return None
+
+    sql = """
+        INSERT INTO PartnerInteractions (interaction_id, partner_id, interaction_date, interaction_type, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        new_interaction_id,
+        interaction_data['partner_id'],
+        interaction_data['interaction_date'], # Expected YYYY-MM-DD string
+        interaction_data['interaction_type'],
+        interaction_data.get('notes'),
+        now,
+        now
+    )
+    try:
+        cursor.execute(sql, params)
+        logger.info(f"Partner interaction added with ID: {new_interaction_id} for partner {interaction_data['partner_id']}")
+        return new_interaction_id
+    except sqlite3.IntegrityError as e: # e.g. foreign key constraint if partner_id does not exist
+        logger.warning(f"Failed to add interaction for partner {interaction_data.get('partner_id')}, possibly due to invalid partner_id. Error: {e}")
+        return None
+    except sqlite3.Error as e:
+        logger.error(f"Database error in add_partner_interaction: {e}")
+        return None
+
+@_manage_conn
+def get_interactions_for_partner(partner_id: str, conn: sqlite3.Connection = None) -> list[dict]:
+    """Retrieves all interactions for a specific partner."""
+    cursor = conn.cursor()
+    sql = """
+        SELECT * FROM PartnerInteractions
+        WHERE partner_id = ?
+        ORDER BY interaction_date DESC, created_at DESC
+    """
+    try:
+        cursor.execute(sql, (partner_id,))
+        interactions = [dict(row) for row in cursor.fetchall()]
+        return interactions
+    except sqlite3.Error as e:
+        logger.error(f"Database error retrieving interactions for partner {partner_id}: {e}")
+        return []
+
+@_manage_conn
+def update_partner_interaction(interaction_id: str, interaction_data: dict, conn: sqlite3.Connection = None) -> bool:
+    """Updates an existing partner interaction."""
+    if not interaction_data:
+        logger.info(f"No data provided for updating interaction {interaction_id}.")
+        return False
+
+    cursor = conn.cursor()
+    now = datetime.utcnow().isoformat()
+
+    valid_columns = ['interaction_date', 'interaction_type', 'notes']
+    fields_to_update = {k: v for k, v in interaction_data.items() if k in valid_columns}
+
+    if not fields_to_update:
+        logger.info(f"No valid fields to update for interaction {interaction_id}.")
+        return False # Or True, if just touching updated_at is acceptable
+
+    fields_to_update['updated_at'] = now
+
+    set_clauses = [f"{col} = ?" for col in fields_to_update.keys()]
+    params = list(fields_to_update.values())
+    params.append(interaction_id)
+
+    sql = f"UPDATE PartnerInteractions SET {', '.join(set_clauses)} WHERE interaction_id = ?"
+    try:
+        cursor.execute(sql, tuple(params))
+        if cursor.rowcount > 0:
+            logger.info(f"Partner interaction {interaction_id} updated successfully.")
+            return True
+        else:
+            logger.warning(f"No partner interaction found with ID {interaction_id} to update.")
+            return False
+    except sqlite3.Error as e:
+        logger.error(f"Database error updating partner interaction {interaction_id}: {e}")
+        return False
+
+@_manage_conn
+def delete_partner_interaction(interaction_id: str, conn: sqlite3.Connection = None) -> bool:
+    """Deletes a partner interaction."""
+    cursor = conn.cursor()
+    sql = "DELETE FROM PartnerInteractions WHERE interaction_id = ?"
+    try:
+        cursor.execute(sql, (interaction_id,))
+        if cursor.rowcount > 0:
+            logger.info(f"Partner interaction {interaction_id} deleted successfully.")
+            return True
+        else:
+            logger.warning(f"No partner interaction found with ID {interaction_id} to delete.")
+            return False
+    except sqlite3.Error as e:
+        logger.error(f"Database error deleting partner interaction {interaction_id}: {e}")
+        return False
+    # PartnerInteractions
+    "add_partner_interaction",
+    "get_interactions_for_partner",
+    "update_partner_interaction",
+    "delete_partner_interaction",
 ]

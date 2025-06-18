@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import json # For some template fields that might be JSON strings
 import logging
+from typing import List, Optional, Union # Added Union
 import sys # Add sys for path manipulation
 
 # Get the project root directory
@@ -20,7 +21,7 @@ except ImportError:
     config = config_fallback_templates
 
 from .generic_crud import _manage_conn, get_db_connection # db_config removed from this import
-from .template_categories_crud import add_template_category
+from .template_categories_crud import add_template_category, get_template_category_by_name
 
 # --- Templates CRUD ---
 @_manage_conn
@@ -31,7 +32,13 @@ def add_template(data: dict, conn: sqlite3.Connection = None, client_id: str = N
     # If category_id is not provided, try to find/create by category_name
     if not cat_id and 'category_name' in data and data['category_name']:
         # Use the imported add_template_category, ensuring conn is passed
-        cat_id = add_template_category(data['category_name'], data.get('category_description'), conn=conn)
+        # Also pass category_purpose if available in data
+        cat_id = add_template_category(
+            data['category_name'],
+            data.get('category_description'),
+            purpose=data.get('category_purpose'), # Pass the purpose
+            conn=conn
+        )
         if not cat_id: # Failed to add/get category
             logging.error(f"Failed to add/get category: {data['category_name']} for template: {data['template_name']}")
             return None # Stop if category cannot be processed
@@ -73,7 +80,13 @@ def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = No
 
         cat_id = data.get('category_id')
         if not cat_id and 'category_name' in data and data['category_name']:
-            cat_id = add_template_category(data.get('category_name',"General"), conn=conn) # Pass conn
+            # Pass category_purpose if available in data, when creating category for default template
+            cat_id = add_template_category(
+                data.get('category_name', "General"),
+                description=data.get('category_description'), # Add description if available
+                purpose=data.get('category_purpose'), # Pass purpose
+                conn=conn
+            )
             if not cat_id:
                 logging.error(f"Failed to ensure category for default template: {name}")
                 return None
@@ -347,7 +360,7 @@ def get_all_templates(
     template_type_filter: str = None,
     language_code_filter: str = None,
     client_id_filter: str = None,
-    category_id_filter: int = None,
+    category_id_filter: Optional[Union[int, List[int]]] = None, # Modified type hint
     template_type_filter_list: list[str] = None,  # New parameter for list of types
     conn: sqlite3.Connection = None
 ) -> list[dict]:
@@ -367,9 +380,17 @@ def get_all_templates(
     if language_code_filter:
         clauses.append("language_code = ?")
         params.append(language_code_filter)
-    if category_id_filter is not None: # New condition
-        clauses.append("category_id = ?")
-        params.append(category_id_filter)
+
+    if category_id_filter is not None:
+        if isinstance(category_id_filter, list):
+            if category_id_filter: # Ensure list is not empty
+                placeholders = ','.join('?' for _ in category_id_filter)
+                clauses.append(f"category_id IN ({placeholders})")
+                params.extend(category_id_filter)
+            # If list is empty, it effectively means no filter on category_id, or you might want to handle it differently
+        else: # Single integer
+            clauses.append("category_id = ?")
+            params.append(category_id_filter)
 
     if client_id_filter is not None: # Explicitly check for None, as empty string could be a valid (though unlikely) client_id
         clauses.append("(client_id = ? OR client_id IS NULL)")
@@ -442,4 +463,73 @@ __all__ = [
     "get_distinct_languages_for_template_type",
     "get_all_file_based_templates",
     "get_templates_by_category_id",
+    "add_utility_document_template",
+    "get_utility_documents",
 ]
+
+UTILITY_DOCUMENT_CATEGORY_NAME = "Document Utilitaires"
+
+@_manage_conn
+def add_utility_document_template(name: str, language_code: str, base_file_name: str, description: str, created_by_user_id: str = None, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new utility document template to the database.
+    These templates are global and not tied to a specific client.
+    """
+    # Determine template_type based on file extension
+    ext = os.path.splitext(base_file_name)[1].lower()
+    if ext == '.pdf':
+        template_type = 'document_pdf'
+    elif ext == '.html':
+        template_type = 'document_html'
+    elif ext == '.docx':
+        template_type = 'document_word'
+    elif ext == '.xlsx':
+        template_type = 'document_excel'
+    else:
+        template_type = 'document_other'
+
+    # Get or create category ID for "Document Utilitaires"
+    category_id = add_template_category(
+        UTILITY_DOCUMENT_CATEGORY_NAME,
+        "Modèles de documents utilitaires globaux",
+        purpose='utility', # Explicitly set purpose for utility documents category
+        conn=conn
+    )
+    if not category_id:
+        logging.error(f"Failed to get or create category '{UTILITY_DOCUMENT_CATEGORY_NAME}' for utility template: {name}")
+        return None
+
+    template_data = {
+        'template_name': name,
+        'template_type': template_type,
+        'language_code': language_code,
+        'base_file_name': base_file_name,
+        'description': description,
+        'category_id': category_id,
+        'created_by_user_id': created_by_user_id,
+        'client_id': None,  # Utility documents are global
+        'is_default_for_type_lang': False # Utility documents are not typically defaults
+    }
+
+    return add_template(template_data, conn=conn)
+
+@_manage_conn
+def get_utility_documents(language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all utility document templates, optionally filtered by language.
+    Utility documents are global and belong to the 'Document Utilitaires' category.
+    """
+    category = get_template_category_by_name(UTILITY_DOCUMENT_CATEGORY_NAME, conn=conn)
+    if not category:
+        logging.warning(f"Utility document category '{UTILITY_DOCUMENT_CATEGORY_NAME}' not found.")
+        return []
+
+    utility_category_id = category['category_id']
+
+    return get_filtered_templates(
+        category_id=utility_category_id,
+        language_code=language_code,
+        client_id_filter=None,  # Explicitly not filtering by client
+        fetch_global_only=True, # Ensures only global templates are fetched
+        conn=conn
+    )

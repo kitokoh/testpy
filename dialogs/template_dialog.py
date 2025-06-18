@@ -61,14 +61,15 @@ class TemplateDialog(QDialog):
         filter_layout.setColumnStretch(6, 1) # Add stretch to the right of filters
         left_vbox_layout.addLayout(filter_layout)
 
-        self.template_list = QTreeWidget(); self.template_list.setColumnCount(5) # Increased column count
-        self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Client"), self.tr("Default Status")])
+        self.template_list = QTreeWidget(); self.template_list.setColumnCount(6) # Increased column count for Purpose
+        self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Client"), self.tr("Default Status"), self.tr("Purpose")])
         header = self.template_list.header()
         header.setSectionResizeMode(0, QHeaderView.Stretch) # Name
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents) # Type
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # Language
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # Client
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents) # Default Status
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents) # Purpose
         self.template_list.setAlternatingRowColors(True); font = self.template_list.font(); font.setPointSize(font.pointSize() + 1); self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         btn_layout = QHBoxLayout(); btn_layout.setSpacing(8)
@@ -252,16 +253,28 @@ class TemplateDialog(QDialog):
         if effective_category_id is not None:
             category_details = db_manager.get_template_category_details(effective_category_id)
             if category_details:
-                category_item = QTreeWidgetItem(self.template_list, [category_details['category_name']])
+                category_display_name = category_details['category_name']
+                category_purpose = category_details.get('purpose', self.tr('N/A')) # Get purpose
+                # Display purpose in the category item itself, or adjust columns if needed
+                # For QTreeWidget, modifying the first column text is common for top-level items.
+                # If Purpose is a new column for templates, category items won't use it directly.
+                # Let's assume Purpose is a column for templates, and for category rows, we can show it in the name.
+                # However, the header setup implies Purpose is a column for all items.
+                # For a category row, it would look like: [Category Name, "", "", "", "", Purpose]
+                category_item_texts = [category_display_name, "", "", "", "", category_purpose]
+                category_item = QTreeWidgetItem(self.template_list, category_item_texts)
+
                 for template_dict in all_templates_from_db:
                     template_name = template_dict['template_name']
                     template_db_type = template_dict.get('template_type', 'N/A')
                     display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
                     language = template_dict['language_code']
                     client_display = template_dict.get('client_id', self.tr("Global"))
-                    if client_display is None: client_display = self.tr("Global") # Ensure None is handled
+                    if client_display is None: client_display = self.tr("Global")
                     is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default])
+                    # Template items won't have a specific "Purpose" column value, it's a category attribute.
+                    # So the 6th column for template rows will be empty.
+                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""])
                     template_item.setData(0, Qt.UserRole, template_dict['template_id'])
         else:
             all_db_categories = db_manager.get_all_template_categories()
@@ -280,16 +293,20 @@ class TemplateDialog(QDialog):
 
             for cat_id, category_details_dict in categories_map.items():
                 if cat_id in templates_by_category:
-                    category_item = QTreeWidgetItem(self.template_list, [category_details_dict['category_name']])
+                    category_display_name = category_details_dict['category_name']
+                    category_purpose = category_details_dict.get('purpose', self.tr('N/A'))
+                    category_item_texts = [category_display_name, "", "", "", "", category_purpose]
+                    category_item = QTreeWidgetItem(self.template_list, category_item_texts)
+
                     for template_dict in templates_by_category[cat_id]:
                         template_name = template_dict['template_name']
                         template_db_type = template_dict.get('template_type', 'N/A')
                         display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
                         language = template_dict['language_code']
                         client_display = template_dict.get('client_id', self.tr("Global"))
-                        if client_display is None: client_display = self.tr("Global") # Ensure None is handled
+                        if client_display is None: client_display = self.tr("Global")
                         is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default])
+                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""]) # Empty for purpose column
                         template_item.setData(0, Qt.UserRole, template_dict['template_id'])
 
         self.template_list.expandAll()
@@ -308,13 +325,23 @@ class TemplateDialog(QDialog):
         if not ok:return
         final_category_id=None
         if selected_category_name==create_new_option:
-            new_category_text,ok_new=QInputDialog.getText(self,self.tr("New Category"),self.tr("Enter name for new category:"))
-            if ok_new and new_category_text.strip(): final_category_id=db_manager.add_template_category(new_category_text.strip());
-            if not final_category_id:QMessageBox.warning(self,self.tr("Error"),self.tr("Could not create or find category: {0}").format(new_category_text.strip()));return
-            # Original code had 'else: return' here, which seems like a bug. If category is created, it should proceed.
-            # Corrected: remove 'else: return' or ensure it's logically sound.
-            # For now, assuming if new category created, it should proceed to use it.
-            # If `add_template_category` returns None on failure, the `if not final_category_id` handles it.
+            new_category_name_text, ok_new_name = QInputDialog.getText(self, self.tr("New Category Name"), self.tr("Enter name for new category:"))
+            if ok_new_name and new_category_name_text.strip():
+                new_category_purpose_text, ok_new_purpose = QInputDialog.getText(self, self.tr("New Category Purpose"), self.tr("Enter purpose for new category (e.g., client_document, email):"))
+                if ok_new_purpose: # User might cancel purpose input, or leave it empty
+                    final_category_id = db_manager.add_template_category(
+                        category_name=new_category_name_text.strip(),
+                        description=f"{new_category_name_text.strip()} category", # Default description
+                        purpose=new_category_purpose_text.strip() if new_category_purpose_text.strip() else None
+                    )
+                    if not final_category_id:
+                        QMessageBox.warning(self, self.tr("Error"), self.tr("Could not create category: {0}").format(new_category_name_text.strip()))
+                        return
+                    self.populate_category_filter() # Refresh filter
+                else: # User cancelled purpose input
+                    return
+            else: # User cancelled name input or left it blank
+                return
         else:
             found_cat=next((cat for cat in existing_categories if cat['category_name']==selected_category_name),None)
             if found_cat:final_category_id=found_cat['category_id']
