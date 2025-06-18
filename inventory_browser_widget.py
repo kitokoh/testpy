@@ -323,6 +323,17 @@ class InventoryBrowserWidget(QWidget):
         # - Update button states
         pass
 
+    def load_locations_into_tree(self):
+        # TODO: Implement the logic to load/refresh locations in the tree widget.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.load_locations_into_tree() called.")
+        # Consider actual implementation:
+        # - Clear self.locations_tree_widget
+        # - Fetch locations from database (likely from ItemLocations table)
+        # - Populate self.locations_tree_widget with QTreeWidgetItems
+        # - Update button states
+        pass
+
 
     def update_assign_button_state(self):
         """
