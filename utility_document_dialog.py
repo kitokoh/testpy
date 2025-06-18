@@ -3,17 +3,24 @@ import os
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QLabel, QLineEdit, QPushButton, QComboBox, QTreeWidget, QTreeWidgetItem,
-    QMessageBox, QFileDialog, QTextEdit
+    QMessageBox, QFileDialog, QTextEdit, QSplitter
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtGui import QFont
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 # Assuming db.py and app_config.py are in the same directory or accessible in PYTHONPATH
 import db
 from app_config import CONFIG # For CONFIG.get("templates_dir")
 
 # Placeholder for current_user_id. In a real app, this would come from an auth system.
-CURRENT_USER_ID = None
+CURRENT_USER_ID = None # For now, preview won't use user-specific context
+
+# It's good practice to import specific functions if the module 'db' is large.
+# However, the existing code uses `db.some_function`, so we'll stick to that pattern
+# for existing calls, and use specific imports for new ones where appropriate.
+from db.utils import get_document_context_data # For potential future context-aware previews
+
 
 class AddEditUtilityDocDialog(QDialog):
     def __init__(self, parent=None, template_data=None):
@@ -125,51 +132,78 @@ class AddEditUtilityDocDialog(QDialog):
 class UtilityDocumentManagerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Utility Document Management")
-        self.setMinimumSize(900, 600)
+        self.setWindowTitle(self.tr("Utility Document Management"))
+        self.setMinimumSize(1000, 700) # Increased size for preview
         self.init_ui()
         self.populate_docs_tree()
+        self.docs_tree.currentItemChanged.connect(self.handle_document_selection)
 
     def init_ui(self):
-        main_layout = QVBoxLayout(self)
+        # Dialog's main layout
+        dialog_main_layout = QVBoxLayout(self)
 
-        # Tree widget for displaying documents
+        # Splitter for tree and preview
+        splitter = QSplitter(Qt.Horizontal)
+
+        # Left side: Tree widget and its controls
+        left_widget = QWidget()
+        left_v_layout = QVBoxLayout(left_widget)
+
         self.docs_tree = QTreeWidget()
-        self.docs_tree.setHeaderLabels(["Name", "Language", "File Name", "Description", "Type"])
-        self.docs_tree.setColumnWidth(0, 200) # Name
-        self.docs_tree.setColumnWidth(1, 80)  # Language
-        self.docs_tree.setColumnWidth(2, 150) # File Name
-        self.docs_tree.setColumnWidth(3, 250) # Description
-        self.docs_tree.setColumnWidth(4, 100) # Type
-        main_layout.addWidget(self.docs_tree)
+        self.docs_tree.setHeaderLabels([self.tr("Name"), self.tr("Language"), self.tr("File Name"), self.tr("Description"), self.tr("Type")])
+        self.docs_tree.setColumnWidth(0, 180)
+        self.docs_tree.setColumnWidth(1, 70)
+        self.docs_tree.setColumnWidth(2, 140)
+        self.docs_tree.setColumnWidth(3, 200)
+        self.docs_tree.setColumnWidth(4, 90)
+        left_v_layout.addWidget(self.docs_tree)
 
-        # Buttons layout
-        buttons_layout = QHBoxLayout()
-        self.add_button = QPushButton("Add New...")
+        # Buttons layout for tree actions (Add, Edit, Delete, Refresh)
+        tree_buttons_layout = QHBoxLayout()
+        self.add_button = QPushButton(self.tr("Add New..."))
         self.add_button.clicked.connect(self.handle_add_new)
+        tree_buttons_layout.addWidget(self.add_button)
 
-        self.edit_button = QPushButton("Edit Info...")
+        self.edit_button = QPushButton(self.tr("Edit Info..."))
         self.edit_button.clicked.connect(self.handle_edit_info)
+        tree_buttons_layout.addWidget(self.edit_button)
 
-        self.delete_button = QPushButton("Delete")
+        self.delete_button = QPushButton(self.tr("Delete"))
         self.delete_button.clicked.connect(self.handle_delete)
+        tree_buttons_layout.addWidget(self.delete_button)
 
-        self.refresh_button = QPushButton("Refresh")
+        tree_buttons_layout.addStretch()
+
+        self.refresh_button = QPushButton(self.tr("Refresh"))
         self.refresh_button.clicked.connect(self.populate_docs_tree)
+        tree_buttons_layout.addWidget(self.refresh_button)
 
-        self.close_button = QPushButton("Close")
+        left_v_layout.addLayout(tree_buttons_layout)
+        splitter.addWidget(left_widget)
+
+        # Right side: Preview Area
+        self.preview_area = QWebEngineView()
+        self.preview_area.setHtml(f"<p>{self.tr('Select a document to preview.')}</p>")
+        splitter.addWidget(self.preview_area)
+
+        splitter.setSizes([400, 600]) # Initial sizes for left (tree) and right (preview)
+
+        dialog_main_layout.addWidget(splitter)
+
+        # Bottom Close button
+        bottom_buttons_layout = QHBoxLayout()
+        bottom_buttons_layout.addStretch()
+        self.close_button = QPushButton(self.tr("Close"))
         self.close_button.clicked.connect(self.accept)
+        bottom_buttons_layout.addWidget(self.close_button)
 
-        buttons_layout.addWidget(self.add_button)
-        buttons_layout.addWidget(self.edit_button)
-        buttons_layout.addWidget(self.delete_button)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.refresh_button)
-        buttons_layout.addWidget(self.close_button)
-        main_layout.addLayout(buttons_layout)
+        dialog_main_layout.addLayout(bottom_buttons_layout)
 
     def populate_docs_tree(self):
         self.docs_tree.clear()
+        # When repopulating, also clear preview
+        if hasattr(self, 'preview_area'): # Check if preview_area is initialized
+            self.preview_area.setHtml(f"<p>{self.tr('Select a document to preview.')}</p>")
         try:
             # For now, load all languages. A language filter combo could be added.
             utility_docs = db.get_utility_documents()
@@ -181,12 +215,58 @@ class UtilityDocumentManagerDialog(QDialog):
                 item.setText(3, doc.get('description', ''))
                 item.setText(4, doc.get('template_type', 'N/A'))
                 item.setData(0, Qt.UserRole, doc.get('template_id')) # Store template_id
-                # Store other data needed for delete/edit if necessary
+                # Store other data needed for selection handling
                 item.setData(1, Qt.UserRole, doc.get('language_code'))
                 item.setData(2, Qt.UserRole, doc.get('base_file_name'))
+                item.setData(3, Qt.UserRole, doc.get('template_type')) # Store template_type as well
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load utility documents: {str(e)}")
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to load utility documents: {0}").format(str(e)))
             print(f"Error populating utility docs tree: {e}")
+
+    def handle_document_selection(self, current_item, previous_item):
+        if not current_item:
+            self.preview_area.setHtml(f"<p>{self.tr('Select a document to preview.')}</p>")
+            return
+
+        template_id = current_item.data(0, Qt.UserRole)
+        language_code = current_item.data(1, Qt.UserRole)
+        base_file_name = current_item.data(2, Qt.UserRole)
+        template_type = current_item.data(3, Qt.UserRole)
+
+        if not all([template_id is not None, language_code, base_file_name, template_type]):
+            self.preview_area.setHtml(f"<p>{self.tr('Error: Selected item has incomplete data.')}</p>")
+            return
+
+        # Path construction based on `_seed_default_utility_templates` logic,
+        # using `template_type` as the subfolder.
+        document_subfolder = template_type
+
+        if template_type == 'document_html' or (base_file_name and base_file_name.endswith('.html')):
+            template_file_path = os.path.join(
+                CONFIG.get("templates_dir", "templates"),
+                document_subfolder,
+                language_code,
+                base_file_name
+            )
+
+            if os.path.exists(template_file_path):
+                try:
+                    with open(template_file_path, 'r', encoding='utf-8') as f:
+                        html_content = f.read()
+
+                    # Base URL for local resources (CSS, images relative to the HTML file)
+                    # Ensure os.path.dirname returns an absolute path for QUrl.fromLocalFile
+                    abs_dir_path = os.path.dirname(os.path.abspath(template_file_path))
+                    base_url = QUrl.fromLocalFile(abs_dir_path + os.sep) # Add os.sep for trailing slash
+                    self.preview_area.setHtml(html_content, baseUrl=base_url)
+                except Exception as e:
+                    self.preview_area.setHtml(f"<p>{self.tr('Error reading or rendering HTML file: {0}').format(str(e))}</p>")
+                    print(f"Error reading/rendering {template_file_path}: {e}")
+            else:
+                self.preview_area.setHtml(f"<p>{self.tr('HTML file not found at:')}<br>{template_file_path}</p>")
+        else:
+            self.preview_area.setHtml(f"<p>{self.tr('Preview for file type')} '{template_type}' {self.tr('is not supported in this view.')}</p><p>{self.tr('File:')} {base_file_name}</p>")
+
 
     def handle_add_new(self):
         dialog = AddEditUtilityDocDialog(self)
