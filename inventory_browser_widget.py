@@ -30,8 +30,8 @@ try:
         add_item_location, get_item_location_by_id,
         get_item_locations_by_parent_id, get_all_item_locations,
         update_item_location, delete_item_location,
-        link_product_to_location, get_locations_for_product,
-        update_product_in_location, get_product_in_specific_location,
+        link_item_to_location, get_locations_for_item,
+        update_item_in_location, get_item_in_specific_location,
         get_full_location_path_str # Added
     )
     from db.cruds.products_crud import get_products_by_name_pattern # Assuming this exists
@@ -44,8 +44,8 @@ except ImportError:
         add_item_location, get_item_location_by_id,
         get_item_locations_by_parent_id, get_all_item_locations,
         update_item_location, delete_item_location,
-        link_product_to_location, get_locations_for_product,
-        update_product_in_location, get_product_in_specific_location,
+        link_item_to_location, get_locations_for_item,
+        update_item_in_location, get_item_in_specific_location,
         get_full_location_path_str # Added
     )
     # Attempt to import products_crud similarly if needed for standalone testing
@@ -312,11 +312,36 @@ class InventoryBrowserWidget(QWidget):
         product_id = selected_product_item.data(Qt.UserRole)
         product_name = selected_product_item.data(Qt.UserRole+1) # Name stored in item
 
+        # Fetch and display locations for the selected product
+        response = get_locations_for_item(item_id=product_id)
+
+        if response['success']:
+            locations = response['data']
+            if locations:
+                for loc_detail in locations:
+                    # Assuming get_full_location_path_str is available and works as intended
+                    full_path = get_full_location_path_str(loc_detail['location_id'])
+                    display_text = f"{full_path} (Qty: {loc_detail.get('quantity', 'N/A')})"
+                    if loc_detail.get('notes'):
+                        display_text += f" - Notes: {loc_detail['notes']}"
+
+                    item = QListWidgetItem(display_text)
+                    item.setData(Qt.UserRole, loc_detail['location_id']) # Store location_id for map interaction
+                    self.product_locations_display_list.addItem(item)
+
+                    # Highlight this location on the map
+                    self.highlight_location_on_map(loc_detail['location_id']) # Assuming this method exists
+            else:
+                self.product_locations_display_list.addItem(self.tr(f"No assigned locations found for {product_name}."))
+        else:
+            QMessageBox.warning(self, self.tr("Error"),
+                                self.tr("Could not retrieve locations for {0}: {1}").format(product_name, response.get('error', 'Unknown error')))
+
         location_id = selected_location_data['location_id']
         location_name = selected_location_data['location_name']
 
         # Check if product is already in this location to prefill data or decide action
-        existing_link_response = get_product_in_specific_location(product_id, location_id)
+        existing_link_response = get_item_in_specific_location(product_id, location_id)
         existing_link_data = None
         if existing_link_response['success'] and existing_link_response['data']:
             existing_link_data = existing_link_response['data']
@@ -381,11 +406,11 @@ class AssignProductDialog(QDialog):
 
         if self.existing_link_data: # Update existing link
             psl_id = self.existing_link_data['product_storage_location_id']
-            # update_product_in_location only takes quantity and notes in update_data
+            # update_item_in_location only takes quantity and notes in update_data
             update_payload = {'quantity': data['quantity'], 'notes': data['notes']}
-            result = update_product_in_location(psl_id, update_payload)
+            result = update_item_in_location(psl_id, update_payload)
         else: # Create new link
-            result = link_product_to_location(data)
+            result = link_item_to_location(data)
 
         if result.get('success'):
             QMessageBox.information(self, "Success", "Product assignment saved.")
