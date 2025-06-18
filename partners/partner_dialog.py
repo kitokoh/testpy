@@ -3,9 +3,9 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPush
                              QMessageBox, QDialogButtonBox, QGroupBox, QTableWidget,
                              QTableWidgetItem, QHBoxLayout, QTextEdit, QListWidget, QListWidgetItem,
                              QTabWidget, QHeaderView, QAbstractItemView, QFileDialog, QInputDialog, QWidget,
-                             QCheckBox, QLabel, QScrollArea) # Added QCheckBox, QLabel, QScrollArea
+                             QCheckBox, QLabel, QScrollArea, QDateEdit, QComboBox) # Added QDateEdit, QComboBox
 import logging
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, QDate
 from PyQt5.QtGui import QDesktopServices
 
 from db import (
@@ -15,7 +15,10 @@ from db import (
     # CRUDs for contacts will be called by EditPartnerContactDialog
     # Make sure these are the updated CRUDs from previous steps
     add_partner_contact, update_partner_contact, delete_partner_contact,
-    link_partner_to_category, unlink_partner_from_category
+    link_partner_to_category, unlink_partner_from_category,
+    # PartnerInteractions CRUD
+    add_partner_interaction, get_interactions_for_partner,
+    update_partner_interaction, delete_partner_interaction
 )
 # No direct import of central_add_contact etc. here, they are used by partners_crud
 import os
@@ -71,7 +74,21 @@ class EditPartnerContactDialog(QDialog):
         self.show_optional_checkbox.stateChanged.connect(self.toggle_optional_fields)
         form_layout.addRow(self.show_optional_checkbox)
 
-        # --- Optional Fields ---
+        # --- Commonly Used Fields (Always Visible) ---
+        self.email_input = QLineEdit()
+        form_layout.addRow("Email:", self.email_input)
+        self.email_type_input = QLineEdit() # Could be QComboBox if predefined types
+        form_layout.addRow("Email Type:", self.email_type_input)
+
+        self.phone_input = QLineEdit()
+        form_layout.addRow("Phone:", self.phone_input)
+        self.phone_type_input = QLineEdit() # Could be QComboBox
+        form_layout.addRow("Phone Type:", self.phone_type_input)
+
+        self.position_input = QLineEdit()
+        form_layout.addRow("Position/Role:", self.position_input)
+
+        # --- Optional Fields (Toggleable) ---
         self.optional_fields_widgets = [] # Keep track of widgets to toggle
 
         # Given Name
@@ -85,34 +102,6 @@ class EditPartnerContactDialog(QDialog):
         self.familyName_input = QLineEdit()
         form_layout.addRow(self.familyName_label, self.familyName_input)
         self.optional_fields_widgets.extend([self.familyName_label, self.familyName_input])
-
-        # Email & Type
-        self.email_label = QLabel("Email:")
-        self.email_input = QLineEdit()
-        form_layout.addRow(self.email_label, self.email_input)
-        self.optional_fields_widgets.extend([self.email_label, self.email_input])
-
-        self.email_type_label = QLabel("Email Type:")
-        self.email_type_input = QLineEdit() # Could be QComboBox if predefined types
-        form_layout.addRow(self.email_type_label, self.email_type_input)
-        self.optional_fields_widgets.extend([self.email_type_label, self.email_type_input])
-
-        # Phone & Type
-        self.phone_label = QLabel("Phone:")
-        self.phone_input = QLineEdit()
-        form_layout.addRow(self.phone_label, self.phone_input)
-        self.optional_fields_widgets.extend([self.phone_label, self.phone_input])
-
-        self.phone_type_label = QLabel("Phone Type:")
-        self.phone_type_input = QLineEdit() # Could be QComboBox
-        form_layout.addRow(self.phone_type_label, self.phone_type_input)
-        self.optional_fields_widgets.extend([self.phone_type_label, self.phone_type_input])
-
-        # Position (formerly Role)
-        self.position_label = QLabel("Position/Role:")
-        self.position_input = QLineEdit()
-        form_layout.addRow(self.position_label, self.position_input)
-        self.optional_fields_widgets.extend([self.position_label, self.position_input])
 
         # Company Name (for the contact, if different from partner)
         self.contact_company_name_label = QLabel("Contact's Company Name:")
@@ -301,6 +290,33 @@ class PartnerDialog(QDialog):
         self.notes_input = QTextEdit()
         self.notes_input.setFixedHeight(80)
         form_layout.addRow("Notes:", self.notes_input)
+
+        # New fields
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["Active", "Inactive", "Prospect", "Onboarding", "Terminated"])
+        form_layout.addRow("Status:", self.status_combo)
+
+        self.website_input = QLineEdit()
+        form_layout.addRow("Website URL:", self.website_input)
+
+        self.partner_type_combo = QComboBox()
+        self.partner_type_combo.addItems(["Supplier", "Reseller", "Service Provider", "Referral", "Other"])
+        form_layout.addRow("Partner Type:", self.partner_type_combo)
+
+        self.start_date_input = QDateEdit()
+        self.start_date_input.setDisplayFormat("yyyy-MM-dd")
+        self.start_date_input.setCalendarPopup(True)
+        self.start_date_input.setNullable(True)
+        self.start_date_input.setDate(QDate()) # Set to null
+        form_layout.addRow("Collaboration Start Date:", self.start_date_input)
+
+        self.end_date_input = QDateEdit()
+        self.end_date_input.setDisplayFormat("yyyy-MM-dd")
+        self.end_date_input.setCalendarPopup(True)
+        self.end_date_input.setNullable(True)
+        self.end_date_input.setDate(QDate()) # Set to null
+        form_layout.addRow("Collaboration End Date:", self.end_date_input)
+
         details_group.setLayout(form_layout)
         details_tab_layout.addWidget(details_group)
 
@@ -369,6 +385,35 @@ class PartnerDialog(QDialog):
         documents_tab_widget.setLayout(documents_tab_layout)
         self.tab_widget.addTab(documents_tab_widget, "Documents")
 
+        # --- Interactions Tab ---
+        interactions_tab_widget = QWidget()
+        interactions_tab_layout = QVBoxLayout(interactions_tab_widget)
+
+        self.interactions_table = QTableWidget()
+        self.interactions_table.setColumnCount(5) # ID (hidden), Date, Type, Notes Summary, Created At
+        self.interactions_table.setHorizontalHeaderLabels(["ID", "Date", "Type", "Notes Summary", "Logged At"])
+        self.interactions_table.setColumnHidden(0, True)
+        self.interactions_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents) # Date
+        self.interactions_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents) # Type
+        self.interactions_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch) # Notes Summary
+        self.interactions_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Logged At
+        self.interactions_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.interactions_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.interactions_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        interactions_tab_layout.addWidget(self.interactions_table)
+
+        interaction_buttons_layout = QHBoxLayout()
+        self.add_interaction_button = QPushButton("Add Interaction")
+        self.edit_interaction_button = QPushButton("Edit Interaction")
+        self.delete_interaction_button = QPushButton("Delete Interaction")
+        interaction_buttons_layout.addWidget(self.add_interaction_button)
+        interaction_buttons_layout.addWidget(self.edit_interaction_button)
+        interaction_buttons_layout.addWidget(self.delete_interaction_button)
+        interactions_tab_layout.addLayout(interaction_buttons_layout)
+
+        interactions_tab_widget.setLayout(interactions_tab_layout)
+        self.tab_widget.addTab(interactions_tab_widget, "Interactions")
+
         # Dialog Buttons
         self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         main_layout.addWidget(self.button_box)
@@ -376,18 +421,27 @@ class PartnerDialog(QDialog):
         # Connect signals
         self.button_box.accepted.connect(self.accept_dialog)
         self.button_box.rejected.connect(self.reject)
+        # Details Tab Buttons
         self.add_contact_button.clicked.connect(self.handle_add_contact_button_clicked)
         self.remove_contact_button.clicked.connect(self.handle_remove_contact_button_clicked)
         self.contacts_table.doubleClicked.connect(self.handle_edit_contact_table_item_activated) # edit on double click
+        # Documents Tab Buttons
         self.upload_doc_button.clicked.connect(self.handle_upload_document)
         self.download_doc_button.clicked.connect(self.handle_download_document)
         self.delete_doc_button.clicked.connect(self.handle_delete_document)
+        # Interactions Tab Buttons
+        self.add_interaction_button.clicked.connect(self.handle_add_interaction)
+        self.edit_interaction_button.clicked.connect(self.handle_edit_interaction)
+        self.delete_interaction_button.clicked.connect(self.handle_delete_interaction)
+        self.interactions_table.itemSelectionChanged.connect(self.update_interaction_button_states)
+        self.interactions_table.doubleClicked.connect(self.handle_edit_interaction)
+
 
         if self.partner_id:
-            self.load_partner_data()
-            self.load_contacts() # Load contacts after partner data and docs are potentially loaded
+            self.load_partner_data() # This will call load_partner_interactions
+            self.load_contacts()
         else:
-            # New partner, disable document and contact buttons until partner is saved
+            # New partner, disable document, contact, and interaction buttons until partner is saved
             self.add_contact_button.setEnabled(False)
             self.remove_contact_button.setEnabled(False)
             self.contacts_table.setEnabled(False)
@@ -395,16 +449,32 @@ class PartnerDialog(QDialog):
             self.download_doc_button.setEnabled(False)
             self.delete_doc_button.setEnabled(False)
             self.documents_table.setEnabled(False)
+            # Interactions Tab
+            self.interactions_table.setEnabled(False)
+            self.add_interaction_button.setEnabled(False)
+            self.edit_interaction_button.setEnabled(False)
+            self.delete_interaction_button.setEnabled(False)
 
         self.load_and_set_partner_categories()
+        # Initial state for interaction buttons if partner_id exists but no selection yet
+        if self.partner_id:
+            self.update_interaction_button_states()
+
 
     def load_partner_data(self):
         if not self.partner_id:
-            # Disable document buttons if it's a new partner (no ID yet)
+            # Disable document, contact, and interaction features if it's a new partner
             self.upload_doc_button.setEnabled(False)
             self.download_doc_button.setEnabled(False)
             self.delete_doc_button.setEnabled(False)
             self.documents_table.setEnabled(False)
+            self.add_contact_button.setEnabled(False)
+            self.remove_contact_button.setEnabled(False)
+            self.contacts_table.setEnabled(False)
+            self.interactions_table.setEnabled(False)
+            self.add_interaction_button.setEnabled(False)
+            self.edit_interaction_button.setEnabled(False)
+            self.delete_interaction_button.setEnabled(False)
             return
 
         partner = get_partner_by_id(self.partner_id)
@@ -416,6 +486,56 @@ class PartnerDialog(QDialog):
             # self.location_input.setText(partner.get('location', '')) # No 'location' field in schema, use address
             self.notes_input.setPlainText(partner.get('notes', '')) # Partner's notes
 
+            # Populate new fields
+            status = partner.get('status', 'Active') # Default to 'Active' if not in DB
+            status_index = self.status_combo.findText(status, Qt.MatchFixedString)
+            if status_index >= 0:
+                self.status_combo.setCurrentIndex(status_index)
+            else:
+                self.status_combo.setCurrentIndex(self.status_combo.findText("Active")) # Default if not found
+                logging.warning(f"Partner status '{status}' not in combo box. Defaulted to Active.")
+
+            self.website_input.setText(partner.get('website_url', ''))
+
+            partner_type = partner.get('partner_type', '')
+            partner_type_index = self.partner_type_combo.findText(partner_type, Qt.MatchFixedString)
+            if partner_type_index >= 0:
+                self.partner_type_combo.setCurrentIndex(partner_type_index)
+            elif partner_type: # If there was a value but not found, log warning
+                logging.warning(f"Partner type '{partner_type}' not in combo box. Left as is or default.")
+                # Optionally add it or select a default: self.partner_type_combo.setCurrentIndex(self.partner_type_combo.findText("Other"))
+
+
+            start_date_str = partner.get('collaboration_start_date')
+            if start_date_str:
+                try:
+                    q_start_date = QDate.fromString(start_date_str, "yyyy-MM-dd")
+                    if q_start_date.isValid():
+                        self.start_date_input.setDate(q_start_date)
+                    else:
+                        self.start_date_input.setDate(QDate()) # Set to null if parsing failed
+                        logging.warning(f"Invalid start_date format: {start_date_str}")
+                except ValueError as e:
+                    self.start_date_input.setDate(QDate()) # Set to null on error
+                    logging.error(f"Error parsing start_date '{start_date_str}': {e}")
+            else:
+                self.start_date_input.setDate(QDate()) # Set to null if no date string
+
+            end_date_str = partner.get('collaboration_end_date')
+            if end_date_str:
+                try:
+                    q_end_date = QDate.fromString(end_date_str, "yyyy-MM-dd")
+                    if q_end_date.isValid():
+                        self.end_date_input.setDate(q_end_date)
+                    else:
+                        self.end_date_input.setDate(QDate()) # Set to null
+                        logging.warning(f"Invalid end_date format: {end_date_str}")
+                except ValueError as e:
+                    self.end_date_input.setDate(QDate()) # Set to null
+                    logging.error(f"Error parsing end_date '{end_date_str}': {e}")
+            else:
+                self.end_date_input.setDate(QDate()) # Set to null
+
             # Enable document and contact buttons as partner exists
             self.upload_doc_button.setEnabled(True)
             self.download_doc_button.setEnabled(True)
@@ -426,9 +546,141 @@ class PartnerDialog(QDialog):
             self.add_contact_button.setEnabled(True)
             self.remove_contact_button.setEnabled(True)
             self.contacts_table.setEnabled(True)
+            # Enable interactions tab elements
+            self.interactions_table.setEnabled(True)
+            self.add_interaction_button.setEnabled(True)
+            self.load_partner_interactions() # Load interactions
+            self.update_interaction_button_states() # Set initial button states for interactions
+
+    def load_partner_interactions(self):
+        if not self.partner_id:
+            self.interactions_table.setRowCount(0)
+            # self.update_interaction_button_states() # Call to ensure buttons are in correct state
+            return
+
+        self.interactions_table.setRowCount(0) # Clear existing rows
+        try:
+            interactions = get_interactions_for_partner(self.partner_id)
+            if interactions:
+                self.interactions_table.setSortingEnabled(False) # Disable sorting during population
+                for interaction in interactions:
+                    row_position = self.interactions_table.rowCount()
+                    self.interactions_table.insertRow(row_position)
+
+                    interaction_id_item = QTableWidgetItem(interaction.get('interaction_id'))
+                    # Store the full interaction data in UserRole for easy access on edit/delete
+                    interaction_id_item.setData(Qt.UserRole, interaction)
+                    self.interactions_table.setItem(row_position, 0, interaction_id_item) # Hidden ID
+
+                    date_str = interaction.get('interaction_date', '')
+                    # Optional: Format date string if needed, though YYYY-MM-DD is usually fine
+                    self.interactions_table.setItem(row_position, 1, QTableWidgetItem(date_str))
+
+                    self.interactions_table.setItem(row_position, 2, QTableWidgetItem(interaction.get('interaction_type', '')))
+
+                    notes = interaction.get('notes', '')
+                    notes_summary = (notes[:75] + '...') if len(notes) > 75 else notes # Summary
+                    notes_item = QTableWidgetItem(notes_summary)
+                    self.interactions_table.setItem(row_position, 3, notes_item)
+
+                    created_at_str = interaction.get('created_at', '')
+                    # Optional: Format datetime string nicely
+                    try:
+                        dt_obj = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        created_at_display = dt_obj.strftime('%Y-%m-%d %H:%M')
+                    except (ValueError, TypeError):
+                        created_at_display = created_at_str # Fallback to raw string
+                    self.interactions_table.setItem(row_position, 4, QTableWidgetItem(created_at_display))
+                self.interactions_table.setSortingEnabled(True) # Re-enable sorting
+
+        except Exception as e:
+            logging.error(f"Error loading partner interactions: {e}")
+            QMessageBox.critical(self, "Load Error", f"Could not load partner interactions: {e}")
+        finally:
+            self.update_interaction_button_states() # Ensure buttons reflect table state
+
+    def update_interaction_button_states(self):
+        has_selection = bool(self.interactions_table.selectedItems())
+        # Add button is enabled if partner_id exists (handled in load_partner_data and __init__)
+        # self.add_interaction_button.setEnabled(bool(self.partner_id))
+        self.edit_interaction_button.setEnabled(has_selection and bool(self.partner_id))
+        self.delete_interaction_button.setEnabled(has_selection and bool(self.partner_id))
+
+    def handle_add_interaction(self):
+        if not self.partner_id:
+            QMessageBox.warning(self, "Partner Not Available", "Please save the partner before adding interactions.")
+            return
+
+        dialog = InteractionEditDialog(partner_id=self.partner_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_partner_interactions()
+
+    def handle_edit_interaction(self):
+        if not self.partner_id: return # Should not happen if button is enabled
+
+        selected_rows = self.interactions_table.selectionModel().selectedRows()
+        if not selected_rows:
+            # This can happen if double-click is on empty area or selection is cleared
+            # Or if called directly without a selection
+            # QMessageBox.warning(self, "Edit Interaction", "Please select an interaction to edit.")
+            return
+
+        selected_row_index = selected_rows[0] # QModelIndex
+        id_item = self.interactions_table.item(selected_row_index.row(), 0) # Hidden ID item
+
+        if not id_item:
+            logging.error("Could not retrieve ID item from selected interaction row.")
+            QMessageBox.critical(self, "Error", "Could not retrieve interaction data.")
+            return
+
+        interaction_data = id_item.data(Qt.UserRole) # Full interaction data
+        if not interaction_data or 'interaction_id' not in interaction_data:
+            logging.error(f"No interaction_id or full data found in UserRole for row {selected_row_index.row()}. Cannot edit.")
+            QMessageBox.critical(self, "Error", "Interaction data is missing or corrupt.")
+            return
+
+        interaction_id = interaction_data['interaction_id']
+
+        dialog = InteractionEditDialog(partner_id=self.partner_id,
+                                       interaction_id=interaction_id,
+                                       interaction_data=interaction_data,
+                                       parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_partner_interactions()
+
+    def handle_delete_interaction(self):
+        if not self.partner_id: return
+
+        selected_rows = self.interactions_table.selectionModel().selectedRows()
+        if not selected_rows:
+            # QMessageBox.warning(self, "Delete Interaction", "Please select an interaction to delete.")
+            return
+
+        id_item = self.interactions_table.item(selected_rows[0].row(), 0)
+        if not id_item:
+             QMessageBox.critical(self, "Error", "Cannot retrieve interaction ID.")
+             return
+
+        interaction_id = id_item.text() # Get interaction_id from the hidden cell's text
+        interaction_data = id_item.data(Qt.UserRole)
+        date_for_confirm = interaction_data.get('interaction_date', 'this interaction')
+        type_for_confirm = interaction_data.get('interaction_type', '')
+
+
+        reply = QMessageBox.question(self, "Confirm Deletion",
+                                     f"Are you sure you want to delete the interaction on {date_for_confirm} ({type_for_confirm})?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            if delete_partner_interaction(interaction_id):
+                QMessageBox.information(self, "Success", "Interaction deleted successfully.")
+                self.load_partner_interactions()
+            else:
+                QMessageBox.critical(self, "Database Error", "Failed to delete interaction from database.")
+
 
     def load_partner_documents(self):
-        if not self.partner_id:
+        if not self.partner_id: # Should be redundant due to checks in load_partner_data
             self.documents_table.setRowCount(0)
             return
 
@@ -761,9 +1013,14 @@ class PartnerDialog(QDialog):
             'phone': self.phone_input.text().strip(),
             'address': self.address_input.text().strip(),
             # 'location': self.location_input.text().strip(), # Not in schema, combined into address or notes
-            'notes': self.notes_input.toPlainText().strip()
-            # category_id, contact_person_name, website_url, services_offered, collaboration_start_date, status
-            # are not in this basic form, would need more fields or come from elsewhere.
+            'notes': self.notes_input.toPlainText().strip(),
+
+            # New fields for DB
+            'status': self.status_combo.currentText(),
+            'website_url': self.website_input.text().strip(),
+            'partner_type': self.partner_type_combo.currentText(),
+            'collaboration_start_date': self.start_date_input.date().toString("yyyy-MM-dd") if not self.start_date_input.date().isNull() else None,
+            'collaboration_end_date': self.end_date_input.date().toString("yyyy-MM-dd") if not self.end_date_input.date().isNull() else None,
         }
 
         # For now, this dialog only handles a subset of Partner fields.
@@ -789,6 +1046,10 @@ class PartnerDialog(QDialog):
                 self.add_contact_button.setEnabled(True)
                 self.remove_contact_button.setEnabled(True)
                 self.contacts_table.setEnabled(True)
+                # Enable interactions tab as well
+                self.interactions_table.setEnabled(True)
+                self.add_interaction_button.setEnabled(True)
+                self.update_interaction_button_states() # Refresh states
                 self.setWindowTitle(f"Edit Partner - {partner_name_val}") # Update window title
             else:
                 QMessageBox.critical(self, "Database Error", "Failed to add new partner.")
@@ -831,3 +1092,103 @@ if __name__ == '__main__':
     dialog = PartnerDialog()
     dialog.show()
     sys.exit(app.exec_())
+
+class InteractionEditDialog(QDialog):
+    def __init__(self, partner_id, interaction_id=None, interaction_data=None, parent=None):
+        super().__init__(parent)
+        self.partner_id = partner_id
+        self.interaction_id = interaction_id
+        self.interaction_data = interaction_data if interaction_data else {} # Full dict from UserRole
+
+        self.setWindowTitle(f"{'Edit' if self.interaction_id else 'Add'} Partner Interaction")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        self.interaction_date_edit = QDateEdit(self)
+        self.interaction_date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.interaction_date_edit.setCalendarPopup(True)
+        self.interaction_date_edit.setDate(QDate.currentDate()) # Default to today
+        form_layout.addRow("Date*:", self.interaction_date_edit)
+
+        self.interaction_type_combo = QComboBox(self)
+        self.interaction_type_combo.addItems(["Call", "Meeting", "Email", "Note", "Other"])
+        form_layout.addRow("Type*:", self.interaction_type_combo)
+
+        self.notes_edit = QTextEdit(self)
+        self.notes_edit.setPlaceholderText("Enter details about the interaction...")
+        form_layout.addRow("Notes:", self.notes_edit)
+
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel, self)
+        self.button_box.accepted.connect(self.accept_interaction_dialog)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        if self.interaction_id and self.interaction_data:
+            self.populate_form()
+
+        logging.info(f"InteractionEditDialog initialized for partner {self.partner_id}, interaction ID: {self.interaction_id}")
+
+    def populate_form(self):
+        date_str = self.interaction_data.get('interaction_date')
+        if date_str:
+            q_date = QDate.fromString(date_str, "yyyy-MM-dd")
+            if q_date.isValid():
+                self.interaction_date_edit.setDate(q_date)
+            else:
+                logging.warning(f"Invalid date string '{date_str}' received for interaction {self.interaction_id}")
+
+        type_str = self.interaction_data.get('interaction_type')
+        if type_str:
+            index = self.interaction_type_combo.findText(type_str, Qt.MatchFixedString)
+            if index >= 0:
+                self.interaction_type_combo.setCurrentIndex(index)
+            else:
+                # If type from DB is not in standard list, add it or select 'Other'
+                # For simplicity, we'll select 'Other' or leave as is if not found
+                logging.warning(f"Interaction type '{type_str}' not in default list for interaction {self.interaction_id}.")
+                other_index = self.interaction_type_combo.findText("Other")
+                if other_index >=0 : self.interaction_type_combo.setCurrentIndex(other_index)
+
+
+        self.notes_edit.setPlainText(self.interaction_data.get('notes', ''))
+        logging.info(f"Form populated for interaction ID: {self.interaction_id}")
+
+    def accept_interaction_dialog(self):
+        interaction_date_str = self.interaction_date_edit.date().toString("yyyy-MM-dd")
+        interaction_type_str = self.interaction_type_combo.currentText()
+        notes_str = self.notes_edit.toPlainText().strip()
+
+        if not interaction_date_str: # Should always have a value from QDateEdit
+            QMessageBox.warning(self, "Validation Error", "Interaction date cannot be empty.")
+            return
+        if not interaction_type_str: # Should always have a value from QComboBox
+            QMessageBox.warning(self, "Validation Error", "Interaction type cannot be empty.")
+            return
+
+        data_to_save = {
+            'partner_id': self.partner_id,
+            'interaction_date': interaction_date_str,
+            'interaction_type': interaction_type_str,
+            'notes': notes_str
+        }
+
+        success = False
+        action = "add"
+        if self.interaction_id: # Edit mode
+            action = "update"
+            success = update_partner_interaction(self.interaction_id, data_to_save)
+        else: # Add mode
+            new_id = add_partner_interaction(data_to_save)
+            if new_id:
+                self.interaction_id = new_id # Store new ID in case needed (though dialog closes)
+                success = True
+
+        if success:
+            QMessageBox.information(self, "Success", f"Partner interaction {action}ed successfully.")
+            super().accept() # Close dialog
+        else:
+            QMessageBox.critical(self, "Database Error", f"Failed to {action} partner interaction.")
