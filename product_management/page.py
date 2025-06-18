@@ -20,35 +20,79 @@ class ProductManagementPage(QWidget):
         main_layout = QVBoxLayout(self)
 
         title_layout = QHBoxLayout()
-        # Title for a page is usually managed by the main window's structure, not within the page itself.
-        # If this is a section title within the page:
         title_label = QLabel(self.tr("Product Database Management"))
-        title_label.setStyleSheet("font-size: 16pt; font-weight: bold;") # Example styling
+        title_label.setStyleSheet("font-size: 16pt; font-weight: bold;")
         title_layout.addWidget(title_label)
-        title_layout.addStretch() # Pushes title to left if other items were added
-        # self.title_edit = QLineEdit(self.tr("Product Management")) # QLineEdit for title seems unusual for a page
-        # title_layout.addWidget(self.title_edit)
+        title_layout.addStretch()
         main_layout.addLayout(title_layout)
 
+        # Top Controls (Add, Edit, Delete, Export)
+        self.add_product_button = QPushButton(self.tr("Add Product"))
+        self.add_product_button.clicked.connect(self._open_add_product_dialog)
+        self.edit_product_button = QPushButton(self.tr("Edit Product"))
+        self.edit_product_button.clicked.connect(self._open_edit_product_dialog)
+        self.edit_product_button.setEnabled(False)
+        self.delete_product_button = QPushButton(self.tr("Delete Product"))
+        self.delete_product_button.clicked.connect(self._delete_selected_product)
+        self.delete_product_button.setEnabled(False)
+        self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
+        self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder)
+
+        top_controls_layout = QHBoxLayout()
+        top_controls_layout.addWidget(self.add_product_button)
+        top_controls_layout.addSpacing(5)
+        top_controls_layout.addWidget(self.edit_product_button)
+        top_controls_layout.addSpacing(5)
+        top_controls_layout.addWidget(self.delete_product_button)
+        top_controls_layout.addStretch()
+        top_controls_layout.addWidget(self.export_pdf_button)
+        main_layout.addLayout(top_controls_layout)
+        main_layout.addSpacing(10) # Spacing after top_controls_layout
+
+        # Filters Group Box
         filter_group_box = QGroupBox(self.tr("Filters"))
-        filter_form_layout = QFormLayout(filter_group_box)
+        # filter_group_box.setContentsMargins(10, 15, 10, 10) # QSS already provides padding: 10px. Adjust top for title.
+        filter_group_main_layout = QVBoxLayout(filter_group_box) # Main layout for the group box
+        # filter_group_main_layout.setContentsMargins(5, 5, 5, 5) # Margins for the layout within the groupbox
+
+        filter_search_layout = QHBoxLayout() # Layout for language, category, search
+
+        # Language ComboBox
         self.language_combo = QComboBox()
         self.language_combo.addItems([self.tr("All Languages"), "fr", "en", "ar", "tr", "pt"])
         self.language_combo.setCurrentIndex(0)
         self.language_combo.currentIndexChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Language:"), self.language_combo)
+        filter_search_layout.addWidget(QLabel(self.tr("Language:")))
+        filter_search_layout.addWidget(self.language_combo)
+        filter_search_layout.addSpacing(10)
+
+        # Category Filter Input
         self.category_filter_input = QLineEdit()
         self.category_filter_input.setPlaceholderText(self.tr("Filter by category..."))
         self.category_filter_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Category:"), self.category_filter_input)
+        filter_search_layout.addWidget(QLabel(self.tr("Category:")))
+        filter_search_layout.addWidget(self.category_filter_input)
+        filter_search_layout.addSpacing(10)
+
+        # Search Product Input
         self.search_product_input = QLineEdit()
         self.search_product_input.setPlaceholderText(self.tr("Search by product name..."))
         self.search_product_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Search Name:"), self.search_product_input)
+        filter_search_layout.addWidget(QLabel(self.tr("Search Name:")))
+        filter_search_layout.addWidget(self.search_product_input)
+
+        filter_search_layout.addStretch()
+
+        filter_group_main_layout.addLayout(filter_search_layout)
+        filter_group_main_layout.addSpacing(5) # Spacing between filter_search_layout and checkbox
+
+        # Include Deleted Checkbox
         self.include_deleted_checkbox = QCheckBox(self.tr("Include Deleted Products"))
         self.include_deleted_checkbox.stateChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.include_deleted_checkbox)
+        filter_group_main_layout.addWidget(self.include_deleted_checkbox)
+
         main_layout.addWidget(filter_group_box)
+        main_layout.addSpacing(10) # Spacing after filter_group_box
 
         self.product_table = QTableWidget()
         self.product_table.setColumnCount(7)
@@ -79,23 +123,8 @@ class ProductManagementPage(QWidget):
         pagination_layout.addWidget(self.next_page_button)
         main_layout.addLayout(pagination_layout)
 
-        button_layout = QHBoxLayout()
-        self.add_product_button = QPushButton(self.tr("Add Product"))
-        self.add_product_button.clicked.connect(self._open_add_product_dialog)
-        button_layout.addWidget(self.add_product_button)
-        self.edit_product_button = QPushButton(self.tr("Edit Product"))
-        self.edit_product_button.clicked.connect(self._open_edit_product_dialog)
-        self.edit_product_button.setEnabled(False)
-        button_layout.addWidget(self.edit_product_button)
-        self.delete_product_button = QPushButton(self.tr("Delete Product"))
-        self.delete_product_button.clicked.connect(self._delete_selected_product)
-        self.delete_product_button.setEnabled(False)
-        button_layout.addWidget(self.delete_product_button)
-        button_layout.addStretch()
-        self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
-        self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder) # Renamed from export_to_pdf
-        button_layout.addWidget(self.export_pdf_button)
-        main_layout.addLayout(button_layout)
+        # Removed old button_layout as buttons are now in top_controls_layout
+        # main_layout.addLayout(button_layout) # This line is removed
 
         self.setLayout(main_layout)
         self.load_products_to_table()
