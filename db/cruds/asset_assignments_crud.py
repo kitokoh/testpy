@@ -3,6 +3,8 @@ import uuid
 import logging
 from datetime import datetime, timezone, date, timedelta
 from typing import Optional, List, Dict, Any # Added for type hints
+from datetime import datetime, timezone
+
 
 from ..database_manager import get_db_connection
 from .generic_crud import GenericCRUD
@@ -334,6 +336,7 @@ class AssetAssignmentsCRUD(GenericCRUD):
         finally:
             if not conn: # Close only if this function opened it.
                 db_conn.close()
+
 
 # Instance for easy import
 asset_assignments_crud = AssetAssignmentsCRUD()

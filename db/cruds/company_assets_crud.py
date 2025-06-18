@@ -198,6 +198,7 @@ class CompanyAssetsCRUD(GenericCRUD):
 
         query += " ORDER BY CompanyAssets.created_at DESC" # Default ordering, qualified
 
+
         if limit is not None:
             query += " LIMIT ?"
             params.append(limit)
@@ -312,6 +313,7 @@ class CompanyAssetsCRUD(GenericCRUD):
             logger.error(f"An unexpected error occurred during soft delete of asset '{asset_id}': {e}")
             return False
 
+ 
     def _build_filter_conditions(self, filters: Optional[dict] = None, include_deleted: bool = False, conn: Optional[sqlite3.Connection] = None) -> tuple[str, list]:
         """
         Helper function to build WHERE clause conditions and parameters based on filters.
@@ -458,14 +460,14 @@ class CompanyAssetsCRUD(GenericCRUD):
             if not conn:
                 db_conn.close()
 
+
 # Instance for easy import
 company_assets_crud = CompanyAssetsCRUD()
 
 __all__ = [
     "CompanyAssetsCRUD",
     "company_assets_crud"
-    # The new methods are part of the class, so they are accessible via the instance.
-    # No need to list them separately in __all__ unless they were standalone functions.
+
 ]
 
 # Example Usage (for testing purposes, can be removed or commented out)
