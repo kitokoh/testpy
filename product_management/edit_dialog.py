@@ -813,15 +813,15 @@ class ProductEditDialog(QDialog):
                     QMessageBox.warning(self, self.tr("Not Found"), self.tr(f"Product with ID {equivalent_product_id} not found."))
                     return
 
-            link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
-            if link_id:
-                QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))
-                self.load_product_data()  # Refresh list
-            else:
-                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add product equivalence."))
-        except Exception as e:
-            print(f"Error adding product equivalence: {e}")
-            QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
+                link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
+                if link_id:
+                    QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))
+                    self.load_product_data()  # Refresh list
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add product equivalence."))
+            except Exception as e:
+                print(f"Error adding product equivalence: {e}")
+                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
 
     def _remove_product_equivalence(self):
         if self.product_id is None: return # Should be disabled
