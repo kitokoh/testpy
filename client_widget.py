@@ -670,6 +670,13 @@ class ClientWidget(QWidget):
         self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
         self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
 
+    def _handle_edit_pdf_action(self, file_path, document_id):
+        if file_path and os.path.exists(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        else:
+            QMessageBox.warning(self, self.tr("Fichier Introuvable"),
+                                self.tr("Le fichier PDF spécifié est introuvable ou le chemin est invalide:\n{0}").format(file_path))
+
     def open_send_whatsapp_dialog(self):
        client_uuid = self.client_info.get("client_id")
        client_name = self.client_info.get("client_name", "")
@@ -2209,7 +2216,14 @@ class ClientWidget(QWidget):
                 edit_source_template_btn.setFixedSize(30,30)
                 edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d))
                 action_layout.addWidget(edit_source_template_btn)
-            elif doc_name.lower().endswith(('.xlsx', '.html')):
+            elif file_type_str.upper() == "PDF":
+                edit_pdf_btn = QPushButton(self.tr("Modifier PDF"))
+                edit_pdf_btn.setIcon(QIcon(":/icons/pencil.svg"))
+                edit_pdf_btn.setToolTip(self.tr("Modifier le fichier PDF"))
+                edit_pdf_btn.setFixedSize(30, 30)
+                edit_pdf_btn.clicked.connect(lambda _, p=full_file_path, doc_id=document_id: self._handle_edit_pdf_action(p, doc_id))
+                action_layout.addWidget(edit_pdf_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')): # Keep this for non-PDF office docs
                 # 4. edit_btn (Direct edit for .xlsx, .html)
                 edit_btn = QPushButton("")
                 edit_btn.setIcon(QIcon(":/icons/pencil.svg")) # Kept as per instruction
@@ -2218,6 +2232,7 @@ class ClientWidget(QWidget):
                 edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p))
                 action_layout.addWidget(edit_btn)
             else:
+                # This spacer is added if no other edit-like button is added for this slot.
                 spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
 
             # 5. delete_btn (Delete Document)

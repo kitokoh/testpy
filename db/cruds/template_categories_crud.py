@@ -4,10 +4,10 @@ import logging
 
 # --- TemplateCategories CRUD ---
 @_manage_conn
-def add_template_category(category_name: str, description: str = None, conn: sqlite3.Connection = None) -> int | None:
+def add_template_category(category_name: str, description: str = None, purpose: str = None, conn: sqlite3.Connection = None) -> int | None:
     cursor=conn.cursor()
     try:
-        cursor.execute("INSERT INTO TemplateCategories (category_name, description) VALUES (?,?)", (category_name, description))
+        cursor.execute("INSERT INTO TemplateCategories (category_name, description, purpose) VALUES (?,?,?)", (category_name, description, purpose))
         return cursor.lastrowid
     except sqlite3.IntegrityError: # Category name likely not unique
         try:
@@ -64,9 +64,9 @@ def get_all_template_categories(conn: sqlite3.Connection = None) -> list[dict]:
         return []
 
 @_manage_conn
-def update_template_category(category_id: int, new_name: str = None, new_description: str = None, conn: sqlite3.Connection = None) -> bool:
-    if not new_name and new_description is None:
-        logging.info("No new name or description provided for update_template_category.")
+def update_template_category(category_id: int, new_name: str = None, new_description: str = None, new_purpose: str = None, conn: sqlite3.Connection = None) -> bool:
+    if not new_name and new_description is None and new_purpose is None:
+        logging.info("No new name, description, or purpose provided for update_template_category.")
         return False
 
     cursor = conn.cursor()
@@ -78,10 +78,13 @@ def update_template_category(category_id: int, new_name: str = None, new_descrip
     if new_description is not None: # Allow empty string for description
         set_clauses.append("description = ?")
         params.append(new_description)
+    if new_purpose is not None: # Allow empty string for purpose
+        set_clauses.append("purpose = ?")
+        params.append(new_purpose)
 
     if not set_clauses:
-        logging.info("No valid fields to update in update_template_category.")
-        return False # Should not happen if first check passed
+        logging.info("No valid fields to update in update_template_category.") # Should be unreachable if first check is correct
+        return False
 
     sql = f"UPDATE TemplateCategories SET {', '.join(set_clauses)} WHERE category_id = ?"
     params.append(category_id)

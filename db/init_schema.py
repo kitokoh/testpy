@@ -521,6 +521,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_name TEXT NOT NULL,
+        product_code TEXT UNIQUE,
         description TEXT,
         category TEXT,
         language_code TEXT DEFAULT 'fr',
@@ -710,21 +711,40 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS TemplateCategories (
         category_id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_name TEXT NOT NULL UNIQUE,
-        description TEXT
+        description TEXT,
+        purpose TEXT -- New column
     )
     """)
+
+    # Idempotently add purpose column if it doesn't exist
+    cursor.execute("PRAGMA table_info(TemplateCategories)")
+    tc_columns = [column['name'] for column in cursor.fetchall()]
+    if 'purpose' not in tc_columns:
+        try:
+            cursor.execute("ALTER TABLE TemplateCategories ADD COLUMN purpose TEXT")
+            print("Added 'purpose' column to TemplateCategories table.")
+        except sqlite3.Error as e_alter_tc:
+            print(f"Error adding 'purpose' column to TemplateCategories table: {e_alter_tc}")
+
     general_category_id_for_migration = None
     try:
+        # Seed initial categories - purpose will be updated shortly after
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
         cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
         general_row = cursor.fetchone()
-        if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
+        if general_row: general_category_id_for_migration = general_row['category_id']
 
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Modèles Email', 'Modèles pour les corps des emails'))
+
+        # Update purposes for these initial categories
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'General'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'Document Utilitaires'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('email', 'Modèles Email'))
+
         # No commit here, part of larger transaction
     except sqlite3.Error as e_cat_init:
-        print(f"Error initializing TemplateCategories: {e_cat_init}")
+        print(f"Error initializing TemplateCategories or setting purposes: {e_cat_init}")
 
 
     # Templates table migration logic (from ca.py, seems more complete for this part)
@@ -1272,6 +1292,160 @@ CREATE TABLE IF NOT EXISTS Templates (
             UNIQUE (user_google_account_id, google_contact_id)
         )""")
 
+    # ReportConfigurations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigurations (
+        report_config_id TEXT PRIMARY KEY, -- UUID
+        report_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        target_entity TEXT NOT NULL, -- e.g., 'Assets', 'Clients', 'Projects'
+        output_format TEXT NOT NULL, -- e.g., 'PDF', 'CSV', 'JSON'
+        created_by_user_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_system_report BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
+    # ReportConfigFields Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFields (
+        report_config_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL, -- Original field name from the entity
+        display_name TEXT,        -- Custom display name for the report
+        sort_order INTEGER DEFAULT 0,     -- 0 for no sort, 1 for primary sort, 2 for secondary, etc.
+        sort_direction TEXT,      -- 'ASC' or 'DESC', NULL if not sorted
+        group_by_priority INTEGER DEFAULT 0, -- 0 for no group, 1 for primary group, etc.
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ReportConfigFilters Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFilters (
+        report_config_filter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        operator TEXT NOT NULL, -- e.g., '=', '!=', '>', '<', 'IN', 'NOT IN', 'LIKE', 'BETWEEN'
+        filter_value_1 TEXT,    -- Primary value, or start value for BETWEEN
+        filter_value_2 TEXT,    -- End value for BETWEEN, NULL otherwise
+        logical_group TEXT DEFAULT 'AND', -- 'AND' or 'OR' for grouping with next filter
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ItemLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemLocations (
+        location_id TEXT PRIMARY KEY,
+        location_name TEXT,
+        location_type TEXT,
+        parent_location_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_location_id) REFERENCES ItemLocations(location_id) ON DELETE SET NULL
+    )
+    """)
+
+    # InternalStockItems Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS InternalStockItems (
+        item_id TEXT PRIMARY KEY,
+        item_name TEXT,
+        item_code TEXT UNIQUE,
+        category TEXT,
+        description TEXT,
+        quantity REAL DEFAULT 0,
+        unit_of_measure TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ItemStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemStorageLocations (
+        item_storage_location_id TEXT PRIMARY KEY,
+        item_id TEXT,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES InternalStockItems(item_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (item_id, location_id)
+    )
+    """)
+
+    # ProductStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ProductStorageLocations (
+        product_storage_location_id TEXT PRIMARY KEY,
+        product_id INTEGER,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (product_id, location_id)
+    )
+    """)
+
+
+    # CompanyAssets Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyAssets (
+        asset_id TEXT PRIMARY KEY, -- UUID
+        asset_name TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        serial_number TEXT UNIQUE,
+        description TEXT,
+        purchase_date DATE,
+        purchase_value REAL,
+        current_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TIMESTAMP
+    )
+    """)
+
+    # AssetAssignments Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetAssignments (
+        assignment_id TEXT PRIMARY KEY, -- UUID
+        asset_id TEXT NOT NULL,
+        personnel_id INTEGER NOT NULL,
+        assignment_date TIMESTAMP NOT NULL,
+        expected_return_date TIMESTAMP,
+        actual_return_date TIMESTAMP,
+        assignment_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE RESTRICT
+    )
+    """)
+
+    # AssetMediaLinks Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetMediaLinks (
+        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        alt_text TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+        UNIQUE (asset_id, media_item_id),
+        UNIQUE (asset_id, display_order)
+    )
+    """)
+
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients
@@ -1282,6 +1456,18 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_created_by_user_id ON Clients(created_by_user_id)")
+
+    # ReportConfigurations Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_report_name ON ReportConfigurations(report_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_target_entity ON ReportConfigurations(target_entity)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_created_by_user_id ON ReportConfigurations(created_by_user_id)")
+
+    # ReportConfigFields Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfields_report_config_id ON ReportConfigFields(report_config_id)")
+
+    # ReportConfigFilters Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfilters_report_config_id ON ReportConfigFilters(report_config_id)")
+
     # Projects
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_client_id ON Projects(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_status_id ON Projects(status_id)")
@@ -1385,6 +1571,23 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
 
+
+    # ItemLocations
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_parent_id ON ItemLocations(parent_location_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_type ON ItemLocations(location_type)")
+
+    # Indexes for InternalStockItems
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_item_name ON InternalStockItems(item_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_item_code ON InternalStockItems(item_code)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_category ON InternalStockItems(category)")
+
+    # ItemStorageLocations (formerly ProductStorageLocations)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemstoragelocations_item_id ON ItemStorageLocations(item_id)") # Renamed from product_id
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemstoragelocations_location_id ON ItemStorageLocations(location_id)")
+    # ProductStorageLocations
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_product_id ON ProductStorageLocations(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_location_id ON ProductStorageLocations(location_id)")
+
     # ProformaInvoices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_client_id ON proforma_invoices(client_id)")
@@ -1434,6 +1637,7 @@ CREATE TABLE IF NOT EXISTS Templates (
         # Using the imported set_setting CRUD function, passing the connection
         set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
         set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        set_setting('client_document_template_categories', 'General,Document Utilitaires', conn=conn) # New setting
         print("DEBUG_INIT_DB: Application settings seeded.")
 
         # Populate Default Cover Page Templates

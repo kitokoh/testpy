@@ -175,3 +175,25 @@ def get_distinct_purchase_confirmed_at_for_client(client_id: str, conn: sqlite3.
     except sqlite3.Error as e:
         logger.error(f"DB error in get_distinct_purchase_confirmed_at_for_client for client ID {client_id}: {e}")
         return []
+
+@_manage_conn
+def get_product_usage_counts(conn: sqlite3.Connection = None) -> list[dict]:
+    # logger is already defined at the module level: logger = logging.getLogger(__name__)
+    cursor = conn.cursor()
+    sql = """
+        SELECT
+            p.product_name,
+            COUNT(cpp.client_project_product_id) as usage_count
+        FROM ClientProjectProducts cpp
+        JOIN Products p ON cpp.product_id = p.product_id
+        GROUP BY p.product_id, p.product_name
+        ORDER BY usage_count DESC
+    """
+    try:
+        cursor.execute(sql)
+        results = [dict(row) for row in cursor.fetchall()]
+        logger.debug(f"Product usage counts retrieved successfully: {len(results)} products.")
+        return results
+    except sqlite3.Error as e:
+        logger.error(f"DB error in get_product_usage_counts: {e}", exc_info=True)
+        return []
