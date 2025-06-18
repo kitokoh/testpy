@@ -710,21 +710,40 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS TemplateCategories (
         category_id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_name TEXT NOT NULL UNIQUE,
-        description TEXT
+        description TEXT,
+        purpose TEXT -- New column
     )
     """)
+
+    # Idempotently add purpose column if it doesn't exist
+    cursor.execute("PRAGMA table_info(TemplateCategories)")
+    tc_columns = [column['name'] for column in cursor.fetchall()]
+    if 'purpose' not in tc_columns:
+        try:
+            cursor.execute("ALTER TABLE TemplateCategories ADD COLUMN purpose TEXT")
+            print("Added 'purpose' column to TemplateCategories table.")
+        except sqlite3.Error as e_alter_tc:
+            print(f"Error adding 'purpose' column to TemplateCategories table: {e_alter_tc}")
+
     general_category_id_for_migration = None
     try:
+        # Seed initial categories - purpose will be updated shortly after
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
         cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
         general_row = cursor.fetchone()
-        if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
+        if general_row: general_category_id_for_migration = general_row['category_id']
 
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Modèles Email', 'Modèles pour les corps des emails'))
+
+        # Update purposes for these initial categories
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'General'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'Document Utilitaires'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('email', 'Modèles Email'))
+
         # No commit here, part of larger transaction
     except sqlite3.Error as e_cat_init:
-        print(f"Error initializing TemplateCategories: {e_cat_init}")
+        print(f"Error initializing TemplateCategories or setting purposes: {e_cat_init}")
 
 
     # Templates table migration logic (from ca.py, seems more complete for this part)
@@ -1434,6 +1453,7 @@ CREATE TABLE IF NOT EXISTS Templates (
         # Using the imported set_setting CRUD function, passing the connection
         set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
         set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        set_setting('client_document_template_categories', 'General,Document Utilitaires', conn=conn) # New setting
         print("DEBUG_INIT_DB: Application settings seeded.")
 
         # Populate Default Cover Page Templates

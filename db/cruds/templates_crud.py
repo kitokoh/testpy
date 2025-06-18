@@ -32,7 +32,13 @@ def add_template(data: dict, conn: sqlite3.Connection = None, client_id: str = N
     # If category_id is not provided, try to find/create by category_name
     if not cat_id and 'category_name' in data and data['category_name']:
         # Use the imported add_template_category, ensuring conn is passed
-        cat_id = add_template_category(data['category_name'], data.get('category_description'), conn=conn)
+        # Also pass category_purpose if available in data
+        cat_id = add_template_category(
+            data['category_name'],
+            data.get('category_description'),
+            purpose=data.get('category_purpose'), # Pass the purpose
+            conn=conn
+        )
         if not cat_id: # Failed to add/get category
             logging.error(f"Failed to add/get category: {data['category_name']} for template: {data['template_name']}")
             return None # Stop if category cannot be processed
@@ -74,7 +80,13 @@ def add_default_template_if_not_exists(data: dict, conn: sqlite3.Connection = No
 
         cat_id = data.get('category_id')
         if not cat_id and 'category_name' in data and data['category_name']:
-            cat_id = add_template_category(data.get('category_name',"General"), conn=conn) # Pass conn
+            # Pass category_purpose if available in data, when creating category for default template
+            cat_id = add_template_category(
+                data.get('category_name', "General"),
+                description=data.get('category_description'), # Add description if available
+                purpose=data.get('category_purpose'), # Pass purpose
+                conn=conn
+            )
             if not cat_id:
                 logging.error(f"Failed to ensure category for default template: {name}")
                 return None
@@ -477,7 +489,12 @@ def add_utility_document_template(name: str, language_code: str, base_file_name:
         template_type = 'document_other'
 
     # Get or create category ID for "Document Utilitaires"
-    category_id = add_template_category(UTILITY_DOCUMENT_CATEGORY_NAME, "Modèles de documents utilitaires globaux", conn=conn)
+    category_id = add_template_category(
+        UTILITY_DOCUMENT_CATEGORY_NAME,
+        "Modèles de documents utilitaires globaux",
+        purpose='utility', # Explicitly set purpose for utility documents category
+        conn=conn
+    )
     if not category_id:
         logging.error(f"Failed to get or create category '{UTILITY_DOCUMENT_CATEGORY_NAME}' for utility template: {name}")
         return None

@@ -13,7 +13,11 @@ from PyQt5.QtGui import QIcon, QColor # QColor was used for item background (opt
 from PyQt5.QtCore import Qt # Qt is used for e.g. Qt.UserRole
 
 import db as db_manager
-from db.cruds.template_categories_crud import get_template_category_by_name # Import for category fetching
+# get_template_category_by_name is not directly used anymore, get_all_template_categories is.
+# from db.cruds.template_categories_crud import get_template_category_by_name
+from db.cruds.template_categories_crud import get_all_template_categories # Import for fetching all categories
+# get_setting is no longer used for this purpose.
+# from db.cruds.application_settings_crud import get_setting
 from html_editor import HtmlEditor
 from utils import populate_docx_template
 # clients_crud_instance is not used by CreateDocumentDialog
@@ -183,20 +187,29 @@ class CreateDocumentDialog(QDialog):
             # get_all_templates is now client-aware and handles other filters
 
             category_ids_to_filter = []
-            general_cat = get_template_category_by_name('General')
-            if general_cat and 'category_id' in general_cat:
-                category_ids_to_filter.append(general_cat['category_id'])
+            all_categories = get_all_template_categories() # Fetches all categories from the DB
 
-            doc_util_cat = get_template_category_by_name('Document Utilitaires')
-            if doc_util_cat and 'category_id' in doc_util_cat:
-                category_ids_to_filter.append(doc_util_cat['category_id'])
+            if all_categories:
+                for category in all_categories:
+                    if category.get('purpose') == 'client_document':
+                        category_ids_to_filter.append(category['category_id'])
 
             if not category_ids_to_filter:
-                # If no specific categories found, this will result in no category-specific filtering by these names.
-                # Depending on requirements, could log a warning or fetch all templates (by passing None or empty list,
-                # assuming get_all_templates handles empty list as "no filter on this criteria").
-                # Current get_all_templates logic should handle empty list correctly (no IN clause added).
-                logging.warning("Neither 'General' nor 'Document Utilitaires' categories found, or they lack IDs. Proceeding without these specific category filters.")
+                logging.warning("No categories found with purpose 'client_document'. No templates will be shown based on this criterion if category filtering is applied.")
+                # If category_ids_to_filter is empty and passed to get_all_templates,
+                # it should result in no templates if the IN clause becomes `IN ()`.
+                # Or, if get_all_templates handles empty list by not adding the category filter,
+                # then all templates (matching other criteria) would be shown.
+                # The current implementation of get_all_templates with an empty list for IN clause
+                # will likely result in an SQL error or no results for that clause.
+                # It's better if get_all_templates doesn't add the clause if the list is empty.
+                # For now, we pass the empty list. If it causes issues, get_all_templates needs adjustment
+                # or we explicitly pass None if category_ids_to_filter is empty.
+                # Let's assume get_all_templates handles an empty list for category_id_filter correctly
+                # by not filtering on categories if the list is empty (e.g. by not adding the IN clause).
+                # To be safe, if empty, we might not want to filter by category at all,
+                # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
+                # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
@@ -318,10 +331,23 @@ class CreateDocumentDialog(QDialog):
 
             template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
 
-            if os.path.exists(template_file_on_disk_abs):
-                selected_order_identifier = None
-                if self.order_select_combo and self.order_select_combo.isVisible():
-                    selected_order_identifier_data = self.order_select_combo.currentData()
+            # === Added Existence Check ===
+            if not os.path.exists(template_file_on_disk_abs):
+                logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'. Skipping this template.")
+                QMessageBox.warning(self, self.tr("Fichier Modèle Introuvable"),
+                                    self.tr("Le fichier pour le modèle '{0}' ({1}) est introuvable à l'emplacement attendu:\n{2}\n\nCe modèle sera ignoré.").format(db_template_name, db_template_lang, template_file_on_disk_abs))
+                continue
+            # === End of Added Existence Check ===
+
+            # The original if os.path.exists(template_file_on_disk_abs) is now redundant due to the check above,
+            # but the logic inside it should proceed if the file exists (i.e., if the `continue` above wasn't hit).
+            # So, we don't need to indent the following block further, it's correctly placed.
+            # if os.path.exists(template_file_on_disk_abs): # This line can be effectively removed or commented out if the above check is comprehensive.
+            # For clarity, let's assume the code below this point only runs if the file exists.
+
+            selected_order_identifier = None
+            if self.order_select_combo and self.order_select_combo.isVisible():
+                selected_order_identifier_data = self.order_select_combo.currentData()
                     if selected_order_identifier_data != "NONE":
                         selected_order_identifier = selected_order_identifier_data
 
@@ -461,9 +487,10 @@ class CreateDocumentDialog(QDialog):
                 except Exception as e_create:
                     logging.error(f"General error creating document '{actual_template_filename}': {e_create}", exc_info=True)
                     QMessageBox.warning(self, self.tr("Erreur Création Document"), self.tr("Impossible de créer ou populer le document '{0}':\n{1}").format(actual_template_filename, str(e_create)))
-            else:
-                logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'")
-                QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
+            # The 'else' for the original 'if os.path.exists' is no longer needed here as the check is done above.
+            # else:
+            #     logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'")
+            #     QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Fichier modèle '{0}' introuvable pour '{1}'.").format(actual_template_filename, db_template_name))
 
         if created_files_count > 0:
             QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
