@@ -8,6 +8,7 @@ import logging
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
+from app_config import CONFIG
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
@@ -18,7 +19,7 @@ from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.products_crud import products_crud_instance
 
 # Imports for non-refactored or utility functions used in seeding
-from db.cruds.template_categories_crud import add_template_category
+from db.cruds.template_categories_crud import add_template_category, get_template_category_by_name
 from db.cruds.cover_page_templates_crud import get_cover_page_template_by_name, add_cover_page_template
 # get_user_by_username will be called via users_crud_instance if needed for seeding logic outside Users table itself
 from db.cruds.locations_crud import get_or_add_country, get_or_add_city, get_country_by_name, get_city_by_name_and_country_id
@@ -39,7 +40,7 @@ LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup
 
 # Ensure add_default_template_if_not_exists is imported if used by seed_initial_data directly
 # (It is used, so ensure it's available from db.cruds.templates_crud)
-from db.cruds.templates_crud import add_default_template_if_not_exists
+from db.cruds.templates_crud import add_template, get_filtered_templates, add_default_template_if_not_exists
 # Ensure set_setting is imported if used by seed_initial_data directly
 # (It is used, so ensure it's available from db.cruds.application_settings_crud)
 from db.cruds.application_settings_crud import set_setting
@@ -427,6 +428,10 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         _seed_default_partner_categories(cursor, logger_passed=logger) # Pass logger
         logger.info("Called _seed_default_partner_categories for seeding.")
 
+    # 16. Default Utility Templates
+    _seed_default_utility_templates(cursor, conn, logger_passed=logger)
+    logger.info("Called _seed_default_utility_templates for seeding.")
+
         logger.info("Data seeding operations completed within seed_initial_data.")
 
     except sqlite3.Error as e:
@@ -435,6 +440,149 @@ def seed_initial_data(cursor: sqlite3.Cursor):
     except Exception as e_gen:
         logger.error(f"A general error occurred during data seeding within seed_initial_data: {e_gen}", exc_info=True)
         raise
+
+
+DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME = "Document Utilitaires"
+DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC = "Modèles de documents utilitaires généraux"
+
+DEFAULT_UTILITY_DOCUMENTS = [
+    {'template_name': 'Contact Page EN', 'base_file_name': 'contact_page_template.html', 'language_code': 'en', 'description': 'Standard contact page template in English.'},
+    {'template_name': 'Contact Page FR', 'base_file_name': 'contact_page_template.html', 'language_code': 'fr', 'description': 'Modèle de page de contact standard en français.'},
+    {'template_name': 'Cover Page EN', 'base_file_name': 'cover_page_template.html', 'language_code': 'en', 'description': 'Standard cover page template in English.'},
+    {'template_name': 'Cover Page FR', 'base_file_name': 'cover_page_template.html', 'language_code': 'fr', 'description': 'Modèle de page de garde standard en français.'},
+    {'template_name': 'Technical Specifications EN', 'base_file_name': 'technical_specifications_template.html', 'language_code': 'en', 'description': 'Template for technical specifications in English.'},
+    {'template_name': 'Technical Specifications FR', 'base_file_name': 'technical_specifications_template.html', 'language_code': 'fr', 'description': 'Modèle de spécifications techniques en français.'},
+    {'template_name': 'Warranty Document EN', 'base_file_name': 'warranty_document_template.html', 'language_code': 'en', 'description': 'Standard warranty document in English.'}
+]
+
+def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):
+    """Seeds default utility document templates into the database."""
+    logger = logger_passed
+    logger.info("Attempting to seed default utility document templates...")
+
+    category_obj = get_template_category_by_name(DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME, conn=conn)
+    if not category_obj:
+        logger.info(f"Utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' not found, creating it.")
+        # add_template_category expects a dict with category_name and optional description
+        utility_category_id = add_template_category(
+            {'category_name': DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME, 'description': DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC},
+            conn=conn
+        )
+        if not utility_category_id:
+            logger.error(f"Failed to create utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}'. Aborting utility template seeding.")
+            return
+        logger.info(f"Utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' created with ID: {utility_category_id}.")
+    else:
+        utility_category_id = category_obj['category_id']
+        logger.info(f"Found utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' with ID: {utility_category_id}.")
+
+
+    for doc_def in DEFAULT_UTILITY_DOCUMENTS:
+        template_name = doc_def['template_name']
+        language_code = doc_def['language_code']
+        base_file_name = doc_def['base_file_name']
+        description = doc_def['description']
+
+        # Determine template_type from base_file_name extension
+        ext = os.path.splitext(base_file_name)[1].lower()
+        if ext == '.pdf':
+            template_type = 'document_pdf'
+        elif ext == '.html':
+            template_type = 'document_html'
+        elif ext == '.docx':
+            template_type = 'document_word'
+        elif ext == '.xlsx':
+            template_type = 'document_excel'
+        else:
+            template_type = 'document_other'
+
+        # Check if template already exists
+        existing_templates = get_filtered_templates(
+            template_name=template_name,
+            language_code=language_code,
+            category_id=utility_category_id,
+            conn=conn
+        )
+
+        if existing_templates:
+            logger.info(f"Utility template '{template_name}' ({language_code}) already exists. Skipping.")
+            continue
+
+        # Verify the actual template file exists (optional, as raw_template_file_data is not being set here)
+        # This path check assumes a certain structure for global utility templates,
+        # e.g., templates_dir / language_code / base_file_name
+        # Adjust if your global utility templates are stored differently (e.g., in a 'utility' subfolder).
+        # For now, let's assume they might be in templates_dir/utility/language_code/base_file_name or similar.
+        # The save_general_document_file function uses CONFIG.get("templates_dir", "templates") / document_type_subfolder / language_code
+        # Let's assume 'utility_documents' as the document_type_subfolder for these.
+
+        # Path for utility files is typically <templates_dir>/<document_type_subfolder>/<language_code>/<base_file_name>
+        # Let's assume 'utility_docs' as the subfolder for these specific templates.
+        # This requires that the files are actually placed there during deployment/setup.
+        # The `CONFIG.get("templates_dir", "templates")` should resolve to the root 'templates' folder.
+        # We'll use a subfolder like 'utility_documents' for these global ones.
+
+        # Corrected path construction:
+        # The path should be relative to where `save_general_document_file` would save them,
+        # or where they are expected to be found for seeding.
+        # If `save_general_document_file` uses `CONFIG.get("templates_dir")` (e.g. /app/templates),
+        # then `document_type_subfolder` (e.g. 'utility_documents'), `language_code`, `base_file_name`.
+
+        # For seeding, we check if the source files exist in a predefined location
+        # relative to the project structure, typically NOT in the dynamic templates_dir
+        # which might be empty or managed by the app.
+        # Let's assume seed files are in a 'seed_template_files/utility_documents/<lang>/<filename>' structure
+        # relative to the project root for clarity during seeding.
+
+        # For simplicity, the problem description implies `base_file_name` is enough,
+        # and `raw_template_file_data` is not set. This means the existence of the file
+        # at runtime will depend on `generate_document_from_template` resolving it correctly
+        # using `CONFIG.get("templates_dir")`, `document_type_subfolder` (which is part of the saved template record via category or type),
+        # `language_code`, and `base_file_name`.
+        # The `add_utility_document_template` function saves the `base_file_name` but not the content.
+        # The file itself should be placed in the correct `templates_dir/document_type_subfolder/language_code/` path.
+        # For seeding, we just record the metadata. The actual files must be deployed to the expected runtime path.
+
+        # The problem states: "Log a warning if not found but proceed to add DB record (as raw_template_file_data is not being set)."
+        # This implies we should check a *runtime* path, not a seed-specific source path.
+        # The runtime path would be `templates_dir / <category_name_as_folder> / language_code / base_file_name`
+        # or `templates_dir / <template_type_as_folder> / language_code / base_file_name`.
+        # Given utility_category_id, let's assume a folder structure based on the category name for consistency.
+        # However, `save_general_document_file` uses `document_type_subfolder`.
+        # Let's assume the `template_type` (e.g., 'document_html') is used as the subfolder for organization within templates_dir.
+
+        expected_runtime_template_path = os.path.join(
+            CONFIG.get("templates_dir", "templates"), # e.g., /app/templates
+            template_type, # e.g., document_html (derived from extension)
+            language_code, # e.g., en
+            base_file_name # e.g., contact_page_template.html
+        )
+
+        if not os.path.exists(expected_runtime_template_path):
+            logger.warning(
+                f"Utility template file not found at expected runtime path: '{expected_runtime_template_path}'. "
+                f"DB record will be added, but the file must exist at this path for the template to be usable."
+            )
+
+        template_data = {
+            'template_name': template_name,
+            'template_type': template_type, # Determined from extension
+            'language_code': language_code,
+            'base_file_name': base_file_name,
+            'description': description,
+            'category_id': utility_category_id,
+            'client_id': None,  # Utility documents are global
+            'is_default_for_type_lang': False, # Typically not default unless specified
+            # 'raw_template_file_data' is not set here, as per instructions
+        }
+
+        template_id = add_template(template_data, conn=conn)
+        if template_id:
+            logger.info(f"Successfully seeded utility template '{template_name}' ({language_code}) with ID: {template_id}")
+        else:
+            logger.error(f"Failed to seed utility template '{template_name}' ({language_code}).")
+
+    logger.info("Default utility document templates seeding attempt finished.")
 
 
 def run_seed():

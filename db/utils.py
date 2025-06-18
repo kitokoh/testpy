@@ -5,6 +5,8 @@ import json
 import sys # Import sys
 from datetime import datetime
 import logging # Keep logging import
+import shutil
+from app_config import CONFIG
 
 # --- Configuration Import ---
 # Get the application root directory (parent of 'db' directory)
@@ -351,7 +353,70 @@ __all__ = [
     # "get_db_connection", # Moved to db.connection
     "format_currency",
     "get_document_context_data",
+    "save_general_document_file",
+    "delete_general_document_file",
 ]
+
+
+# Function to save a general document file
+def save_general_document_file(source_file_path: str, document_type_subfolder: str, language_code: str, target_base_name: str) -> str | None:
+    """
+    Saves a general document file to the appropriate templates subfolder.
+
+    Args:
+        source_file_path (str): The path to the source file to be copied.
+        document_type_subfolder (str): The subfolder name for the document type (e.g., 'quotes', 'invoices').
+        language_code (str): The language code for the document (e.g., 'en', 'fr').
+        target_base_name (str): The base name for the target file (e.g., 'template.docx').
+
+    Returns:
+        str | None: The full path to the saved file on success, or None on error.
+    """
+    try:
+        templates_dir = CONFIG.get("templates_dir", "templates")
+        target_dir = os.path.join(templates_dir, document_type_subfolder, language_code)
+        os.makedirs(target_dir, exist_ok=True)
+        target_file_path = os.path.join(target_dir, target_base_name)
+        shutil.copy(source_file_path, target_file_path)
+        logging.info(f"Successfully saved document: {target_file_path}")
+        return target_file_path
+    except (IOError, FileNotFoundError) as e:
+        logging.error(f"Error saving document file '{source_file_path}' to '{target_base_name}' in '{document_type_subfolder}/{language_code}': {e}")
+        return None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred in save_general_document_file: {e}")
+        return None
+
+# Function to delete a general document file
+def delete_general_document_file(document_type_subfolder: str, language_code: str, base_file_name: str) -> bool:
+    """
+    Deletes a general document file from the appropriate templates subfolder.
+
+    Args:
+        document_type_subfolder (str): The subfolder name for the document type.
+        language_code (str): The language code for the document.
+        base_file_name (str): The base name of the file to delete.
+
+    Returns:
+        bool: True if deletion was successful or if the file didn't exist, False on OSError during deletion.
+    """
+    try:
+        templates_dir = CONFIG.get("templates_dir", "templates")
+        file_path_to_delete = os.path.join(templates_dir, document_type_subfolder, language_code, base_file_name)
+
+        if not os.path.exists(file_path_to_delete):
+            logging.info(f"File not found, no need to delete: {file_path_to_delete}")
+            return True  # File doesn't exist, so considered "successfully" deleted in this context
+
+        os.remove(file_path_to_delete)
+        logging.info(f"Successfully deleted document: {file_path_to_delete}")
+        return True
+    except OSError as e:
+        logging.error(f"Error deleting document file '{base_file_name}' from '{document_type_subfolder}/{language_code}': {e}")
+        return False
+    except Exception as e:
+        logging.error(f"An unexpected error occurred in delete_general_document_file: {e}")
+        return False
 
 if __name__ == '__main__': # pragma: no cover
     print("db.utils module direct execution (for testing, may require DB setup)")

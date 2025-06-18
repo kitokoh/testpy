@@ -20,7 +20,7 @@ except ImportError:
     config = config_fallback_templates
 
 from .generic_crud import _manage_conn, get_db_connection # db_config removed from this import
-from .template_categories_crud import add_template_category
+from .template_categories_crud import add_template_category, get_template_category_by_name
 
 # --- Templates CRUD ---
 @_manage_conn
@@ -442,4 +442,68 @@ __all__ = [
     "get_distinct_languages_for_template_type",
     "get_all_file_based_templates",
     "get_templates_by_category_id",
+    "add_utility_document_template",
+    "get_utility_documents",
 ]
+
+UTILITY_DOCUMENT_CATEGORY_NAME = "Document Utilitaires"
+
+@_manage_conn
+def add_utility_document_template(name: str, language_code: str, base_file_name: str, description: str, created_by_user_id: str = None, conn: sqlite3.Connection = None) -> int | None:
+    """
+    Adds a new utility document template to the database.
+    These templates are global and not tied to a specific client.
+    """
+    # Determine template_type based on file extension
+    ext = os.path.splitext(base_file_name)[1].lower()
+    if ext == '.pdf':
+        template_type = 'document_pdf'
+    elif ext == '.html':
+        template_type = 'document_html'
+    elif ext == '.docx':
+        template_type = 'document_word'
+    elif ext == '.xlsx':
+        template_type = 'document_excel'
+    else:
+        template_type = 'document_other'
+
+    # Get or create category ID for "Document Utilitaires"
+    category_id = add_template_category(UTILITY_DOCUMENT_CATEGORY_NAME, "Modèles de documents utilitaires globaux", conn=conn)
+    if not category_id:
+        logging.error(f"Failed to get or create category '{UTILITY_DOCUMENT_CATEGORY_NAME}' for utility template: {name}")
+        return None
+
+    template_data = {
+        'template_name': name,
+        'template_type': template_type,
+        'language_code': language_code,
+        'base_file_name': base_file_name,
+        'description': description,
+        'category_id': category_id,
+        'created_by_user_id': created_by_user_id,
+        'client_id': None,  # Utility documents are global
+        'is_default_for_type_lang': False # Utility documents are not typically defaults
+    }
+
+    return add_template(template_data, conn=conn)
+
+@_manage_conn
+def get_utility_documents(language_code: str = None, conn: sqlite3.Connection = None) -> list[dict]:
+    """
+    Retrieves all utility document templates, optionally filtered by language.
+    Utility documents are global and belong to the 'Document Utilitaires' category.
+    """
+    category = get_template_category_by_name(UTILITY_DOCUMENT_CATEGORY_NAME, conn=conn)
+    if not category:
+        logging.warning(f"Utility document category '{UTILITY_DOCUMENT_CATEGORY_NAME}' not found.")
+        return []
+
+    utility_category_id = category['category_id']
+
+    return get_filtered_templates(
+        category_id=utility_category_id,
+        language_code=language_code,
+        client_id_filter=None,  # Explicitly not filtering by client
+        fetch_global_only=True, # Ensures only global templates are fetched
+        conn=conn
+    )
