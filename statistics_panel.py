@@ -23,7 +23,7 @@ from db.cruds.client_project_products_crud import get_product_usage_counts
 
 # Imports for trends and new sales logic
 from PyQt5.QtWidgets import QHBoxLayout # Ensure QHBoxLayout is imported
-from db import get_db_session # Assuming this is the correct SQLAlchemy session provider
+from db import get_db_connection # Assuming this is the correct SQLAlchemy session provider
 from db.cruds.proforma_invoices_crud import get_total_sales_amount_for_period
 
 

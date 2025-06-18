@@ -396,3 +396,5 @@ __all__ = [
     "assign_forwarder_to_client",
     "unassign_forwarder_from_client",
 ]
+
+from .connection import get_db_connection
