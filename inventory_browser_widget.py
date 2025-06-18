@@ -296,6 +296,14 @@ class InventoryBrowserWidget(QWidget):
         # Initial population of the location tree and visual map
         self.load_locations_into_tree()
 
+    def open_add_location_dialog(self):
+        # TODO: Implement the dialog to add a new location.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.open_add_location_dialog() called.")
+        # Consider raising NotImplementedError or showing a QMessageBox if appropriate
+        # QMessageBox.information(self, "Not Implemented", "This feature is not yet implemented.")
+        pass
+
     def update_assign_button_state(self):
         """
         Enables or disables the 'Assign Product to Selected Location' button.
