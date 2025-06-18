@@ -27,6 +27,7 @@ else:
 DEFAULT_TEMPLATES_DIR = os.path.join(APP_ROOT_DIR, TEMPLATES_SUBDIR)
 DEFAULT_CLIENTS_DIR = os.path.join(APP_ROOT_DIR, CLIENTS_SUBDIR)
 
+
 CONFIG = {
     "app_root_dir": APP_ROOT_DIR,
     "default_templates_dir": DEFAULT_TEMPLATES_DIR,
