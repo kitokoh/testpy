@@ -428,10 +428,7 @@ def seed_initial_data(cursor: sqlite3.Cursor):
         _seed_default_partner_categories(cursor, logger_passed=logger) # Pass logger
         logger.info("Called _seed_default_partner_categories for seeding.")
 
-    # 16. Default Utility Templates
-    _seed_default_utility_templates(cursor, conn, logger_passed=logger)
-    logger.info("Called _seed_default_utility_templates for seeding.")
-
+  
         logger.info("Data seeding operations completed within seed_initial_data.")
 
     except sqlite3.Error as e:
