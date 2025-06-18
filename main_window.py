@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+# import logging # logging is already imported
 import logging
 
 from PyQt5.QtWidgets import (
@@ -483,6 +484,10 @@ class DocumentManager(QMainWindow):
             status_obj = db_manager.get_status_setting_by_id(client_data_to_show['status_id'])
             client_data_to_show['status'] = status_obj.get('status_name', "N/A") if status_obj else "N/A"
 
+        logging.info(f"open_client_tab_by_id: client_id_to_open={client_id_to_open}, "
+                     f"client_data_to_show name={client_data_to_show.get('client_name')}, "
+                     f"email={client_data_to_show.get('email')}, phone={client_data_to_show.get('phone')}")
+
         # Ensure selected_languages is a list, even if it's null/empty from DB
         selected_languages_str = client_data_to_show.get('selected_languages')
         if isinstance(selected_languages_str, str) and selected_languages_str.strip():
@@ -494,11 +499,13 @@ class DocumentManager(QMainWindow):
         for i in range(self.client_tabs_widget.count()):
             tab_widget_ref = self.client_tabs_widget.widget(i) 
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
+                logging.info(f"Refreshing existing tab for client ID {client_id_to_open}")
                 self.client_tabs_widget.setCurrentIndex(i)
                 if hasattr(tab_widget_ref, 'refresh_display'):
                     tab_widget_ref.refresh_display(client_data_to_show)
                 return
 
+        logging.info(f"Creating new tab for client ID {client_id_to_open}")
         notification_manager = QApplication.instance().notification_manager
         client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+# import logging # logging is already imported
 import logging
 import shutil
 from datetime import datetime
@@ -81,6 +82,7 @@ class ClientWidget(QWidget):
 
     def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
+        logging.info(f"ClientWidget __init__: client_id={client_info.get('client_id')}, client_name={client_info.get('client_name')}")
         self.client_info = client_info
         self.notification_manager = notification_manager # Store notification_manager
         # self.config = config # Original config passed
@@ -1827,7 +1829,10 @@ class ClientWidget(QWidget):
         self.details_layout.addRow(folder_label, folder_value)
         self.detail_value_labels["base_folder_path"] = folder_value
 
+        logging.info(f"Populating details layout for: {self.client_info.get('client_name')}")
+
     def refresh_display(self, new_client_info):
+        logging.info(f"ClientWidget refresh_display: client_id={new_client_info.get('client_id')}, client_name={new_client_info.get('client_name')}")
         self.client_info = new_client_info
         # Update GroupBox title if it includes client name
         if hasattr(self, 'client_info_group_box'):
