@@ -334,6 +334,17 @@ class InventoryBrowserWidget(QWidget):
         # - Update button states
         pass
 
+    def search_products(self):
+        # TODO: Implement the logic to search products based on input
+        # and refresh the product_details_table or a product list.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.search_products() called.")
+        # Consider actual implementation:
+        # - Get search term from self.search_product_input
+        # - Query database for products matching the term
+        # - Populate self.product_details_table or another widget
+        pass
+
 
     def update_assign_button_state(self):
         """
