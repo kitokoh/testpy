@@ -57,9 +57,7 @@ def load_config(app_root_dir, default_templates_dir, default_clients_dir):
         "smtp_port": 587,
         "smtp_user": "",
         "smtp_password": "",
-        "default_reminder_days": 30,
-        "download_monitor_enabled": False,
-        "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads')
+        "default_reminder_days": 30
     }
 
 def save_config(config_data):

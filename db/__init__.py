@@ -189,10 +189,6 @@ from .cruds.partners_crud import (
     delete_partner_category,
     update_partner_category,
     get_partner_category_by_id, # Added
-    add_partner_interaction,
-    get_interactions_for_partner,
-    update_partner_interaction,
-    delete_partner_interaction,
 )
 from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id, get_country_by_name, get_city_by_name_and_country_id
 from .cruds.transporters_crud import get_all_transporters, add_transporter, get_transporter_by_id, update_transporter, delete_transporter
@@ -366,10 +362,6 @@ __all__ = [
     "delete_partner_category",
     "update_partner_category",
     "get_partner_category_by_id", # Added
-    "add_partner_interaction",
-    "get_interactions_for_partner",
-    "update_partner_interaction",
-    "delete_partner_interaction",
     "get_all_countries",
     "add_country",
     "get_or_add_country",

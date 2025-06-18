@@ -51,7 +51,6 @@ class SettingsPage(QWidget):
 
         self._setup_general_tab()
         self._setup_email_tab()
-        self._setup_download_monitor_tab() # New Download Monitor Tab
 
         self.company_tab = CompanyTabWidget(
             parent=self,
@@ -135,41 +134,6 @@ class SettingsPage(QWidget):
         email_form_layout.addRow(self.tr("SMTP Password:"), self.smtp_pass_input)
         email_tab_widget.setLayout(email_form_layout)
         self.tabs_widget.addTab(email_tab_widget, self.tr("Email"))
-
-    def _setup_download_monitor_tab(self):
-        download_monitor_tab_widget = QWidget()
-        download_monitor_form_layout = QFormLayout(download_monitor_tab_widget)
-        download_monitor_form_layout.setContentsMargins(10, 10, 10, 10)
-        download_monitor_form_layout.setSpacing(10)
-
-        self.download_monitor_enabled_checkbox = QCheckBox(self.tr("Enable download monitoring"))
-        download_monitor_form_layout.addRow(self.download_monitor_enabled_checkbox)
-
-        self.download_monitor_path_input = QLineEdit()
-        self.download_monitor_path_input.setPlaceholderText(self.tr("Select folder to monitor for new downloads"))
-        browse_button = QPushButton(self.tr("Browse..."))
-        browse_button.clicked.connect(self._browse_download_monitor_path)
-
-        path_layout = QHBoxLayout()
-        path_layout.addWidget(self.download_monitor_path_input)
-        path_layout.addWidget(browse_button)
-        download_monitor_form_layout.addRow(self.tr("Monitored Folder:"), path_layout)
-
-        download_monitor_tab_widget.setLayout(download_monitor_form_layout)
-        self.tabs_widget.addTab(download_monitor_tab_widget, self.tr("Download Monitoring"))
-
-    def _browse_download_monitor_path(self):
-        start_dir = self.download_monitor_path_input.text()
-        if not os.path.isdir(start_dir):
-            start_dir = os.path.expanduser('~') # Default to home or a sensible default
-
-        dir_path = QFileDialog.getExistingDirectory(
-            self,
-            self.tr("Select Monitored Folder"),
-            start_dir
-        )
-        if dir_path:
-            self.download_monitor_path_input.setText(dir_path)
 
     def _setup_transporters_tab(self):
         transporters_tab = QWidget()
@@ -348,9 +312,6 @@ class SettingsPage(QWidget):
     def _load_general_tab_data(self):
         self.templates_dir_input.setText(self.main_config.get("templates_dir", ""))
         self.clients_dir_input.setText(self.main_config.get("clients_dir", ""))
-        # Ensure new keys are present with defaults if missing from config
-        self.main_config.setdefault("download_monitor_enabled", False)
-        self.main_config.setdefault("download_monitor_path", os.path.join(os.path.expanduser('~'), 'Downloads'))
         current_lang_code = self.main_config.get("language", "fr")
         code_to_display_text = {code: display for display, code in self.lang_display_to_code.items()}
         current_display_text = code_to_display_text.get(current_lang_code)
@@ -368,11 +329,6 @@ class SettingsPage(QWidget):
         self.smtp_port_spinbox.setValue(self.main_config.get("smtp_port", 587))
         self.smtp_user_input.setText(self.main_config.get("smtp_user", ""))
         self.smtp_pass_input.setText(self.main_config.get("smtp_password", ""))
-
-    def _load_download_monitor_tab_data(self):
-        self.download_monitor_enabled_checkbox.setChecked(self.main_config.get("download_monitor_enabled", False))
-        default_download_path = os.path.join(os.path.expanduser('~'), 'Downloads')
-        self.download_monitor_path_input.setText(self.main_config.get("download_monitor_path", default_download_path))
 
     def _browse_directory(self, line_edit_target, dialog_title):
         start_dir = line_edit_target.text();
@@ -394,16 +350,9 @@ class SettingsPage(QWidget):
     def get_email_settings_data(self):
         return {"smtp_server": self.smtp_server_input.text().strip(), "smtp_port": self.smtp_port_spinbox.value(), "smtp_user": self.smtp_user_input.text().strip(), "smtp_password": self.smtp_pass_input.text()}
 
-    def get_download_monitor_settings_data(self):
-        return {
-            "download_monitor_enabled": self.download_monitor_enabled_checkbox.isChecked(),
-            "download_monitor_path": self.download_monitor_path_input.text().strip()
-        }
-
     def _load_all_settings_from_config(self):
-        self._load_general_tab_data() # This now also ensures defaults for download monitor keys
+        self._load_general_tab_data()
         self._load_email_tab_data()
-        self._load_download_monitor_tab_data() # Load the data for the new tab
         # Transporter and Forwarder data are loaded from DB directly, not from main_config.
         # Reloading them here would mean re-querying the DB. This might be desired if underlying DB could change.
         # For now, let's assume their initial load in __init__ is sufficient unless explicitly reloaded.
@@ -469,9 +418,7 @@ if __name__ == '__main__':
         "templates_dir": "./templates_mock", "clients_dir": "./clients_mock", "language": "en",
         "default_reminder_days": 15, "session_timeout_minutes": 60, "database_path": "mock_app.db",
         "google_maps_review_url": "https://maps.google.com/mock", "show_initial_setup_on_startup": True,
-        "smtp_server": "smtp.mock.com", "smtp_port": 587, "smtp_user": "mock_user", "smtp_password": "mock_password",
-        "download_monitor_enabled": False, # Add mock data for new settings
-        "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads_mock') # Add mock data
+        "smtp_server": "smtp.mock.com", "smtp_port": 587, "smtp_user": "mock_user", "smtp_password": "mock_password"
     }
     mock_app_root_dir = os.path.abspath(os.path.dirname(__file__))
     mock_current_user_id = "test_user_settings_main"

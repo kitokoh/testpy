@@ -4,7 +4,6 @@ from . import documents
 from . import auth as auth_router_module
 from . import products # New import for the products router
 from . import payments # Import for the payments router
-from . import assets as assets_api_router # Import for the assets router
 
 
 app = FastAPI(
@@ -27,6 +26,5 @@ app.include_router(documents.router)
 app.include_router(auth_router_module.router)
 app.include_router(products.router) # Register the new products router
 app.include_router(payments.router, prefix="/api/v1/payments", tags=["Payments Management"]) # Register the payments router
-app.include_router(assets_api_router.router) # Register the assets router
 
 # Further routers will be added here (for documents, auth, etc.)
