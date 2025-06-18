@@ -1392,6 +1392,7 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
+
     # CompanyAssets Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS CompanyAssets (
@@ -1444,6 +1445,7 @@ CREATE TABLE IF NOT EXISTS Templates (
         UNIQUE (asset_id, display_order)
     )
     """)
+
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients
