@@ -304,6 +304,15 @@ class InventoryBrowserWidget(QWidget):
         # QMessageBox.information(self, "Not Implemented", "This feature is not yet implemented.")
         pass
 
+    def open_edit_location_dialog(self):
+        # TODO: Implement the dialog to edit an existing location.
+        # For now, this is a placeholder to prevent AttributeError.
+        print(f"Placeholder: {self.__class__.__name__}.open_edit_location_dialog() called.")
+        # Consider raising NotImplementedError or showing a QMessageBox if appropriate
+        # QMessageBox.information(self, "Not Implemented", "This feature (edit location) is not yet implemented.")
+        pass
+
+
     def update_assign_button_state(self):
         """
         Enables or disables the 'Assign Product to Selected Location' button.
