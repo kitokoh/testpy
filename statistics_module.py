@@ -34,7 +34,7 @@ from db import (
     get_status_setting_by_id
 )
 from db.cruds.proforma_invoices_crud import list_proforma_invoices # Added for proforma sales
-from db import get_db_session # Added for proforma sales
+from db.connection import get_db_connection # Added for proforma sales
 # It seems db_manager is not directly imported, but functions are. If needed, import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.client_project_products_crud import get_product_usage_counts # Added for product popularity
@@ -519,18 +519,15 @@ class StatisticsDashboard(QWidget):
             start_iso = start_of_current_month.strftime('%Y-%m-%dT00:00:00.000000Z')
             end_iso = end_of_current_month.strftime('%Y-%m-%dT23:59:59.999999Z')
 
-            db_session = get_db_session() # Get session for this call
+            db_session = get_db_connection() # Get session for this call
             current_month_sales = get_total_sales_amount_for_period(db_session, start_iso, end_iso)
             return current_month_sales
-        except NotImplementedError as nie:
-            logging.error(f"get_db_session() is not implemented. Cannot fetch proforma sales. {nie}", exc_info=True)
-            return 0.0
         except Exception as e:
             logging.error(f"Error calculating total sales from proforma for current month: {e}", exc_info=True)
             return 0.0
         finally:
             if db_session: # Close session if obtained
-                # This depends on how get_db_session is implemented.
+                # This depends on how get_db_connection is implemented.
                 # If it's a context manager or FastAPI-style dependency, direct close might not be needed.
                 # Assuming direct close for now based on previous patterns for this file.
                 try:
@@ -623,7 +620,7 @@ class StatisticsDashboard(QWidget):
             start_prev_month_iso = start_of_last_month_date.strftime('%Y-%m-%dT00:00:00.000000Z')
             end_prev_month_iso = end_of_last_month_date.strftime('%Y-%m-%dT23:59:59.999999Z')
 
-            db_session = get_db_session() # Get session for this call
+            db_session = get_db_connection() # Get session for this call
             previous_month_total_sales = get_total_sales_amount_for_period(db_session, start_prev_month_iso, end_prev_month_iso)
 
             trend_text = ""
@@ -647,10 +644,6 @@ class StatisticsDashboard(QWidget):
             self.stats_labels["total_sales_proforma_trend"].setText(trend_text)
             self.stats_labels["total_sales_proforma_trend"].setStyleSheet(style)
 
-        except NotImplementedError as nie:
-            logging.error(f"get_db_session() is not implemented for sales trend. {nie}", exc_info=True)
-            self.stats_labels["total_sales_proforma_trend"].setText("")
-            self.stats_labels["total_sales_proforma_trend"].setStyleSheet("")
         except Exception as e:
             logging.error(f"Error updating total sales proforma trend: {e}", exc_info=True)
             self.stats_labels["total_sales_proforma_trend"].setText("")
