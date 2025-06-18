@@ -518,18 +518,6 @@ class ClientWidget(QWidget):
         self.load_document_notes_filters()
         self.load_document_notes_table()
 
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
         # SAV Tab
         self.sav_tab = QWidget()
         sav_layout = QVBoxLayout(self.sav_tab)
