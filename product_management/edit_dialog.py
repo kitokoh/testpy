@@ -794,38 +794,38 @@ class ProductEditDialog(QDialog):
     def _remove_product_equivalence(self):
         """Removes the selected product equivalence link."""
         if self.product_id is None: return # Should be disabled (UI should prevent this)
+            # return
+
+        try:
+            # Check if the target product exists
+            target_prod = products_crud.get_product_by_id(equivalent_product_id)
+            if not target_prod:
+                QMessageBox.warning(self, self.tr("Not Found"), self.tr(f"Product with ID {equivalent_product_id} not found."))
                 return
 
-            try:
-                # Check if the target product exists
-                target_prod = products_crud.get_product_by_id(equivalent_product_id)
-                if not target_prod:
-                    QMessageBox.warning(self, self.tr("Not Found"), self.tr(f"Product with ID {equivalent_product_id} not found."))
-                    return
+            # Check if this equivalence already exists
+            # get_all_product_equivalencies returns list of dicts like {'equivalence_id': X, 'product_id_a': Y, 'product_id_b': Z}
+            existing_equivalencies = products_crud.get_all_product_equivalencies(product_id_filter=self.product_id)
+            is_already_linked = False
+            if existing_equivalencies:
+                for eq_link in existing_equivalencies:
+                    if (eq_link['product_id_a'] == equivalent_product_id and eq_link['product_id_b'] == self.product_id) or \
+                        (eq_link['product_id_b'] == equivalent_product_id and eq_link['product_id_a'] == self.product_id):
+                        is_already_linked = True
+                        break
+            if is_already_linked:
+                QMessageBox.information(self, self.tr("Already Linked"), self.tr(f"This product is already linked with product ID {equivalent_product_id}."))
+                return
 
-                # Check if this equivalence already exists
-                # get_all_product_equivalencies returns list of dicts like {'equivalence_id': X, 'product_id_a': Y, 'product_id_b': Z}
-                existing_equivalencies = products_crud.get_all_product_equivalencies(product_id_filter=self.product_id)
-                is_already_linked = False
-                if existing_equivalencies:
-                    for eq_link in existing_equivalencies:
-                        if (eq_link['product_id_a'] == equivalent_product_id and eq_link['product_id_b'] == self.product_id) or \
-                           (eq_link['product_id_b'] == equivalent_product_id and eq_link['product_id_a'] == self.product_id):
-                            is_already_linked = True
-                            break
-                if is_already_linked:
-                    QMessageBox.information(self, self.tr("Already Linked"), self.tr(f"This product is already linked with product ID {equivalent_product_id}."))
-                    return
-
-                link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
-                if link_id:
-                    QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))
-                    self.load_product_data()  # Refresh list
-                else:
-                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add product equivalence."))
-            except Exception as e:
-                print(f"Error adding product equivalence: {e}")
-                QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
+            link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
+            if link_id:
+                QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))
+                self.load_product_data()  # Refresh list
+            else:
+                QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to add product equivalence."))
+        except Exception as e:
+            print(f"Error adding product equivalence: {e}")
+            QMessageBox.critical(self, self.tr("Database Error"), self.tr(f"An error occurred: {e}"))
 
     def _remove_product_equivalence(self):
         if self.product_id is None: return # Should be disabled
