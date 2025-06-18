@@ -361,7 +361,7 @@ def get_total_sales_amount_for_period(db: Session, start_date_iso: str, end_date
     params = {"start_date": start_date_iso, "end_date": end_date_iso}
     total_sales = 0.0
     try:
-        result = db.execute(text(sql), params).fetchone() # SQLAlchemy Core execution
+        result = db.execute(sql, params).fetchone() # SQLAlchemy Core execution
         if result and result.total_sales is not None: # Access by column name from result
             total_sales = float(result.total_sales)
         logger.debug(f"Total sales for period {start_date_iso} to {end_date_iso}: {total_sales}")
