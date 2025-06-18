@@ -226,14 +226,39 @@ class DocumentManager(QMainWindow):
         archive_filter_layout.addWidget(self.client_archive_filter_combo)
         filter_search_main_layout.addLayout(archive_filter_layout)
 
+        # Country Filter
+        country_filter_layout = QVBoxLayout()
+        country_label = QLabel(self.tr("Pays:"))
+        self.country_filter_combo = QComboBox()
+        self.country_filter_combo.addItem(self.tr("Tous les pays"), None)
+        self.load_countries_into_filter_combo() # Call to load countries
+        self.country_filter_combo.currentIndexChanged.connect(self.filter_client_list_display_slot)
+        country_filter_layout.addWidget(country_label)
+        country_filter_layout.addWidget(self.country_filter_combo)
+        filter_search_main_layout.addLayout(country_filter_layout)
+
         # Search Input
         search_layout = QVBoxLayout()
-        search_label = QLabel(self.tr("Recherche:"))
+        self.search_label = QLabel(self.tr("Recherche:")) # Store label as instance member to toggle visibility
+        self.search_label.setVisible(False) # Initially hidden
+        search_layout.addWidget(self.search_label)
+
+        search_bar_line_layout = QHBoxLayout()
+        self.search_icon_btn = QPushButton()
+        self.search_icon_btn.setIcon(QIcon.fromTheme("edit-find", QIcon(":/icons/search.svg"))) # Set icon
+        # Removed setCheckable and setFixedWidth
+        search_bar_line_layout.addWidget(self.search_icon_btn)
+
         self.search_input_field = QLineEdit(); self.search_input_field.setPlaceholderText(self.tr("Rechercher client..."))
-        self.search_input_field.textChanged.connect(self.filter_client_list_display_slot) 
-        search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_input_field)
+        self.search_input_field.setVisible(False) # Initially hidden
+        self.search_input_field.textChanged.connect(self.filter_client_list_display_slot)
+        search_bar_line_layout.addWidget(self.search_input_field)
+
+        search_layout.addLayout(search_bar_line_layout)
         filter_search_main_layout.addLayout(search_layout)
+
+        self.search_icon_btn.clicked.connect(self.toggle_search_input_visibility) # Connect to clicked
+        # Removed setVisible(True) for search_input_field and setChecked(True) for the button
 
         filter_search_main_layout.addStretch(1) # Add stretch to push filters to the left
         left_pane_layout.addWidget(filter_search_group)
@@ -261,7 +286,7 @@ class DocumentManager(QMainWindow):
         right_pane_splitter.addWidget(self.client_tabs_widget) # Add client tabs to the right_pane_splitter
         main_splitter.addWidget(right_pane_splitter) # Add the right_pane_splitter to the main_splitter
 
-        main_splitter.setSizes([int(self.width()*0.35), int(self.width()*0.65)]) # Adjust as needed
+        main_splitter.setSizes([int(self.width()*0.20), int(self.width()*0.80)]) # Adjust as needed
 
         docs_page_layout = QVBoxLayout(self.documents_page_widget)
         docs_page_layout.addWidget(main_splitter)
@@ -325,12 +350,14 @@ class DocumentManager(QMainWindow):
 
     def load_clients_from_db_slot(self):
         status_id_filter = self.status_filter_combo.currentData()
+        country_id_filter = self.country_filter_combo.currentData() # Get country filter
         archive_filter_data = self.client_archive_filter_combo.currentData()
         include_deleted_filter = False
         if archive_filter_data == "all_status_types": include_deleted_filter = True
         elif isinstance(archive_filter_data, bool): include_deleted_filter = archive_filter_data
         filters_for_crud = {};
         if status_id_filter is not None: filters_for_crud['status_id'] = status_id_filter
+        if country_id_filter is not None: filters_for_crud['country_id'] = country_id_filter # Add to filters
         load_and_display_clients(self, filters=filters_for_crud, limit=self.limit_per_page, offset=self.current_offset, include_deleted=include_deleted_filter)
         self.update_pagination_controls()
         filter_and_display_clients(self)
@@ -372,6 +399,14 @@ class DocumentManager(QMainWindow):
     def set_client_status_archived_slot(self, client_id): archive_client_status(self, client_id)
     def delete_client_permanently_slot(self, client_id): permanently_delete_client(self, client_id)
 
+    def toggle_search_input_visibility(self): # Renamed and removed 'checked' argument
+        is_visible = not self.search_input_field.isVisible()
+        self.search_input_field.setVisible(is_visible)
+        self.search_label.setVisible(is_visible) # Toggle label visibility
+        if is_visible:
+            self.search_input_field.setFocus()
+        # Removed button text change logic
+
     def execute_create_client(self, client_data_dict=None): self.execute_create_client_slot(client_data_dict=client_data_dict)
     def load_clients_from_db(self): self.load_clients_from_db_slot()
     def filter_client_list_display(self): self.filter_client_list_display_slot()
@@ -384,7 +419,29 @@ class DocumentManager(QMainWindow):
         item = QListWidgetItem(client_dict_data["client_name"])
         item.setData(Qt.UserRole, client_dict_data)
         self.client_list_widget.addItem(item)
+
+    def load_countries_into_filter_combo(self):
+        current_selection_data = self.country_filter_combo.currentData()
+        self.country_filter_combo.clear()
+        self.country_filter_combo.addItem(self.tr("Tous les pays"), None)
+        try:
+            countries = db_manager.get_all_countries() # Attempt to get countries
+            if countries is None: countries = []
+            for country_dict in countries:
+                self.country_filter_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
             
+            # Restore previous selection if possible
+            index = self.country_filter_combo.findData(current_selection_data)
+            if index != -1: self.country_filter_combo.setCurrentIndex(index)
+            else: self.country_filter_combo.setCurrentIndex(0) # Default to "All countries"
+        except AttributeError:
+            logging.warning("db_manager.get_all_countries() function might not exist or returned an unexpected type. Country filter will be empty.")
+            # Optionally, disable the combo box or show a message
+            # self.country_filter_combo.setEnabled(False)
+        except Exception as e:
+            logging.error(self.tr("Erreur chargement pays pour filtre: {0}").format(str(e)))
+            # self.country_filter_combo.setEnabled(False)
+
     def load_statuses_into_filter_combo(self): 
         current_selection_data = self.status_filter_combo.currentData()
         self.status_filter_combo.clear()

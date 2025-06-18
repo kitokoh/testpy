@@ -1855,13 +1855,33 @@ class ClientWidget(QWidget):
         try:
             # Assuming 'Client' is the status_type for this context
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
-            if client_statuses is None: client_statuses = [] # Handle case where db_manager returns None
 
             self.status_combo.clear() # Clear before populating
-            for status_dict in client_statuses:
-                # Add status_name for display and status_id as item data
-                self.status_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+            if client_statuses: # Ensure client_statuses is not None and not empty
+                for status_dict in client_statuses:
+                    if not isinstance(status_dict, dict):
+                        logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
+                        continue
+
+                    status_name = status_dict.get('status_name')
+                    status_id = status_dict.get('status_id')
+
+                    if status_id is None: # status_id is essential for functionality
+                        logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
+                        continue
+
+                    if not status_name: # status_name is essential for display
+                        status_name = self.tr("Unnamed Status ({0})").format(status_id)
+                        logging.warning(f"Status name missing for status_id {status_id}, using default: '{status_name}'")
+
+                    self.status_combo.addItem(str(status_name), status_id) # Ensure name is a string
+            # else: # Handle case where client_statuses is None or empty after fetching
+                # logging.info("No client statuses found or returned from DB to populate status_combo.")
+                # Optionally, add a default item or leave the combo box empty.
+                # If left empty, ensure currentTextChanged signal handling is robust.
+
         except Exception as e: # Catch a more generic exception if db_manager might raise something other than sqlite3.Error
+            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True) # Log with more detail
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:\n{0}").format(str(e)))
 
     def update_client_status(self, status_text):
