@@ -1,7 +1,8 @@
 import uuid
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import func, select, update, delete, and_
+from sqlalchemy import func, select, update, delete, and_, text # Added text for raw SQL
+import logging # Added
 
 # Assuming models are in api.models
 # Adjust import path if models are located elsewhere (e.g., directly in db.models if that's the project structure)
@@ -344,3 +345,27 @@ if __name__ == "__main__":
 
     print("Example CRUD operations finished.")
     pass
+
+
+# Added logging configuration for the module if not already present globally
+logger = logging.getLogger(__name__)
+
+def get_total_sales_amount_for_period(db: Session, start_date_iso: str, end_date_iso: str) -> float:
+    sql = """
+        SELECT SUM(grand_total_amount) as total_sales
+        FROM proforma_invoices
+        WHERE created_at >= :start_date AND created_at <= :end_date
+    """
+    # Assuming proforma_invoices are not soft-deleted or 'is_deleted' is not relevant here.
+    # Using :named_placeholders for SQLAlchemy text execution
+    params = {"start_date": start_date_iso, "end_date": end_date_iso}
+    total_sales = 0.0
+    try:
+        result = db.execute(text(sql), params).fetchone() # SQLAlchemy Core execution
+        if result and result.total_sales is not None: # Access by column name from result
+            total_sales = float(result.total_sales)
+        logger.debug(f"Total sales for period {start_date_iso} to {end_date_iso}: {total_sales}")
+        return total_sales
+    except Exception as e: # Catch broader exceptions as SQLAlchemy might raise different errors
+        logger.error(f"DB error in get_total_sales_amount_for_period: {e}", exc_info=True)
+        return 0.0

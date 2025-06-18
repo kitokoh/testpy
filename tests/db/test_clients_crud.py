@@ -4,12 +4,30 @@ import sys
 import os
 from datetime import datetime
 
+import logging # For disabling logging during tests if needed
+from unittest.mock import patch # For specific error simulation if possible
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from db.cruds.clients_crud import ClientsCRUD
+# Import the instance for testing, and specific types if needed for isinstance checks etc.
+from db.cruds.clients_crud import clients_crud_instance, ClientsCRUD
+
+# Helper for date formatting consistent with the app
+def format_datetime_for_db(dt_obj):
+    return dt_obj.isoformat() + "Z"
 
 class TestClientsCRUD(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Disable logging for most tests to keep output clean, can be enabled for debugging
+        logging.disable(logging.CRITICAL)
+
+    @classmethod
+    def tearDownClass(cls):
+        logging.disable(logging.NOTSET) # Re-enable logging
+
     def setUp(self):
+        # Each test gets a fresh in-memory database
         self.conn = sqlite3.connect(':memory:')
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
@@ -36,12 +54,23 @@ class TestClientsCRUD(unittest.TestCase):
                 deleted_at TEXT
             )
         """)
-        # Minimal other tables for basic foreign key linkage if complex queries are tested
-        # For now, focusing on Clients table logic
+        self.cursor.execute("""
+            CREATE TABLE StatusSettings (
+                status_id TEXT PRIMARY KEY,
+                status_name TEXT NOT NULL,
+                status_type TEXT NOT NULL, -- e.g., 'Client', 'Project'
+                color_hex TEXT,
+                icon_name TEXT,
+                is_default INTEGER DEFAULT 0,
+                is_archival_status INTEGER DEFAULT 0, -- 0 for false, 1 for true
+                display_order INTEGER
+            )
+        """)
         self.cursor.execute("CREATE TABLE ClientNotes (note_id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT, note_text TEXT, user_id TEXT, timestamp TEXT)")
         self.conn.commit()
 
-        self.clients_crud = ClientsCRUD()
+        # Use the global instance for tests, as it's what the application uses
+        self.clients_crud = clients_crud_instance
 
         # Sample data
         self.user_id1 = "user_test_1"
@@ -210,6 +239,127 @@ class TestClientsCRUD(unittest.TestCase):
     # def test_get_all_clients_with_details(self):
     #     # This would require setting up Countries, Cities, StatusSettings tables and data
     #     pass
+
+    def _insert_client(self, client_id, created_at_dt, created_by_user_id="test_user", is_deleted=0, deleted_at_dt=None, status_id=None, client_name="Test Client"):
+        created_at_iso = format_datetime_for_db(created_at_dt)
+        deleted_at_iso = format_datetime_for_db(deleted_at_dt) if deleted_at_dt else None
+        self.cursor.execute("""
+            INSERT INTO Clients (client_id, client_name, created_at, updated_at, created_by_user_id, is_deleted, deleted_at, status_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (client_id, client_name, created_at_iso, created_at_iso, created_by_user_id, is_deleted, deleted_at_iso, status_id))
+        self.conn.commit()
+
+    def _insert_status_setting(self, status_id, status_name, status_type, is_archival_status):
+        self.cursor.execute("""
+            INSERT INTO StatusSettings (status_id, status_name, status_type, is_archival_status)
+            VALUES (?, ?, ?, ?)
+        """, (status_id, status_name, status_type, is_archival_status))
+        self.conn.commit()
+
+    # --- Tests for get_clients_count_created_between ---
+    def test_get_clients_count_created_between_no_deleted(self):
+        # Dates for test data
+        date_2023_01_15 = datetime(2023, 1, 15, 12, 0, 0)
+        date_2023_02_10 = datetime(2023, 2, 10, 12, 0, 0)
+        date_2023_03_05 = datetime(2023, 3, 5, 12, 0, 0)
+
+        # Insert clients
+        self._insert_client("client1", date_2023_01_15) # Outside range (before)
+        self._insert_client("client2", date_2023_02_10) # Inside range
+        self._insert_client("client3", date_2023_02_10, is_deleted=1) # Inside range, but deleted
+        self._insert_client("client4", date_2023_03_05) # Outside range (after)
+
+        start_iso = format_datetime_for_db(datetime(2023, 2, 1, 0, 0, 0))
+        end_iso = format_datetime_for_db(datetime(2023, 2, 28, 23, 59, 59))
+
+        count = self.clients_crud.get_clients_count_created_between(start_iso, end_iso, conn=self.conn, include_deleted=False)
+        self.assertEqual(count, 1) # Only client2
+
+    def test_get_clients_count_created_between_with_deleted(self):
+        date_2023_02_10 = datetime(2023, 2, 10, 12, 0, 0)
+        self._insert_client("client2", date_2023_02_10)
+        self._insert_client("client3", date_2023_02_10, is_deleted=1)
+
+        start_iso = format_datetime_for_db(datetime(2023, 2, 1, 0, 0, 0))
+        end_iso = format_datetime_for_db(datetime(2023, 2, 28, 23, 59, 59))
+
+        count = self.clients_crud.get_clients_count_created_between(start_iso, end_iso, conn=self.conn, include_deleted=True)
+        self.assertEqual(count, 2) # client2 and client3
+
+    def test_get_clients_count_created_between_no_match(self):
+        start_iso = format_datetime_for_db(datetime(2023, 4, 1, 0, 0, 0))
+        end_iso = format_datetime_for_db(datetime(2023, 4, 30, 23, 59, 59))
+        count = self.clients_crud.get_clients_count_created_between(start_iso, end_iso, conn=self.conn)
+        self.assertEqual(count, 0)
+
+    # --- Tests for get_total_clients_count_up_to_date ---
+    def test_get_total_clients_count_up_to_date_basic(self):
+        date_2023_01_10 = datetime(2023, 1, 10, 10, 0, 0)
+        date_2023_02_15 = datetime(2023, 2, 15, 10, 0, 0)
+        date_2023_03_20 = datetime(2023, 3, 20, 10, 0, 0) # Target date for count
+
+        self._insert_client("c1", date_2023_01_10) # Included
+        self._insert_client("c2", date_2023_02_15) # Included
+        self._insert_client("c3", date_2023_02_15, is_deleted=1, deleted_at_dt=datetime(2023, 3, 1, 0, 0, 0)) # Deleted before target date, but deleted_at > target_date_param if param was just date
+                                                                                                            # This tests the deleted_at > ? part of the query logic.
+                                                                                                            # Query is created_at <= D AND (deleted_at > D OR deleted = 0)
+                                                                                                            # So if deleted_at is 2023-03-01 and D is 2023-03-20, it's included.
+        self._insert_client("c4", datetime(2023, 3, 21, 0, 0, 0)) # Created after target date
+
+        # Client deleted *on* the target date (edge case for deleted_at > date_iso_end)
+        self._insert_client("c5", date_2023_01_10, is_deleted=1, deleted_at_dt=date_2023_03_20) # Deleted on target date, should NOT be counted if query is strictly deleted_at > date_iso_end
+                                                                                               # The query `deleted_at > ?` means if deleted_at is the same, it's not counted.
+
+        date_iso_end = format_datetime_for_db(date_2023_03_20)
+        count = self.clients_crud.get_total_clients_count_up_to_date(date_iso_end, conn=self.conn)
+        # c1, c2, c3 are included. c5 is excluded because deleted_at is not > date_iso_end.
+        self.assertEqual(count, 3)
+
+    def test_get_total_clients_count_up_to_date_includes_deleted_after_target(self):
+        # Client created before date_iso_end, deleted *after* date_iso_end
+        self._insert_client("c1", datetime(2023,1,1,10,0,0), is_deleted=1, deleted_at_dt=datetime(2023,3,1,10,0,0))
+        date_iso_end = format_datetime_for_db(datetime(2023,2,1,10,0,0)) # Count up to Feb 1st
+        count = self.clients_crud.get_total_clients_count_up_to_date(date_iso_end, conn=self.conn)
+        self.assertEqual(count, 1) # c1 should be counted
+
+    def test_get_total_clients_count_up_to_date_excludes_deleted_before_target(self):
+        # Client created before date_iso_end, deleted *before* date_iso_end
+        self._insert_client("c1", datetime(2023,1,1,10,0,0), is_deleted=1, deleted_at_dt=datetime(2023,1,15,10,0,0))
+        date_iso_end = format_datetime_for_db(datetime(2023,2,1,10,0,0)) # Count up to Feb 1st
+        count = self.clients_crud.get_total_clients_count_up_to_date(date_iso_end, conn=self.conn)
+        self.assertEqual(count, 0) # c1 should NOT be counted
+
+    # --- Tests for get_active_clients_count_up_to_date ---
+    def test_get_active_clients_count_up_to_date_basic(self):
+        active_status_id = "status_active"
+        archival_status_id = "status_archival"
+        self._insert_status_setting(active_status_id, "Active", "Client", 0)
+        self._insert_status_setting(archival_status_id, "Archived", "Client", 1)
+
+        date_target = datetime(2023, 3, 15, 0, 0, 0)
+
+        # Active client, created before date_target
+        self._insert_client("active1", datetime(2023, 1, 1), status_id=active_status_id)
+        # Active client, no status, created before date_target
+        self._insert_client("active2", datetime(2023, 1, 5))
+        # Archived client, created before date_target
+        self._insert_client("archived1", datetime(2023, 1, 10), status_id=archival_status_id)
+        # Active client, created after date_target
+        self._insert_client("active_later", datetime(2023, 4, 1), status_id=active_status_id)
+        # Active client, created before date_target, but soft-deleted before date_target
+        self._insert_client("active_then_deleted", datetime(2023, 1, 15), status_id=active_status_id, is_deleted=1, deleted_at_dt=datetime(2023, 2, 1))
+        # Active client, created before date_target, soft-deleted *after* date_target
+        self._insert_client("active_deleted_later", datetime(2023, 1, 20), status_id=active_status_id, is_deleted=1, deleted_at_dt=datetime(2023, 4, 1))
+
+
+        date_iso_end = format_datetime_for_db(date_target)
+        count = self.clients_crud.get_active_clients_count_up_to_date(date_iso_end, conn=self.conn)
+        # Expected: active1, active2, active_deleted_later (3 clients)
+        self.assertEqual(count, 3)
+
+    # It's hard to test specific SQL error paths without mocks for these integration-style tests.
+    # The @_manage_conn decorator handles logging and returning default (0 for counts).
+    # We can trust it or add a specific test that forces a connection issue if critical.
 
 if __name__ == '__main__':
     unittest.main()
