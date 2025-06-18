@@ -677,6 +677,92 @@ class ClientsCRUD(GenericCRUD):
             logging.error(f"Error getting total clients count (include_deleted={include_deleted}): {e}", exc_info=True)
             return 0
 
+    @_manage_conn
+    def get_clients_count_created_between(self, start_date_iso: str, end_date_iso: str, conn: sqlite3.Connection = None, include_deleted: bool = False) -> int:
+        """
+        Counts clients created within a specific date range.
+
+        Args:
+            start_date_iso (str): The start of the date range in ISO format (YYYY-MM-DDTHH:MM:SS.ffffffZ).
+            end_date_iso (str): The end of the date range in ISO format (YYYY-MM-DDTHH:MM:SS.ffffffZ).
+            conn (sqlite3.Connection, optional): Database connection. Managed by decorator.
+            include_deleted (bool, optional): If True, includes soft-deleted clients. Defaults to False.
+
+        Returns:
+            int: The count of clients created within the specified range. Returns 0 on error or if none found.
+        """
+        cursor = conn.cursor()
+        query = "SELECT COUNT(client_id) as count FROM Clients WHERE created_at >= ? AND created_at <= ?"
+        params = [start_date_iso, end_date_iso]
+
+        if not include_deleted:
+            query += " AND (is_deleted IS NULL OR is_deleted = 0)"
+
+        try:
+            cursor.execute(query, tuple(params))
+            row = cursor.fetchone()
+            return row['count'] if row else 0
+        except sqlite3.Error as e:
+            logging.error(f"Error getting clients count created between {start_date_iso} and {end_date_iso} (include_deleted={include_deleted}): {e}", exc_info=True)
+            return 0
+        except Exception as ex: # Catch any other potential errors, e.g., if row is None but accessed
+            logging.error(f"Unexpected error in get_clients_count_created_between: {ex}", exc_info=True)
+            return 0
+
+    @_manage_conn
+    def get_total_clients_count_up_to_date(self, date_iso_end: str, conn: sqlite3.Connection = None) -> int:
+        # Counts clients created on or before date_iso_end and not deleted before or on date_iso_end.
+        # date_iso_end should be in 'YYYY-MM-DDTHH:MM:SS.ffffffZ' format, representing the end of that day.
+        sql = """
+            SELECT COUNT(client_id) as count
+            FROM Clients
+            WHERE created_at <= ?
+              AND (is_deleted = 0 OR is_deleted IS NULL OR deleted_at > ? OR deleted_at IS NULL)
+        """
+        # The condition for deleted_at > ? ensures that if a client was deleted, it happened *after* the date_iso_end.
+        # is_deleted IS NULL is for older records that might not have this flag explicitly set to 0.
+        params = (date_iso_end, date_iso_end)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            count = row['count'] if row else 0
+            logging.debug(f"Total clients count up to {date_iso_end}: {count}")
+            return count
+        except sqlite3.Error as e:
+            logging.error(f"DB error in get_total_clients_count_up_to_date for date {date_iso_end}: {e}", exc_info=True)
+            return 0
+        except Exception as ex: # Catch any other potential errors
+            logging.error(f"Unexpected error in get_total_clients_count_up_to_date: {ex}", exc_info=True)
+            return 0
+
+    @_manage_conn
+    def get_active_clients_count_up_to_date(self, date_iso_end: str, conn: sqlite3.Connection) -> int:
+        sql = """
+            SELECT COUNT(c.client_id) as count
+            FROM Clients c
+            LEFT JOIN StatusSettings ss ON c.status_id = ss.status_id AND ss.status_type = 'Client'
+            WHERE c.created_at <= ?
+              AND (c.is_deleted = 0 OR c.is_deleted IS NULL OR c.deleted_at > ? OR c.deleted_at IS NULL)
+              AND ((ss.is_archival_status = 0 OR ss.is_archival_status IS NULL) OR c.status_id IS NULL)
+        """
+        # (ss.is_archival_status = 0 OR ss.is_archival_status IS NULL): Client is active if status is not archival or status is not set
+        # OR c.status_id IS NULL: Client is active if status_id is NULL (no status assigned)
+        params = (date_iso_end, date_iso_end)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            count = row['count'] if row else 0
+            logging.debug(f"Active clients count up to {date_iso_end}: {count}")
+            return count
+        except sqlite3.Error as e:
+            logging.error(f"DB error in get_active_clients_count_up_to_date for {date_iso_end}: {e}", exc_info=True)
+            return 0
+        except Exception as ex: # Catch any other potential errors
+            logging.error(f"Unexpected error in get_active_clients_count_up_to_date: {ex}", exc_info=True)
+            return 0
+
 # Instantiate the CRUD class for easy import and use elsewhere
 clients_crud_instance = ClientsCRUD()
 
@@ -697,10 +783,13 @@ get_active_clients_per_country = clients_crud_instance.get_active_clients_per_co
 add_client_note = clients_crud_instance.add_client_note
 get_client_notes = clients_crud_instance.get_client_notes
 get_total_clients_count = clients_crud_instance.get_total_clients_count
+get_clients_count_created_between = clients_crud_instance.get_clients_count_created_between
+get_total_clients_count_up_to_date = clients_crud_instance.get_total_clients_count_up_to_date
+get_active_clients_count_up_to_date = clients_crud_instance.get_active_clients_count_up_to_date # Added export
 
 __all__ = [
     "add_client",
-    "get_total_clients_count", # Added
+    "get_total_clients_count",
     "get_client_by_id",
     "get_all_clients",
     "update_client",
@@ -715,6 +804,9 @@ __all__ = [
     "get_active_clients_per_country",
     "add_client_note",
     "get_client_notes",
+    "get_clients_count_created_between",
+    "get_total_clients_count_up_to_date",
+    "get_active_clients_count_up_to_date", # Added to __all__
     "ClientsCRUD", # Exporting the class itself for type hinting or direct instantiation
     "clients_crud_instance" # Exporting the instance if needed elsewhere
 ]
