@@ -390,7 +390,7 @@ class DocumentGenerationRequest(BaseModel):
     target_language_code: str = Field(..., description="Target language for the document content, e.g., 'fr', 'en'")
     document_title: Optional[str] = Field(None, description="Optional title for the document, overrides template default if provided")
     line_items: Optional[List[Dict[str, Any]]] = Field(None, description="List of line items, e.g., products with quantities and prices")
-    additional_context: Optional[Dict[str, Any]] = Field(None, description="Other context-specific data needed for the document")
+    additional_context: Optional[Dict[str, Any]]] = Field(None, description="Other context-specific data needed for the document")
 
 class DocumentGenerationResponse(BaseModel):
     message: str = Field(..., description="Status message of the generation process")
@@ -435,6 +435,41 @@ class ProductImageLinkResponse(ProductImageLinkBase):
     class Config:
         from_attributes = True
 
+# Pydantic Models for Employee
+class EmployeeBase(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: date
+    end_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class EmployeeResponse(EmployeeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 # Pydantic Models for Employee Document Management
 
@@ -479,7 +514,7 @@ class EmployeeDocumentResponse(EmployeeDocumentBase):
     uploaded_by_id: Optional[str] = None # UUID as string for User.id
 
     document_category: Optional[DocumentCategoryResponse] = None # Nested
-    employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse already defined
+    employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse defined above
 
     download_url: Optional[str] = None # To be constructed by API endpoint logic
 
@@ -646,43 +681,6 @@ class LeaveRequestResponse(LeaveRequestBase):
     comments: Optional[str] = None
     leave_type: LeaveTypeResponse # Nested LeaveType details
     employee: EmployeeResponse    # Nested Employee details
-
-    class Config:
-        from_attributes = True
-
-
-# Pydantic Models for Employee
-class EmployeeBase(BaseModel):
-    first_name: str
-    last_name: str
-    email: EmailStr
-    phone_number: Optional[str] = None
-    position: Optional[str] = None
-    department: Optional[str] = None
-    salary: Optional[float] = None
-    start_date: date
-    end_date: Optional[date] = None
-    is_active: bool = True
-
-class EmployeeCreate(EmployeeBase):
-    pass
-
-class EmployeeUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone_number: Optional[str] = None
-    position: Optional[str] = None
-    department: Optional[str] = None
-    salary: Optional[float] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    is_active: Optional[bool] = None
-
-class EmployeeResponse(EmployeeBase):
-    id: str
-    created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
