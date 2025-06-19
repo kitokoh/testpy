@@ -5,7 +5,7 @@ from db.connection import get_db_connection
 
 # TODO: Add StatusSettings related functions if needed for status validation.
 
-def add_job_opening(job_opening_data: dict) -> str | None:
+def add_job_opening(job_opening_data: dict, conn: sqlite3.Connection = None) -> str | None:
     """
     Adds a new job opening to the database.
     Expected keys in job_opening_data: 'title', 'description', 'status_id',
@@ -13,7 +13,10 @@ def add_job_opening(job_opening_data: dict) -> str | None:
     Returns the new job_opening_id (UUID string) or None if an error occurs.
     """
     job_opening_id = str(uuid.uuid4())
-    conn = get_db_connection()
+    provided_conn = bool(conn)
+    if not conn:
+        conn = get_db_connection()
+
     try:
         cursor = conn.cursor()
         query = """
@@ -40,15 +43,18 @@ def add_job_opening(job_opening_data: dict) -> str | None:
         print(f"Database error in add_job_opening: {e}")
         return None
     finally:
-        if conn:
+        if conn and not provided_conn: # Only close if this function opened it
             conn.close()
 
-def get_job_opening_by_id(job_opening_id: str) -> dict | None:
+def get_job_opening_by_id(job_opening_id: str, conn: sqlite3.Connection = None) -> dict | None:
     """
     Retrieves a job opening by its ID.
     Returns a dictionary representing the job opening or None if not found or error.
     """
-    conn = get_db_connection()
+    provided_conn = bool(conn)
+    if not conn:
+        conn = get_db_connection()
+
     try:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -62,17 +68,20 @@ def get_job_opening_by_id(job_opening_id: str) -> dict | None:
         print(f"Database error in get_job_opening_by_id: {e}")
         return None
     finally:
-        if conn:
+        if conn and not provided_conn:
             conn.close()
 
-def get_all_job_openings(filters: dict = None, limit: int = 100, offset: int = 0) -> list[dict]:
+def get_all_job_openings(filters: dict = None, limit: int = 100, offset: int = 0, conn: sqlite3.Connection = None) -> list[dict]:
     """
     Retrieves all job openings, optionally filtered, with pagination.
     filters: A dictionary where keys are column names and values are the values to filter by.
              Example: {'status_id': 1, 'department_id': 2}
     Returns a list of dictionaries, each representing a job opening.
     """
-    conn = get_db_connection()
+    provided_conn = bool(conn)
+    if not conn:
+        conn = get_db_connection()
+
     job_openings_list = []
     try:
         conn.row_factory = sqlite3.Row
@@ -103,17 +112,20 @@ def get_all_job_openings(filters: dict = None, limit: int = 100, offset: int = 0
         print(f"Database error in get_all_job_openings: {e}")
         return []
     finally:
-        if conn:
+        if conn and not provided_conn:
             conn.close()
 
-def update_job_opening(job_opening_id: str, update_data: dict) -> bool:
+def update_job_opening(job_opening_id: str, update_data: dict, conn: sqlite3.Connection = None) -> bool:
     """
     Updates an existing job opening.
     update_data: A dictionary where keys are column names to update and values are the new values.
                  'updated_at' will be automatically set.
     Returns True if update was successful, False otherwise.
     """
-    conn = get_db_connection()
+    provided_conn = bool(conn)
+    if not conn:
+        conn = get_db_connection()
+
     try:
         cursor = conn.cursor()
 
@@ -143,16 +155,19 @@ def update_job_opening(job_opening_id: str, update_data: dict) -> bool:
         print(f"Database error in update_job_opening: {e}")
         return False
     finally:
-        if conn:
+        if conn and not provided_conn:
             conn.close()
 
-def delete_job_opening(job_opening_id: str) -> bool:
+def delete_job_opening(job_opening_id: str, conn: sqlite3.Connection = None) -> bool:
     """
     Deletes a job opening from the database.
     (Note: Schema does not specify soft delete for JobOpenings directly, implementing hard delete.)
     Returns True if deletion was successful, False otherwise.
     """
-    conn = get_db_connection()
+    provided_conn = bool(conn)
+    if not conn:
+        conn = get_db_connection()
+
     try:
         cursor = conn.cursor()
         query = "DELETE FROM JobOpenings WHERE job_opening_id = ?"
@@ -163,7 +178,7 @@ def delete_job_opening(job_opening_id: str) -> bool:
         print(f"Database error in delete_job_opening: {e}")
         return False
     finally:
-        if conn:
+        if conn and not provided_conn:
             conn.close()
 
 if __name__ == '__main__':
