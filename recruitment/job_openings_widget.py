@@ -253,4 +253,4 @@ if __name__ == '__main__':
     widget.resize(1000, 600) # Give it a decent size for testing
     widget.show()
     sys.exit(app.exec_())
-```
+# ```

@@ -65,4 +65,4 @@ if __name__ == '__main__':
     dashboard.resize(800, 600)
     dashboard.show()
     sys.exit(app.exec_())
-```
+# ```
