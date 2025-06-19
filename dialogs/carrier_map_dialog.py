@@ -31,7 +31,7 @@ class CarrierMapDialog(QDialog):
         self.load_carrier_data()
 
     def setup_ui(self):
-        main_layout = QHBoxLayout(self)
+        main_layout = QHBoxLayout() # Do not pass self
 
         # --- Left Pane (Carrier List & Details) ---
         left_pane_layout = QVBoxLayout()
@@ -74,7 +74,7 @@ class CarrierMapDialog(QDialog):
 
         # --- Bottom Pane for Close Button ---
         # To ensure the button is below everything and centered, we'll wrap main_layout in another QVBoxLayout
-        outer_layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout() # Do not pass self
         outer_layout.addLayout(main_layout)
 
         self.close_button = QPushButton(self.tr("Close"))
