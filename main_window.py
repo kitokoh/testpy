@@ -63,16 +63,31 @@ from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
 from botpress_integration.ui_components import BotpressIntegrationUI # Import Botpress UI
 from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
+from voice_input_service import VoiceInputService # Added import
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 from inventory_browser_widget import InventoryBrowserWidget # Inventory Management
+from camera_management.camera_management_widget import CameraManagementWidget # Camera Management
 
+from recruitment.recruitment_dashboard import RecruitmentDashboard # Import RecruitmentDashboard
 
 from download_monitor_service import DownloadMonitorService
 from dialogs.assign_document_dialog import AssignDocumentToClientDialog
 from db.cruds.client_documents_crud import add_client_document # For assign dialog
 import os # For path checks in download monitor init
 
+# Definition of configurable modules
+CONFIGURABLE_MODULES = [
+    {'key': 'module_project_management_enabled', 'name': 'project_management', 'action_attr': 'project_management_action', 'widget_attr': 'project_management_widget_instance'},
+    {'key': 'module_product_management_enabled', 'name': 'product_management', 'action_attr': 'product_list_action', 'widget_attr': 'product_management_page_instance'},
+    {'key': 'module_partner_management_enabled', 'name': 'partner_management', 'action_attr': 'partner_management_action', 'widget_attr': 'partner_management_widget_instance'},
+    {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
+    {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
+    {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
+    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None}, # Carrier map is a dialog
+
+    {'key': 'module_camera_management_enabled', 'name': 'camera_management', 'action_attr': 'camera_management_action', 'widget_attr': 'camera_management_widget_instance'}
+]
 
 class DocumentManager(QMainWindow):
     def __init__(self, app_root_dir, current_user_id):
@@ -83,6 +98,9 @@ class DocumentManager(QMainWindow):
         self.setWindowIcon(QIcon(":/icons/logo.svg"))
         
         self.config = CONFIG
+        self.module_states = {} # Initialize module states
+        self._load_module_states() # Load initial module states from DB
+
         self.download_monitor_service = None # Initialize download monitor service
 
         # Use get_setting with default, falling back to config, then to a hardcoded default.
@@ -97,23 +115,36 @@ class DocumentManager(QMainWindow):
         
         # Removed map_view_integrated, map_interaction_handler_integrated, and web_channel_integrated
 
-        self.setup_ui_main()
-        self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
-        self.main_area_stack.addWidget(self.project_management_widget_instance)
+        self.setup_ui_main() # Sets up self.main_area_stack
 
-        self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
-        # Connect signals from StatisticsDashboard
-        self.statistics_dashboard_instance.request_add_client_for_country.connect(self.handle_add_client_from_stats_map)
-        self.statistics_dashboard_instance.request_view_client_details.connect(self.handle_view_client_from_stats_map)
-        self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+        # Conditional Widget Initialization based on module states
+        if self.module_states.get('project_management', True):
+            self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
+            self.main_area_stack.addWidget(self.project_management_widget_instance)
+        else:
+            self.project_management_widget_instance = None
 
-        self.partner_management_widget_instance = PartnerMainWidget(parent=self)
-        self.main_area_stack.addWidget(self.partner_management_widget_instance)
+        if self.module_states.get('statistics', True):
+            self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
+            self.statistics_dashboard_instance.request_add_client_for_country.connect(self.handle_add_client_from_stats_map)
+            self.statistics_dashboard_instance.request_view_client_details.connect(self.handle_view_client_from_stats_map)
+            self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+        else:
+            self.statistics_dashboard_instance = None
 
-        self.product_management_page_instance = ProductManagementPage(parent=self)
-        self.main_area_stack.addWidget(self.product_management_page_instance)
+        if self.module_states.get('partner_management', True):
+            self.partner_management_widget_instance = PartnerMainWidget(parent=self)
+            self.main_area_stack.addWidget(self.partner_management_widget_instance)
+        else:
+            self.partner_management_widget_instance = None
 
-        # Instantiate SettingsPage and add to stack
+        if self.module_states.get('product_management', True):
+            self.product_management_page_instance = ProductManagementPage(parent=self)
+            self.main_area_stack.addWidget(self.product_management_page_instance)
+        else:
+            self.product_management_page_instance = None
+
+        # SettingsPage is always available
         self.settings_page_instance = SettingsPage(
             main_config=self.config,
             app_root_dir=self.app_root_dir,
@@ -122,24 +153,60 @@ class DocumentManager(QMainWindow):
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
 
-        # Instantiate BotpressIntegrationUI and add to stack
-        self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
-        self.main_area_stack.addWidget(self.botpress_integration_ui_instance)
+        if self.module_states.get('botpress_integration', True):
+            self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
+            self.main_area_stack.addWidget(self.botpress_integration_ui_instance)
+        else:
+            self.botpress_integration_ui_instance = None
 
-        # Instantiate InventoryBrowserWidget and add to stack
-        self.inventory_browser_widget_instance = InventoryBrowserWidget(parent=self)
-        self.main_area_stack.addWidget(self.inventory_browser_widget_instance)
+        if self.module_states.get('inventory_management', True):
+            self.inventory_browser_widget_instance = InventoryBrowserWidget(parent=self)
+            self.main_area_stack.addWidget(self.inventory_browser_widget_instance)
+        else:
+            self.inventory_browser_widget_instance = None
 
-        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
+        if self.module_states.get('recruitment', True):
+            self.recruitment_dashboard_instance = RecruitmentDashboard(parent=self)
+            self.main_area_stack.addWidget(self.recruitment_dashboard_instance)
+        else:
+            self.recruitment_dashboard_instance = None
+        if self.module_states.get('camera_management', True):
+            self.camera_management_widget_instance = CameraManagementWidget(parent=self, current_user_id=self.current_user_id)
+            self.main_area_stack.addWidget(self.camera_management_widget_instance)
+        else:
+            self.camera_management_widget_instance = None
+
+        self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
         
+        self.voice_input_service = VoiceInputService() # Instantiate VoiceInputService
+
         self.load_clients_from_db_slot() # Initial load
         # if self.stats_widget: self.stats_widget.update_stats() # self.stats_widget removed
         # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
 
-    def init_or_update_download_monitor(self): # Note: This method is already defined from the previous step, ensure this is an addition of new methods below it.
+    def _load_module_states(self):
+        """Loads the enabled/disabled state of configurable modules from the database."""
+        if not db_manager:
+            logging.warning("DB manager not available, cannot load module states. All modules will default to enabled.")
+            # Default all to True if DB is not available, so basic functionality isn't hindered
+            for module_info in CONFIGURABLE_MODULES:
+                self.module_states[module_info['name']] = True
+            return
+
+        logging.info("Loading module states...")
+        for module_info in CONFIGURABLE_MODULES:
+            # Default to 'True' (string) if setting is not found, then convert to boolean
+            is_enabled_str = db_manager.get_setting(module_info['key'], default='True')
+            is_enabled = is_enabled_str.lower() == 'true' if isinstance(is_enabled_str, str) else bool(is_enabled_str)
+            self.module_states[module_info['name']] = is_enabled
+            logging.info(f"Module '{module_info['name']}' state: {'Enabled' if is_enabled else 'Disabled'}")
+        logging.info("Module states loaded.")
+
+
+    def init_or_update_download_monitor(self):
         if self.download_monitor_service is not None:
             logging.info("Stopping existing download monitor service...")
             self.download_monitor_service.stop()
@@ -177,6 +244,39 @@ class DocumentManager(QMainWindow):
             # self.notify(self.tr("Download Monitoring"), self.tr("Service is disabled."), type='INFO') # Optional: notify if disabled
 
     @pyqtSlot(str)
+    def handle_add_client_from_stats_map(self, country_name_str):
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")
+        try:
+            dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
+
+            if dialog.exec_() == QDialog.Accepted:
+                new_client_data = dialog.get_data()
+                logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
+
+                if not new_client_data.get('country_id'):
+                    QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
+                    return
+
+                client_data_for_db = {
+                    "client_name": new_client_data["client_name"],
+                    "company_name": new_client_data.get("company_name"),
+                    "country_id": new_client_data["country_id"],
+                    "city_id": new_client_data.get("city_id"),
+                    "project_identifier": new_client_data.get("project_identifier"),
+                    "primary_need_description": new_client_data.get("primary_need_description"),
+                    "selected_languages": new_client_data.get("selected_languages"),
+                    "created_by_user_id": self.current_user_id
+                }
+
+                logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
+                handle_create_client_execution(self, client_data_dict=client_data_for_db)
+            else:
+                logging.info("StatisticsAddClientDialog cancelled by user.")
+        except Exception as e:
+            logging.error(f"Error opening or executing StatisticsAddClientDialog for country {country_name_str}: {e}", exc_info=True)
+            QMessageBox.critical(self,
+                                 self.tr("Erreur Dialogue"),
+                                 self.tr("Impossible d'ouvrir le dialogue 'Ajouter Client'. Veuillez consulter les logs de l'application pour plus de détails."))
     def handle_new_document_detected(self, file_path):
         logging.info(f"Main_window: New document detected by service: {file_path}")
         try:
@@ -382,6 +482,8 @@ class DocumentManager(QMainWindow):
         
         self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client")); self.add_new_client_button.setIcon(QIcon(":/icons/user-add.svg")); self.add_new_client_button.setObjectName("primaryButton"); self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog); left_pane_layout.addWidget(self.add_new_client_button)
 
+        self.add_client_by_voice_button = QPushButton(self.tr("Ajouter Client par Voix")); self.add_client_by_voice_button.setIcon(QIcon(":/icons/mic.svg")); self.add_client_by_voice_button.setObjectName("primaryButton"); self.add_client_by_voice_button.clicked.connect(self.handle_add_client_by_voice_clicked); left_pane_layout.addWidget(self.add_client_by_voice_button)
+
         # map_group_box removed from here
         left_pane_widget.setLayout(left_pane_layout)
         self.main_splitter.addWidget(left_pane_widget)
@@ -399,15 +501,15 @@ class DocumentManager(QMainWindow):
                 splitter_state_byte_array = QByteArray.fromHex(saved_splitter_state_hex.encode('utf-8'))
                 if not self.main_splitter.restoreState(splitter_state_byte_array):
                     logging.warning("Failed to restore splitter state, applying defaults.")
-                    self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+                    self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
                 else:
                     logging.info("Client list splitter state restored.")
             except Exception as e:
                 logging.error(f"Error restoring splitter state: {e}. Applying defaults.", exc_info=True)
-                self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+                self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
         else:
-            self.main_splitter.setSizes([int(self.width() * 0.15), int(self.width() * 0.85)])
-            logging.info("Client list splitter: No saved state found, applied default sizes 15/85.")
+            self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
+            logging.info("Client list splitter: No saved state found, applied default sizes 12/88.")
 
         self.main_splitter.splitterMoved.connect(self.save_splitter_state)
 
@@ -434,6 +536,61 @@ class DocumentManager(QMainWindow):
             client_data = dialog.get_data()
             if client_data: handle_create_client_execution(self, client_data_dict=client_data)
 
+    def handle_add_client_by_voice_clicked(self):
+        # Notify user that listening has started
+        self.notify(self.tr("Voice Input"), self.tr("Veuillez parler maintenant pour ajouter un client..."), type='INFO', duration=5000)
+        QApplication.processEvents() # Ensure notification is shown, good for long operations
+
+        speech_result = self.voice_input_service.recognize_speech()
+
+        if speech_result["success"]:
+            recognized_text = speech_result["text"]
+            self.notify(self.tr("Voice Input"), self.tr("Reconnu : '{0}'. Traitement des informations...").format(recognized_text), type='INFO', duration=3000)
+            QApplication.processEvents()
+            logging.info(f"Recognized text: {recognized_text}")
+
+            extracted_info = self.voice_input_service.extract_client_info(recognized_text)
+            logging.info(f"Extracted info for dialog: {extracted_info}")
+
+            if extracted_info: # Check if dictionary is not empty
+                dialog = AddNewClientDialog(self)
+                dialog.populate_from_voice_data(extracted_info)
+                if dialog.exec_() == QDialog.Accepted:
+                    client_data = dialog.get_data()
+                    if client_data: # Ensure data is valid before creating client
+                        handle_create_client_execution(self, client_data_dict=client_data)
+                # No specific message if dialog is cancelled by user after population
+            else:
+                logging.warning("Could not extract any client details from speech.")
+                QMessageBox.information(self,
+                                        self.tr("Aucune Information Extraite"),
+                                        self.tr("Aucun détail client n'a pu être extrait de la parole. Le texte reconnu était : \"{0}\". Veuillez réessayer ou entrer manuellement les informations.").format(recognized_text))
+        else:
+            error_message = speech_result.get("message", self.tr("Erreur inconnue"))
+            error_type = speech_result.get("error", "unknown_error")
+            logging.error(f"Speech recognition failed: {error_message} (Type: {error_type})")
+
+            if error_type == "microphone_error": # This is the custom error from voice_input_service if self.microphone is None or adjust... fails
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur Microphone"),
+                                      self.tr("Aucun microphone n'a été détecté ou il ne fonctionne pas correctement. Veuillez vérifier votre matériel et les permissions.\n\nDétail: {0}").format(error_message))
+            elif error_type == "listen_error": # Custom error from voice_input_service
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur d'Écoute"),
+                                      self.tr("Un problème est survenu lors de la phase d'écoute via le microphone.\n\nDétail: {0}").format(error_message))
+            elif error_type == "unknown_value":
+                 QMessageBox.warning(self,
+                                     self.tr("Erreur de Reconnaissance"),
+                                     self.tr("Impossible de comprendre l'audio. Veuillez réessayer."))
+            elif error_type == "request_error":
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur d'API"),
+                                      self.tr("Le service de reconnaissance vocale est indisponible. Vérifiez votre connexion internet ou réessayez plus tard.\n\nDétail: {0}").format(error_message))
+            else: # Includes 'unexpected_error' or any other
+                QMessageBox.critical(self,
+                                     self.tr("Erreur Inattendue"),
+                                     self.tr("Une erreur inattendue est survenue lors de la reconnaissance vocale: {0}").format(error_message))
+
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.show_settings_page) # Changed to show_settings_page
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
@@ -449,8 +606,13 @@ class DocumentManager(QMainWindow):
         self.botpress_integration_action = QAction(QIcon(":/icons/placeholder_icon.svg"), self.tr("Botpress Integration"), self) # Add a placeholder icon
         self.botpress_integration_action.triggered.connect(self.show_botpress_integration_view)
         self.inventory_browser_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion Stock Atelier"), self) # Updated text
-
         self.inventory_browser_action.triggered.connect(self.show_inventory_browser_view)
+
+        self.recruitment_action = QAction(QIcon(":/icons/users.svg"), self.tr("Recrutement"), self) # Use an existing icon or add new one
+        self.recruitment_action.triggered.connect(self.show_recruitment_view)
+        self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
+        self.camera_management_action.triggered.connect(self.show_camera_management_view)
+
 
 
     def create_menus_main(self): 
@@ -458,31 +620,97 @@ class DocumentManager(QMainWindow):
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
-        modules_menu.addAction(self.documents_view_action)
-        modules_menu.addAction(self.project_management_action)
-        modules_menu.addAction(self.product_list_action)
-        modules_menu.addAction(self.partner_management_action)
-        modules_menu.addAction(self.statistics_action)
-        modules_menu.addAction(self.inventory_browser_action) # Add Inventory action
-        modules_menu.addAction(self.botpress_integration_action) # Add Botpress action
-        modules_menu.addSeparator() # Optional separator
-        modules_menu.addAction(self.open_carrier_map_action)
+        modules_menu.addAction(self.documents_view_action) # Documents view is core, always added
+
+        for module_info in CONFIGURABLE_MODULES:
+            action_name = module_info['action_attr']
+            module_name = module_info['name']
+            if self.module_states.get(module_name, True): # Default to True if state not found
+                action = getattr(self, action_name, None)
+                if action:
+                    modules_menu.addAction(action)
+                else:
+                    logging.warning(f"Action '{action_name}' not found for module '{module_name}' but module is enabled.")
+            else:
+                logging.info(f"Module '{module_name}' is disabled. Action '{action_name}' not added to menu.")
+
+        # Add separator if any module actions were added, before non-module specific actions like Carrier Map (if it's always there or handled differently)
+        # For now, assuming Carrier Map is part of CONFIGURABLE_MODULES, so it's handled above.
+        # If there are actions that should always appear after the conditional ones:
+        # modules_menu.addSeparator()
+        # modules_menu.addAction(self.some_other_always_visible_action_in_modules_menu)
+
 
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
     def open_carrier_map_dialog(self):
-        dialog = CarrierMapDialog(self)
-        dialog.exec_()
+        # This module is just a dialog, check its state if needed before opening
+        if self.module_states.get('carrier_map', True):
+            dialog = CarrierMapDialog(self)
+            dialog.exec_()
+        else:
+            QMessageBox.information(self, self.tr("Module Désactivé"), self.tr("Le module 'Carrier Map' est actuellement désactivé."))
+            logging.info("Carrier Map module is disabled. Dialog not opened.")
 
-    def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+
+    def show_project_management_view(self):
+        if self.project_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+        else:
+            logging.warning("Project Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion de Projet est désactivé."))
+
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
-    def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
-    def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
-    def show_inventory_browser_view(self): self.main_area_stack.setCurrentWidget(self.inventory_browser_widget_instance)
-    def show_botpress_integration_view(self): self.main_area_stack.setCurrentWidget(self.botpress_integration_ui_instance)
+
+    def show_partner_management_view(self):
+        if self.partner_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
+        else:
+            logging.warning("Partner Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Partner Management est désactivé."))
+
+    def show_statistics_view(self):
+        if self.statistics_dashboard_instance:
+            self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+        else:
+            logging.warning("Statistics Dashboard instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Statistiques est désactivé."))
+
+    def show_inventory_browser_view(self):
+        if self.inventory_browser_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.inventory_browser_widget_instance)
+        else:
+            logging.warning("Inventory Browser widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion Stock Atelier est désactivé."))
+
+    def show_botpress_integration_view(self):
+        if self.botpress_integration_ui_instance:
+            self.main_area_stack.setCurrentWidget(self.botpress_integration_ui_instance)
+        else:
+            logging.warning("Botpress Integration UI instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Botpress Integration est désactivé."))
 
     def show_product_management_page(self):
-        self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
+        if self.product_management_page_instance:
+            self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
+        else:
+            logging.warning("Product Management page instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Product Management est désactivé."))
+
+    def show_recruitment_view(self):
+        if self.recruitment_dashboard_instance:
+            self.main_area_stack.setCurrentWidget(self.recruitment_dashboard_instance)
+        else:
+            logging.warning("Recruitment dashboard instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Recrutement est désactivé."))
+    def show_camera_management_view(self):
+        if self.camera_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.camera_management_widget_instance)
+            if hasattr(self.camera_management_widget_instance, 'set_current_user_id'): # Ensure user_id is up-to-date
+                self.camera_management_widget_instance.set_current_user_id(self.current_user_id)
+        else:
+            logging.warning("Camera Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion Caméras est désactivé."))
 
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
@@ -605,14 +833,16 @@ class DocumentManager(QMainWindow):
             self.open_client_tab_by_id(client_data["client_id"])
         
     def open_client_tab_by_id(self, client_id_to_open):
-        client_data_to_show = self.clients_data_map.get(client_id_to_open)
-        if not client_data_to_show:
-            client_data_from_db = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
-            if not client_data_from_db:
-                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Données client non trouvées ou client archivé (ID: {0}).").format(client_id_to_open))
-                return
-            client_data_to_show = client_data_from_db
+        # Attempt to fetch fresh client data directly from the database
+        client_data_to_show = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
 
+        if not client_data_to_show:
+            # If fetching from DB fails, show an error and return.
+            # Relying on self.clients_data_map might show stale or deleted client data.
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer les données à jour pour le client (ID: {0}). Le client pourrait ne pas exister ou être archivé.").format(client_id_to_open))
+            return
+
+        # Proceed with augmenting and displaying the fresh client_data_to_show
         if 'country' not in client_data_to_show and client_data_to_show.get('country_id'):
             country_obj = db_manager.get_country_by_id(client_data_to_show['country_id'])
             client_data_to_show['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
@@ -698,12 +928,40 @@ class DocumentManager(QMainWindow):
            hasattr(self.settings_page_instance.company_tab, 'load_all_data'): # Assuming CompanyTabWidget has this
             self.settings_page_instance.company_tab.load_all_data()
 
-        # After settings page is shown and potentially modified & saved by its own mechanism,
-        # re-initialize the download monitor to reflect any changes.
-        # This is a simplification; ideally, SettingsPage would emit a signal on save.
-        self.init_or_update_download_monitor()
+        # After settings page is shown and potentially modified & saved by its own mechanism:
+        try:
+            # Disconnect first to prevent multiple connections if settings page is shown multiple times
+            self.settings_page_instance.save_settings_button.clicked.disconnect(self._handle_settings_saved)
+        except TypeError:  # Signal was not connected
+            pass
+        self.settings_page_instance.save_settings_button.clicked.connect(self._handle_settings_saved)
 
-        logging.info("Switched to Settings Page and refreshed its data. Download monitor re-initialized.")
+        logging.info("Switched to Settings Page and refreshed its data.")
+
+    def _handle_settings_saved(self):
+        """Called when 'Save All Settings' in SettingsPage is clicked."""
+        logging.info("Handling settings saved signal from SettingsPage...")
+
+        current_states_copy = dict(self.module_states)
+        self._load_module_states()  # Reload from DB to get potentially changed states
+
+        if current_states_copy != self.module_states:
+            logging.info("Module states have changed. Prompting for restart.")
+            QMessageBox.information(self,
+                                    self.tr("Redémarrage requis"),
+                                    self.tr("Les paramètres des modules ont été modifiés. "
+                                            "Veuillez redémarrer l'application pour que les changements prennent pleinement effet."))
+            # Here, you might want to update the UI immediately (e.g., menus) if feasible,
+            # or strictly rely on restart. For now, we will rely on restart for UI changes.
+            # Re-creating menus might be an option:
+            # self.menuBar().clear()
+            # self.create_menus_main()
+            # However, this doesn't re-initialize widgets in the stack. Restart is cleaner.
+
+        # Also, re-initialize download monitor as it was done before
+        self.init_or_update_download_monitor()
+        logging.info("Settings saved from SettingsPage. Checked for module changes and re-initialized download monitor.")
+
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
     def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))

@@ -44,7 +44,7 @@ from .cruds.projects_crud import (
     get_total_projects_count, # Added
     get_active_projects_count, # Added
 )
-from .cruds.products_crud import get_total_products_count, get_all_products, get_all_products_for_selection_filtered # Added
+from .cruds.products_crud import get_total_products_count, get_all_products, get_all_products_for_selection_filtered, get_product_by_id # Added
 
 from .cruds.tasks_crud import (
     get_tasks_by_project_id,
@@ -76,6 +76,7 @@ from .cruds.team_members_crud import (
 )
 from .cruds.clients_crud import ( # Modified
     get_all_clients,
+    get_client_by_id, # Added
     get_active_clients_count,
     get_client_counts_by_country,
     get_client_segmentation_by_city,
@@ -238,6 +239,7 @@ __all__ = [
     "delete_general_document_file",
     "get_all_products", # Added
     "get_all_products_for_selection_filtered", # Added
+    "get_product_by_id", # Added
 
     "get_all_projects",
     "get_project_by_id",
@@ -271,6 +273,7 @@ __all__ = [
     "update_team_member",
     "delete_team_member",
     "get_all_clients",
+    "get_client_by_id", # Added
     "get_active_clients_count",
     "get_total_clients_count", # Added
     "get_client_counts_by_country", # Added

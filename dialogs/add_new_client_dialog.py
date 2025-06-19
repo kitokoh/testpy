@@ -5,16 +5,18 @@ from PyQt5.QtWidgets import (
     QMessageBox, QCompleter, QInputDialog
 )
 from PyQt5.QtCore import Qt
-import db as db_manager
+# import db as db_manager # Removed
+from controllers.client_controller import ClientController # Added
 
 class AddNewClientDialog(QDialog):
     def __init__(self, parent=None, initial_country_name=None):
         super().__init__(parent)
+        self.client_controller = ClientController() # Added
         self.initial_country_name = initial_country_name
         self.setWindowTitle(self.tr("Ajouter un Nouveau Client"))
-        self.setMinimumSize(500, 400) # Adjust as needed
-        self.country_id = None # To store determined country_id
-        self.city_id = None # To store determined city_id
+        self.setMinimumSize(500, 400)
+        # self.country_id = None # Removed, controller will handle ID resolution
+        # self.city_id = None # Removed, controller will handle ID resolution
         self.setup_ui()
 
     def setup_ui(self):
@@ -41,7 +43,10 @@ class AddNewClientDialog(QDialog):
         self.country_select_combo.setInsertPolicy(QComboBox.NoInsert)
         self.country_select_combo.completer().setCompletionMode(QCompleter.PopupCompletion)
         self.country_select_combo.completer().setFilterMode(Qt.MatchContains)
-        self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country)
+        # self.country_select_combo.currentTextChanged.connect(self.load_cities_for_country_by_name) # Old connection
+        self.country_select_combo.currentIndexChanged.connect(self.on_country_selected) # Use index change if data is ID
+        self.country_select_combo.lineEdit().editingFinished.connect(self.on_country_text_changed) # Handle typed text
+
         country_hbox_layout.addWidget(self.country_select_combo)
         self.add_country_button = QPushButton("+")
         self.add_country_button.setFixedSize(30, 30)
@@ -70,7 +75,6 @@ class AddNewClientDialog(QDialog):
 
         self.language_select_combo = QComboBox()
         self.language_select_combo.setToolTip(self.tr("Sélectionnez les langues pour lesquelles les dossiers de documents seront créés et qui seront utilisées pour la génération de modèles."))
-        # Language options should be consistent with main_window.py's original setup
         self.language_options_map = {
             self.tr("English only (en)"): ["en"],
             self.tr("French only (fr)"): ["fr"],
@@ -95,233 +99,219 @@ class AddNewClientDialog(QDialog):
         self.load_countries_into_combo()
         self._handle_initial_country()
 
+    def populate_from_voice_data(self, data: dict):
+        self.client_name_input.setText(data.get('client_name', ''))
+        self.company_name_input.setText(data.get('company_name', ''))
+        self.client_need_input.setText(data.get('primary_need_description', ''))
+        self.project_id_input_field.setText(data.get('project_identifier', ''))
+
+        country_name = data.get('country_name')
+        if country_name:
+            self.country_select_combo.lineEdit().setText(country_name) # Set text
+            self.on_country_text_changed() # Trigger city loading based on new text
+
+        city_name = data.get('city_name')
+        if city_name:
+            self.city_select_combo.lineEdit().setText(city_name)
+
+
     def _handle_initial_country(self):
         if self.initial_country_name:
-            print(f"Attempting to pre-select country: {self.initial_country_name}")
-            country_index = self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) # More precise match
-            if country_index >= 0:
-                self.country_select_combo.setCurrentIndex(country_index)
-                print(f"Country '{self.initial_country_name}' pre-selected at index {country_index}.")
-                # self.load_cities_for_country(self.initial_country_name) # Trigger city loading
-            else:
-                # Country not in combo. It might be new.
-                # The combobox is editable, so user can type it.
-                # Accept logic will handle adding it.
-                self.country_select_combo.lineEdit().setText(self.initial_country_name)
-                print(f"Country '{self.initial_country_name}' not in list, set as editable text.")
-                # self.load_cities_for_country(self.initial_country_name) # Try loading cities, will likely be empty
+            self.country_select_combo.lineEdit().setText(self.initial_country_name)
+            self.on_country_text_changed() # This will load cities if country is found or is new
+
 
     def load_countries_into_combo(self):
-        current_country_text = self.country_select_combo.lineEdit().text() if self.country_select_combo.isEditable() else self.country_select_combo.currentText()
+        current_country_text = self.country_select_combo.lineEdit().text()
+        self.country_select_combo.blockSignals(True)
         self.country_select_combo.clear()
         try:
-            countries = db_manager.get_all_countries()
+            countries = self.client_controller.get_all_countries()
             if countries is None: countries = []
             for country_dict in countries:
-                self.country_select_combo.addItem(country_dict['country_name'], country_dict.get('country_id'))
+                self.country_select_combo.addItem(country_dict['country_name'], country_dict['country_id'])
 
-            # Restore previous text if it was being edited or if it's a new country
-            if self.initial_country_name and self.country_select_combo.findText(self.initial_country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive) == -1 :
-                 self.country_select_combo.lineEdit().setText(self.initial_country_name)
-            elif current_country_text:
-                 idx = self.country_select_combo.findText(current_country_text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
-                 if idx != -1:
-                     self.country_select_combo.setCurrentIndex(idx)
-                 elif self.country_select_combo.isEditable():
-                      self.country_select_combo.lineEdit().setText(current_country_text)
+            # Try to restore selection or text
+            if current_country_text:
+                idx = self.country_select_combo.findText(current_country_text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
+                if idx != -1:
+                    self.country_select_combo.setCurrentIndex(idx)
+                else:
+                    self.country_select_combo.lineEdit().setText(current_country_text) # For new/typed country
 
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des pays:\n{0}").format(str(e)))
+        finally:
+            self.country_select_combo.blockSignals(False)
 
-    def load_cities_for_country(self, country_name_or_id):
-        self.city_select_combo.clear()
-        country_id_to_load = None
+        # Trigger city loading for the current country (either selected or typed)
+        # This needs to be done after signals are unblocked.
+        if self.country_select_combo.currentIndex() >= 0 :
+             self.on_country_selected(self.country_select_combo.currentIndex())
+        elif current_country_text :
+             self.on_country_text_changed()
 
-        if isinstance(country_name_or_id, int): # if ID is passed
-            country_id_to_load = country_name_or_id
-        elif isinstance(country_name_or_id, str) and country_name_or_id: # if name is passed
-            selected_country_id_from_combo = self.country_select_combo.currentData()
-            if selected_country_id_from_combo is not None and self.country_select_combo.currentText() == country_name_or_id:
-                country_id_to_load = selected_country_id_from_combo
-            else: # Country name might be new or different from combo's currentData
-                country_obj_by_name = db_manager.get_country_by_name(country_name_or_id)
-                if country_obj_by_name:
-                    country_id_to_load = country_obj_by_name['country_id']
-                # If country_obj_by_name is None, it's a new country, so no cities to load yet.
 
-        if not country_id_to_load:
-            # This can happen if country_name_or_id is empty, or if it's a new country name not yet in DB.
-            # City combo should remain empty.
+    def on_country_selected(self, index):
+        country_id = self.country_select_combo.itemData(index)
+        if country_id is not None:
+            self.load_cities_for_country_by_id(country_id)
+        # If country_id is None, it might be a placeholder or an issue.
+        # Consider if text changed should be called if itemData is None.
+
+    def on_country_text_changed(self):
+        """Handles loading cities when country text is manually changed or entered."""
+        country_name = self.country_select_combo.lineEdit().text().strip()
+        if not country_name:
+            self.city_select_combo.clear()
             return
 
+        # Check if this country name exists in the combo's items (implies it has an ID)
+        found_idx = self.country_select_combo.findText(country_name, Qt.MatchFixedString | Qt.MatchCaseSensitive)
+        if found_idx != -1:
+            country_id = self.country_select_combo.itemData(found_idx)
+            if country_id is not None:
+                self.load_cities_for_country_by_id(country_id)
+            else: # Should not happen if item has text and is found
+                self.city_select_combo.clear()
+        else:
+            # Country name is new/typed, does not have an ID in the combo yet.
+            # We won't query cities for a country not yet in the DB.
+            # City combo can be cleared or stay as is, depending on desired UX for "new" country.
+            self.city_select_combo.clear() # Clear cities if country is unrecognized/new
+
+    def load_cities_for_country_by_id(self, country_id):
+        current_city_text = self.city_select_combo.lineEdit().text()
+        self.city_select_combo.blockSignals(True)
+        self.city_select_combo.clear()
+        if country_id is None:
+            self.city_select_combo.blockSignals(False)
+            return
         try:
-            cities = db_manager.get_all_cities(country_id=country_id_to_load)
+            cities = self.client_controller.get_cities_for_country(country_id)
             if cities is None: cities = []
             for city_dict in cities:
-                self.city_select_combo.addItem(city_dict['city_name'], city_dict.get('city_id'))
+                self.city_select_combo.addItem(city_dict['city_name'], city_dict['city_id'])
+
+            if current_city_text: # Try to restore if it was being edited or is new
+                idx = self.city_select_combo.findText(current_city_text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
+                if idx != -1:
+                    self.city_select_combo.setCurrentIndex(idx)
+                else:
+                    self.city_select_combo.lineEdit().setText(current_city_text)
+
         except Exception as e:
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des villes:\n{0}").format(str(e)))
+        finally:
+            self.city_select_combo.blockSignals(False)
 
 
     def add_new_country_dialog(self):
-        # QInputDialog is not in the identified imports. It might be needed.
-        # For now, proceeding without it. If QInputDialog is essential, this will error.
-        # Let's assume QInputDialog is implicitly available or was missed in analysis.
-        # Upon review, QInputDialog is imported in the original dialogs.py. It should be added.
-        # For this iteration, I will proceed with the current import list and add QInputDialog if an error occurs.
-        # This is a simulated step-by-step process.
-        # Correcting: Add QInputDialog to imports.
-
-        # Re-evaluating imports from original dialogs.py for AddNewClientDialog:
-        # It uses QInputDialog.
-        # from PyQt5.QtWidgets import QInputDialog
-        # So, the import list should be:
-        # from PyQt5.QtWidgets import (
-        #     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
-        #     QLineEdit, QPushButton, QComboBox, QDialogButtonBox,
-        #     QMessageBox, QCompleter, QInputDialog
-        # )
-        # I will update the file content with this corrected import.
-
         country_text, ok = QInputDialog.getText(self, self.tr("Nouveau Pays"), self.tr("Entrez le nom du nouveau pays:"))
         if ok and country_text.strip():
             try:
-                returned_country_id = db_manager.add_country({'country_name': country_text.strip()})
-                if returned_country_id is not None:
+                # Use controller, which should handle get_or_add logic
+                country_data = self.client_controller.add_country(country_text.strip())
+                if country_data and country_data.get('country_id') is not None:
                     self.load_countries_into_combo() # Reloads all countries
                     # Attempt to find and set the newly added country
-                    index_to_select = -1
+                    new_country_id = country_data['country_id']
                     for i in range(self.country_select_combo.count()):
-                        if self.country_select_combo.itemData(i) == returned_country_id:
-                            index_to_select = i
+                        if self.country_select_combo.itemData(i) == new_country_id:
+                            self.country_select_combo.setCurrentIndex(i)
                             break
-                    if index_to_select != -1:
-                        self.country_select_combo.setCurrentIndex(index_to_select)
-                    else: # Fallback if ID not found, try by text
-                        index_by_text = self.country_select_combo.findText(country_text.strip())
-                        if index_by_text >=0: self.country_select_combo.setCurrentIndex(index_by_text)
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout du pays. Vérifiez les logs."))
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur d'ajout du pays. Le pays existe peut-être déjà ou une erreur s'est produite."))
             except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
 
     def add_new_city_dialog(self):
-        current_country_id_from_combo = self.country_select_combo.currentData()
-        current_country_name = self.country_select_combo.currentText()
+        current_country_name = self.country_select_combo.currentText().strip()
+        current_country_id = self.country_select_combo.currentData() # This might be None if country is new
 
-        final_country_id_for_city = None
-        if current_country_id_from_combo is not None:
-            final_country_id_for_city = current_country_id_from_combo
-        elif current_country_name: # If country was typed and not in DB yet
-            country_data = db_manager.get_or_add_country(current_country_name) # Add it now
-            if country_data and country_data.get('country_id'):
-                final_country_id_for_city = country_data['country_id']
-                self.load_countries_into_combo() # Refresh countries
-                # Reselect the country that was just added
-                idx = self.country_select_combo.findData(final_country_id_for_city)
-                if idx != -1: self.country_select_combo.setCurrentIndex(idx)
-
-
-        if not final_country_id_for_city:
-            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner ou entrer un pays valide."))
+        if not current_country_name:
+            QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Veuillez d'abord sélectionner ou entrer un pays."))
             return
 
-        # QInputDialog is used here too.
+        # If country_id is not available from combo (e.g., new country typed),
+        # try to get/add it using the controller.
+        if current_country_id is None:
+            country_obj = self.client_controller.add_country(current_country_name) # Effectively get_or_add
+            if country_obj and 'country_id' in country_obj:
+                current_country_id = country_obj['country_id']
+                # Refresh country combo to include this new country and its ID
+                self.load_countries_into_combo()
+                # Try to re-select it
+                for i in range(self.country_select_combo.count()):
+                    if self.country_select_combo.itemData(i) == current_country_id:
+                        self.country_select_combo.setCurrentIndex(i)
+                        break
+            else:
+                QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr(f"Impossible de trouver ou créer le pays '{current_country_name}' pour y ajouter une ville."))
+                return
+
+        if not current_country_id: # Still no ID after trying to add
+             QMessageBox.warning(self, self.tr("Pays Requis"), self.tr("Un ID de pays valide est requis pour ajouter une ville."))
+             return
+
+
         city_text, ok = QInputDialog.getText(self, self.tr("Nouvelle Ville"), self.tr("Entrez le nom de la nouvelle ville pour {0}:").format(current_country_name))
         if ok and city_text.strip():
             try:
-                # Use get_or_add_city here
-                city_data = db_manager.get_or_add_city(city_name=city_text.strip(), country_id=final_country_id_for_city)
+                city_data = self.client_controller.add_city(city_text.strip(), current_country_id)
                 if city_data and city_data.get('city_id') is not None:
-                    self.load_cities_for_country(final_country_id_for_city) # Reload cities for the relevant country ID
-                    # Attempt to find and set the newly added/found city
-                    index_to_select = -1
+                    self.load_cities_for_country_by_id(current_country_id) # Reload cities for the relevant country ID
+                    new_city_id = city_data['city_id']
                     for i in range(self.city_select_combo.count()):
-                        if self.city_select_combo.itemData(i) == city_data['city_id']:
-                            index_to_select = i
+                        if self.city_select_combo.itemData(i) == new_city_id:
+                            self.city_select_combo.setCurrentIndex(i)
                             break
-                    if index_to_select != -1:
-                        self.city_select_combo.setCurrentIndex(index_to_select)
-                    else: # Fallback if ID not found, try by text
-                        index_by_text = self.city_select_combo.findText(city_text.strip())
-                        if index_by_text >=0: self.city_select_combo.setCurrentIndex(index_by_text)
-
                 else:
-                    QMessageBox.critical(self, self.tr("Erreur DB"), self.tr("Erreur d'ajout ou de récupération de la ville. Vérifiez les logs."))
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur d'ajout de la ville. La ville existe peut-être déjà dans ce pays ou une erreur s'est produite."))
             except Exception as e:
                 QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Une erreur inattendue est survenue:\n{0}").format(str(e)))
 
     def accept(self):
-        # Get final country name and ID
-        country_name = self.country_select_combo.currentText().strip()
-        country_id_from_combo = self.country_select_combo.currentData()
+        # Perform UI validation only
+        client_name = self.client_name_input.text().strip()
+        if not client_name:
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du client est requis."))
+            self.client_name_input.setFocus()
+            return
 
+        country_name = self.country_select_combo.currentText().strip()
         if not country_name:
             QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du pays est requis."))
             self.country_select_combo.setFocus()
             return
 
-        final_country_id = country_id_from_combo
-        if final_country_id is None: # Country was typed or not found
-            country_data = db_manager.get_or_add_country(country_name)
-            if country_data and country_data.get('country_id'):
-                final_country_id = country_data['country_id']
-            else:
-                QMessageBox.warning(self, self.tr("Erreur Pays"), self.tr("Impossible de déterminer ou d'ajouter le pays: {0}").format(country_name))
-                return
-        self.country_id = final_country_id # Store for get_data
+        # City is optional, so no validation needed unless specific rules apply
+        # project_id is optional based on current setup
 
-        # Get final city name and ID
-        city_name = self.city_select_combo.currentText().strip()
-        city_id_from_combo = self.city_select_combo.currentData()
-        final_city_id = city_id_from_combo
-
-        if city_name: # City is optional, but if provided, ensure it's processed
-            if final_city_id is None: # City was typed or not found
-                # db_manager.get_or_add_city expects country_id
-                if not self.country_id: # Should not happen if country logic above is correct
-                     QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("ID Pays non défini avant traitement de la ville."))
-                     return
-                city_data = db_manager.get_or_add_city(city_name, self.country_id)
-                if city_data and city_data.get('city_id'):
-                    final_city_id = city_data['city_id']
-                else:
-                    QMessageBox.warning(self, self.tr("Erreur Ville"), self.tr("Impossible de déterminer ou d'ajouter la ville: {0}").format(city_name))
-                    # If city is optional and fails, we might want to proceed with city_id=None
-                    # For now, let's assume if a city name is typed, it should be valid or addable.
-                    # If strictly optional even if typed and fails, this could be changed.
-                    final_city_id = None # Set to None if it fails, effectively making it optional
-            self.city_id = final_city_id
-        else: # No city name provided
-            self.city_id = None
-
-        # Validate other fields before calling super().accept()
-        client_name = self.client_name_input.text().strip()
-        if not client_name:
-            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du client est requis."))
-            self.client_name_input.setFocus()
-            return # Don't call super().accept()
-
-        super().accept() # This will allow get_data to be called by the main window if QDialog.Accepted
+        super().accept() # This will allow get_data to be called
 
     def get_data(self):
+        # Return raw text for country and city. Controller will handle resolution.
         client_name = self.client_name_input.text().strip()
         company_name = self.company_name_input.text().strip()
         client_need = self.client_need_input.text().strip()
         project_id_text = self.project_id_input_field.text().strip()
 
-        selected_lang_display_text = self.language_select_combo.currentText()
-        selected_languages = self.language_options_map.get(selected_lang_display_text, ["fr"])
+        country_name = self.country_select_combo.currentText().strip()
+        city_name = self.city_select_combo.currentText().strip()
 
-        # self.country_id and self.city_id are set in the overridden accept() method
+        selected_lang_display_text = self.language_select_combo.currentText()
+        selected_languages_list = self.language_options_map.get(selected_lang_display_text, ["fr"])
+
         return {
             "client_name": client_name,
             "company_name": company_name,
             "primary_need_description": client_need,
-            "country_id": self.country_id, # Use the ID determined in accept()
-            "country_name": self.country_select_combo.currentText().strip(), # Current text for display
-            "city_id": self.city_id, # Use the ID determined in accept()
-            "city_name": self.city_select_combo.currentText().strip(), # Current text for display
+            "country_name": country_name, # Raw name
+            "city_name": city_name,       # Raw name
             "project_identifier": project_id_text,
-            "selected_languages": ",".join(selected_languages)
+            "selected_languages": ",".join(selected_languages_list)
+            # client_status_id can be defaulted by the controller or main window
         }
+
+# ```

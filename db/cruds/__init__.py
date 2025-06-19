@@ -10,15 +10,20 @@ from . import clients_crud
 from . import companies_crud
 from . import company_personnel_crud
 from . import contacts_crud
+from . import employees_crud
+from . import employee_documents_crud
 from . import cover_page_templates_crud
 from . import cover_pages_crud
 from . import freight_forwarders_crud # Added
 from . import google_sync_crud
+from . import hr_reports_crud
 from . import internal_stock_items_crud # Added
 from . import kpis_crud
+from . import leave_crud
 from . import item_locations_crud # Added
 from . import locations_crud
 from . import milestones_crud
+from . import performance_crud
 from . import partners_crud
 from . import product_media_links_crud
 from . import products_crud
@@ -30,6 +35,13 @@ from . import template_categories_crud
 from . import templates_crud
 from . import transporters_crud # Added
 from . import users_crud
+
+# Recruitment CRUDs
+from . import recruitment_job_openings_crud
+from . import recruitment_candidates_crud
+from . import recruitment_interviews_crud
+from . import recruitment_steps_crud
+from . import recruitment_candidate_progress_crud
 
 # generic_crud.py is typically not imported directly into __all__ or here
 # unless it provides functions intended for direct use from db.cruds.generic_crud

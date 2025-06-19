@@ -1,9 +1,9 @@
 import uuid
 import enum
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLAlchemyEnum, UniqueConstraint, Boolean
+from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLAlchemyEnum, UniqueConstraint, Boolean, Date, Table
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 from sqlalchemy.sql import func
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -181,6 +181,195 @@ class Contact(Base):
         return f"<Contact(contact_id={self.contact_id}, name='{self.name}', email='{self.email}')>"
 
 
+class Employee(Base):
+    __tablename__ = "employees"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False, index=True)
+    phone_number = Column(String, nullable=True)
+    position = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    salary = Column(Float, nullable=True)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<Employee(id={self.id}, email='{self.email}')>"
+
+
+# SQLAlchemy Models for Leave Management
+
+class LeaveType(Base):
+    __tablename__ = "leave_types"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, nullable=False)
+    default_days_entitled = Column(Integer, nullable=True)
+
+    def __repr__(self):
+        return f"<LeaveType(id={self.id}, name='{self.name}')>"
+
+class LeaveBalance(Base):
+    __tablename__ = "leave_balances"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False, index=True)
+    leave_type_id = Column(Integer, ForeignKey("leave_types.id"), nullable=False, index=True)
+    year = Column(Integer, nullable=False) # e.g., 2023, 2024
+    entitled_days = Column(Float, nullable=False)
+    used_days = Column(Float, nullable=False, default=0.0)
+
+    employee = relationship("Employee")
+    leave_type = relationship("LeaveType")
+
+    __table_args__ = (UniqueConstraint('employee_id', 'leave_type_id', 'year', name='uq_employee_leave_year'),)
+
+    def __repr__(self):
+        return f"<LeaveBalance(id={self.id}, employee_id='{self.employee_id}', leave_type_id={self.leave_type_id}, year={self.year})>"
+
+class LeaveRequestStatusEnum(enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+class LeaveRequest(Base):
+    __tablename__ = "leave_requests"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False, index=True)
+    leave_type_id = Column(Integer, ForeignKey("leave_types.id"), nullable=False, index=True)
+    status = Column(SQLAlchemyEnum(LeaveRequestStatusEnum), nullable=False, default=LeaveRequestStatusEnum.PENDING, index=True)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    reason = Column(Text, nullable=True)
+    num_days = Column(Float, nullable=False) # Calculated, can be stored or computed
+    request_date = Column(DateTime, server_default=func.now(), nullable=False)
+    approved_by_id = Column(String, ForeignKey("users.id"), nullable=True) # Assuming User model exists
+    processed_date = Column(DateTime, nullable=True)
+    comments = Column(Text, nullable=True) # For approver's comments
+
+    employee = relationship("Employee")
+    leave_type = relationship("LeaveType")
+    approved_by = relationship("User") # Adjust if User model name/key is different
+
+    def __repr__(self):
+        return f"<LeaveRequest(id={self.id}, employee_id='{self.employee_id}', status='{self.status.value if self.status else None}')>"
+
+
+# SQLAlchemy Models for Performance Review Module
+
+class GoalStatusEnum(enum.Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ON_HOLD = "on_hold"
+    CANCELLED = "cancelled"
+
+class Goal(Base):
+    __tablename__ = "goals"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False, index=True)
+    set_by_id = Column(String, ForeignKey("users.id"), nullable=True) # Manager/user who set the goal
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    due_date = Column(Date, nullable=True)
+    status = Column(SQLAlchemyEnum(GoalStatusEnum), nullable=False, default=GoalStatusEnum.OPEN, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    employee = relationship("Employee")
+    set_by = relationship("User")
+
+    def __repr__(self):
+        return f"<Goal(id={self.id}, title='{self.title}', employee_id='{self.employee_id}')>"
+
+class ReviewCycle(Base):
+    __tablename__ = "review_cycles"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    def __repr__(self):
+        return f"<ReviewCycle(id={self.id}, name='{self.name}')>"
+
+class PerformanceReviewStatusEnum(enum.Enum):
+    DRAFT = "draft"
+    PENDING_EMPLOYEE_INPUT = "pending_employee_input"
+    PENDING_MANAGER_REVIEW = "pending_manager_review"
+    PENDING_FINAL_DISCUSSION = "pending_final_discussion"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+# Association table for PerformanceReview and Goal (Many-to-Many)
+performance_review_goals_link = Table('performance_review_goals_link', Base.metadata,
+    Column('performance_review_id', Integer, ForeignKey('performance_reviews.id'), primary_key=True),
+    Column('goal_id', Integer, ForeignKey('goals.id'), primary_key=True)
+)
+
+class PerformanceReview(Base):
+    __tablename__ = "performance_reviews"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False, index=True)
+    reviewer_id = Column(String, ForeignKey("users.id"), nullable=True) # Typically the manager
+    review_cycle_id = Column(Integer, ForeignKey("review_cycles.id"), nullable=True)
+    review_date = Column(Date, nullable=True) # Date of the review meeting/finalization
+    overall_rating = Column(Integer, nullable=True) # E.g., 1-5 scale
+    strengths = Column(Text, nullable=True)
+    areas_for_improvement = Column(Text, nullable=True)
+    employee_comments = Column(Text, nullable=True)
+    manager_comments = Column(Text, nullable=True)
+    status = Column(SQLAlchemyEnum(PerformanceReviewStatusEnum), nullable=False, default=PerformanceReviewStatusEnum.DRAFT, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    employee = relationship("Employee")
+    reviewer = relationship("User")
+    review_cycle = relationship("ReviewCycle")
+    goals_reviewed = relationship("Goal", secondary=performance_review_goals_link, backref="performance_reviews")
+
+    def __repr__(self):
+        return f"<PerformanceReview(id={self.id}, employee_id='{self.employee_id}', status='{self.status.value if self.status else None}')>"
+
+
+# SQLAlchemy Models for Employee Document Management
+
+class DocumentCategory(Base):
+    __tablename__ = "document_categories"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<DocumentCategory(id={self.id}, name='{self.name}')>"
+
+class EmployeeDocument(Base):
+    __tablename__ = "employee_documents"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    employee_id = Column(String, ForeignKey("employees.id"), nullable=False, index=True)
+    document_category_id = Column(Integer, ForeignKey("document_categories.id"), nullable=True)
+
+    file_name = Column(String, nullable=False)  # Original name of the uploaded file
+    file_path_or_key = Column(String, nullable=False) # Path if local, or key if cloud (S3)
+    file_type = Column(String, nullable=True)   # MIME type, e.g., "application/pdf"
+    file_size = Column(Integer, nullable=True)  # Size in bytes
+
+    description = Column(Text, nullable=True)   # User-provided description
+    uploaded_at = Column(DateTime, server_default=func.now(), nullable=False)
+    uploaded_by_id = Column(String, ForeignKey("users.id"), nullable=True)
+
+    employee = relationship("Employee")
+    document_category = relationship("DocumentCategory")
+    uploaded_by = relationship("User")
+
+    def __repr__(self):
+        return f"<EmployeeDocument(id='{self.id}', file_name='{self.file_name}', employee_id='{self.employee_id}')>"
+
+
 # --- Existing Pydantic Models Below ---
 # It's unusual to mix SQLAlchemy and Pydantic models in the same file this way,
 # but adhering to the subtask's request to modify api/models.py.
@@ -245,6 +434,330 @@ class ProductImageLinkResponse(ProductImageLinkBase):
 
     class Config:
         from_attributes = True
+
+
+# Pydantic Models for HR Reporting Responses
+
+class HeadcountReportItem(BaseModel):
+    department: Optional[str] = "N/A" # Department name, or "N/A" if not set
+    count: int
+
+class HeadcountReportResponse(BaseModel):
+    report_name: str = "Department Headcount"
+    generated_at: datetime # from datetime import datetime
+    data: List[HeadcountReportItem]
+
+class AnniversaryReportItem(BaseModel):
+    employee_id: str # UUID as string
+    full_name: str # Combine first_name and last_name
+    anniversary_date: date # The upcoming anniversary date, from datetime import date
+    years_of_service: int
+
+class AnniversaryReportResponse(BaseModel):
+    report_name: str = "Upcoming Work Anniversaries"
+    generated_at: datetime # from datetime import datetime
+    time_window_days: int # The number of upcoming days the report covers (e.g., 30, 60)
+    data: List[AnniversaryReportItem]
+
+class LeaveSummaryReportItem(BaseModel):
+    leave_type_name: str
+    total_days_taken_or_requested: float # Could be approved days, or pending days depending on query
+    number_of_requests: int
+
+class LeaveSummaryReportResponse(BaseModel):
+    report_name: str = "Leave Summary"
+    generated_at: datetime # from datetime import datetime
+    filter_status: Optional[str] = None # e.g., "approved", "pending"
+    data: List[LeaveSummaryReportItem]
+
+
+# Pydantic Models for Employee
+class EmployeeBase(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: date
+    end_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class EmployeeResponse(EmployeeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Pydantic Models for Employee Document Management
+
+# DocumentCategory
+class DocumentCategoryBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class DocumentCategoryCreate(DocumentCategoryBase):
+    pass
+
+class DocumentCategoryResponse(DocumentCategoryBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+# EmployeeDocument
+class EmployeeDocumentBase(BaseModel):
+    employee_id: str # UUID as string, matches Employee.id
+    document_category_id: Optional[int] = None
+    description: Optional[str] = None
+    # file_name, file_path_or_key, file_type, file_size are typically set by server during upload
+
+class EmployeeDocumentCreate(EmployeeDocumentBase):
+    # This model is for creating the metadata record.
+    # Actual file upload might be handled separately (e.g. FastAPI UploadFile)
+    # and these fields would be populated by the server.
+    # If client needs to send filename, it can be added here.
+    pass
+
+class EmployeeDocumentUpdate(BaseModel):
+    document_category_id: Optional[int] = None
+    description: Optional[str] = None
+
+class EmployeeDocumentResponse(EmployeeDocumentBase):
+    id: str # UUID as string
+    file_name: str
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None # in bytes
+    uploaded_at: datetime # from datetime import datetime
+    uploaded_by_id: Optional[str] = None # UUID as string for User.id
+
+    document_category: Optional[DocumentCategoryResponse] = None # Nested
+    employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse already defined
+
+    download_url: Optional[str] = None # To be constructed by API endpoint logic
+
+    class Config:
+        from_attributes = True
+
+
+# Pydantic Models for Performance Review Module
+
+# Goal
+class GoalBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    due_date: Optional[date] = None # from datetime import date
+    status: Optional[str] = Field(GoalStatusEnum.OPEN.value, description="Status of the goal")
+
+class GoalCreate(GoalBase):
+    employee_id: str # Employee this goal is for (UUID as string)
+    set_by_id: Optional[str] = None # User who set goal (UUID as string), can be inferred from current_user
+
+class GoalUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None # Allow updating status, should map to GoalStatusEnum values
+
+class GoalResponse(GoalBase):
+    id: int
+    employee_id: str # UUID as string
+    set_by_id: Optional[str] = None # UUID as string
+    created_at: datetime # from datetime import datetime
+    updated_at: datetime # from datetime import datetime
+    employee: Optional[EmployeeResponse] = None # Optional nesting
+
+    class Config:
+        from_attributes = True
+
+# ReviewCycle
+class ReviewCycleBase(BaseModel):
+    name: str
+    start_date: date # from datetime import date
+    end_date: date   # from datetime import date
+    is_active: Optional[bool] = True
+
+class ReviewCycleCreate(ReviewCycleBase):
+    pass
+
+class ReviewCycleUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class ReviewCycleResponse(ReviewCycleBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+# PerformanceReview
+class PerformanceReviewBase(BaseModel):
+    review_cycle_id: Optional[int] = None
+    review_date: Optional[date] = None # from datetime import date
+    overall_rating: Optional[int] = Field(None, ge=1, le=5) # Example 1-5 rating
+    strengths: Optional[str] = None
+    areas_for_improvement: Optional[str] = None
+    employee_comments: Optional[str] = None
+    manager_comments: Optional[str] = None
+    status: Optional[str] = Field(PerformanceReviewStatusEnum.DRAFT.value, description="Status of the review")
+
+class PerformanceReviewCreate(PerformanceReviewBase):
+    employee_id: str # UUID as string
+    reviewer_id: Optional[str] = None # Manager (UUID as string), can be inferred or set
+
+class PerformanceReviewUpdate(BaseModel): # Fields that can be updated at different stages
+    review_cycle_id: Optional[int] = None
+    review_date: Optional[date] = None
+    overall_rating: Optional[int] = Field(None, ge=1, le=5)
+    strengths: Optional[str] = None
+    areas_for_improvement: Optional[str] = None
+    employee_comments: Optional[str] = None
+    manager_comments: Optional[str] = None
+    status: Optional[str] = None # Should map to PerformanceReviewStatusEnum values
+    goal_ids_to_link: Optional[List[int]] = None # For linking goals to review
+    goal_ids_to_unlink: Optional[List[int]] = None # For unlinking goals
+
+class PerformanceReviewResponse(PerformanceReviewBase):
+    id: int
+    employee_id: str # UUID as string
+    reviewer_id: Optional[str] = None # UUID as string
+    created_at: datetime # from datetime import datetime
+    updated_at: datetime # from datetime import datetime
+    employee: Optional[EmployeeResponse] = None # Optional nesting
+    reviewer: Optional[UserInDB] = None # Optional nesting for reviewer info (UserInDB defined in this file)
+    review_cycle: Optional[ReviewCycleResponse] = None # Optional nesting
+    goals_reviewed: List[GoalResponse] = [] # List of linked goals
+
+    class Config:
+        from_attributes = True
+
+
+# Pydantic Models for Leave Management
+
+# LeaveType
+class LeaveTypeBase(BaseModel):
+    name: str
+    default_days_entitled: Optional[int] = None
+
+class LeaveTypeCreate(LeaveTypeBase):
+    pass
+
+class LeaveTypeResponse(LeaveTypeBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+# LeaveBalance
+class LeaveBalanceBase(BaseModel):
+    employee_id: str # UUID as string
+    leave_type_id: int
+    year: int
+    entitled_days: float
+    used_days: float = 0.0
+
+class LeaveBalanceCreate(LeaveBalanceBase):
+    pass
+
+class LeaveBalanceUpdate(BaseModel):
+    entitled_days: Optional[float] = None
+    used_days: Optional[float] = None
+
+class LeaveBalanceResponse(LeaveBalanceBase):
+    id: int
+    leave_type: LeaveTypeResponse
+    employee: EmployeeResponse # Nested Employee details
+
+    class Config:
+        from_attributes = True
+
+# LeaveRequest
+class LeaveRequestBase(BaseModel):
+    leave_type_id: int
+    start_date: date # from datetime import date
+    end_date: date   # from datetime import date
+    reason: Optional[str] = None
+    num_days: float # Client might send this, or API calculates it
+
+class LeaveRequestCreate(LeaveRequestBase):
+    # employee_id will be set from path or current user, not in request body typically
+    pass
+
+class LeaveRequestUpdate(BaseModel): # For admin/manager to update status/comments
+    status: Optional[str] = None # Should map to LeaveRequestStatusEnum values
+    comments: Optional[str] = None
+
+class LeaveRequestResponse(LeaveRequestBase):
+    id: int
+    employee_id: str # UUID as string
+    status: str # Enum value as string
+    request_date: datetime # from datetime import datetime
+    approved_by_id: Optional[str] = None # UUID as string
+    processed_date: Optional[datetime] = None
+    comments: Optional[str] = None
+    leave_type: LeaveTypeResponse # Nested LeaveType details
+    employee: EmployeeResponse    # Nested Employee details
+
+    class Config:
+        from_attributes = True
+
+
+# Pydantic Models for Employee
+class EmployeeBase(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: date
+    end_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class EmployeeResponse(EmployeeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
 
 class ProductBase(BaseModel):
     product_name: str = Field(..., description="Name of the product.")

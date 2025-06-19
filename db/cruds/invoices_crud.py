@@ -3,27 +3,31 @@ import uuid
 from datetime import datetime
 import os
 
+# Logic to import DATABASE_PATH from root config.py
+import sys
+# Correctly determine the application's root directory relative to invoices_crud.py
+# invoices_crud.py is in app/db/cruds/
+# config.py is in app/
+app_root_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if app_root_directory not in sys.path:
+    sys.path.insert(0, app_root_directory)
+
 try:
-    from .. import db_config # For package structure: db/cruds/invoices_crud.py importing from /app/db_config.py
-except (ImportError, ValueError):
-    # Fallback for running script directly or if db_config is not found in parent
-    import sys
-    # Assuming this script is in /app/db/cruds, so parent is /app/db and grandparent is /app
-    app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    if app_dir not in sys.path:
-        sys.path.append(app_dir)
-    try:
-        import db_config
-    except ImportError:
-        print("CRITICAL: db_config.py not found. Using fallback DATABASE_PATH for invoices_crud.")
-        # Minimal fallback if db_config.py is crucial and not found
-        class db_config_fallback:
-            DATABASE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "app_data_fallback.db")
-        db_config = db_config_fallback
+    from config import DATABASE_PATH
+except ImportError as e:
+    # This is a critical failure if config.py or DATABASE_PATH is not found.
+    # For robustness in case this script is run in an unexpected context,
+    # we might still need a hard fallback, but the primary aim is to use config.py
+    print(f"CRITICAL: Could not import DATABASE_PATH from config.py: {e}. Falling back to a default path.")
+    DATABASE_PATH = os.path.join(app_root_directory, "app_data_config_fallback.db")
+finally:
+    # Clean up sys.path if the directory was added
+    if app_root_directory in sys.path and sys.path[0] == app_root_directory:
+        sys.path.pop(0)
 
 def _get_db_connection():
     """Returns a SQLite connection object to the database."""
-    conn = sqlite3.connect(db_config.DATABASE_PATH)
+    conn = sqlite3.connect(DATABASE_PATH) # Uses the DATABASE_PATH from the new import logic
     conn.row_factory = sqlite3.Row
     return conn
 
