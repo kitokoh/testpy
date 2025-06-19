@@ -69,6 +69,14 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
     if not created_client_info or not created_client_info.get("client_id"):
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
                              doc_manager.tr("Impossible de créer le client via le contrôleur."))
+        # Add None check for created_client_info before calling .get()
+        if created_client_info is None:
+            print("Error: Client creation failed, created_client_info is None.") # Or use actual logging
+            doc_manager.notify(title=doc_manager.tr("Erreur Création Client"),
+                               message=doc_manager.tr("Le contrôleur n'a pas pu créer le client. Réponse nulle."),
+                               type='ERROR')
+            return # Or handle appropriately otherwise
+
         doc_manager.notify(title=doc_manager.tr("Erreur Création Client"),
                            message=created_client_info.get("error", doc_manager.tr("Le contrôleur n'a pas pu créer le client.")),
                            type='ERROR')

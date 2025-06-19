@@ -1,5 +1,6 @@
 # controllers/client_controller.py
 import db as db_manager # Assuming db_manager is the existing module for DB interactions
+from db.cruds import clients_crud # Correct import
 
 class ClientController:
     def __init__(self):
@@ -125,10 +126,56 @@ class ClientController:
 
             # Assuming db_manager.add_client returns the newly created client object or its ID
             # Let's assume it returns a dict of the created client for consistency
-            new_client = db_manager.add_client(db_client_data)
-            if new_client:
-                print(f"Client '{new_client.get('client_name')}' created successfully.")
-                return new_client
+            # new_client = db_manager.add_client(db_client_data) # Original incorrect call
+            # Corrected call:
+            # The add_client function in clients_crud.py expects the data dict directly.
+            # It also requires 'created_by_user_id'. This needs to be added to db_client_data
+            # or passed explicitly if the controller has access to it.
+            # For now, let's assume it's part of client_data or a default is used.
+            if 'created_by_user_id' not in db_client_data:
+                # Add a placeholder or fetch actual user ID if available in controller context
+                db_client_data['created_by_user_id'] = 'SYSTEM_USER' # Placeholder
+
+            result = clients_crud.add_client(db_client_data) # Call the CRUD function
+
+            if result and result.get('success'):
+                # If successful, fetch the full client details to return a consistent object
+                new_client_id = result.get('client_id')
+                # It's better to return the full client dict as expected by some calling UI components
+                # The CRUD's get_client_by_id or get_all_clients_with_details can be used.
+                # For simplicity, if the UI primarily needs the ID and basic info,
+                # we can augment the input data with the new ID.
+                # However, a full fetch is cleaner.
+                # For this refactor, let's assume returning the result from add_client is sufficient for now,
+                # or that the caller will re-fetch if more details are needed.
+                # The original code expected a client object/dict back.
+                # The add_client CRUD returns {'success': True, 'client_id': new_id}.
+                # We should fetch the client to return a more complete object.
+                if new_client_id:
+                    # Use the instance from clients_crud to call get_client_by_id
+                    created_client_details = clients_crud.clients_crud_instance.get_client_by_id(new_client_id)
+                    if created_client_details:
+                        print(f"Client '{created_client_details.get('client_name')}' created successfully with ID {new_client_id}.")
+                        return created_client_details # Return the full client dict
+                    else:
+                        print(f"Client created with ID {new_client_id}, but failed to fetch details.")
+                        # Return a minimal dict if fetch fails but creation succeeded
+                        return {'client_id': new_client_id, 'client_name': db_client_data.get('client_name'), 'success': True, 'warning': 'Details fetch failed'}
+                else: # Should not happen if success is True and client_id is missing
+                    print("Error: Client creation reported success but no client_id returned.")
+                    return {'success': False, 'error': 'Client ID missing after creation.'}
+            else:
+                error_message = result.get('error', 'Failed to create client in database.')
+                print(f"Error: {error_message}")
+                return {'success': False, 'error': error_message} # Return the error dict
+
+        except Exception as e:
+            print(f"Error in ClientController.create_client: {e}")
+            # Consider logging this error properly
+            return {'success': False, 'error': str(e)}
+
+# Example usage (for testing purposes, would be removed or in a test file)
+if __name__ == '__main__':
             else:
                 print("Error: Failed to create client in database.")
                 return None

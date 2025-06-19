@@ -793,7 +793,7 @@ class ClientWidget(QWidget):
     #     main_layout.setContentsMargins(15, 15, 15, 15)
     #     main_layout.setSpacing(15)
 
-    #     self._setup_client_info_section(main_layout)
+    #     self._setup_main_tabs_section(main_layout)
     #     self._setup_notes_section(main_layout)
     #     self._setup_main_tabs_section(main_layout) # This will call sub-methods for each tab
 
@@ -839,6 +839,7 @@ class ClientWidget(QWidget):
         layout.setSpacing(15)
 
         try:
+            self._setup_main_tabs_section(layout) #FIXED
             # --- Collapsible Client Info Section ---
             self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
             self.client_info_group_box.setCheckable(True)
@@ -1396,6 +1397,7 @@ class ClientWidget(QWidget):
         if file_path and os.path.exists(file_path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
         try:
+            self._setup_main_tabs_section(layout) #FIXED
             self.notes_edit.textChanged.disconnect(self.save_client_notes)
         except TypeError:
             pass # Signal was not connected or already disconnected

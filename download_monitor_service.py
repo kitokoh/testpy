@@ -12,6 +12,46 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 TEMP_FILE_EXTENSIONS = ['.crdownload', '.part', '.tmp', '.partial']
 TEMP_FILE_PATTERNS = ['~$', '.~lock.'] # Office temporary files, LibreOffice lock files
 
+
+class WatchdogThread(QThread):
+    """Runs the watchdog observer in a separate thread."""
+    def __init__(self, path_to_watch, event_handler, parent=None):
+        super().__init__(parent)
+        self.path_to_watch = path_to_watch
+        self.event_handler = event_handler
+        self.observer = Observer()
+        self.logger = logging.getLogger(__name__ + ".WatchdogThread")
+
+    def run(self):
+        self.logger.info(f"WatchdogThread started for path: {self.path_to_watch}")
+        try:
+            self.observer.schedule(self.event_handler, self.path_to_watch, recursive=False)
+            self.observer.start()
+            self.logger.info("Observer started.")
+            # Keep the thread alive while the observer is running
+            while self.observer.is_alive():
+                self.observer.join(timeout=1) # Check every second
+        except Exception as e:
+            self.logger.error(f"Error in WatchdogThread run: {e}", exc_info=True)
+        finally:
+            if self.observer.is_alive():
+                self.observer.stop()
+            self.observer.join() # Ensure it's fully stopped before thread exits
+            self.logger.info("WatchdogThread finished.")
+
+    def stop(self):
+        self.logger.info("Stopping WatchdogThread observer...")
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join(timeout=5) # Wait for observer to stop
+            if self.observer.is_alive():
+                self.logger.warning("Observer did not stop gracefully after 5 seconds.")
+            else:
+                self.logger.info("Observer stopped.")
+        else:
+            self.logger.info("Observer was not alive.")
+
+
 class DownloadEventHandler(FileSystemEventHandler):
     """Handles file system events for monitoring new downloads."""
 
@@ -107,9 +147,8 @@ class DownloadMonitorService(QObject):
     def __init__(self, monitored_path, parent=None):
         super().__init__(parent)
         self.monitored_path = monitored_path
-        self.observer = Observer()
         self.event_handler = DownloadEventHandler(parent_service=self)
-        self.watchdog_thread = None
+        self.worker_thread = None # Will hold the WatchdogThread instance
         self.logger = logging.getLogger(__name__ + ".DownloadMonitorService")
 
     def start(self):
@@ -117,73 +156,38 @@ class DownloadMonitorService(QObject):
             self.logger.error(f"Monitored path does not exist or is invalid: {self.monitored_path}")
             return
 
-        if self.watchdog_thread is not None and self.watchdog_thread.isRunning():
+        if self.worker_thread is not None and self.worker_thread.isRunning():
             self.logger.warning("Service already running.")
             return
 
-        self.watchdog_thread = QThread()
-        # Important: Move the observer itself to the thread, not just its methods.
-        # The observer's internal mechanisms need to run in that thread.
-        self.observer.moveToThread(self.watchdog_thread)
-
-        # Schedule must happen before observer.start, but can be done from the main thread.
-        # The observer must be running in its thread before it can process events.
-        try:
-            # Ensure observer is fresh if restarted
-            if self.observer.is_alive(): # Should not happen if logic is correct
-                self.observer.stop()
-                self.observer.join(timeout=1) # Give it a moment to stop
-
-            self.observer = Observer() # Re-initialize observer for a clean state
-            self.observer.moveToThread(self.watchdog_thread)
-            self.observer.schedule(self.event_handler, self.monitored_path, recursive=False)
-        except Exception as e:
-            self.logger.error(f"Failed to schedule observer for {self.monitored_path}: {e}", exc_info=True)
-            self.watchdog_thread.quit() # Clean up thread if schedule fails
-            self.watchdog_thread.wait()
-            return
-
-        # Connect thread's started signal to observer's start method
-        self.watchdog_thread.started.connect(self.observer.start)
-
-        self.watchdog_thread.start()
-        self.logger.info(f"Download monitoring service started for path: {self.monitored_path}")
-        self.logger.info(f"Observer scheduled. Thread ID: {self.watchdog_thread.currentThreadId()}")
+        self.logger.info(f"Starting DownloadMonitorService for path: {self.monitored_path}")
+        self.worker_thread = WatchdogThread(self.monitored_path, self.event_handler)
+        self.worker_thread.start()
+        self.logger.info(f"WatchdogThread started. Thread ID: {self.worker_thread.currentThreadId()}")
 
 
     def stop(self):
         self.logger.info("Attempting to stop download monitoring service...")
-        if self.observer.is_alive():
+        if self.worker_thread is not None and self.worker_thread.isRunning():
             try:
-                self.observer.stop()
-                self.logger.info("Observer stop signal sent.")
-            except Exception as e:
-                self.logger.error(f"Error sending stop to observer: {e}", exc_info=True)
+                self.logger.info("Calling worker_thread.stop()...")
+                self.worker_thread.stop() # Signal the observer to stop
 
-        if self.watchdog_thread is not None and self.watchdog_thread.isRunning():
-            try:
-                if self.observer.is_alive(): # Check again, might have stopped quickly
-                    self.observer.join(timeout=2) # Wait for the observer thread to finish
-                    if self.observer.is_alive():
-                        self.logger.warning("Observer thread did not join in time.")
-                    else:
-                        self.logger.info("Observer thread joined.")
+                self.logger.info("Calling worker_thread.quit()...")
+                self.worker_thread.quit() # Tell the QThread event loop to exit (if it had one, not strictly necessary for observer.join model)
 
-                self.watchdog_thread.quit()
-                self.logger.info("QThread quit signal sent.")
-                if not self.watchdog_thread.wait(3000): # Wait for 3 seconds
-                    self.logger.warning("Watchdog QThread did not terminate gracefully. Forcing termination (not ideal).")
-                    # self.watchdog_thread.terminate() # Use with caution
+                self.logger.info("Calling worker_thread.wait(5000)...")
+                if not self.worker_thread.wait(5000): # Wait up to 5 seconds
+                    self.logger.warning("WatchdogThread did not terminate gracefully. Forcing termination (not ideal).")
+                    # self.worker_thread.terminate() # Use with caution
                 else:
-                    self.logger.info("Watchdog QThread terminated successfully.")
+                    self.logger.info("WatchdogThread terminated successfully.")
             except Exception as e:
-                self.logger.error(f"Error during thread cleanup: {e}", exc_info=True)
+                self.logger.error(f"Error during WatchdogThread cleanup: {e}", exc_info=True)
         else:
-            self.logger.info("Service was not running or thread already stopped.")
+            self.logger.info("Service was not running or worker_thread already stopped/None.")
 
-        self.watchdog_thread = None # Clear the thread reference
-        # Re-initialize observer for potential restart, ensure it's not in a stopped state from previous run
-        self.observer = Observer()
+        self.worker_thread = None # Clear the thread reference
         self.logger.info("Download monitoring service stopped.")
 
 if __name__ == '__main__':
