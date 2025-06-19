@@ -83,6 +83,7 @@ from .cruds.clients_crud import ( # Modified
     get_client_segmentation_by_category,
     get_total_clients_count, # Added
     update_client, # Added
+    get_client_by_id,
 )
 from .cruds.contacts_crud import (
     get_contacts_for_client,
@@ -278,6 +279,7 @@ __all__ = [
     "get_client_segmentation_by_status", # Added
     "get_client_segmentation_by_category", # Added
     "update_client", # Added
+    "get_client_by_id",
     "get_contacts_for_client",
     "add_contact",
     "get_contact_by_id",
