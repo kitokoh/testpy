@@ -435,6 +435,41 @@ class ProductImageLinkResponse(ProductImageLinkBase):
     class Config:
         from_attributes = True
 
+
+# Pydantic Models for HR Reporting Responses
+
+class HeadcountReportItem(BaseModel):
+    department: Optional[str] = "N/A" # Department name, or "N/A" if not set
+    count: int
+
+class HeadcountReportResponse(BaseModel):
+    report_name: str = "Department Headcount"
+    generated_at: datetime # from datetime import datetime
+    data: List[HeadcountReportItem]
+
+class AnniversaryReportItem(BaseModel):
+    employee_id: str # UUID as string
+    full_name: str # Combine first_name and last_name
+    anniversary_date: date # The upcoming anniversary date, from datetime import date
+    years_of_service: int
+
+class AnniversaryReportResponse(BaseModel):
+    report_name: str = "Upcoming Work Anniversaries"
+    generated_at: datetime # from datetime import datetime
+    time_window_days: int # The number of upcoming days the report covers (e.g., 30, 60)
+    data: List[AnniversaryReportItem]
+
+class LeaveSummaryReportItem(BaseModel):
+    leave_type_name: str
+    total_days_taken_or_requested: float # Could be approved days, or pending days depending on query
+    number_of_requests: int
+
+class LeaveSummaryReportResponse(BaseModel):
+    report_name: str = "Leave Summary"
+    generated_at: datetime # from datetime import datetime
+    filter_status: Optional[str] = None # e.g., "approved", "pending"
+    data: List[LeaveSummaryReportItem]
+
 # Pydantic Models for Employee
 class EmployeeBase(BaseModel):
     first_name: str
@@ -514,7 +549,8 @@ class EmployeeDocumentResponse(EmployeeDocumentBase):
     uploaded_by_id: Optional[str] = None # UUID as string for User.id
 
     document_category: Optional[DocumentCategoryResponse] = None # Nested
-    employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse defined above
+    employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse already defined
+
 
     download_url: Optional[str] = None # To be constructed by API endpoint logic
 
@@ -684,6 +720,44 @@ class LeaveRequestResponse(LeaveRequestBase):
 
     class Config:
         from_attributes = True
+
+
+# Pydantic Models for Employee
+class EmployeeBase(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: date
+    end_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class EmployeeResponse(EmployeeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
 
 class ProductBase(BaseModel):
     product_name: str = Field(..., description="Name of the product.")

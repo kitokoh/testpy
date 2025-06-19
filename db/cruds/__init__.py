@@ -16,6 +16,7 @@ from . import cover_page_templates_crud
 from . import cover_pages_crud
 from . import freight_forwarders_crud # Added
 from . import google_sync_crud
+from . import hr_reports_crud
 from . import internal_stock_items_crud # Added
 from . import kpis_crud
 from . import leave_crud
