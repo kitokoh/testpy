@@ -263,27 +263,27 @@ def update_leave_request_status(
 # `update_leave_type` parameter type matches `LeaveTypeCreate` which is identical to `LeaveTypeBase` as `LeaveTypeCreate` inherits and adds nothing.
 # This seems complete and correct based on the plan.The file `db/cruds/leave_crud.py` has been created with the specified CRUD functions and helper.
 
-**Summary of Implementation:**
+# **Summary of Implementation:**
 
-*   **`calculate_leave_duration`**: Implemented to count total days and optionally exclude weekends (Saturday/Sunday).
-*   **LeaveType CRUD**:
-    *   `create_leave_type`, `get_leave_type`, `get_leave_types`, `update_leave_type`, `delete_leave_type` are implemented.
-    *   `update_leave_type` uses `LeaveTypeCreate` as input type, which is functionally equivalent to `LeaveTypeBase` as `LeaveTypeCreate` inherits from it without changes. This aligns with the request.
-    *   Handles `IntegrityError` on creation if `name` is not unique.
-*   **LeaveBalance CRUD**:
-    *   `create_leave_balance`, `get_leave_balance` (by employee, type, year), `get_leave_balances_for_employee` (optionally by year), `update_leave_balance` are implemented.
-    *   Handles `IntegrityError` for the unique constraint on `employee_id`, `leave_type_id`, `year`.
-*   **LeaveRequest CRUD & Logic**:
-    *   `create_leave_request`: Implemented. `num_days` is assumed to be provided in `LeaveRequestCreate`. `request_date` is set explicitly.
-    *   `get_leave_request`, `get_leave_requests_for_employee`, `get_leave_requests_by_status` are implemented.
-    *   `update_leave_request_status`:
-        *   Updates status, `processed_date`, `approved_by_id`, and `comments`.
-        *   If `new_status` is `APPROVED`, it attempts to find the relevant `LeaveBalance` and increments `used_days`. It currently does not create a `LeaveBalance` if one doesn't exist (this policy might need refinement based on business rules).
-        *   If a previously `APPROVED` leave is `CANCELLED` or `REJECTED`, it decrements `used_days` from the `LeaveBalance`, with a safety check to prevent `used_days` from going below zero.
-        *   Commits changes to both `LeaveRequest` and `LeaveBalance` transactionally.
-*   **Imports**: All necessary modules and models are imported.
-*   **Error Handling**: `IntegrityError` is caught and re-raised for relevant creation operations. Other exceptions are also re-raised after a rollback.
+# *   **`calculate_leave_duration`**: Implemented to count total days and optionally exclude weekends (Saturday/Sunday).
+# *   **LeaveType CRUD**:
+#     *   `create_leave_type`, `get_leave_type`, `get_leave_types`, `update_leave_type`, `delete_leave_type` are implemented.
+#     *   `update_leave_type` uses `LeaveTypeCreate` as input type, which is functionally equivalent to `LeaveTypeBase` as `LeaveTypeCreate` inherits from it without changes. This aligns with the request.
+#     *   Handles `IntegrityError` on creation if `name` is not unique.
+# *   **LeaveBalance CRUD**:
+#     *   `create_leave_balance`, `get_leave_balance` (by employee, type, year), `get_leave_balances_for_employee` (optionally by year), `update_leave_balance` are implemented.
+#     *   Handles `IntegrityError` for the unique constraint on `employee_id`, `leave_type_id`, `year`.
+# *   **LeaveRequest CRUD & Logic**:
+#     *   `create_leave_request`: Implemented. `num_days` is assumed to be provided in `LeaveRequestCreate`. `request_date` is set explicitly.
+#     *   `get_leave_request`, `get_leave_requests_for_employee`, `get_leave_requests_by_status` are implemented.
+#     *   `update_leave_request_status`:
+#         *   Updates status, `processed_date`, `approved_by_id`, and `comments`.
+#         *   If `new_status` is `APPROVED`, it attempts to find the relevant `LeaveBalance` and increments `used_days`. It currently does not create a `LeaveBalance` if one doesn't exist (this policy might need refinement based on business rules).
+#         *   If a previously `APPROVED` leave is `CANCELLED` or `REJECTED`, it decrements `used_days` from the `LeaveBalance`, with a safety check to prevent `used_days` from going below zero.
+#         *   Commits changes to both `LeaveRequest` and `LeaveBalance` transactionally.
+# *   **Imports**: All necessary modules and models are imported.
+# *   **Error Handling**: `IntegrityError` is caught and re-raised for relevant creation operations. Other exceptions are also re-raised after a rollback.
 
-The implementation covers all requirements of the subtask. The logic for updating leave balances within `update_leave_request_status` is a critical piece and has been addressed.
+# The implementation covers all requirements of the subtask. The logic for updating leave balances within `update_leave_request_status` is a critical piece and has been addressed.
 
-I will now submit the report.
+# I will now submit the report.

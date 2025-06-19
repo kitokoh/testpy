@@ -252,6 +252,8 @@ if __name__ == '__main__':
 
 # --- Conditional mocking for __main__ END ---
 
+import csv
+
 # Adjust sys.path to allow finding modules in the current directory structure
 # This needs to be done before other local package imports if running standalone
 current_dir_for_standalone = os.path.dirname(os.path.abspath(__file__))
@@ -270,7 +272,7 @@ print(f"Initial sys.path: {sys.path}") # Debug print
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel,
     QFormLayout, QLineEdit, QComboBox, QSpinBox, QFileDialog, QCheckBox,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, # Added QDialog for dialog.exec_()
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit, # Added QDialog, QTextEdit
     QGroupBox, QRadioButton
 )
 from PyQt5.QtGui import QIcon # Added for icons on buttons
@@ -287,9 +289,72 @@ except ImportError:
     print("ERROR: Failed to import 'db' module globally.") # Changed message for clarity
     db_manager = None # Will be replaced by mock in __main__ if None
 
+try:
+    from db.cruds.products_crud import products_crud_instance
+except ImportError:
+    print("ERROR: Failed to import 'products_crud_instance' from 'db.cruds.products_crud'. Export functionality will be affected.")
+    products_crud_instance = None # Ensure it exists, even if None
+
 from dialogs.transporter_dialog import TransporterDialog
 from dialogs.freight_forwarder_dialog import FreightForwarderDialog
 from company_management import CompanyTabWidget
+
+class ImportInstructionsDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Product Import Instructions"))
+        self.setMinimumWidth(600) # Set a minimum width for better readability
+        self.setMinimumHeight(400) # Set a minimum height
+
+        layout = QVBoxLayout(self)
+
+        instructions_text_edit = QTextEdit()
+        instructions_text_edit.setReadOnly(True)
+        instructions_html = """
+        <h3>Product CSV Import Guide</h3>
+        <p>Please ensure your CSV file adheres to the following format and conventions.</p>
+
+        <h4>Expected CSV Header:</h4>
+        <p><code>product_id,product_name,product_code,description,category,language_code,base_unit_price,unit_of_measure,weight,dimensions,is_active,is_deleted</code></p>
+
+        <h4>Field Definitions:</h4>
+        <ul>
+            <li><b>product_id</b>: Ignored during import (new IDs are auto-generated).</li>
+            <li><b>product_name</b>: Text (Required).</li>
+            <li><b>product_code</b>: Text (Required). Should be unique.</li>
+            <li><b>description</b>: Text (Optional).</li>
+            <li><b>category</b>: Text (Optional).</li>
+            <li><b>language_code</b>: Text, e.g., 'en', 'fr' (Optional, defaults to 'fr' if empty).</li>
+            <li><b>base_unit_price</b>: Number, e.g., 10.99 (Required).</li>
+            <li><b>unit_of_measure</b>: Text, e.g., 'pcs', 'kg' (Optional).</li>
+            <li><b>weight</b>: Number (Optional).</li>
+            <li><b>dimensions</b>: Text, e.g., "LxWxH" (Optional).</li>
+            <li><b>is_active</b>: Boolean, 'True' or 'False' (Optional, defaults to 'True' if empty or invalid).</li>
+            <li><b>is_deleted</b>: Boolean, 'True' or 'False' (Optional, defaults to 'False' if empty or invalid).</li>
+        </ul>
+
+        <h4>Sample ChatGPT Prompt for Generating Data:</h4>
+        <pre><code>Generate a CSV list of 10 sample products for an e-commerce store. The CSV should have the following columns: product_name,product_code,description,category,language_code,base_unit_price,unit_of_measure,weight,dimensions,is_active,is_deleted
+Ensure `base_unit_price` is a number. `language_code` should be 'en' or 'fr'. `is_active` and `is_deleted` should be 'True' or 'False'.
+
+Example Row:
+My Awesome Product,PROD001,This is a great product.,Electronics,en,29.99,pcs,0.5,10x5x2 cm,True,False</code></pre>
+        """
+        instructions_text_edit.setHtml(instructions_html)
+        layout.addWidget(instructions_text_edit)
+
+        # Dialog buttons
+        buttons_layout = QHBoxLayout()
+        ok_button = QPushButton(self.tr("OK"))
+        ok_button.clicked.connect(self.accept)
+        cancel_button = QPushButton(self.tr("Cancel"))
+        cancel_button.clicked.connect(self.reject)
+        buttons_layout.addStretch(1)
+        buttons_layout.addWidget(ok_button)
+        buttons_layout.addWidget(cancel_button)
+
+        layout.addLayout(buttons_layout)
+        self.setLayout(layout)
 
 class SettingsPage(QWidget):
     def __init__(self, main_config, app_root_dir, current_user_id, parent=None):
@@ -307,6 +372,7 @@ class SettingsPage(QWidget):
             {"key": "module_inventory_management_enabled", "label_text": self.tr("Inventory Management")},
             {"key": "module_botpress_integration_enabled", "label_text": self.tr("Botpress Integration")},
             {"key": "module_carrier_map_enabled", "label_text": self.tr("Carrier Map")},
+            {"key": "module_camera_management_enabled", "label_text": self.tr("Camera Management")}, # New module
         ]
         self.module_radio_buttons = {} # To store radio buttons for easy access
 
@@ -351,6 +417,7 @@ class SettingsPage(QWidget):
         self._setup_email_tab()
         self._setup_download_monitor_tab() # New Download Monitor Tab
         self._setup_modules_tab() # New Modules Tab
+        self._setup_data_management_tab() # New Data Management Tab
 
         self.company_tab = CompanyTabWidget(
             parent=self,
@@ -645,6 +712,208 @@ class SettingsPage(QWidget):
         has_selection = bool(self.forwarders_table.selectedItems())
         self.edit_forwarder_btn.setEnabled(has_selection)
         self.delete_forwarder_btn.setEnabled(has_selection)
+
+    def _setup_data_management_tab(self):
+        data_management_tab_widget = QWidget()
+        layout = QVBoxLayout(data_management_tab_widget)
+
+        self.import_products_btn = QPushButton(self.tr("Import Products"))
+        self.import_products_btn.clicked.connect(self._handle_import_products)
+        layout.addWidget(self.import_products_btn)
+
+        self.export_products_btn = QPushButton(self.tr("Export Products"))
+        self.export_products_btn.clicked.connect(self._handle_export_products)
+        layout.addWidget(self.export_products_btn)
+
+        instructions_label = QLabel(self.tr("Instructions for import/export format and ChatGPT prompt will be displayed here."))
+        instructions_label.setWordWrap(True)
+        instructions_label.setStyleSheet("font-style: italic; color: grey;")
+        layout.addWidget(instructions_label)
+
+        layout.addStretch(1) # Add stretch to push elements to the top
+        data_management_tab_widget.setLayout(layout)
+        self.tabs_widget.addTab(data_management_tab_widget, self.tr("Data Management"))
+
+    def _handle_export_products(self):
+        if not products_crud_instance:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot export products."))
+            return
+
+        try:
+            products = products_crud_instance.get_all_products(include_deleted=True, limit=None, offset=0)
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Failed to retrieve products from the database: {0}").format(str(e)))
+            return
+
+        if not products:
+            QMessageBox.information(self, self.tr("No Products"), self.tr("There are no products to export."))
+            return
+
+        # Define default filename and path
+        default_filename = "products_export.csv"
+        # Suggest user's Documents directory or home directory as a default
+        default_dir = os.path.join(os.path.expanduser('~'), 'Documents')
+        if not os.path.exists(default_dir):
+            default_dir = os.path.expanduser('~')
+        suggested_filepath = os.path.join(default_dir, default_filename)
+
+        # Open QFileDialog
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog # Optional: use Qt's dialog instead of native
+        filePath, _ = QFileDialog.getSaveFileName(self,
+                                                  self.tr("Save Product Export"),
+                                                  suggested_filepath, # Default path and filename
+                                                  self.tr("CSV Files (*.csv);;All Files (*)"),
+                                                  options=options)
+
+        if filePath:
+            # Ensure the filename ends with .csv if the user didn't specify
+            if not filePath.lower().endswith(".csv"):
+                filePath += ".csv"
+
+            header = ["product_id", "product_name", "product_code", "description", "category",
+                      "language_code", "base_unit_price", "unit_of_measure", "weight",
+                      "dimensions", "is_active", "is_deleted"]
+            try:
+                with open(filePath, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=header, extrasaction='ignore')
+                    writer.writeheader()
+                    for product in products:
+                        # Ensure all fields are present, defaulting to empty string or appropriate representation
+                        row_data = {field: getattr(product, field, '') for field in header}
+
+                        # Handle complex types like 'dimensions' if it's an object/dict
+                        if isinstance(row_data['dimensions'], (dict, list)):
+                             row_data['dimensions'] = str(row_data['dimensions']) # Simple string representation
+
+                        # Convert boolean values to string explicitly if needed by some CSV readers
+                        row_data['is_active'] = str(row_data['is_active'])
+                        row_data['is_deleted'] = str(row_data['is_deleted'])
+
+                        writer.writerow(row_data)
+                QMessageBox.information(self, self.tr("Export Successful"),
+                                        self.tr("Products exported successfully to: {0}").format(filePath))
+            except IOError as e:
+                QMessageBox.critical(self, self.tr("Export Error"),
+                                     self.tr("Failed to write to file: {0}\nError: {1}").format(filePath, str(e)))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Export Error"),
+                                     self.tr("An unexpected error occurred during export: {0}").format(str(e)))
+
+    def _handle_import_products(self):
+        if not products_crud_instance:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot import products."))
+            return
+
+        # Show instructions dialog first
+        instructions_dialog = ImportInstructionsDialog(self)
+        if not instructions_dialog.exec_() == QDialog.Accepted:
+            return # User cancelled the instructions dialog
+
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        filePath, _ = QFileDialog.getOpenFileName(self,
+                                                  self.tr("Open Product CSV File"),
+                                                  os.path.expanduser('~'), # Default to home directory
+                                                  self.tr("CSV Files (*.csv);;All Files (*)"),
+                                                  options=options)
+
+        if not filePath:
+            return # User cancelled
+
+        expected_headers = ["product_id", "product_name", "product_code", "description", "category",
+                            "language_code", "base_unit_price", "unit_of_measure", "weight",
+                            "dimensions", "is_active", "is_deleted"]
+
+        successful_imports = 0
+        failed_imports = 0
+        error_details = []
+
+        try:
+            with open(filePath, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+
+                # Validate header
+                if not reader.fieldnames or not all(header in reader.fieldnames for header in ["product_name", "product_code", "base_unit_price"]): # Check for essential headers
+                    QMessageBox.critical(self, self.tr("Invalid CSV Format"), self.tr("The CSV file is missing one or more required headers (product_name, product_code, base_unit_price) or is not a valid CSV."))
+                    return
+
+                for i, row in enumerate(reader):
+                    line_num = i + 2 # Account for header and 0-based index
+                    product_data = {}
+
+                    # Required fields
+                    product_name = row.get("product_name", "").strip()
+                    product_code = row.get("product_code", "").strip()
+                    base_unit_price_str = row.get("base_unit_price", "").strip()
+
+                    if not product_name:
+                        error_details.append(self.tr("Line {0}: Missing required field 'product_name'.").format(line_num))
+                        failed_imports += 1
+                        continue
+                    if not product_code:
+                        error_details.append(self.tr("Line {0}: Missing required field 'product_code' for product '{1}'.").format(line_num, product_name))
+                        failed_imports += 1
+                        continue
+                    if not base_unit_price_str:
+                        error_details.append(self.tr("Line {0}: Missing required field 'base_unit_price' for product '{1}'.").format(line_num, product_name))
+                        failed_imports += 1
+                        continue
+
+                    try:
+                        product_data["base_unit_price"] = float(base_unit_price_str)
+                    except ValueError:
+                        error_details.append(self.tr("Line {0}: Invalid format for 'base_unit_price' (must be a number) for product '{1}'.").format(line_num, product_name))
+                        failed_imports += 1
+                        continue
+
+                    product_data["product_name"] = product_name
+                    product_data["product_code"] = product_code
+
+                    # Optional fields
+                    product_data["description"] = row.get("description", "").strip()
+                    product_data["category"] = row.get("category", "").strip()
+                    product_data["language_code"] = row.get("language_code", "fr").strip() or "fr" # Default to 'fr'
+                    product_data["unit_of_measure"] = row.get("unit_of_measure", "").strip()
+                    product_data["weight"] = row.get("weight", "").strip() # Assuming weight is stored as string or number, CRUD should handle
+                    product_data["dimensions"] = row.get("dimensions", "").strip() # Assuming dimensions stored as string, CRUD should handle
+
+                    is_active_str = row.get("is_active", "True").strip().lower()
+                    product_data["is_active"] = is_active_str in ['true', '1', 'yes']
+
+                    is_deleted_str = row.get("is_deleted", "False").strip().lower()
+                    product_data["is_deleted"] = is_deleted_str in ['true', '1', 'yes'] # Interpreting 'is_deleted' from CSV
+
+                    try:
+                        products_crud_instance.add_product(product_data)
+                        successful_imports += 1
+                    except Exception as e:
+                        error_details.append(self.tr("Line {0}: Error importing product '{1}': {2}").format(line_num, product_name, str(e)))
+                        failed_imports += 1
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, self.tr("Error"), self.tr("The selected file was not found: {0}").format(filePath))
+            return
+        except Exception as e: # Catch other CSV parsing errors or unexpected issues
+            QMessageBox.critical(self, self.tr("Import Error"), self.tr("An unexpected error occurred during import: {0}").format(str(e)))
+            return
+
+        # Show summary
+        summary_message = self.tr("Import complete.\nSuccessfully imported: {0} products.\nFailed to import: {1} products.").format(successful_imports, failed_imports)
+        if error_details:
+            detailed_errors = "\n\n" + self.tr("Error Details (first 5 shown):") + "\n" + "\n".join(error_details[:5])
+            if len(error_details) > 5:
+                detailed_errors += "\n" + self.tr("...and {0} more errors.").format(len(error_details) - 5)
+            # For very long error lists, consider writing to a log file instead of stuffing into QMessageBox
+            if len(summary_message + detailed_errors) > 1000: # Rough limit for readability
+                 detailed_errors = "\n\n" + self.tr("Numerous errors occurred. Please check data integrity. First few errors:\n") + "\n".join(error_details[:3])
+            summary_message += detailed_errors
+
+        if failed_imports > 0:
+            QMessageBox.warning(self, self.tr("Import Partially Successful"), summary_message)
+        else:
+            QMessageBox.information(self, self.tr("Import Successful"), summary_message)
+
 
     def _load_general_tab_data(self):
         self.templates_dir_input.setText(self.main_config.get("templates_dir", ""))
@@ -953,6 +1222,7 @@ if __name__ == '__main__':
         # module_inventory_management_enabled will use the default 'True' from _load_modules_tab_data
         db_manager.set_setting("module_botpress_integration_enabled", "True")
         # module_carrier_map_enabled will use the default 'True'
+        db_manager.set_setting("module_camera_management_enabled", "True") # For testing the new module
 
     mock_app_root_dir = os.path.abspath(os.path.dirname(__file__))
     mock_current_user_id = "test_user_settings_main"

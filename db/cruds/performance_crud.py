@@ -224,27 +224,27 @@ def delete_performance_review(db: Session, pr_id: int) -> Optional[PerformanceRe
 # For now, the generated code includes the explicit `updated_at`. This is safer for SQLite compatibility if `onupdate` is not server-side.
 # The current code is fine.The file `db/cruds/performance_crud.py` has been created with the specified CRUD functions.
 
-**Summary of Implementation:**
+# **Summary of Implementation:**
 
-*   **Goal CRUD**:
-    *   `create_goal`: Sets `set_by_id` from `current_user_id` if not provided.
-    *   `get_goal`, `get_goals_for_employee` (with status filter and sorting), `update_goal`, `delete_goal` are implemented.
-    *   Explicit `updated_at` setting is included in `update_goal` for robustness, though model's `onupdate=func.now()` might handle it on some DBs.
-*   **ReviewCycle CRUD**:
-    *   `create_review_cycle`, `get_review_cycle`, `get_review_cycles` (with active filter and sorting), `update_review_cycle`, `delete_review_cycle` are implemented.
-    *   Handles `IntegrityError` for unique `name` on create/update.
-*   **PerformanceReview CRUD & Logic**:
-    *   `create_performance_review`: Implemented.
-    *   `get_performance_review`, `get_performance_reviews_for_employee` (with cycle filter), `get_performance_reviews_by_reviewer` (with cycle filter) are implemented.
-    *   `update_performance_review`:
-        *   Updates basic fields.
-        *   Handles linking (`goal_ids_to_link`) and unlinking (`goal_ids_to_unlink`) of goals. It verifies that goals belong to the same employee before linking.
-        *   Explicit `updated_at` setting is included.
-    *   `delete_performance_review`: Implemented. SQLAlchemy's handling of M2M relationships via the `secondary` table is relied upon to clear links.
-*   **Imports**: All necessary modules and models are imported.
-*   **Error Handling**: `IntegrityError` is caught and re-raised for relevant operations.
-*   **Timestamps (`updated_at`)**: Explicitly set in update functions to ensure the timestamp is updated, which is good practice especially if `onupdate=func.now()` in the model isn't consistently handled as a server-side trigger across all database backends (e.g., SQLite).
+# *   **Goal CRUD**:
+#     *   `create_goal`: Sets `set_by_id` from `current_user_id` if not provided.
+#     *   `get_goal`, `get_goals_for_employee` (with status filter and sorting), `update_goal`, `delete_goal` are implemented.
+#     *   Explicit `updated_at` setting is included in `update_goal` for robustness, though model's `onupdate=func.now()` might handle it on some DBs.
+# *   **ReviewCycle CRUD**:
+#     *   `create_review_cycle`, `get_review_cycle`, `get_review_cycles` (with active filter and sorting), `update_review_cycle`, `delete_review_cycle` are implemented.
+#     *   Handles `IntegrityError` for unique `name` on create/update.
+# *   **PerformanceReview CRUD & Logic**:
+#     *   `create_performance_review`: Implemented.
+#     *   `get_performance_review`, `get_performance_reviews_for_employee` (with cycle filter), `get_performance_reviews_by_reviewer` (with cycle filter) are implemented.
+#     *   `update_performance_review`:
+#         *   Updates basic fields.
+#         *   Handles linking (`goal_ids_to_link`) and unlinking (`goal_ids_to_unlink`) of goals. It verifies that goals belong to the same employee before linking.
+#         *   Explicit `updated_at` setting is included.
+#     *   `delete_performance_review`: Implemented. SQLAlchemy's handling of M2M relationships via the `secondary` table is relied upon to clear links.
+# *   **Imports**: All necessary modules and models are imported.
+# *   **Error Handling**: `IntegrityError` is caught and re-raised for relevant operations.
+# *   **Timestamps (`updated_at`)**: Explicitly set in update functions to ensure the timestamp is updated, which is good practice especially if `onupdate=func.now()` in the model isn't consistently handled as a server-side trigger across all database backends (e.g., SQLite).
 
-The implementation covers all requirements of the subtask, including the logic for managing the M2M relationship between performance reviews and goals.
+# The implementation covers all requirements of the subtask, including the logic for managing the M2M relationship between performance reviews and goals.
 
-I will now submit the report.
+# I will now submit the report.
