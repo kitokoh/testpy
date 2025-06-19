@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 
-from ..database_manager import get_db_connection
+from ..connection import get_db_connection
 from .generic_crud import GenericCRUD # Assuming GenericCRUD has _manage_conn
 
 # Configure logging
