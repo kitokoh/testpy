@@ -205,6 +205,42 @@ class ClientWidget(QWidget):
             logging.error(f"Error in _setup_client_info_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
 
+        self._setup_notes_section(layout)
+        self._setup_main_tabs_section(layout) # This will call sub-methods for each tab
+
+        # Initial data loading calls
+        try: self.populate_doc_table()
+        except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
+        try: self.load_contacts()
+        except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
+        try: self.load_products()
+        except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
+        try: self.load_document_notes_filters()
+        except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
+        try: self.load_document_notes_table()
+        except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
+        try: self.update_sav_tab_visibility()
+        except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
+        try: self.load_assigned_vendors_personnel()
+        except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
+        try: self.load_assigned_technicians()
+        except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
+        try: self.load_assigned_transporters()
+        except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
+        try: self.load_assigned_freight_forwarders()
+        except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
+
+        # Connect accordion group box toggled signals
+        if hasattr(self, 'client_info_group_box'):
+             self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        if hasattr(self, 'notes_group_box'):
+             self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        if hasattr(self, 'tabs_group_box'):
+             self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+        # Event filter for notes auto-save
+        if hasattr(self, 'notes_edit'):
+            self.notes_edit.installEventFilter(self)
+
     def _setup_notes_section(self, main_layout):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Notes Section...")
@@ -752,47 +788,47 @@ class ClientWidget(QWidget):
             logging.error(f"Error in _setup_billing_tab: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Facturation:\n{0}").format(str(e)))
 
-    def setup_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(15)
+    # def setup_ui(self):
+    #     main_layout = QVBoxLayout(self)
+    #     main_layout.setContentsMargins(15, 15, 15, 15)
+    #     main_layout.setSpacing(15)
 
-        self._setup_client_info_section(main_layout)
-        self._setup_notes_section(main_layout)
-        self._setup_main_tabs_section(main_layout) # This will call sub-methods for each tab
+    #     self._setup_client_info_section(main_layout)
+    #     self._setup_notes_section(main_layout)
+    #     self._setup_main_tabs_section(main_layout) # This will call sub-methods for each tab
 
-        # Initial data loading calls
-        try: self.populate_doc_table()
-        except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
-        try: self.load_contacts()
-        except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
-        try: self.load_products()
-        except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
-        try: self.load_document_notes_filters()
-        except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
-        try: self.load_document_notes_table()
-        except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
-        try: self.update_sav_tab_visibility()
-        except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
-        try: self.load_assigned_vendors_personnel()
-        except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
-        try: self.load_assigned_technicians()
-        except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
-        try: self.load_assigned_transporters()
-        except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
-        try: self.load_assigned_freight_forwarders()
-        except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
+    #     # Initial data loading calls
+    #     try: self.populate_doc_table()
+    #     except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
+    #     try: self.load_contacts()
+    #     except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
+    #     try: self.load_products()
+    #     except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
+    #     try: self.load_document_notes_filters()
+    #     except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
+    #     try: self.load_document_notes_table()
+    #     except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
+    #     try: self.update_sav_tab_visibility()
+    #     except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
+    #     try: self.load_assigned_vendors_personnel()
+    #     except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
+    #     try: self.load_assigned_technicians()
+    #     except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
+    #     try: self.load_assigned_transporters()
+    #     except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
+    #     try: self.load_assigned_freight_forwarders()
+    #     except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
 
-        # Connect accordion group box toggled signals
-        if hasattr(self, 'client_info_group_box'):
-             self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
-        if hasattr(self, 'notes_group_box'):
-             self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
-        if hasattr(self, 'tabs_group_box'):
-             self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
-        # Event filter for notes auto-save
-        if hasattr(self, 'notes_edit'):
-            self.notes_edit.installEventFilter(self)
+    #     # Connect accordion group box toggled signals
+    #     if hasattr(self, 'client_info_group_box'):
+    #          self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+    #     if hasattr(self, 'notes_group_box'):
+    #          self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+    #     if hasattr(self, 'tabs_group_box'):
+    #          self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+    #     # Event filter for notes auto-save
+    #     if hasattr(self, 'notes_edit'):
+    #         self.notes_edit.installEventFilter(self)
 
 
     def _handle_edit_pdf_action(self, file_path, document_id):
