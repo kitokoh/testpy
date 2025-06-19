@@ -833,14 +833,16 @@ class DocumentManager(QMainWindow):
             self.open_client_tab_by_id(client_data["client_id"])
         
     def open_client_tab_by_id(self, client_id_to_open):
-        client_data_to_show = self.clients_data_map.get(client_id_to_open)
-        if not client_data_to_show:
-            client_data_from_db = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
-            if not client_data_from_db:
-                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Données client non trouvées ou client archivé (ID: {0}).").format(client_id_to_open))
-                return
-            client_data_to_show = client_data_from_db
+        # Attempt to fetch fresh client data directly from the database
+        client_data_to_show = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
 
+        if not client_data_to_show:
+            # If fetching from DB fails, show an error and return.
+            # Relying on self.clients_data_map might show stale or deleted client data.
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer les données à jour pour le client (ID: {0}). Le client pourrait ne pas exister ou être archivé.").format(client_id_to_open))
+            return
+
+        # Proceed with augmenting and displaying the fresh client_data_to_show
         if 'country' not in client_data_to_show and client_data_to_show.get('country_id'):
             country_obj = db_manager.get_country_by_id(client_data_to_show['country_id'])
             client_data_to_show['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
