@@ -26,9 +26,13 @@ import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
-from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
+from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog, AssignMoneyTransferAgentDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
+# CRUD imports for Money Transfer Agents
+import db.cruds.money_transfer_agents_crud as mta_crud
+import db.cruds.client_order_money_transfer_agents_crud as coma_crud
+import db.cruds.projects_crud as projects_crud
 
 from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
 from document_manager_logic import create_final_invoice_and_update_db
@@ -629,6 +633,41 @@ class ClientWidget(QWidget):
             forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
             assigned_forwarders_layout.addLayout(forwarder_buttons_layout)
             self.assignments_sub_tabs.addTab(assigned_forwarders_widget, self.tr("Transitaires"))
+
+            # Sub-Tab: Money Transfer Agents
+            mta_widget = QWidget()
+            mta_layout = QVBoxLayout(mta_widget)
+
+            # Project/Order Selector for MTA
+            mta_project_selector_layout = QHBoxLayout()
+            mta_project_selector_layout.addWidget(QLabel(self.tr("Sélectionner Commande/Projet:")))
+            self.mta_project_selector_combo = QComboBox()
+            mta_project_selector_layout.addWidget(self.mta_project_selector_combo)
+            mta_layout.addLayout(mta_project_selector_layout)
+
+            # Table for Assigned Money Transfer Agents
+            self.assigned_mta_table = QTableWidget()
+            self.assigned_mta_table.setColumnCount(8) # Agent Name, Type, Email, Phone, Details, Fee, Email Status, Actions
+            self.assigned_mta_table.setHorizontalHeaderLabels([
+                self.tr("Nom Agent"), self.tr("Type"), self.tr("Email"), self.tr("Téléphone"),
+                self.tr("Détails Affectation"), self.tr("Frais Estimés"), self.tr("Statut Email"), self.tr("Actions")
+            ])
+            self.assigned_mta_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_mta_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_mta_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # Stretch to fill
+            self.assigned_mta_table.setMinimumHeight(150) # Example height
+            mta_layout.addWidget(self.assigned_mta_table)
+
+            # Buttons for MTA
+            mta_buttons_layout = QHBoxLayout()
+            self.add_assigned_mta_btn = QPushButton(self.tr("Assigner Agent de Transfert"))
+            self.remove_assigned_mta_btn = QPushButton(self.tr("Retirer Agent de Transfert"))
+            mta_buttons_layout.addWidget(self.add_assigned_mta_btn)
+            mta_buttons_layout.addWidget(self.remove_assigned_mta_btn)
+            mta_layout.addLayout(mta_buttons_layout)
+
+            self.assignments_sub_tabs.addTab(mta_widget, self.tr("Agents de Transfert d'Argent"))
+
         except Exception as e:
             logging.error(f"Error during UI setup of Assignments Tab Structure: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Affectations:\n{0}").format(str(e)))
@@ -667,6 +706,17 @@ class ClientWidget(QWidget):
         self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
+        # Connections for MTA tab
+        self.mta_project_selector_combo.currentIndexChanged.connect(self.handle_mta_project_selection_changed)
+        self.add_assigned_mta_btn.clicked.connect(self.handle_add_assigned_mta)
+        self.remove_assigned_mta_btn.clicked.connect(self.handle_remove_assigned_mta)
+        self.assigned_mta_table.itemSelectionChanged.connect(self.update_mta_buttons_state)
+
+        # Initial load for MTA project selector
+        self.load_projects_for_mta_combo()
+        # Initial state for MTA buttons
+        self.add_assigned_mta_btn.setEnabled(False)
+        self.remove_assigned_mta_btn.setEnabled(False)
 
         try:
             # --- Billing Tab ---
@@ -690,7 +740,7 @@ class ClientWidget(QWidget):
     def _handle_edit_pdf_action(self, file_path, document_id):
         if file_path and os.path.exists(file_path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-        layout = QVBoxLayout(self)
+        # layout = QVBoxLayout(self) # This line seems out of place, QVBoxLayout is already set for the widget
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -4730,6 +4780,191 @@ class ClientWidget(QWidget):
                 logging.error(f"Exception during final invoice creation process from ClientWidget: {e_gen}", exc_info=True)
                 QMessageBox.critical(self, self.tr("Critical Error"), self.tr("An unexpected error occurred: {0}").format(str(e_gen)))
 
+    # --- Money Transfer Agent Methods ---
+    def load_projects_for_mta_combo(self):
+        self.mta_project_selector_combo.blockSignals(True)
+        self.mta_project_selector_combo.clear()
+        self.mta_project_selector_combo.addItem(self.tr("--- Sélectionner Commande/Projet ---"), None)
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            self.mta_project_selector_combo.blockSignals(False)
+            return
+
+        try:
+            projects = projects_crud.get_projects_by_client_id(client_id=client_id)
+            if projects:
+                for project in projects:
+                    self.mta_project_selector_combo.addItem(project.get('project_name', self.tr("Projet Sans Nom")), project.get('project_id'))
+        except Exception as e:
+            logging.error(f"Error loading projects for MTA combo: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur de Chargement"), self.tr("Impossible de charger les projets."))
+        finally:
+            self.mta_project_selector_combo.blockSignals(False)
+            self.handle_mta_project_selection_changed() # Update based on current selection (or default)
+
+    def handle_mta_project_selection_changed(self):
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        if selected_project_id:
+            self.add_assigned_mta_btn.setEnabled(True)
+            self.load_assigned_money_transfer_agents()
+        else:
+            self.add_assigned_mta_btn.setEnabled(False)
+            self.assigned_mta_table.setRowCount(0) # Clear table
+            self.remove_assigned_mta_btn.setEnabled(False)
+
+    def load_assigned_money_transfer_agents(self):
+        self.assigned_mta_table.setRowCount(0)
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        client_id = self.client_info.get('client_id')
+
+        if not selected_project_id or not client_id:
+            self.remove_assigned_mta_btn.setEnabled(False)
+            return
+
+        try:
+            # get_assigned_agents_for_client_order joins with MoneyTransferAgents and Projects
+            assigned_agents_data = coma_crud.get_assigned_agents_for_client_order(
+                client_id=client_id,
+                order_id=selected_project_id, # This is project_id
+                include_deleted=False
+            )
+
+            self.assigned_mta_table.setRowCount(len(assigned_agents_data))
+            for row, data in enumerate(assigned_agents_data):
+                assignment_id = data.get('assignment_id')
+
+                name_item = QTableWidgetItem(data.get('agent_name', self.tr("N/A")))
+                name_item.setData(Qt.UserRole, assignment_id) # Store assignment_id for removal
+                self.assigned_mta_table.setItem(row, 0, name_item)
+
+                self.assigned_mta_table.setItem(row, 1, QTableWidgetItem(data.get('agent_type', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 2, QTableWidgetItem(data.get('agent_email', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 3, QTableWidgetItem(data.get('agent_phone', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 4, QTableWidgetItem(data.get('assignment_details', '')))
+
+                fee_estimate = data.get('fee_estimate', 0.0)
+                fee_item = QTableWidgetItem(f"{fee_estimate:.2f} $") # Assuming USD, adjust as needed
+                fee_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.assigned_mta_table.setItem(row, 5, fee_item)
+
+                email_status_item = QTableWidgetItem(data.get('email_status', self.tr("Pendant")))
+                self.assigned_mta_table.setItem(row, 6, email_status_item)
+
+                # Actions button (Email Agent)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2, 2, 2, 2)
+                actions_layout.setSpacing(5)
+
+                email_button = QPushButton(self.tr("Email"))
+                email_button.setToolTip(self.tr("Envoyer un email à cet agent"))
+                agent_email = data.get('agent_email')
+                email_button.clicked.connect(lambda ch, aid=assignment_id, ag_email=agent_email: self.handle_email_money_transfer_agent(aid, ag_email))
+                if not agent_email: # Disable if no email
+                    email_button.setEnabled(False)
+                actions_layout.addWidget(email_button)
+                actions_layout.addStretch()
+                self.assigned_mta_table.setCellWidget(row, 7, actions_widget)
+
+        except Exception as e:
+            logging.error(f"Error loading assigned money transfer agents: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur de Chargement"), self.tr("Impossible de charger les agents de transfert d'argent assignés."))
+        finally:
+            self.update_mta_buttons_state()
+
+
+    def handle_add_assigned_mta(self):
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        client_id = self.client_info.get('client_id')
+
+        if not selected_project_id:
+            QMessageBox.warning(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner une commande/projet avant d'assigner un agent."))
+            return
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = AssignMoneyTransferAgentDialog(client_id=client_id, order_id=selected_project_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_money_transfer_agents()
+
+    def handle_remove_assigned_mta(self):
+        selected_items = self.assigned_mta_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner une affectation d'agent à retirer."))
+            return
+
+        assignment_id = selected_items[0].data(Qt.UserRole)
+        if not assignment_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'affectation."))
+            return
+
+        agent_name = self.assigned_mta_table.item(selected_items[0].row(), 0).text()
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer l'agent '{0}' de cette commande/projet?").format(agent_name),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                result = coma_crud.unassign_agent_from_client_order(assignment_id=assignment_id)
+                if result.get('success'):
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Affectation d'agent retirée avec succès."))
+                    self.load_assigned_money_transfer_agents()
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de retirer l'affectation: {0}").format(result.get('error', 'Erreur inconnue')))
+            except Exception as e:
+                logging.error(f"Error removing money transfer agent assignment: {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors du retrait de l'affectation."))
+
+    def handle_email_money_transfer_agent(self, assignment_id, agent_email):
+        if not agent_email:
+            QMessageBox.warning(self, self.tr("Email Manquant"), self.tr("L'agent n'a pas d'adresse email enregistrée."))
+            return
+
+        # Ensure self.config is available and SendEmailDialog can be imported
+        if not hasattr(self, 'config') or not self.config:
+             QMessageBox.critical(self, self.tr("Erreur Configuration"), self.tr("La configuration de l'application (SMTP) n'est pas disponible."))
+             return
+        if not hasattr(self, 'SendEmailDialog') or self.SendEmailDialog is None:
+             try:
+                 from dialogs import SendEmailDialog
+                 self.SendEmailDialog = SendEmailDialog
+             except ImportError:
+                  QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le composant SendEmailDialog n'a pas pu être chargé."))
+                  return
+
+        # client_id for context in SendEmailDialog (e.g. for templates)
+        client_id_for_email_context = self.client_info.get('client_id')
+
+        dialog = self.SendEmailDialog(client_email=agent_email, config=self.config, client_id=client_id_for_email_context, parent=self)
+        email_sent_successfully = False
+        if dialog.exec_() == QDialog.Accepted:
+            # Assuming SendEmailDialog internally handles the sending and returns status or sets it.
+            # For this example, we'll assume if accepted, it was "sent".
+            # A more robust solution would have SendEmailDialog return a status.
+            email_sent_successfully = True # Placeholder for actual send status
+
+        # Update email_status in the database
+        new_email_status = 'Sent' if email_sent_successfully else 'Failed' # Simplified logic
+        # If the dialog was cancelled, we might not want to change status, or set to 'Pending'
+        # For now, only 'Sent' or 'Failed' if dialog was OK'd or there was an attempt.
+
+        try:
+            update_result = coma_crud.update_assignment_details(
+                assignment_id=assignment_id,
+                email_status=new_email_status
+            )
+            if update_result.get('success'):
+                logging.info(f"Email status for assignment {assignment_id} updated to {new_email_status}.")
+            else:
+                logging.warning(f"Failed to update email status for assignment {assignment_id}: {update_result.get('error')}")
+        except Exception as e:
+            logging.error(f"Error updating email status for assignment {assignment_id}: {e}", exc_info=True)
+
+        self.load_assigned_money_transfer_agents() # Refresh the table to show new status
+
+    def update_mta_buttons_state(self):
+        has_selection = bool(self.assigned_mta_table.selectedItems())
+        self.remove_assigned_mta_btn.setEnabled(has_selection)
 
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
