@@ -505,21 +505,52 @@ class ClientWidget(QWidget):
         else:
             self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
 
-        self.load_products_for_dimension_tab()
+        try:
+            self.load_products_for_dimension_tab()
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
 
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
-        self.load_products_for_dimension_tab() # Initial population of product selector
+
+        try:
+            self.load_products_for_dimension_tab() # Initial population of product selector
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
 
         # Connect signals for the Product Dimensions Tab
-        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
-        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
+        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
 
         # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        try:
+            self.populate_doc_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        try:
+            self.load_contacts()
+        except Exception as e:
+            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        try:
+            self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+        except Exception as e:
+            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
 
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
+        try:
+            self.load_document_notes_filters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        try:
+            self.load_document_notes_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
 
         # SAV Tab
         self.sav_tab = QWidget()
@@ -643,13 +674,33 @@ class ClientWidget(QWidget):
         # --- End Assignments Tab ---
 
         # Call to load SAV tickets table initially if tab is visible
-        self.update_sav_tab_visibility() # This will also call load_sav_tickets_table if visible
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+        except Exception as e:
+            logging.error(f"Error during initial visibility update/load of SAV tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors de la mise à jour/chargement initial de l'onglet SAV:\n{0}").format(str(e)))
 
         # Initial load for assignment tabs
-        self.load_assigned_vendors_personnel()
-        self.load_assigned_technicians()
-        self.load_assigned_transporters()
-        self.load_assigned_freight_forwarders()
+        try:
+            self.load_assigned_vendors_personnel()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Vendors/Personnel: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des vendeurs/personnel assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_technicians()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Technicians: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des techniciens assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_transporters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Transporters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transporteurs assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_freight_forwarders()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Freight Forwarders: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transitaires assignés:\n{0}").format(str(e)))
 
         # Connect selection changed signals for assignment tables
         self.assigned_vendors_table.itemSelectionChanged.connect(self.update_assigned_vendors_buttons_state)
@@ -2946,7 +2997,11 @@ class ClientWidget(QWidget):
             self.products_table.blockSignals(False)
 
             # Refresh the product selector in the "Dimensions Produit (Client)" tab
-            self.load_products_for_dimension_tab()
+            try:
+                self.load_products_for_dimension_tab()
+            except Exception as e:
+                logging.error(f"Error during load_products_for_dimension_tab called from load_products: {e}", exc_info=True)
+                QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des produits pour l'onglet dimensions (depuis load_products):\n{0}").format(str(e)))
 
     def handle_product_item_changed(self, item):
         if not item:
