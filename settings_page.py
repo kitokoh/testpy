@@ -1,9 +1,277 @@
 # -*- coding: utf-8 -*-
 import os
+import sys # Ensure sys is imported for path manipulation
+import types # For creating mock module objects
+
+# --- Conditional mocking for __main__ START ---
+# This MUST be before any problematic imports like 'db'
+if __name__ == '__main__':
+    print("MAIN_TOP: Pre-patching sys.modules for 'db' with a mock package structure.")
+
+    # Create a mock 'db' module
+    mock_db_module = types.ModuleType('db')
+
+    # Create a mock 'db.utils' module
+    mock_db_utils_module = types.ModuleType('db.utils')
+    def mock_get_document_context_data(*args, **kwargs):
+        print(f"MOCK db.utils.get_document_context_data called with args: {args}, kwargs: {kwargs}")
+        return {} # Return an empty dict or whatever is appropriate
+    mock_db_utils_module.get_document_context_data = mock_get_document_context_data
+
+    # Assign mock_db_utils_module as an attribute of mock_db_module
+    setattr(mock_db_module, 'utils', mock_db_utils_module)
+
+    # Add get_user_google_account_by_google_account_id to the main mock_db_module
+    def mock_get_user_google_account_by_google_account_id(*args, **kwargs):
+        print(f"MOCK db.get_user_google_account_by_google_account_id called")
+        return None
+    def mock_update_user_google_account(*args, **kwargs):
+        print(f"MOCK db.update_user_google_account called")
+        return None
+    def mock_add_user_google_account(*args, **kwargs): # Added this
+        print(f"MOCK db.add_user_google_account called")
+        return None
+    def mock_get_user_google_account_by_user_id(*args, **kwargs): # Added this
+        print(f"MOCK db.get_user_google_account_by_user_id called")
+        return None
+    def mock_get_user_google_account_by_id(*args, **kwargs): # Added this
+        print(f"MOCK db.get_user_google_account_by_id called")
+        return None
+    def mock_delete_user_google_account(*args, **kwargs):
+        print(f"MOCK db.delete_user_google_account called")
+        return None
+    def mock_add_contact_sync_log(*args, **kwargs): # Added this
+        print(f"MOCK db.add_contact_sync_log called")
+        return None
+    def mock_get_contact_sync_log_by_local_contact(*args, **kwargs): # Added this
+        print(f"MOCK db.get_contact_sync_log_by_local_contact called")
+        return None
+    def mock_get_contact_sync_log_by_google_contact_id(*args, **kwargs): # Added this
+        print(f"MOCK db.get_contact_sync_log_by_google_contact_id called")
+        return None
+    def mock_update_contact_sync_log(*args, **kwargs): # Added this
+        print(f"MOCK db.update_contact_sync_log called")
+        return None
+    def mock_delete_contact_sync_log(*args, **kwargs):
+        print(f"MOCK db.delete_contact_sync_log called")
+        return None
+    def mock_db_initialize_database(*args, **kwargs): # Added this
+        print(f"MOCK db.initialize_database called")
+        pass
+    def mock_db_add_company_personnel(*args, **kwargs): # Added this
+        print(f"MOCK db.add_company_personnel called")
+        return "mock_global_personnel_id"
+
+    mock_db_module.get_user_google_account_by_google_account_id = mock_get_user_google_account_by_google_account_id
+    mock_db_module.update_user_google_account = mock_update_user_google_account
+    mock_db_module.add_user_google_account = mock_add_user_google_account
+    mock_db_module.get_user_google_account_by_user_id = mock_get_user_google_account_by_user_id
+    mock_db_module.get_user_google_account_by_id = mock_get_user_google_account_by_id
+    mock_db_module.delete_user_google_account = mock_delete_user_google_account
+    mock_db_module.add_contact_sync_log = mock_add_contact_sync_log
+    mock_db_module.get_contact_sync_log_by_local_contact = mock_get_contact_sync_log_by_local_contact
+    mock_db_module.get_contact_sync_log_by_google_contact_id = mock_get_contact_sync_log_by_google_contact_id
+    mock_db_module.update_contact_sync_log = mock_update_contact_sync_log
+    mock_db_module.delete_contact_sync_log = mock_delete_contact_sync_log
+    mock_db_module.initialize_database = mock_db_initialize_database
+    mock_db_module.add_company_personnel = mock_db_add_company_personnel
+
+    def mock_db_get_personnel_for_company(*args, **kwargs): # Added this for the non-fatal error
+        print(f"MOCK db.get_personnel_for_company called")
+        return []
+    mock_db_module.get_personnel_for_company = mock_db_get_personnel_for_company
+
+    def mock_db_update_company_personnel(*args, **kwargs): # Added this for non-fatal error
+        print(f"MOCK db.update_company_personnel called")
+        return True
+    mock_db_module.update_company_personnel = mock_db_update_company_personnel
+
+    def mock_db_delete_company_personnel(*args, **kwargs): # Added this for non-fatal error
+        print(f"MOCK db.delete_company_personnel called")
+        return True
+    mock_db_module.delete_company_personnel = mock_db_delete_company_personnel # Added this
+
+
+    # Create a mock 'db.cruds' module
+    mock_db_cruds_module = types.ModuleType('db.cruds')
+
+    # Create a mock 'db.cruds.companies_crud' module
+    mock_db_cruds_companies_crud_module = types.ModuleType('db.cruds.companies_crud')
+    def mock_get_default_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.get_default_company called")
+        return None
+    def mock_get_all_companies(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.get_all_companies called")
+        return []
+    def mock_add_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.add_company called")
+        return "mock_company_id"
+    def mock_update_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.update_company called")
+        return True
+    def mock_delete_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.delete_company called")
+        return True
+    def mock_get_company_details_by_id(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.get_company_details_by_id called")
+        return {}
+    def mock_set_default_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.set_default_company called")
+        pass
+    def mock_add_personnel_to_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.add_personnel_to_company called")
+        return "mock_personnel_id"
+    def mock_update_personnel_in_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.update_personnel_in_company called")
+        return True
+    def mock_delete_personnel_from_company(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.delete_personnel_from_company called")
+        return True
+    def mock_get_personnel_by_company_id(*args, **kwargs):
+        print(f"MOCK db.cruds.companies_crud.get_personnel_by_company_id called")
+        return []
+    def mock_get_company_by_id(*args, **kwargs): # Added this missing function
+        print(f"MOCK db.cruds.companies_crud.get_company_by_id called")
+        return None
+
+    mock_db_cruds_companies_crud_module.get_default_company = mock_get_default_company
+    mock_db_cruds_companies_crud_module.get_all_companies = mock_get_all_companies
+    mock_db_cruds_companies_crud_module.get_company_by_id = mock_get_company_by_id # Added this
+    mock_db_cruds_companies_crud_module.add_company = mock_add_company
+    mock_db_cruds_companies_crud_module.update_company = mock_update_company
+    mock_db_cruds_companies_crud_module.delete_company = mock_delete_company
+    mock_db_cruds_companies_crud_module.get_company_details_by_id = mock_get_company_details_by_id
+    mock_db_cruds_companies_crud_module.set_default_company = mock_set_default_company
+    mock_db_cruds_companies_crud_module.add_personnel_to_company = mock_add_personnel_to_company
+    mock_db_cruds_companies_crud_module.update_personnel_in_company = mock_update_personnel_in_company
+    mock_db_cruds_companies_crud_module.delete_personnel_from_company = mock_delete_personnel_from_company
+    mock_db_cruds_companies_crud_module.get_personnel_by_company_id = mock_get_personnel_by_company_id
+
+    # Assign companies_crud to cruds
+    setattr(mock_db_cruds_module, 'companies_crud', mock_db_cruds_companies_crud_module)
+
+    # Assign cruds to db
+    setattr(mock_db_module, 'cruds', mock_db_cruds_module)
+
+    # Create a mock 'db.cruds.company_personnel_crud' module
+    mock_db_cruds_company_personnel_crud_module = types.ModuleType('db.cruds.company_personnel_crud')
+    def mock_cp_get_personnel_by_id(*args, **kwargs): print("MOCK cp_crud.get_personnel_by_id"); return None
+    def mock_cp_get_all_personnel_with_company_info(*args, **kwargs): print("MOCK cp_crud.get_all_personnel_with_company_info"); return []
+    def mock_cp_get_contacts_for_personnel(*args, **kwargs):
+        print("MOCK cp_crud.get_contacts_for_personnel called")
+        return []
+    def mock_cp_add_company_personnel(*args, **kwargs):
+        print("MOCK cp_crud.add_company_personnel called")
+        return "mock_personnel_id"
+    def mock_cp_get_personnel_for_company(*args, **kwargs):
+        print("MOCK cp_crud.get_personnel_for_company called")
+        return []
+    def mock_cp_update_company_personnel(*args, **kwargs):
+        print("MOCK cp_crud.update_company_personnel called")
+        return True
+    def mock_cp_delete_company_personnel(*args, **kwargs):
+        print("MOCK cp_crud.delete_company_personnel called")
+        return True
+    def mock_cp_add_personnel_contact(*args, **kwargs):
+        print("MOCK cp_crud.add_personnel_contact called")
+        return "mock_contact_id"
+    def mock_cp_update_personnel_contact_link(*args, **kwargs):
+        print("MOCK cp_crud.update_personnel_contact_link called")
+        return True
+    def mock_cp_unlink_contact_from_personnel(*args, **kwargs):
+        print("MOCK cp_crud.unlink_contact_from_personnel called")
+        return True
+    def mock_cp_delete_all_contact_links_for_personnel(*args, **kwargs): # Added this
+        print("MOCK cp_crud.delete_all_contact_links_for_personnel called")
+        return True
+
+    mock_db_cruds_company_personnel_crud_module.get_personnel_by_id = mock_cp_get_personnel_by_id
+    mock_db_cruds_company_personnel_crud_module.get_all_personnel_with_company_info = mock_cp_get_all_personnel_with_company_info
+    mock_db_cruds_company_personnel_crud_module.get_contacts_for_personnel = mock_cp_get_contacts_for_personnel
+    mock_db_cruds_company_personnel_crud_module.add_company_personnel = mock_cp_add_company_personnel
+    mock_db_cruds_company_personnel_crud_module.get_personnel_for_company = mock_cp_get_personnel_for_company
+    mock_db_cruds_company_personnel_crud_module.update_company_personnel = mock_cp_update_company_personnel
+    mock_db_cruds_company_personnel_crud_module.delete_company_personnel = mock_cp_delete_company_personnel
+    mock_db_cruds_company_personnel_crud_module.add_personnel_contact = mock_cp_add_personnel_contact
+    mock_db_cruds_company_personnel_crud_module.update_personnel_contact_link = mock_cp_update_personnel_contact_link
+    mock_db_cruds_company_personnel_crud_module.unlink_contact_from_personnel = mock_cp_unlink_contact_from_personnel
+    mock_db_cruds_company_personnel_crud_module.delete_all_contact_links_for_personnel = mock_cp_delete_all_contact_links_for_personnel # Added this
+
+    # Assign company_personnel_crud to cruds
+    setattr(mock_db_cruds_module, 'company_personnel_crud', mock_db_cruds_company_personnel_crud_module)
+
+    # Put the mock modules into sys.modules
+    sys.modules['db'] = mock_db_module
+    sys.modules['db.utils'] = mock_db_utils_module
+    sys.modules['db.cruds'] = mock_db_cruds_module
+    sys.modules['db.cruds.companies_crud'] = mock_db_cruds_companies_crud_module
+    sys.modules['db.cruds.company_personnel_crud'] = mock_db_cruds_company_personnel_crud_module
+
+    # Create a mock 'db.cruds.template_categories_crud' module
+    mock_db_cruds_template_categories_crud_module = types.ModuleType('db.cruds.template_categories_crud')
+    def mock_get_all_template_categories(*args, **kwargs):
+        print("MOCK template_categories_crud.get_all_template_categories called")
+        return []
+    mock_db_cruds_template_categories_crud_module.get_all_template_categories = mock_get_all_template_categories
+    setattr(mock_db_cruds_module, 'template_categories_crud', mock_db_cruds_template_categories_crud_module)
+    sys.modules['db.cruds.template_categories_crud'] = mock_db_cruds_template_categories_crud_module
+
+    # Create a mock 'db.cruds.templates_crud' module
+    mock_db_cruds_templates_crud_module = types.ModuleType('db.cruds.templates_crud')
+    def mock_get_distinct_template_languages(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_languages called"); return []
+    def mock_get_distinct_template_types(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_types called"); return []
+    def mock_get_filtered_templates(*args, **kwargs): print("MOCK templates_crud.get_filtered_templates called"); return []
+    mock_db_cruds_templates_crud_module.get_distinct_template_languages = mock_get_distinct_template_languages
+    mock_db_cruds_templates_crud_module.get_distinct_template_types = mock_get_distinct_template_types
+    mock_db_cruds_templates_crud_module.get_filtered_templates = mock_get_filtered_templates
+    setattr(mock_db_cruds_module, 'templates_crud', mock_db_cruds_templates_crud_module)
+    sys.modules['db.cruds.templates_crud'] = mock_db_cruds_templates_crud_module
+
+    # Create a mock 'db.cruds.clients_crud' module
+    mock_db_cruds_clients_crud_module = types.ModuleType('db.cruds.clients_crud')
+    # Create a mock instance for clients_crud_instance
+    class MockClientsCrudInstance:
+        def get_all_clients(self, *args, **kwargs): print("MOCK clients_crud_instance.get_all_clients called"); return []
+        # Add other methods that might be called on clients_crud_instance if new errors appear
+    mock_db_cruds_clients_crud_module.clients_crud_instance = MockClientsCrudInstance()
+    setattr(mock_db_cruds_module, 'clients_crud', mock_db_cruds_clients_crud_module)
+    sys.modules['db.cruds.clients_crud'] = mock_db_cruds_clients_crud_module
+
+    # Create a mock 'db.cruds.products_crud' module
+    mock_db_cruds_products_crud_module = types.ModuleType('db.cruds.products_crud')
+    class MockProductsCrudInstance:
+        # Add mock methods here if product_dimension_ui_dialog calls any on products_crud_instance
+        def get_all_products(self, *args, **kwargs): print("MOCK products_crud_instance.get_all_products called"); return []
+    mock_db_cruds_products_crud_module.products_crud_instance = MockProductsCrudInstance()
+    setattr(mock_db_cruds_module, 'products_crud', mock_db_cruds_products_crud_module)
+    sys.modules['db.cruds.products_crud'] = mock_db_cruds_products_crud_module
+
+    # Mock icons_rc to prevent SyntaxError during __main__ execution
+    print("MAIN_TOP: Pre-patching sys.modules for 'icons_rc'")
+    sys.modules['icons_rc'] = types.ModuleType('icons_rc_mock')
+
+# --- Conditional mocking for __main__ END ---
+
+# Adjust sys.path to allow finding modules in the current directory structure
+# This needs to be done before other local package imports if running standalone
+current_dir_for_standalone = os.path.dirname(os.path.abspath(__file__))
+print(f"Executing from: {current_dir_for_standalone}") # Debug print
+if current_dir_for_standalone not in sys.path:
+    sys.path.insert(0, current_dir_for_standalone)
+    print(f"Inserted into sys.path: {current_dir_for_standalone}") # Debug print
+# If 'dialogs', 'company_management' etc. are in a parent or specific source directory:
+# parent_dir_for_standalone = os.path.abspath(os.path.join(current_dir_for_standalone, '..'))
+# if parent_dir_for_standalone not in sys.path:
+#     sys.path.insert(0, parent_dir_for_standalone)
+
+print(f"Initial sys.path: {sys.path}") # Debug print
+
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel,
     QFormLayout, QLineEdit, QComboBox, QSpinBox, QFileDialog, QCheckBox,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog # Added QDialog for dialog.exec_()
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, # Added QDialog for dialog.exec_()
+    QGroupBox, QRadioButton
 )
 from PyQt5.QtGui import QIcon # Added for icons on buttons
 from PyQt5.QtCore import Qt
@@ -12,8 +280,11 @@ from PyQt5.QtCore import Qt
 # This import will be problematic if 'db' is not in sys.path or structured as expected.
 # For the __main__ block, we'll mock it.
 try:
-    import db as db_manager
+    import db as db_manager # If __name__ == '__main__', this should import MockDBForGlobalImport
+    if __name__ == '__main__':
+        print(f"MAIN_POST_DB_IMPORT: db_manager is {db_manager}")
 except ImportError:
+    print("ERROR: Failed to import 'db' module globally.") # Changed message for clarity
     db_manager = None # Will be replaced by mock in __main__ if None
 
 from dialogs.transporter_dialog import TransporterDialog
@@ -28,16 +299,43 @@ class SettingsPage(QWidget):
         self.app_root_dir = app_root_dir
         self.current_user_id = current_user_id
 
+        self.module_config = [
+            {"key": "module_project_management_enabled", "label_text": self.tr("Project Management")},
+            {"key": "module_product_management_enabled", "label_text": self.tr("Product Management")},
+            {"key": "module_partner_management_enabled", "label_text": self.tr("Partner Management")},
+            {"key": "module_statistics_enabled", "label_text": self.tr("Statistics")},
+            {"key": "module_inventory_management_enabled", "label_text": self.tr("Inventory Management")},
+            {"key": "module_botpress_integration_enabled", "label_text": self.tr("Botpress Integration")},
+            {"key": "module_carrier_map_enabled", "label_text": self.tr("Carrier Map")},
+        ]
+        self.module_radio_buttons = {} # To store radio buttons for easy access
+
         # This is important if db_manager was not imported successfully above
         # And we are not running the __main__ block (e.g. in actual app)
         # It relies on the global db_manager being set by the main application
-        global db_manager
-        if db_manager is None and 'db_manager' in globals() and globals()['db_manager'] is not None:
-             # Potentially set by main_app.py or similar if running integrated
-            pass # db_manager already set globally
-        elif db_manager is None :
-            # This will cause issues if not mocked and not running __main__
-            print("WARNING: db_manager is None in SettingsPage init and not running __main__")
+
+        # In __main__ mode, db_manager might be MockDBForGlobalImport initially.
+        # It will be replaced by the more complete MockDBManager instance from the __main__ block
+        # before SettingsPage is fully used.
+        # The critical part is that the *global symbol* 'db_manager' needs to be the correct mock
+        # by the time methods using it are called, or it's passed to other objects.
+
+        # For non-__main__ mode, the original logic applies.
+        # For __main__ mode, the global 'db_manager' is what SettingsPage's __init__ will see.
+        # This global 'db_manager' is explicitly set to a full MockDBManager instance
+        # at the beginning of the 'if __name__ == "__main__":' block.
+        global db_manager # Ensure we are referring to the global one
+
+        if __name__ != '__main__': # Original logic for non-test mode
+            if db_manager is None and 'db_manager' in globals() and globals()['db_manager'] is not None:
+                pass
+            elif db_manager is None :
+                print("WARNING: db_manager is None in SettingsPage init and not running __main__")
+        else: # In __main__ mode, db_manager should already be the MockDBManager instance.
+            if db_manager is None: # Should not happen if __main__ block sets it
+                 print("WARNING: db_manager is None in SettingsPage init even when running __main__!")
+            # else:
+            #    print(f"DEBUG SETTINGSPAGE __init__: db_manager is {type(db_manager)}")
 
 
         main_layout = QVBoxLayout(self)
@@ -52,6 +350,7 @@ class SettingsPage(QWidget):
         self._setup_general_tab()
         self._setup_email_tab()
         self._setup_download_monitor_tab() # New Download Monitor Tab
+        self._setup_modules_tab() # New Modules Tab
 
         self.company_tab = CompanyTabWidget(
             parent=self,
@@ -73,8 +372,10 @@ class SettingsPage(QWidget):
         self.reload_settings_button.clicked.connect(self._load_all_settings_from_config)
         self.restore_defaults_button = QPushButton(self.tr("Restore Defaults"))
         self.restore_defaults_button.setObjectName("secondaryButton")
+        # TODO: Connect restore_defaults_button to a method that also restores module defaults
         self.save_settings_button = QPushButton(self.tr("Save All Settings"))
         self.save_settings_button.setObjectName("primaryButton")
+        self.save_settings_button.clicked.connect(self._save_all_settings) # Modified to call central save
         buttons_layout.addStretch(1)
         buttons_layout.addWidget(self.reload_settings_button)
         buttons_layout.addWidget(self.restore_defaults_button)
@@ -401,39 +702,173 @@ class SettingsPage(QWidget):
         }
 
     def _load_all_settings_from_config(self):
-        self._load_general_tab_data() # This now also ensures defaults for download monitor keys
+        self._load_general_tab_data()
         self._load_email_tab_data()
-        self._load_download_monitor_tab_data() # Load the data for the new tab
-        # Transporter and Forwarder data are loaded from DB directly, not from main_config.
-        # Reloading them here would mean re-querying the DB. This might be desired if underlying DB could change.
-        # For now, let's assume their initial load in __init__ is sufficient unless explicitly reloaded.
-        # If a "refresh data" button was present on those tabs, it would call their respective _load_*_table methods.
-        print("SettingsPage: General and Email settings reloaded from main_config.")
+        self._load_download_monitor_tab_data()
+        self._load_modules_tab_data() # Load data for the new modules tab
+        # Transporter and Forwarder data are loaded from DB directly.
+        print("SettingsPage: All settings reloaded.")
+
+    def _save_all_settings(self):
+        # General Settings
+        general_settings = self.get_general_settings_data()
+        for key, value in general_settings.items():
+            self.main_config[key] = value
+
+        # Email Settings
+        email_settings = self.get_email_settings_data()
+        for key, value in email_settings.items():
+            self.main_config[key] = value
+
+        # Download Monitor Settings
+        download_monitor_settings = self.get_download_monitor_settings_data()
+        for key, value in download_monitor_settings.items():
+            self.main_config[key] = value
+
+        # Save to the actual config file (e.g., JSON)
+        # This part depends on how main_config is persisted in the actual application
+        # For now, we just update the dictionary.
+        # Example: config_manager.save_config(self.main_config)
+
+        # Save module settings
+        self._save_modules_tab_data()
+
+        # Company Tab has its own save mechanism internally if needed, or could be called here.
+        # self.company_tab.save_settings()
+
+        # Transporter and Forwarder data are saved via their respective dialogs, not here.
+
+        QMessageBox.information(self, self.tr("Settings Saved"), self.tr("All settings have been updated. Some changes may require an application restart to take full effect."))
+        print("All settings saved (main_config updated, modules saved to DB).")
+
+
+    def _setup_modules_tab(self):
+        modules_tab_widget = QWidget()
+        modules_form_layout = QFormLayout(modules_tab_widget)
+        modules_form_layout.setContentsMargins(10, 10, 10, 10)
+        modules_form_layout.setSpacing(10)
+
+        for module_info in self.module_config:
+            key = module_info["key"]
+            label_text = module_info["label_text"]
+
+            module_label = QLabel(label_text)
+
+            radio_group_box = QGroupBox() # Optional, for visual grouping
+            radio_layout = QHBoxLayout()
+
+            radio_enabled = QRadioButton(self.tr("Activé"))
+            radio_disabled = QRadioButton(self.tr("Désactivé"))
+
+            radio_layout.addWidget(radio_enabled)
+            radio_layout.addWidget(radio_disabled)
+            radio_group_box.setLayout(radio_layout)
+
+            self.module_radio_buttons[key] = {"enabled": radio_enabled, "disabled": radio_disabled}
+
+            modules_form_layout.addRow(module_label, radio_group_box)
+
+        restart_notice_label = QLabel(self.tr("Un redémarrage de l'application est nécessaire pour que les modifications des modules prennent pleinement effet."))
+        restart_notice_label.setWordWrap(True)
+        restart_notice_label.setStyleSheet("font-style: italic; color: grey;")
+        modules_form_layout.addRow(restart_notice_label)
+
+        modules_tab_widget.setLayout(modules_form_layout)
+        self.tabs_widget.addTab(modules_tab_widget, self.tr("Gestion des Modules"))
+
+    def _load_modules_tab_data(self):
+        if not db_manager:
+            print("WARNING: db_manager not available. Cannot load module settings.")
+            return
+
+        for module_info in self.module_config:
+            key = module_info["key"]
+            # Default to True (enabled) if the setting is not found
+            is_enabled_str = db_manager.get_setting(key, default='True')
+
+            # Handle boolean True/False or string 'True'/'False'
+            if isinstance(is_enabled_str, bool):
+                is_enabled = is_enabled_str
+            else:
+                is_enabled = is_enabled_str.lower() == 'true'
+
+            if key in self.module_radio_buttons:
+                radios = self.module_radio_buttons[key]
+                if is_enabled:
+                    radios["enabled"].setChecked(True)
+                else:
+                    radios["disabled"].setChecked(True)
+            else:
+                print(f"Warning: Radio buttons for module key '{key}' not found.")
+        print("Module settings loaded from DB.")
+
+    def _save_modules_tab_data(self):
+        if not db_manager:
+            print("WARNING: db_manager not available. Cannot save module settings.")
+            # Optionally, inform the user with a QMessageBox
+            QMessageBox.warning(self, self.tr("Database Error"),
+                                self.tr("Database connection is not available. Module settings cannot be saved."))
+            return
+
+        for module_info in self.module_config:
+            key = module_info["key"]
+            if key in self.module_radio_buttons:
+                radios = self.module_radio_buttons[key]
+                value_to_save = 'True' if radios["enabled"].isChecked() else 'False'
+                try:
+                    db_manager.set_setting(key, value_to_save)
+                except Exception as e:
+                    print(f"Error saving module setting {key}: {e}")
+                    QMessageBox.critical(self, self.tr("Error Saving Module"),
+                                         self.tr("Could not save setting for {0}: {1}").format(module_info["label_text"], str(e)))
+            else:
+                print(f"Warning: Radio buttons for module key '{key}' not found during save.")
+        print("Module settings saved to DB.")
+
 
 if __name__ == '__main__':
+    print(f"Running in __main__ block. Current sys.path: {sys.path}") # Debug print
     from PyQt5.QtWidgets import QApplication
-    import sys
+    # sys and os are already imported at the top
 
     # Mock db_manager for standalone testing
+    # The global 'db_manager' will be replaced by an instance of this class.
     class MockDBManager:
-        def get_all_transporters(self): return [{"transporter_id": "t1", "name": "Mock Transporter 1", "contact_person": "John T", "phone": "123", "email": "jt@example.com", "service_area": "Local"}, {"transporter_id": "t2", "name": "Mock Transporter 2", "contact_person": "Alice T", "phone": "456", "email": "at@example.com", "service_area": "National"}]
-        def get_transporter_by_id(self, tid): return {"transporter_id": tid, "name": f"Mock Transporter {tid}", "contact_person":"Test", "phone":"Test", "email":"Test", "service_area":"Test"} if tid in ["t1", "t2"] else None
-        def add_transporter(self, data): print(f"Mock add_transporter: {data}"); return "t_new_mock_id" # In reality, this would return the ID from the DB
-        def update_transporter(self, tid, data): print(f"Mock update_transporter {tid}: {data}"); return True
-        def delete_transporter(self, tid): print(f"Mock delete_transporter {tid}"); return True
+        def get_all_transporters(self): print("MOCKDB: get_all_transporters"); return [{"transporter_id": "t1", "name": "Mock Transporter 1", "contact_person": "John T", "phone": "123", "email": "jt@example.com", "service_area": "Local"}, {"transporter_id": "t2", "name": "Mock Transporter 2", "contact_person": "Alice T", "phone": "456", "email": "at@example.com", "service_area": "National"}]
+        def get_transporter_by_id(self, tid): print(f"MOCKDB: get_transporter_by_id {tid}"); return {"transporter_id": tid, "name": f"Mock Transporter {tid}", "contact_person":"Test", "phone":"Test", "email":"Test", "service_area":"Test"} if tid in ["t1", "t2"] else None
+        def add_transporter(self, data): print(f"MOCKDB: add_transporter: {data}"); return "t_new_mock_id"
+        def update_transporter(self, tid, data): print(f"MOCKDB: update_transporter {tid}: {data}"); return True
+        def delete_transporter(self, tid): print(f"MOCKDB: delete_transporter {tid}"); return True
 
-        def get_all_freight_forwarders(self): return [{"forwarder_id": "f1", "name": "Mock Forwarder 1", "contact_person": "Jane F", "phone": "456", "email": "jf@example.com", "services_offered": "Global"}, {"forwarder_id": "f2", "name": "Mock Forwarder 2", "contact_person": "Bob F", "phone": "789", "email": "bf@example.com", "services_offered": "Air, Sea"}]
-        def get_freight_forwarder_by_id(self, fid): return {"forwarder_id": fid, "name": f"Mock Forwarder {fid}", "contact_person":"Test", "phone":"Test", "email":"Test", "services_offered":"Test"} if fid in ["f1", "f2"] else None
-        def add_freight_forwarder(self, data): print(f"Mock add_freight_forwarder: {data}"); return "f_new_mock_id"
-        def update_freight_forwarder(self, fid, data): print(f"Mock update_freight_forwarder {fid}: {data}"); return True
-        def delete_freight_forwarder(self, fid): print(f"Mock delete_freight_forwarder {fid}"); return True
+        def get_all_freight_forwarders(self): print("MOCKDB: get_all_freight_forwarders"); return [{"forwarder_id": "f1", "name": "Mock Forwarder 1", "contact_person": "Jane F", "phone": "456", "email": "jf@example.com", "services_offered": "Global"}, {"forwarder_id": "f2", "name": "Mock Forwarder 2", "contact_person": "Bob F", "phone": "789", "email": "bf@example.com", "services_offered": "Air, Sea"}]
+        def get_freight_forwarder_by_id(self, fid): print(f"MOCKDB: get_freight_forwarder_by_id {fid}"); return {"forwarder_id": fid, "name": f"Mock Forwarder {fid}", "contact_person":"Test", "phone":"Test", "email":"Test", "services_offered":"Test"} if fid in ["f1", "f2"] else None
+        def add_freight_forwarder(self, data): print(f"MOCKDB: add_freight_forwarder: {data}"); return "f_new_mock_id"
+        def update_freight_forwarder(self, fid, data): print(f"MOCKDB: update_freight_forwarder {fid}: {data}"); return True
+        def delete_freight_forwarder(self, fid): print(f"MOCKDB: delete_freight_forwarder {fid}"); return True
 
-        def get_all_companies(self): return [{"company_id": "c1", "company_name": "Mock Company Inc.", "is_default": True}]
-        def get_personnel_for_company(self, cid, role=None): return [{"personnel_id": "p1", "name": "Mock User", "role": "Admin"}]
-        def get_company_details(self, cid): return {"company_id": "c1", "company_name": "Mock Company Inc."} # For CompanyTabWidget
-        def initialize_database(self): pass
+        def get_all_companies(self): print("MOCKDB: get_all_companies"); return [{"company_id": "c1", "company_name": "Mock Company Inc.", "is_default": True}]
+        def get_personnel_for_company(self, cid, role=None): print(f"MOCKDB: get_personnel_for_company {cid}"); return [{"personnel_id": "p1", "name": "Mock User", "role": "Admin"}]
+        def get_company_details(self, cid): print(f"MOCKDB: get_company_details {cid}"); return {"company_id": "c1", "company_name": "Mock Company Inc."}
+        def initialize_database(self): print("MOCKDB: initialize_database")
 
-    db_manager = MockDBManager() # Override the global db_manager with our mock
+        # Mock methods for module settings
+        def __init__(self):
+            print("MOCKDB: __init__")
+            self.settings_cache = {} # Simple cache for mock settings
+
+        def get_setting(self, key, default=None):
+            print(f"MOCKDB: get_setting called for {key}, default: {default}")
+            return self.settings_cache.get(key, default)
+
+        def set_setting(self, key, value):
+            print(f"MOCKDB: set_setting called for {key} with value {value}")
+            self.settings_cache[key] = value
+            return True
+
+    # Crucially, make the global 'db_manager' this mock instance
+    # This ensures SettingsPage uses this mock if its own 'import db' failed or was pre-empted.
+    db_manager = MockDBManager()
+    # print(f"MAIN_MID: Global db_manager is now {type(db_manager)}")
 
     # Mock dialogs to prevent them from trying to use real db_manager if they import it themselves
     class MockTransporterDialog(QDialog):
@@ -460,8 +895,41 @@ if __name__ == '__main__':
             print(f"MockFreightForwarderDialog initialized. Data: {forwarder_data}")
 
     # Monkey-patch the actual dialog imports if they are problematic during test
-    sys.modules['dialogs.transporter_dialog'] = type('module', (), {'TransporterDialog': MockTransporterDialog})
-    sys.modules['dialogs.freight_forwarder_dialog'] = type('module', (), {'FreightForwarderDialog': MockFreightForwarderDialog})
+    # This is tricky because 'from X import Y' has already been processed for SettingsPage class
+    # For this to work reliably for SettingsPage, these names would need to be re-resolved,
+    # or SettingsPage imported *after* these patches.
+    # However, if 'dialogs' itself isn't found, this won't help that part.
+    # For now, let's assume the sys.path fix + db mock will allow 'dialogs' to be found.
+    # If ModuleNotFoundError for 'dialogs' persists, then these patches are insufficient.
+    # Corrected way to create mock modules for dialogs:
+    mock_transporter_module = types.ModuleType(__name__ + '.mock_transporter_dialog')
+    mock_transporter_module.TransporterDialog = MockTransporterDialog
+    sys.modules['dialogs.transporter_dialog'] = mock_transporter_module
+
+    mock_freight_forwarder_module = types.ModuleType(__name__ + '.mock_freight_forwarder_dialog')
+    mock_freight_forwarder_module.FreightForwarderDialog = MockFreightForwarderDialog
+    sys.modules['dialogs.freight_forwarder_dialog'] = mock_freight_forwarder_module
+
+    # We also need to mock CompanyTabWidget if its import is failing or causing issues
+    # from company_management import CompanyTabWidget
+    class MockCompanyTabWidget(QWidget): # Ensure it's a QWidget
+        def __init__(self, parent=None, app_root_dir=None, current_user_id=None):
+            super().__init__(parent)
+            self.setLayout(QVBoxLayout())
+            self.layout().addWidget(QLabel("Mock Company Tab Widget"))
+            print("MOCK_COMPANY_TAB: Initialized")
+
+    # If 'company_management' module itself failed to load, this global needs to be our mock:
+    # This is highly dependent on how 'company_management' is imported and used.
+    # For now, if 'from company_management import CompanyTabWidget' failed, this won't fix it
+    # unless we also patch 'company_management' in sys.modules.
+    # Let's assume 'company_management' module loads but we want to mock the class.
+    # This is more for replacing the class rather than fixing ModuleNotFoundError for the module.
+    # To fix ModuleNotFoundError for 'company_management', sys.path must be correct.
+    # For now, we are assuming the script will find 'company_management' due to sys.path.
+    # The global name 'CompanyTabWidget' will be used by SettingsPage.
+    # We are not explicitly overriding the global 'CompanyTabWidget' here yet, relying on MockDBManager
+    # and hoping the dialogs issue gets resolved first.
 
 
     app = QApplication(sys.argv)
@@ -470,9 +938,22 @@ if __name__ == '__main__':
         "default_reminder_days": 15, "session_timeout_minutes": 60, "database_path": "mock_app.db",
         "google_maps_review_url": "https://maps.google.com/mock", "show_initial_setup_on_startup": True,
         "smtp_server": "smtp.mock.com", "smtp_port": 587, "smtp_user": "mock_user", "smtp_password": "mock_password",
-        "download_monitor_enabled": False, # Add mock data for new settings
-        "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads_mock') # Add mock data
+        "download_monitor_enabled": False,
+        "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads_mock')
     }
+    # Add default module settings to mock_config for testing _load_modules_tab_data if it were to use main_config
+    # However, our implementation uses db_manager.get_setting, so we'll pre-populate the MockDBManager's cache.
+    if db_manager: # Ensure db_manager (MockDBManager instance) exists
+        # Pre-populate module settings for testing _load_modules_tab_data
+        print("MAIN: Pre-populating MockDBManager with initial module states...")
+        db_manager.set_setting("module_project_management_enabled", "True")  # String 'True'
+        db_manager.set_setting("module_product_management_enabled", "False") # String 'False'
+        db_manager.set_setting("module_partner_management_enabled", "True")
+        db_manager.set_setting("module_statistics_enabled", "False")
+        # module_inventory_management_enabled will use the default 'True' from _load_modules_tab_data
+        db_manager.set_setting("module_botpress_integration_enabled", "True")
+        # module_carrier_map_enabled will use the default 'True'
+
     mock_app_root_dir = os.path.abspath(os.path.dirname(__file__))
     mock_current_user_id = "test_user_settings_main"
 
