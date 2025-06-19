@@ -1527,6 +1527,44 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
+    # MoneyTransferAgents Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS MoneyTransferAgents (
+        agent_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        agent_type TEXT CHECK(agent_type IN ('Bank', 'Individual Agent', 'Other')) NOT NULL,
+        phone_number TEXT,
+        email TEXT,
+        country_id TEXT,
+        city_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
+        FOREIGN KEY (country_id) REFERENCES Countries (country_id),
+        FOREIGN KEY (city_id) REFERENCES Cities (city_id)
+    )
+    """)
+
+    # ClientOrder_MoneyTransferAgents Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ClientOrder_MoneyTransferAgents (
+        assignment_id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        order_id TEXT, -- Corresponds to project_id in Projects table
+        agent_id TEXT NOT NULL,
+        assignment_details TEXT,
+        fee_estimate REAL,
+        assigned_at TEXT NOT NULL, -- Serves as created_at
+        updated_at TEXT,          -- For tracking updates to assignment details
+        email_status TEXT DEFAULT 'Pending' CHECK(email_status IN ('Pending', 'Sent', 'Failed', 'Not Applicable')),
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
+        FOREIGN KEY (client_id) REFERENCES Clients (client_id),
+        FOREIGN KEY (order_id) REFERENCES Projects (project_id),
+        FOREIGN KEY (agent_id) REFERENCES MoneyTransferAgents (agent_id)
+    )
+    """)
 
     # CompanyAssets Table
     cursor.execute("""
@@ -1751,6 +1789,18 @@ CREATE TABLE IF NOT EXISTS Templates (
     # ProductStorageLocations
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_product_id ON ProductStorageLocations(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_location_id ON ProductStorageLocations(location_id)")
+
+    # MoneyTransferAgents
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_moneytransferagents_name ON MoneyTransferAgents(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_moneytransferagents_agent_type ON MoneyTransferAgents(agent_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_moneytransferagents_country_id ON MoneyTransferAgents(country_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_moneytransferagents_city_id ON MoneyTransferAgents(city_id)")
+
+    # ClientOrder_MoneyTransferAgents
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientordermoneytransferagents_client_id ON ClientOrder_MoneyTransferAgents(client_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientordermoneytransferagents_order_id ON ClientOrder_MoneyTransferAgents(order_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientordermoneytransferagents_agent_id ON ClientOrder_MoneyTransferAgents(agent_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientordermoneytransferagents_email_status ON ClientOrder_MoneyTransferAgents(email_status)")
 
     # ProformaInvoices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
