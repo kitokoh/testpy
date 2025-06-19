@@ -341,7 +341,41 @@ def initialize_database():
         {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
         {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
         {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4},
+
+        # Recruitment Module Statuses
+        # JobOpening Statuses
+        {'status_name': 'Open', 'status_type': 'JobOpening', 'color_hex': '#27ae60', 'icon_name': 'folder-open', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Closed', 'status_type': 'JobOpening', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 1},
+        {'status_name': 'On Hold', 'status_type': 'JobOpening', 'color_hex': '#f39c12', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Draft', 'status_type': 'JobOpening', 'color_hex': '#bdc3c7', 'icon_name': 'folder-edit', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+
+        # CandidateApplication Statuses
+        {'status_name': 'Applied', 'status_type': 'CandidateApplication', 'color_hex': '#3498db', 'icon_name': 'user-plus', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Screening', 'status_type': 'CandidateApplication', 'color_hex': '#1abc9c', 'icon_name': 'user-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Interviewing', 'status_type': 'CandidateApplication', 'color_hex': '#9b59b6', 'icon_name': 'users-meeting', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Assessment', 'status_type': 'CandidateApplication', 'color_hex': '#e67e22', 'icon_name': 'user-clipboard', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Reference Check', 'status_type': 'CandidateApplication', 'color_hex': '#f1c40f', 'icon_name': 'user-check', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Offer Extended', 'status_type': 'CandidateApplication', 'color_hex': '#2ecc71', 'icon_name': 'user-contract', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
+        {'status_name': 'Offer Accepted', 'status_type': 'CandidateApplication', 'color_hex': '#27ae60', 'icon_name': 'user-star', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
+        {'status_name': 'Offer Declined', 'status_type': 'CandidateApplication', 'color_hex': '#e74c3c', 'icon_name': 'user-minus', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 7},
+        {'status_name': 'Hired', 'status_type': 'CandidateApplication', 'color_hex': '#16a085', 'icon_name': 'user-tie', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 8},
+        {'status_name': 'Rejected', 'status_type': 'CandidateApplication', 'color_hex': '#c0392b', 'icon_name': 'user-times', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 9},
+        {'status_name': 'Withdrawn', 'status_type': 'CandidateApplication', 'color_hex': '#7f8c8d', 'icon_name': 'user-slash', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 10},
+
+        # CandidateProgress Statuses
+        {'status_name': 'Pending', 'status_type': 'CandidateProgress', 'color_hex': '#bdc3c7', 'icon_name': 'progress-clock', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'In Progress', 'status_type': 'CandidateProgress', 'color_hex': '#3498db', 'icon_name': 'progress-download', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Completed', 'status_type': 'CandidateProgress', 'color_hex': '#2ecc71', 'icon_name': 'progress-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Skipped', 'status_type': 'CandidateProgress', 'color_hex': '#95a5a6', 'icon_name': 'progress-alert', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Failed', 'status_type': 'CandidateProgress', 'color_hex': '#e74c3c', 'icon_name': 'progress-close', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
+
+        # InterviewStatus Statuses
+        {'status_name': 'Scheduled', 'status_type': 'InterviewStatus', 'color_hex': '#3498db', 'icon_name': 'calendar-clock', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Completed', 'status_type': 'InterviewStatus', 'color_hex': '#2ecc71', 'icon_name': 'calendar-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Cancelled', 'status_type': 'InterviewStatus', 'color_hex': '#e74c3c', 'icon_name': 'calendar-times', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 2},
+        {'status_name': 'Rescheduled', 'status_type': 'InterviewStatus', 'color_hex': '#f39c12', 'icon_name': 'calendar-edit', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'No Show', 'status_type': 'InterviewStatus', 'color_hex': '#c0392b', 'icon_name': 'calendar-question', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
     ]
     for status in default_statuses:
         cursor.execute("""
@@ -1336,6 +1370,107 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
+    # --- Recruitment Module Tables ---
+
+    # JobOpenings Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS JobOpenings (
+        job_opening_id TEXT PRIMARY KEY, -- UUID
+        title TEXT NOT NULL,
+        description TEXT,
+        status_id INTEGER, -- FK to StatusSettings
+        department_id INTEGER, -- Optional FK to a potential Departments table or link to TeamMembers department
+        created_by_user_id TEXT, -- FK to Users
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closing_date DATE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+        -- department_id FK can be added later if Departments table is implemented
+    )
+    """)
+
+    # Candidates Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Candidates (
+        candidate_id TEXT PRIMARY KEY, -- UUID
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        phone TEXT,
+        resume_path TEXT,
+        cover_letter_path TEXT,
+        application_source TEXT, -- e.g., 'Website', 'Referral', 'LinkedIn'
+        current_status_id INTEGER, -- FK to StatusSettings
+        application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT,
+        linked_contact_id INTEGER, -- Optional FK to Contacts
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        FOREIGN KEY (current_status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (linked_contact_id) REFERENCES Contacts (contact_id)
+    )
+    """)
+
+    # RecruitmentSteps Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS RecruitmentSteps (
+        recruitment_step_id TEXT PRIMARY KEY, -- UUID
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        step_name TEXT NOT NULL, -- e.g., 'Application Review', 'Phone Screen'
+        step_order INTEGER NOT NULL,
+        description TEXT,
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        UNIQUE (job_opening_id, step_order),
+        UNIQUE (job_opening_id, step_name)
+    )
+    """)
+
+    # CandidateProgress Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CandidateProgress (
+        candidate_progress_id TEXT PRIMARY KEY, -- UUID
+        candidate_id TEXT NOT NULL, -- FK to Candidates
+        recruitment_step_id TEXT NOT NULL, -- FK to RecruitmentSteps
+        status_id INTEGER, -- FK to StatusSettings
+        notes TEXT,
+        completed_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (candidate_id) REFERENCES Candidates (candidate_id) ON DELETE CASCADE,
+        FOREIGN KEY (recruitment_step_id) REFERENCES RecruitmentSteps (recruitment_step_id) ON DELETE CASCADE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        UNIQUE (candidate_id, recruitment_step_id)
+    )
+    """)
+
+    # Interviews Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Interviews (
+        interview_id TEXT PRIMARY KEY, -- UUID
+        candidate_id TEXT NOT NULL, -- FK to Candidates
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        recruitment_step_id TEXT, -- FK to RecruitmentSteps
+        interviewer_team_member_id INTEGER, -- FK to TeamMembers
+        scheduled_at TIMESTAMP,
+        duration_minutes INTEGER,
+        interview_type TEXT, -- e.g., 'Phone', 'Video', 'On-site'
+        location_or_link TEXT,
+        status_id INTEGER, -- FK to StatusSettings
+        feedback_notes_overall TEXT,
+        feedback_rating INTEGER, -- e.g., 1-5 scale
+        created_by_user_id TEXT, -- FK to Users
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (candidate_id) REFERENCES Candidates (candidate_id) ON DELETE CASCADE,
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        FOREIGN KEY (recruitment_step_id) REFERENCES RecruitmentSteps (recruitment_step_id),
+        FOREIGN KEY (interviewer_team_member_id) REFERENCES TeamMembers (team_member_id),
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+    )
+    """)
+    # --- End Recruitment Module Tables ---
+
     # ItemLocations Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ItemLocations (
@@ -1571,6 +1706,35 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
 
+    # --- Recruitment Module Indexes ---
+    # JobOpenings
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_status_id ON JobOpenings(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_department_id ON JobOpenings(department_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_created_by_user_id ON JobOpenings(created_by_user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_title ON JobOpenings(title)")
+
+    # Candidates
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_job_opening_id ON Candidates(job_opening_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_email ON Candidates(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_current_status_id ON Candidates(current_status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_last_name ON Candidates(last_name)")
+
+    # RecruitmentSteps
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_recruitmentsteps_job_opening_id ON RecruitmentSteps(job_opening_id)")
+
+    # CandidateProgress
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_candidate_id ON CandidateProgress(candidate_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_recruitment_step_id ON CandidateProgress(recruitment_step_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_status_id ON CandidateProgress(status_id)")
+
+    # Interviews
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_candidate_id ON Interviews(candidate_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_job_opening_id ON Interviews(job_opening_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_recruitment_step_id ON Interviews(recruitment_step_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_interviewer_team_member_id ON Interviews(interviewer_team_member_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_scheduled_at ON Interviews(scheduled_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_status_id ON Interviews(status_id)")
+    # --- End Recruitment Module Indexes ---
 
     # ItemLocations
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_parent_id ON ItemLocations(parent_location_id)")
