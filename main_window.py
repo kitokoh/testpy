@@ -112,6 +112,7 @@ class DocumentManager(QMainWindow):
         self.clients_data_map = {}
         self.current_offset = 0
         self.limit_per_page = 50
+        self.total_filtered_clients = 0  # Added for pagination
         
         # Removed map_view_integrated, map_interaction_handler_integrated, and web_channel_integrated
 
@@ -728,8 +729,16 @@ class DocumentManager(QMainWindow):
         filters_for_crud = {};
         if status_id_filter is not None: filters_for_crud['status_id'] = status_id_filter
         if country_id_filter is not None: filters_for_crud['country_id'] = country_id_filter # Add to filters
+
+        # Update total_filtered_clients count
+        # Conceptual: if clients_crud_instance.get_all_clients_count existed:
+        # self.total_filtered_clients = clients_crud_instance.get_all_clients_count(filters=filters_for_crud, include_deleted=include_deleted_filter)
+        # Simulation for this subtask if the count function isn't available:
+        all_matching_clients = clients_crud_instance.get_all_clients(filters=filters_for_crud, include_deleted=include_deleted_filter, limit=None, offset=0)
+        self.total_filtered_clients = len(all_matching_clients)
+
         load_and_display_clients(self, filters=filters_for_crud, limit=self.limit_per_page, offset=self.current_offset, include_deleted=include_deleted_filter)
-        self.update_pagination_controls()
+        self.update_pagination_controls() # Call after total_filtered_clients is updated
         filter_and_display_clients(self)
 
     def filter_client_list_display_slot(self):
@@ -737,15 +746,16 @@ class DocumentManager(QMainWindow):
         self.load_clients_from_db_slot()
 
     def update_pagination_controls(self):
+        current_page = (self.current_offset // self.limit_per_page) + 1
+        if self.total_filtered_clients > 0:
+            total_pages = (self.total_filtered_clients + self.limit_per_page - 1) // self.limit_per_page
+        else:
+            total_pages = 1
+        total_pages = max(1, total_pages) # Ensure total_pages is at least 1
+
+        self.page_info_label.setText(self.tr("Page {0} / {1}").format(current_page, total_pages))
         self.prev_page_button.setEnabled(self.current_offset > 0)
-        # A more robust check for 'next' would involve total count if available
-        # For now, assume if fewer items than limit_per_page loaded into client_list_widget, it's the last page.
-        # This depends on load_and_display_clients correctly filling self.clients_data_map for the current page
-        # and filter_and_display_clients then rendering it to client_list_widget.
-        # A simple heuristic:
-        is_last_page_heuristic = self.client_list_widget.count() < self.limit_per_page
-        self.next_page_button.setEnabled(not is_last_page_heuristic)
-        self.page_info_label.setText(self.tr("Page {0}").format((self.current_offset // self.limit_per_page) + 1))
+        self.next_page_button.setEnabled((self.current_offset + self.limit_per_page) < self.total_filtered_clients)
 
     def prev_page(self):
         if self.current_offset > 0:
@@ -753,15 +763,11 @@ class DocumentManager(QMainWindow):
             self.load_clients_from_db_slot()
 
     def next_page(self):
-        # Only advance if we think there might be more items.
-        # This heuristic relies on the list widget count after filtering.
-        # If the list widget has a full page, there *might* be more.
-        if self.client_list_widget.count() == self.limit_per_page:
+        # Advance only if there are more items based on total_filtered_clients
+        if (self.current_offset + self.limit_per_page) < self.total_filtered_clients:
             self.current_offset += self.limit_per_page
             self.load_clients_from_db_slot()
-        else:
-             # If current view has less than limit_per_page, likely no more pages.
-             self.next_page_button.setEnabled(False)
+        # update_pagination_controls will handle disabling the button if it's the last page
 
 
     def check_old_clients_routine_slot(self): perform_old_clients_check(self)
@@ -833,14 +839,16 @@ class DocumentManager(QMainWindow):
             self.open_client_tab_by_id(client_data["client_id"])
         
     def open_client_tab_by_id(self, client_id_to_open):
-        client_data_to_show = self.clients_data_map.get(client_id_to_open)
-        if not client_data_to_show:
-            client_data_from_db = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
-            if not client_data_from_db:
-                QMessageBox.warning(self, self.tr("Erreur"), self.tr("Données client non trouvées ou client archivé (ID: {0}).").format(client_id_to_open))
-                return
-            client_data_to_show = client_data_from_db
+        # Attempt to fetch fresh client data directly from the database
+        client_data_to_show = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
 
+        if not client_data_to_show:
+            # If fetching from DB fails, show an error and return.
+            # Relying on self.clients_data_map might show stale or deleted client data.
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer les données à jour pour le client (ID: {0}). Le client pourrait ne pas exister ou être archivé.").format(client_id_to_open))
+            return
+
+        # Proceed with augmenting and displaying the fresh client_data_to_show
         if 'country' not in client_data_to_show and client_data_to_show.get('country_id'):
             country_obj = db_manager.get_country_by_id(client_data_to_show['country_id'])
             client_data_to_show['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
