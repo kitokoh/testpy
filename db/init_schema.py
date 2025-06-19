@@ -1292,6 +1292,107 @@ CREATE TABLE IF NOT EXISTS Templates (
             UNIQUE (user_google_account_id, google_contact_id)
         )""")
 
+    # ReportConfigurations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigurations (
+        report_config_id TEXT PRIMARY KEY, -- UUID
+        report_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        target_entity TEXT NOT NULL, -- e.g., 'Assets', 'Clients', 'Projects'
+        output_format TEXT NOT NULL, -- e.g., 'PDF', 'CSV', 'JSON'
+        created_by_user_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_system_report BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
+    # ReportConfigFields Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFields (
+        report_config_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL, -- Original field name from the entity
+        display_name TEXT,        -- Custom display name for the report
+        sort_order INTEGER DEFAULT 0,     -- 0 for no sort, 1 for primary sort, 2 for secondary, etc.
+        sort_direction TEXT,      -- 'ASC' or 'DESC', NULL if not sorted
+        group_by_priority INTEGER DEFAULT 0, -- 0 for no group, 1 for primary group, etc.
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ReportConfigFilters Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFilters (
+        report_config_filter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        operator TEXT NOT NULL, -- e.g., '=', '!=', '>', '<', 'IN', 'NOT IN', 'LIKE', 'BETWEEN'
+        filter_value_1 TEXT,    -- Primary value, or start value for BETWEEN
+        filter_value_2 TEXT,    -- End value for BETWEEN, NULL otherwise
+        logical_group TEXT DEFAULT 'AND', -- 'AND' or 'OR' for grouping with next filter
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ItemLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemLocations (
+        location_id TEXT PRIMARY KEY,
+        location_name TEXT,
+        location_type TEXT,
+        parent_location_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_location_id) REFERENCES ItemLocations(location_id) ON DELETE SET NULL
+    )
+    """)
+
+    # InternalStockItems Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS InternalStockItems (
+        item_id TEXT PRIMARY KEY,
+        item_name TEXT,
+        item_code TEXT UNIQUE,
+        category TEXT,
+        description TEXT,
+        quantity REAL DEFAULT 0,
+        unit_of_measure TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ItemStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemStorageLocations (
+        item_storage_location_id TEXT PRIMARY KEY,
+        item_id TEXT,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES InternalStockItems(item_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (item_id, location_id)
+    )
+    """)
+
+    # ProductStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ProductStorageLocations (
+        product_storage_location_id TEXT PRIMARY KEY,
+        product_id INTEGER,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (product_id, location_id)
+    )
+    """)
+
+
     # CompanyAssets Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS CompanyAssets (
@@ -1345,49 +1446,6 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
-    # ReportConfigurations Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ReportConfigurations (
-        report_config_id TEXT PRIMARY KEY, -- UUID
-        report_name TEXT NOT NULL UNIQUE,
-        description TEXT,
-        target_entity TEXT NOT NULL, -- e.g., 'Assets', 'Clients', 'Projects'
-        output_format TEXT NOT NULL, -- e.g., 'PDF', 'CSV', 'JSON'
-        created_by_user_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_system_report BOOLEAN DEFAULT FALSE,
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
-    )
-    """)
-
-    # ReportConfigFields Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ReportConfigFields (
-        report_config_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        report_config_id TEXT NOT NULL,
-        field_name TEXT NOT NULL, -- Original field name from the entity
-        display_name TEXT,        -- Custom display name for the report
-        sort_order INTEGER DEFAULT 0,     -- 0 for no sort, 1 for primary sort, 2 for secondary, etc.
-        sort_direction TEXT,      -- 'ASC' or 'DESC', NULL if not sorted
-        group_by_priority INTEGER DEFAULT 0, -- 0 for no group, 1 for primary group, etc.
-        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
-    )
-    """)
-
-    # ReportConfigFilters Table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ReportConfigFilters (
-        report_config_filter_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        report_config_id TEXT NOT NULL,
-        field_name TEXT NOT NULL,
-        operator TEXT NOT NULL, -- e.g., '=', '!=', '>', '<', 'IN', 'NOT IN', 'LIKE', 'BETWEEN'
-        filter_value_1 TEXT,    -- Primary value, or start value for BETWEEN
-        filter_value_2 TEXT,    -- End value for BETWEEN, NULL otherwise
-        logical_group TEXT DEFAULT 'AND', -- 'AND' or 'OR' for grouping with next filter
-        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
-    )
-    """)
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients

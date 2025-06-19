@@ -813,20 +813,6 @@ class ProductEditDialog(QDialog):
                     QMessageBox.warning(self, self.tr("Not Found"), self.tr(f"Product with ID {equivalent_product_id} not found."))
                     return
 
-                # Check if this equivalence already exists
-                # get_all_product_equivalencies returns list of dicts like {'equivalence_id': X, 'product_id_a': Y, 'product_id_b': Z}
-                existing_equivalencies = products_crud.get_all_product_equivalencies(product_id_filter=self.product_id)
-                is_already_linked = False
-                if existing_equivalencies:
-                    for eq_link in existing_equivalencies:
-                        if (eq_link['product_id_a'] == equivalent_product_id and eq_link['product_id_b'] == self.product_id) or \
-                           (eq_link['product_id_b'] == equivalent_product_id and eq_link['product_id_a'] == self.product_id):
-                            is_already_linked = True
-                            break
-                if is_already_linked:
-                    QMessageBox.information(self, self.tr("Already Linked"), self.tr(f"This product is already linked with product ID {equivalent_product_id}."))
-                    return
-
                 link_id = products_crud.add_product_equivalence(self.product_id, equivalent_product_id)
                 if link_id:
                     QMessageBox.information(self, self.tr("Success"), self.tr("Product equivalence added successfully."))

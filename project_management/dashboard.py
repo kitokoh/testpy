@@ -187,7 +187,7 @@ class MainDashboard(QWidget): # Changed from QMainWindow to QWidget
         logo_container.setSpacing(10)
         logo_icon = QLabel()
         logo_icon.setPixmap(QIcon(":/icons/logo.svg").pixmap(45, 45)) # Assuming icons are in resource file
-        logo_text = QLabel("Management Pro")
+        logo_text = QLabel("léopardo")
         logo_text.setObjectName("dashboardLogoText")
         logo_container.addWidget(logo_icon)
         logo_container.addWidget(logo_text)

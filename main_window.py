@@ -80,7 +80,7 @@ class DocumentManager(QMainWindow):
         self.app_root_dir = app_root_dir
         self.current_user_id = current_user_id
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
-        self.setWindowIcon(QIcon.fromTheme("folder-documents"))
+        self.setWindowIcon(QIcon(":/icons/logo.svg"))
         
         self.config = CONFIG
         self.download_monitor_service = None # Initialize download monitor service
@@ -393,7 +393,7 @@ class DocumentManager(QMainWindow):
         self.main_splitter.addWidget(right_pane_splitter)
 
         # Load or set default splitter sizes
-        saved_splitter_state_hex = db_manager.get_setting('client_list_splitter_state', default_value=None)
+        saved_splitter_state_hex = db_manager.get_setting('client_list_splitter_state', default=None)
         if saved_splitter_state_hex:
             try:
                 splitter_state_byte_array = QByteArray.fromHex(saved_splitter_state_hex.encode('utf-8'))
@@ -406,8 +406,8 @@ class DocumentManager(QMainWindow):
                 logging.error(f"Error restoring splitter state: {e}. Applying defaults.", exc_info=True)
                 self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
         else:
-            self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
-            logging.info("Client list splitter: No saved state found, applied default sizes.")
+            self.main_splitter.setSizes([int(self.width() * 0.15), int(self.width() * 0.85)])
+            logging.info("Client list splitter: No saved state found, applied default sizes 15/85.")
 
         self.main_splitter.splitterMoved.connect(self.save_splitter_state)
 
@@ -646,6 +646,7 @@ class DocumentManager(QMainWindow):
 
         logging.info(f"Creating new tab for client ID {client_id_to_open}")
         notification_manager = QApplication.instance().notification_manager
+        logging.info(f"Client data being passed to ClientWidget: {client_data_to_show}")
         client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
