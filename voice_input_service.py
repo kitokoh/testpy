@@ -22,10 +22,25 @@ class VoiceInputService:
             self.logger.addHandler(ch)
 
         try:
+            # Attempt to import PyAudio first to give a more specific error if it's the root cause
+            import pyaudio
             self.microphone = sr.Microphone()
             self.logger.info("Microphone initialized successfully.")
-        except Exception as e:
-            self.logger.warning(f"Could not initialize microphone: {e}. Speech recognition will fail if attempted.")
+        except ImportError:
+            self.microphone = None # Ensure microphone is None
+            self.logger.warning("PyAudio library not found. Microphone input will not be available. Please install PyAudio.")
+        except AttributeError as ae: # speech_recognition can raise AttributeError if PyAudio is missing during Microphone class definition
+            self.microphone = None
+            if 'pyaudio' in str(ae).lower():
+                self.logger.warning(f"Could not initialize microphone due to a PyAudio-related issue (AttributeError): {ae}. Ensure PyAudio is correctly installed. Microphone input will be disabled.")
+            else:
+                self.logger.warning(f"Could not initialize microphone (AttributeError): {ae}. Microphone input will be disabled.")
+        except OSError as oe: # OSError can be raised by PyAudio if it can't find audio devices or PortAudio is misconfigured
+            self.microphone = None
+            self.logger.warning(f"Could not initialize microphone (OSError): {oe}. This might be due to no microphone being connected, or an issue with system audio libraries like PortAudio. Microphone input will be disabled.")
+        except Exception as e: # Catch-all for other unexpected errors during microphone initialization
+            self.microphone = None # Ensure microphone is None
+            self.logger.warning(f"An unexpected error occurred while initializing microphone: {e}. Speech recognition will fail if attempted. Microphone input will be disabled.")
             # This allows the service to be instantiated for NLP tasks even if no mic is present.
 
     def recognize_speech(self, language="fr-FR"):
