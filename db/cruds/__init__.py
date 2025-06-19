@@ -10,15 +10,19 @@ from . import clients_crud
 from . import companies_crud
 from . import company_personnel_crud
 from . import contacts_crud
+from . import employees_crud
+from . import employee_documents_crud
 from . import cover_page_templates_crud
 from . import cover_pages_crud
 from . import freight_forwarders_crud # Added
 from . import google_sync_crud
 from . import internal_stock_items_crud # Added
 from . import kpis_crud
+from . import leave_crud
 from . import item_locations_crud # Added
 from . import locations_crud
 from . import milestones_crud
+from . import performance_crud
 from . import partners_crud
 from . import product_media_links_crud
 from . import products_crud
