@@ -66,6 +66,7 @@ from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialo
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 from inventory_browser_widget import InventoryBrowserWidget # Inventory Management
+from camera_management.camera_management_widget import CameraManagementWidget # Camera Management
 
 
 from download_monitor_service import DownloadMonitorService
@@ -81,7 +82,8 @@ CONFIGURABLE_MODULES = [
     {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
     {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
     {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
-    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None} # Carrier map is a dialog
+    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None}, # Carrier map is a dialog
+    {'key': 'module_camera_management_enabled', 'name': 'camera_management', 'action_attr': 'camera_management_action', 'widget_attr': 'camera_management_widget_instance'}
 ]
 
 class DocumentManager(QMainWindow):
@@ -159,6 +161,12 @@ class DocumentManager(QMainWindow):
             self.main_area_stack.addWidget(self.inventory_browser_widget_instance)
         else:
             self.inventory_browser_widget_instance = None
+
+        if self.module_states.get('camera_management', True):
+            self.camera_management_widget_instance = CameraManagementWidget(parent=self, current_user_id=self.current_user_id)
+            self.main_area_stack.addWidget(self.camera_management_widget_instance)
+        else:
+            self.camera_management_widget_instance = None
 
         self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
@@ -498,8 +506,10 @@ class DocumentManager(QMainWindow):
         self.botpress_integration_action = QAction(QIcon(":/icons/placeholder_icon.svg"), self.tr("Botpress Integration"), self) # Add a placeholder icon
         self.botpress_integration_action.triggered.connect(self.show_botpress_integration_view)
         self.inventory_browser_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion Stock Atelier"), self) # Updated text
-
         self.inventory_browser_action.triggered.connect(self.show_inventory_browser_view)
+
+        self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
+        self.camera_management_action.triggered.connect(self.show_camera_management_view)
 
 
     def create_menus_main(self): 
@@ -584,6 +594,14 @@ class DocumentManager(QMainWindow):
             logging.warning("Product Management page instance is None. Cannot show view.")
             QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Product Management est désactivé."))
 
+    def show_camera_management_view(self):
+        if self.camera_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.camera_management_widget_instance)
+            if hasattr(self.camera_management_widget_instance, 'set_current_user_id'): # Ensure user_id is up-to-date
+                self.camera_management_widget_instance.set_current_user_id(self.current_user_id)
+        else:
+            logging.warning("Camera Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion Caméras est désactivé."))
 
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         

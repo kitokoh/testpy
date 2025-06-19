@@ -307,6 +307,7 @@ class SettingsPage(QWidget):
             {"key": "module_inventory_management_enabled", "label_text": self.tr("Inventory Management")},
             {"key": "module_botpress_integration_enabled", "label_text": self.tr("Botpress Integration")},
             {"key": "module_carrier_map_enabled", "label_text": self.tr("Carrier Map")},
+            {"key": "module_camera_management_enabled", "label_text": self.tr("Camera Management")}, # New module
         ]
         self.module_radio_buttons = {} # To store radio buttons for easy access
 
@@ -953,6 +954,7 @@ if __name__ == '__main__':
         # module_inventory_management_enabled will use the default 'True' from _load_modules_tab_data
         db_manager.set_setting("module_botpress_integration_enabled", "True")
         # module_carrier_map_enabled will use the default 'True'
+        db_manager.set_setting("module_camera_management_enabled", "True") # For testing the new module
 
     mock_app_root_dir = os.path.abspath(os.path.dirname(__file__))
     mock_current_user_id = "test_user_settings_main"
