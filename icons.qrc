@@ -54,6 +54,7 @@
     <file alias="file-plus.svg">icons/file-plus.svg</file>
     <file alias="edit-2.svg">icons/edit-2.svg</file>
     <file alias="plus-square.svg">icons/plus-square.svg</file>
+
     <file alias="modern/templates.svg">icons/placeholder_icon.svg</file>
     <file alias="modern/link.svg">icons/placeholder_icon.svg</file>
     <file alias="map.svg">icons/placeholder_icon.svg</file>

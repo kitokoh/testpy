@@ -80,7 +80,7 @@ class DocumentManager(QMainWindow):
         self.app_root_dir = app_root_dir
         self.current_user_id = current_user_id
         self.setWindowTitle(self.tr("Gestionnaire de Documents Client")); self.setGeometry(100, 100, 1200, 800)
-        self.setWindowIcon(QIcon.fromTheme("folder-documents"))
+        self.setWindowIcon(QIcon(":/icons/logo.svg"))
         
         self.config = CONFIG
         self.download_monitor_service = None # Initialize download monitor service
