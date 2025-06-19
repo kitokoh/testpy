@@ -63,10 +63,13 @@ from company_management import CompanyTabWidget
 from settings_page import SettingsPage # Import the new SettingsPage
 from botpress_integration.ui_components import BotpressIntegrationUI # Import Botpress UI
 from dialogs.carrier_map_dialog import CarrierMapDialog # Import CarrierMapDialog
+from voice_input_service import VoiceInputService # Added import
 
 from partners.partner_main_widget import PartnerMainWidget # Partner Management
 from inventory_browser_widget import InventoryBrowserWidget # Inventory Management
+from camera_management.camera_management_widget import CameraManagementWidget # Camera Management
 
+from recruitment.recruitment_dashboard import RecruitmentDashboard # Import RecruitmentDashboard
 
 from download_monitor_service import DownloadMonitorService
 from dialogs.assign_document_dialog import AssignDocumentToClientDialog
@@ -81,7 +84,9 @@ CONFIGURABLE_MODULES = [
     {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
     {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
     {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
-    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None} # Carrier map is a dialog
+    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None}, # Carrier map is a dialog
+
+    {'key': 'module_camera_management_enabled', 'name': 'camera_management', 'action_attr': 'camera_management_action', 'widget_attr': 'camera_management_widget_instance'}
 ]
 
 class DocumentManager(QMainWindow):
@@ -160,9 +165,22 @@ class DocumentManager(QMainWindow):
         else:
             self.inventory_browser_widget_instance = None
 
+        if self.module_states.get('recruitment', True):
+            self.recruitment_dashboard_instance = RecruitmentDashboard(parent=self)
+            self.main_area_stack.addWidget(self.recruitment_dashboard_instance)
+        else:
+            self.recruitment_dashboard_instance = None
+        if self.module_states.get('camera_management', True):
+            self.camera_management_widget_instance = CameraManagementWidget(parent=self, current_user_id=self.current_user_id)
+            self.main_area_stack.addWidget(self.camera_management_widget_instance)
+        else:
+            self.camera_management_widget_instance = None
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
         
+        self.voice_input_service = VoiceInputService() # Instantiate VoiceInputService
+
         self.load_clients_from_db_slot() # Initial load
         # if self.stats_widget: self.stats_widget.update_stats() # self.stats_widget removed
         # self.update_integrated_map() # Method removed
@@ -431,6 +449,8 @@ class DocumentManager(QMainWindow):
         
         self.add_new_client_button = QPushButton(self.tr("Ajouter un Nouveau Client")); self.add_new_client_button.setIcon(QIcon(":/icons/user-add.svg")); self.add_new_client_button.setObjectName("primaryButton"); self.add_new_client_button.clicked.connect(self.open_add_new_client_dialog); left_pane_layout.addWidget(self.add_new_client_button)
 
+        self.add_client_by_voice_button = QPushButton(self.tr("Ajouter Client par Voix")); self.add_client_by_voice_button.setIcon(QIcon(":/icons/mic.svg")); self.add_client_by_voice_button.setObjectName("primaryButton"); self.add_client_by_voice_button.clicked.connect(self.handle_add_client_by_voice_clicked); left_pane_layout.addWidget(self.add_client_by_voice_button)
+
         # map_group_box removed from here
         left_pane_widget.setLayout(left_pane_layout)
         self.main_splitter.addWidget(left_pane_widget)
@@ -483,6 +503,61 @@ class DocumentManager(QMainWindow):
             client_data = dialog.get_data()
             if client_data: handle_create_client_execution(self, client_data_dict=client_data)
 
+    def handle_add_client_by_voice_clicked(self):
+        # Notify user that listening has started
+        self.notify(self.tr("Voice Input"), self.tr("Veuillez parler maintenant pour ajouter un client..."), type='INFO', duration=5000)
+        QApplication.processEvents() # Ensure notification is shown, good for long operations
+
+        speech_result = self.voice_input_service.recognize_speech()
+
+        if speech_result["success"]:
+            recognized_text = speech_result["text"]
+            self.notify(self.tr("Voice Input"), self.tr("Reconnu : '{0}'. Traitement des informations...").format(recognized_text), type='INFO', duration=3000)
+            QApplication.processEvents()
+            logging.info(f"Recognized text: {recognized_text}")
+
+            extracted_info = self.voice_input_service.extract_client_info(recognized_text)
+            logging.info(f"Extracted info for dialog: {extracted_info}")
+
+            if extracted_info: # Check if dictionary is not empty
+                dialog = AddNewClientDialog(self)
+                dialog.populate_from_voice_data(extracted_info)
+                if dialog.exec_() == QDialog.Accepted:
+                    client_data = dialog.get_data()
+                    if client_data: # Ensure data is valid before creating client
+                        handle_create_client_execution(self, client_data_dict=client_data)
+                # No specific message if dialog is cancelled by user after population
+            else:
+                logging.warning("Could not extract any client details from speech.")
+                QMessageBox.information(self,
+                                        self.tr("Aucune Information Extraite"),
+                                        self.tr("Aucun détail client n'a pu être extrait de la parole. Le texte reconnu était : \"{0}\". Veuillez réessayer ou entrer manuellement les informations.").format(recognized_text))
+        else:
+            error_message = speech_result.get("message", self.tr("Erreur inconnue"))
+            error_type = speech_result.get("error", "unknown_error")
+            logging.error(f"Speech recognition failed: {error_message} (Type: {error_type})")
+
+            if error_type == "microphone_error": # This is the custom error from voice_input_service if self.microphone is None or adjust... fails
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur Microphone"),
+                                      self.tr("Aucun microphone n'a été détecté ou il ne fonctionne pas correctement. Veuillez vérifier votre matériel et les permissions.\n\nDétail: {0}").format(error_message))
+            elif error_type == "listen_error": # Custom error from voice_input_service
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur d'Écoute"),
+                                      self.tr("Un problème est survenu lors de la phase d'écoute via le microphone.\n\nDétail: {0}").format(error_message))
+            elif error_type == "unknown_value":
+                 QMessageBox.warning(self,
+                                     self.tr("Erreur de Reconnaissance"),
+                                     self.tr("Impossible de comprendre l'audio. Veuillez réessayer."))
+            elif error_type == "request_error":
+                 QMessageBox.critical(self,
+                                      self.tr("Erreur d'API"),
+                                      self.tr("Le service de reconnaissance vocale est indisponible. Vérifiez votre connexion internet ou réessayez plus tard.\n\nDétail: {0}").format(error_message))
+            else: # Includes 'unexpected_error' or any other
+                QMessageBox.critical(self,
+                                     self.tr("Erreur Inattendue"),
+                                     self.tr("Une erreur inattendue est survenue lors de la reconnaissance vocale: {0}").format(error_message))
+
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.show_settings_page) # Changed to show_settings_page
         self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
@@ -498,8 +573,13 @@ class DocumentManager(QMainWindow):
         self.botpress_integration_action = QAction(QIcon(":/icons/placeholder_icon.svg"), self.tr("Botpress Integration"), self) # Add a placeholder icon
         self.botpress_integration_action.triggered.connect(self.show_botpress_integration_view)
         self.inventory_browser_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion Stock Atelier"), self) # Updated text
-
         self.inventory_browser_action.triggered.connect(self.show_inventory_browser_view)
+
+        self.recruitment_action = QAction(QIcon(":/icons/users.svg"), self.tr("Recrutement"), self) # Use an existing icon or add new one
+        self.recruitment_action.triggered.connect(self.show_recruitment_view)
+        self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
+        self.camera_management_action.triggered.connect(self.show_camera_management_view)
+
 
 
     def create_menus_main(self): 
@@ -584,6 +664,20 @@ class DocumentManager(QMainWindow):
             logging.warning("Product Management page instance is None. Cannot show view.")
             QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Product Management est désactivé."))
 
+    def show_recruitment_view(self):
+        if self.recruitment_dashboard_instance:
+            self.main_area_stack.setCurrentWidget(self.recruitment_dashboard_instance)
+        else:
+            logging.warning("Recruitment dashboard instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Recrutement est désactivé."))
+    def show_camera_management_view(self):
+        if self.camera_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.camera_management_widget_instance)
+            if hasattr(self.camera_management_widget_instance, 'set_current_user_id'): # Ensure user_id is up-to-date
+                self.camera_management_widget_instance.set_current_user_id(self.current_user_id)
+        else:
+            logging.warning("Camera Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion Caméras est désactivé."))
 
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         

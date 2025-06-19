@@ -9,6 +9,7 @@ from . import employees # Import for the employees router
 from . import leave # Import for the leave router
 from . import performance # Import for the performance router
 from . import employee_documents # Import for employee documents router
+from . import recruitment as recruitment_router_module # Import for the recruitment router
 
 
 app = FastAPI(
@@ -36,5 +37,6 @@ app.include_router(employees.router) # Register the employees router
 app.include_router(leave.router) # Register the leave router
 app.include_router(performance.router) # Register the performance router
 app.include_router(employee_documents.router) # Register employee documents router
+app.include_router(recruitment_router_module.router) # Register the recruitment router
 
 # Further routers will be added here (for documents, auth, etc.)

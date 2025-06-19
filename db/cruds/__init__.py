@@ -35,6 +35,13 @@ from . import templates_crud
 from . import transporters_crud # Added
 from . import users_crud
 
+# Recruitment CRUDs
+from . import recruitment_job_openings_crud
+from . import recruitment_candidates_crud
+from . import recruitment_interviews_crud
+from . import recruitment_steps_crud
+from . import recruitment_candidate_progress_crud
+
 # generic_crud.py is typically not imported directly into __all__ or here
 # unless it provides functions intended for direct use from db.cruds.generic_crud
 # For now, assuming it's primarily for internal use by other CRUD modules.
