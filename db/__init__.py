@@ -76,6 +76,7 @@ from .cruds.team_members_crud import (
 )
 from .cruds.clients_crud import ( # Modified
     get_all_clients,
+    get_client_by_id, # Added
     get_active_clients_count,
     get_client_counts_by_country,
     get_client_segmentation_by_city,
@@ -271,6 +272,7 @@ __all__ = [
     "update_team_member",
     "delete_team_member",
     "get_all_clients",
+    "get_client_by_id", # Added
     "get_active_clients_count",
     "get_total_clients_count", # Added
     "get_client_counts_by_country", # Added
