@@ -48,9 +48,7 @@ def get_status_setting_by_id(id: int, conn: sqlite3.Connection = None) -> dict |
 def get_all_status_settings(type_filter: str = None, conn: sqlite3.Connection = None) -> list[dict]:
     """
     Retrieves all status settings, optionally filtered by type.
-    STUB FUNCTION - Original was a stub, providing a basic implementation.
     """
-    logging.warning(f"Called stub function get_all_status_settings (filter: {type_filter}). Basic implementation provided.")
     cursor = conn.cursor()
     sql = "SELECT * FROM StatusSettings"
     params = []

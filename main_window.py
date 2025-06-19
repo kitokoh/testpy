@@ -399,15 +399,15 @@ class DocumentManager(QMainWindow):
                 splitter_state_byte_array = QByteArray.fromHex(saved_splitter_state_hex.encode('utf-8'))
                 if not self.main_splitter.restoreState(splitter_state_byte_array):
                     logging.warning("Failed to restore splitter state, applying defaults.")
-                    self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+                    self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
                 else:
                     logging.info("Client list splitter state restored.")
             except Exception as e:
                 logging.error(f"Error restoring splitter state: {e}. Applying defaults.", exc_info=True)
-                self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.80)])
+                self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
         else:
-            self.main_splitter.setSizes([int(self.width() * 0.15), int(self.width() * 0.85)])
-            logging.info("Client list splitter: No saved state found, applied default sizes 15/85.")
+            self.main_splitter.setSizes([int(self.width() * 0.12), int(self.width() * 0.88)])
+            logging.info("Client list splitter: No saved state found, applied default sizes 12/88.")
 
         self.main_splitter.splitterMoved.connect(self.save_splitter_state)
 

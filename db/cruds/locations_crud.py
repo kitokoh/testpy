@@ -63,9 +63,7 @@ def add_country(data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
     Adds a new country. Expects data['country_name'].
     This is a simplified version. Consider using get_or_add_country for more robust addition.
-    STUB FUNCTION - Original was a stub.
     """
-    logging.warning(f"Called stub/simplified function add_country with data: {data}. Consider using get_or_add_country.")
     if 'country_name' not in data:
         logging.error("add_country: 'country_name' is required in data.")
         return None
@@ -90,9 +88,7 @@ def add_country(data: dict, conn: sqlite3.Connection = None) -> int | None:
 def get_all_countries(conn: sqlite3.Connection = None) -> list[dict]:
     """
     Retrieves all countries.
-    STUB FUNCTION - Original was a stub.
     """
-    logging.warning("Called stub function get_all_countries. Providing basic implementation.")
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT * FROM Countries ORDER BY country_name")
@@ -128,10 +124,8 @@ def get_city_by_id(id: int, conn: sqlite3.Connection = None) -> dict | None:
 def add_city(data: dict, conn: sqlite3.Connection = None) -> int | None:
     """
     Adds a new city to the Cities table.
-    STUB FUNCTION - Original was a stub. Consider get_or_add_city.
     Expects data['city_name'] and data['country_id'].
     """
-    logging.warning(f"Called stub function add_city with data: {data}. Consider get_or_add_city.")
     if not data.get('city_name') or not data.get('country_id'):
         logging.error("add_city requires 'city_name' and 'country_id'.")
         return None
