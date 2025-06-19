@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem, QSplitter, QScrollArea # Added QScrollArea
 )
 from PyQt5.QtCore import Qt, QItemSelectionModel, QTimer # Added QTimer
-
+from typing import Optional
 import json # For handling suggestions
 from datetime import datetime
 # Project specific imports - adjust path if necessary
