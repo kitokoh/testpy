@@ -73,6 +73,16 @@ from dialogs.assign_document_dialog import AssignDocumentToClientDialog
 from db.cruds.client_documents_crud import add_client_document # For assign dialog
 import os # For path checks in download monitor init
 
+# Definition of configurable modules
+CONFIGURABLE_MODULES = [
+    {'key': 'module_project_management_enabled', 'name': 'project_management', 'action_attr': 'project_management_action', 'widget_attr': 'project_management_widget_instance'},
+    {'key': 'module_product_management_enabled', 'name': 'product_management', 'action_attr': 'product_list_action', 'widget_attr': 'product_management_page_instance'},
+    {'key': 'module_partner_management_enabled', 'name': 'partner_management', 'action_attr': 'partner_management_action', 'widget_attr': 'partner_management_widget_instance'},
+    {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
+    {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
+    {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
+    {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None} # Carrier map is a dialog
+]
 
 class DocumentManager(QMainWindow):
     def __init__(self, app_root_dir, current_user_id):
@@ -83,6 +93,9 @@ class DocumentManager(QMainWindow):
         self.setWindowIcon(QIcon(":/icons/logo.svg"))
         
         self.config = CONFIG
+        self.module_states = {} # Initialize module states
+        self._load_module_states() # Load initial module states from DB
+
         self.download_monitor_service = None # Initialize download monitor service
 
         # Use get_setting with default, falling back to config, then to a hardcoded default.
@@ -97,23 +110,36 @@ class DocumentManager(QMainWindow):
         
         # Removed map_view_integrated, map_interaction_handler_integrated, and web_channel_integrated
 
-        self.setup_ui_main()
-        self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
-        self.main_area_stack.addWidget(self.project_management_widget_instance)
+        self.setup_ui_main() # Sets up self.main_area_stack
 
-        self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
-        # Connect signals from StatisticsDashboard
-        self.statistics_dashboard_instance.request_add_client_for_country.connect(self.handle_add_client_from_stats_map)
-        self.statistics_dashboard_instance.request_view_client_details.connect(self.handle_view_client_from_stats_map)
-        self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+        # Conditional Widget Initialization based on module states
+        if self.module_states.get('project_management', True):
+            self.project_management_widget_instance = ProjectManagementDashboard(parent=self, current_user=None)
+            self.main_area_stack.addWidget(self.project_management_widget_instance)
+        else:
+            self.project_management_widget_instance = None
 
-        self.partner_management_widget_instance = PartnerMainWidget(parent=self)
-        self.main_area_stack.addWidget(self.partner_management_widget_instance)
+        if self.module_states.get('statistics', True):
+            self.statistics_dashboard_instance = StatisticsDashboard(parent=self)
+            self.statistics_dashboard_instance.request_add_client_for_country.connect(self.handle_add_client_from_stats_map)
+            self.statistics_dashboard_instance.request_view_client_details.connect(self.handle_view_client_from_stats_map)
+            self.main_area_stack.addWidget(self.statistics_dashboard_instance)
+        else:
+            self.statistics_dashboard_instance = None
 
-        self.product_management_page_instance = ProductManagementPage(parent=self)
-        self.main_area_stack.addWidget(self.product_management_page_instance)
+        if self.module_states.get('partner_management', True):
+            self.partner_management_widget_instance = PartnerMainWidget(parent=self)
+            self.main_area_stack.addWidget(self.partner_management_widget_instance)
+        else:
+            self.partner_management_widget_instance = None
 
-        # Instantiate SettingsPage and add to stack
+        if self.module_states.get('product_management', True):
+            self.product_management_page_instance = ProductManagementPage(parent=self)
+            self.main_area_stack.addWidget(self.product_management_page_instance)
+        else:
+            self.product_management_page_instance = None
+
+        # SettingsPage is always available
         self.settings_page_instance = SettingsPage(
             main_config=self.config,
             app_root_dir=self.app_root_dir,
@@ -122,15 +148,19 @@ class DocumentManager(QMainWindow):
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
 
-        # Instantiate BotpressIntegrationUI and add to stack
-        self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
-        self.main_area_stack.addWidget(self.botpress_integration_ui_instance)
+        if self.module_states.get('botpress_integration', True):
+            self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
+            self.main_area_stack.addWidget(self.botpress_integration_ui_instance)
+        else:
+            self.botpress_integration_ui_instance = None
 
-        # Instantiate InventoryBrowserWidget and add to stack
-        self.inventory_browser_widget_instance = InventoryBrowserWidget(parent=self)
-        self.main_area_stack.addWidget(self.inventory_browser_widget_instance)
+        if self.module_states.get('inventory_management', True):
+            self.inventory_browser_widget_instance = InventoryBrowserWidget(parent=self)
+            self.main_area_stack.addWidget(self.inventory_browser_widget_instance)
+        else:
+            self.inventory_browser_widget_instance = None
 
-        self.main_area_stack.setCurrentWidget(self.documents_page_widget)
+        self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
         
         self.load_clients_from_db_slot() # Initial load
@@ -139,7 +169,26 @@ class DocumentManager(QMainWindow):
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
 
-    def init_or_update_download_monitor(self): # Note: This method is already defined from the previous step, ensure this is an addition of new methods below it.
+    def _load_module_states(self):
+        """Loads the enabled/disabled state of configurable modules from the database."""
+        if not db_manager:
+            logging.warning("DB manager not available, cannot load module states. All modules will default to enabled.")
+            # Default all to True if DB is not available, so basic functionality isn't hindered
+            for module_info in CONFIGURABLE_MODULES:
+                self.module_states[module_info['name']] = True
+            return
+
+        logging.info("Loading module states...")
+        for module_info in CONFIGURABLE_MODULES:
+            # Default to 'True' (string) if setting is not found, then convert to boolean
+            is_enabled_str = db_manager.get_setting(module_info['key'], default='True')
+            is_enabled = is_enabled_str.lower() == 'true' if isinstance(is_enabled_str, str) else bool(is_enabled_str)
+            self.module_states[module_info['name']] = is_enabled
+            logging.info(f"Module '{module_info['name']}' state: {'Enabled' if is_enabled else 'Disabled'}")
+        logging.info("Module states loaded.")
+
+
+    def init_or_update_download_monitor(self):
         if self.download_monitor_service is not None:
             logging.info("Stopping existing download monitor service...")
             self.download_monitor_service.stop()
@@ -458,31 +507,83 @@ class DocumentManager(QMainWindow):
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
-        modules_menu.addAction(self.documents_view_action)
-        modules_menu.addAction(self.project_management_action)
-        modules_menu.addAction(self.product_list_action)
-        modules_menu.addAction(self.partner_management_action)
-        modules_menu.addAction(self.statistics_action)
-        modules_menu.addAction(self.inventory_browser_action) # Add Inventory action
-        modules_menu.addAction(self.botpress_integration_action) # Add Botpress action
-        modules_menu.addSeparator() # Optional separator
-        modules_menu.addAction(self.open_carrier_map_action)
+        modules_menu.addAction(self.documents_view_action) # Documents view is core, always added
+
+        for module_info in CONFIGURABLE_MODULES:
+            action_name = module_info['action_attr']
+            module_name = module_info['name']
+            if self.module_states.get(module_name, True): # Default to True if state not found
+                action = getattr(self, action_name, None)
+                if action:
+                    modules_menu.addAction(action)
+                else:
+                    logging.warning(f"Action '{action_name}' not found for module '{module_name}' but module is enabled.")
+            else:
+                logging.info(f"Module '{module_name}' is disabled. Action '{action_name}' not added to menu.")
+
+        # Add separator if any module actions were added, before non-module specific actions like Carrier Map (if it's always there or handled differently)
+        # For now, assuming Carrier Map is part of CONFIGURABLE_MODULES, so it's handled above.
+        # If there are actions that should always appear after the conditional ones:
+        # modules_menu.addSeparator()
+        # modules_menu.addAction(self.some_other_always_visible_action_in_modules_menu)
+
 
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
 
     def open_carrier_map_dialog(self):
-        dialog = CarrierMapDialog(self)
-        dialog.exec_()
+        # This module is just a dialog, check its state if needed before opening
+        if self.module_states.get('carrier_map', True):
+            dialog = CarrierMapDialog(self)
+            dialog.exec_()
+        else:
+            QMessageBox.information(self, self.tr("Module Désactivé"), self.tr("Le module 'Carrier Map' est actuellement désactivé."))
+            logging.info("Carrier Map module is disabled. Dialog not opened.")
 
-    def show_project_management_view(self): self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+
+    def show_project_management_view(self):
+        if self.project_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.project_management_widget_instance)
+        else:
+            logging.warning("Project Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion de Projet est désactivé."))
+
     def show_documents_view(self): self.main_area_stack.setCurrentWidget(self.documents_page_widget)
-    def show_partner_management_view(self): self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
-    def show_statistics_view(self): self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
-    def show_inventory_browser_view(self): self.main_area_stack.setCurrentWidget(self.inventory_browser_widget_instance)
-    def show_botpress_integration_view(self): self.main_area_stack.setCurrentWidget(self.botpress_integration_ui_instance)
+
+    def show_partner_management_view(self):
+        if self.partner_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.partner_management_widget_instance)
+        else:
+            logging.warning("Partner Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Partner Management est désactivé."))
+
+    def show_statistics_view(self):
+        if self.statistics_dashboard_instance:
+            self.main_area_stack.setCurrentWidget(self.statistics_dashboard_instance)
+        else:
+            logging.warning("Statistics Dashboard instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Statistiques est désactivé."))
+
+    def show_inventory_browser_view(self):
+        if self.inventory_browser_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.inventory_browser_widget_instance)
+        else:
+            logging.warning("Inventory Browser widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion Stock Atelier est désactivé."))
+
+    def show_botpress_integration_view(self):
+        if self.botpress_integration_ui_instance:
+            self.main_area_stack.setCurrentWidget(self.botpress_integration_ui_instance)
+        else:
+            logging.warning("Botpress Integration UI instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Botpress Integration est désactivé."))
 
     def show_product_management_page(self):
-        self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
+        if self.product_management_page_instance:
+            self.main_area_stack.setCurrentWidget(self.product_management_page_instance)
+        else:
+            logging.warning("Product Management page instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Product Management est désactivé."))
+
 
     def show_about_dialog(self): QMessageBox.about(self, self.tr("À propos"), self.tr("<b>Gestionnaire de Documents Client</b><br><br>Version 4.0<br>Application de gestion de documents clients avec templates Excel.<br><br>Développé par Saadiya Management (Concept)"))
         
@@ -698,12 +799,40 @@ class DocumentManager(QMainWindow):
            hasattr(self.settings_page_instance.company_tab, 'load_all_data'): # Assuming CompanyTabWidget has this
             self.settings_page_instance.company_tab.load_all_data()
 
-        # After settings page is shown and potentially modified & saved by its own mechanism,
-        # re-initialize the download monitor to reflect any changes.
-        # This is a simplification; ideally, SettingsPage would emit a signal on save.
-        self.init_or_update_download_monitor()
+        # After settings page is shown and potentially modified & saved by its own mechanism:
+        try:
+            # Disconnect first to prevent multiple connections if settings page is shown multiple times
+            self.settings_page_instance.save_settings_button.clicked.disconnect(self._handle_settings_saved)
+        except TypeError:  # Signal was not connected
+            pass
+        self.settings_page_instance.save_settings_button.clicked.connect(self._handle_settings_saved)
 
-        logging.info("Switched to Settings Page and refreshed its data. Download monitor re-initialized.")
+        logging.info("Switched to Settings Page and refreshed its data.")
+
+    def _handle_settings_saved(self):
+        """Called when 'Save All Settings' in SettingsPage is clicked."""
+        logging.info("Handling settings saved signal from SettingsPage...")
+
+        current_states_copy = dict(self.module_states)
+        self._load_module_states()  # Reload from DB to get potentially changed states
+
+        if current_states_copy != self.module_states:
+            logging.info("Module states have changed. Prompting for restart.")
+            QMessageBox.information(self,
+                                    self.tr("Redémarrage requis"),
+                                    self.tr("Les paramètres des modules ont été modifiés. "
+                                            "Veuillez redémarrer l'application pour que les changements prennent pleinement effet."))
+            # Here, you might want to update the UI immediately (e.g., menus) if feasible,
+            # or strictly rely on restart. For now, we will rely on restart for UI changes.
+            # Re-creating menus might be an option:
+            # self.menuBar().clear()
+            # self.create_menus_main()
+            # However, this doesn't re-initialize widgets in the stack. Restart is cleaner.
+
+        # Also, re-initialize download monitor as it was done before
+        self.init_or_update_download_monitor()
+        logging.info("Settings saved from SettingsPage. Checked for module changes and re-initialized download monitor.")
+
             
     def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
     def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
