@@ -690,7 +690,6 @@ class ClientWidget(QWidget):
     def _handle_edit_pdf_action(self, file_path, document_id):
         if file_path and os.path.exists(file_path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-=======
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
@@ -1373,7 +1372,7 @@ class ClientWidget(QWidget):
         doc_btn_layout.addWidget(self.refresh_docs_btn)
 
         self.add_template_btn = QPushButton(self.tr("Générer via Modèle"))
-            self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # Reverted
+        self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # Reverted
         self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle"))
         self.add_template_btn.clicked.connect(self.open_create_docs_dialog)
         doc_btn_layout.addWidget(self.add_template_btn)

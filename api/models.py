@@ -390,7 +390,7 @@ class DocumentGenerationRequest(BaseModel):
     target_language_code: str = Field(..., description="Target language for the document content, e.g., 'fr', 'en'")
     document_title: Optional[str] = Field(None, description="Optional title for the document, overrides template default if provided")
     line_items: Optional[List[Dict[str, Any]]] = Field(None, description="List of line items, e.g., products with quantities and prices")
-    additional_context: Optional[Dict[str, Any]]] = Field(None, description="Other context-specific data needed for the document")
+    additional_context: Optional[Dict[str, Any]] = Field(None, description="Other context-specific data needed for the document")
 
 class DocumentGenerationResponse(BaseModel):
     message: str = Field(..., description="Status message of the generation process")

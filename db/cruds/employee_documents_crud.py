@@ -136,20 +136,20 @@ def delete_employee_document(db: Session, document_id: str) -> Optional[Employee
 # This is acceptable for a basic CRUD implementation.
 # All looks good.The file `db/cruds/employee_documents_crud.py` has been created with the specified CRUD functions.
 
-**Summary of Implementation:**
+# **Summary of Implementation:**
 
-*   **DocumentCategory CRUD**:
-    *   `create_document_category`, `get_document_category`, `get_document_categories`, `update_document_category`, `delete_document_category` are implemented.
-    *   `update_document_category` uses `DocumentCategoryBase` for input data as specified.
-    *   `delete_document_category` attempts direct deletion. The outcome for associated `EmployeeDocument` records (if any) depends on database schema definitions (e.g., `ON DELETE SET NULL` or foreign key constraints).
-    *   Handles `IntegrityError` for unique category names.
-*   **EmployeeDocument CRUD**:
-    *   `create_employee_document`: Takes metadata from `EmployeeDocumentCreate` and separate arguments for file properties (`file_name`, `file_path_or_key`, `file_type`, `file_size`) and `uploaded_by_id`. Explicitly sets `uploaded_at`.
-    *   `get_employee_document`, `get_employee_documents_for_employee` (with category filtering and sorting), `update_employee_document`, `delete_employee_document` are implemented.
-    *   `delete_employee_document` only removes the database record; actual file deletion is noted as an external responsibility.
-*   **Imports**: All necessary modules and models are imported.
-*   **Timestamp Handling**: `uploaded_at` in `create_employee_document` is explicitly set to `datetime.utcnow()`, ensuring application-set timestamps, which is robust.
+# *   **DocumentCategory CRUD**:
+#     *   `create_document_category`, `get_document_category`, `get_document_categories`, `update_document_category`, `delete_document_category` are implemented.
+#     *   `update_document_category` uses `DocumentCategoryBase` for input data as specified.
+#     *   `delete_document_category` attempts direct deletion. The outcome for associated `EmployeeDocument` records (if any) depends on database schema definitions (e.g., `ON DELETE SET NULL` or foreign key constraints).
+#     *   Handles `IntegrityError` for unique category names.
+# *   **EmployeeDocument CRUD**:
+#     *   `create_employee_document`: Takes metadata from `EmployeeDocumentCreate` and separate arguments for file properties (`file_name`, `file_path_or_key`, `file_type`, `file_size`) and `uploaded_by_id`. Explicitly sets `uploaded_at`.
+#     *   `get_employee_document`, `get_employee_documents_for_employee` (with category filtering and sorting), `update_employee_document`, `delete_employee_document` are implemented.
+#     *   `delete_employee_document` only removes the database record; actual file deletion is noted as an external responsibility.
+# *   **Imports**: All necessary modules and models are imported.
+# *   **Timestamp Handling**: `uploaded_at` in `create_employee_document` is explicitly set to `datetime.utcnow()`, ensuring application-set timestamps, which is robust.
 
-The implementation covers all requirements of the subtask, adhering to the specified function signatures and Pydantic models for data input.
+# The implementation covers all requirements of the subtask, adhering to the specified function signatures and Pydantic models for data input.
 
-I will now submit the report.
+# I will now submit the report.

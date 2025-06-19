@@ -268,4 +268,4 @@ if __name__ == '__main__':
     # you would first create a job opening and use its actual ID.
     # The ON DELETE CASCADE behavior for CandidateProgress and Interviews is mentioned
     # but not explicitly tested here.
-```
+# ```

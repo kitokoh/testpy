@@ -360,4 +360,4 @@ def setup_step2_for_progress(step_id, cand_id, status_id):
 # because the RecruitmentStep itself needs a valid job_opening_id.
 # The current example might not fully function for that specific function if FKs are strictly enforced
 # without creating all parent dummy records perfectly.
-```
+# ```

@@ -259,12 +259,7 @@ class StatisticsDashboard(QWidget):
             self.client_details_layout.removeRow(0)
 
 
-        try:
-            client_data = clients_crud_instance.get_client_by_id(client_id_str, include_deleted=True)
-            if not client_data:
-                self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Client non trouvé.")))
-                self.stats_stack.setCurrentWidget(self.client_details_widget)
-                return
+  
 
         try:
             client_data = clients_crud_instance.get_client_by_id(client_id_str, include_deleted=True)
@@ -307,42 +302,6 @@ class StatisticsDashboard(QWidget):
             logging.error(f"Error fetching/displaying client details for ID {client_id_str}: {e}", exc_info=True)
             self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Impossible de charger les détails du client.")))
 
-        self.stats_stack.setCurrentWidget(self.client_details_widget)
-
-
-            country_name = self.tr("N/A")
-            if client_data.get('country_id'):
-                country_obj = get_country_by_id(client_data['country_id'])
-                if country_obj: country_name = country_obj.get('country_name', self.tr("N/A"))
-
-            city_name = self.tr("N/A")
-            if client_data.get('city_id'):
-                city_obj = get_city_by_id(client_data['city_id'])
-                if city_obj: city_name = city_obj.get('city_name', self.tr("N/A"))
-
-            status_name = self.tr("N/A")
-            if client_data.get('status_id'):
-                status_obj = get_status_setting_by_id(client_data['status_id'])
-                if status_obj: status_name = status_obj.get('status_name', self.tr("N/A"))
-
-            details_to_display = {
-                self.tr("Nom Client:"): client_data.get('client_name', self.tr("N/A")),
-                self.tr("Société:"): client_data.get('company_name', self.tr("N/A")) or self.tr("N/A"), # Ensure empty string becomes N/A
-                self.tr("Pays:"): country_name,
-                self.tr("Ville:"): city_name,
-                self.tr("Statut:"): status_name,
-                self.tr("Date Création:"): client_data.get('created_at_str', self.tr("N/A")), # Assuming 'created_at_str' exists
-                self.tr("Besoin Principal:"): client_data.get('primary_need_description', self.tr("N/A")) or self.tr("N/A")
-            }
-
-            for label, value in details_to_display.items():
-                value_label = QLabel(str(value))
-                value_label.setWordWrap(True) # Allow text wrapping for longer values
-                self.client_details_layout.addRow(QLabel(label), value_label)
-
-        except Exception as e:
-            logging.error(f"Error fetching/displaying client details for ID {client_id_str}: {e}", exc_info=True)
-            self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Impossible de charger les détails du client.")))
 
         self.stats_stack.setCurrentWidget(self.client_details_widget)
 
