@@ -136,6 +136,7 @@ def delete_employee_document(db: Session, document_id: str) -> Optional[Employee
 # This is acceptable for a basic CRUD implementation.
 # All looks good.The file `db/cruds/employee_documents_crud.py` has been created with the specified CRUD functions.
 
+
 # **Summary of Implementation:**
 
 # *   **DocumentCategory CRUD**:

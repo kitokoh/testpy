@@ -470,6 +470,7 @@ class LeaveSummaryReportResponse(BaseModel):
     filter_status: Optional[str] = None # e.g., "approved", "pending"
     data: List[LeaveSummaryReportItem]
 
+
 # Pydantic Models for Employee
 class EmployeeBase(BaseModel):
     first_name: str
@@ -550,7 +551,6 @@ class EmployeeDocumentResponse(EmployeeDocumentBase):
 
     document_category: Optional[DocumentCategoryResponse] = None # Nested
     employee: Optional[EmployeeResponse] = None # Optional for context, EmployeeResponse already defined
-
 
     download_url: Optional[str] = None # To be constructed by API endpoint logic
 
