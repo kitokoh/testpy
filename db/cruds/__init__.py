@@ -10,6 +10,7 @@ from . import clients_crud
 from . import companies_crud
 from . import company_personnel_crud
 from . import contacts_crud
+from . import employees_crud
 from . import cover_page_templates_crud
 from . import cover_pages_crud
 from . import freight_forwarders_crud # Added

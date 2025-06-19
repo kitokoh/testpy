@@ -3,7 +3,7 @@ import enum
 from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLAlchemyEnum, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 from sqlalchemy.sql import func
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -181,6 +181,27 @@ class Contact(Base):
         return f"<Contact(contact_id={self.contact_id}, name='{self.name}', email='{self.email}')>"
 
 
+class Employee(Base):
+    __tablename__ = "employees"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False, index=True)
+    phone_number = Column(String, nullable=True)
+    position = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    salary = Column(Float, nullable=True)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<Employee(id={self.id}, email='{self.email}')>"
+
+
 # --- Existing Pydantic Models Below ---
 # It's unusual to mix SQLAlchemy and Pydantic models in the same file this way,
 # but adhering to the subtask's request to modify api/models.py.
@@ -242,6 +263,43 @@ class ProductImageLinkResponse(ProductImageLinkBase):
     image_url: Optional[str] = Field(None, description="Full URL to the original image.")
     thumbnail_url: Optional[str] = Field(None, description="Full URL to the image thumbnail.")
     media_title: Optional[str] = Field(None, description="Title of the media item.")
+
+    class Config:
+        from_attributes = True
+
+
+# Pydantic Models for Employee
+class EmployeeBase(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: date
+    end_date: Optional[date] = None
+    is_active: bool = True
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    position: Optional[str] = None
+    department: Optional[str] = None
+    salary: Optional[float] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class EmployeeResponse(EmployeeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
