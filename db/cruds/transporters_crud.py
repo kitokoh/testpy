@@ -15,13 +15,15 @@ def add_transporter(data: dict) -> str | None:
         sql = """
             INSERT INTO Transporters (
                 transporter_id, name, contact_person, phone, email, address,
-                service_area, notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                service_area, notes, latitude, longitude, current_cargo,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             new_transporter_id, data.get('name'), data.get('contact_person'),
             data.get('phone'), data.get('email'), data.get('address'),
-            data.get('service_area'), data.get('notes'), now, now
+            data.get('service_area'), data.get('notes'), data.get('latitude'),
+            data.get('longitude'), data.get('current_cargo'), now, now
         )
         cursor.execute(sql, params)
         conn.commit()

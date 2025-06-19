@@ -31,7 +31,7 @@ from .cruds.client_documents_crud import (
     delete_client_document_note,
     get_client_document_note_by_id,
 )
-from .utils import get_document_context_data
+from .utils import get_document_context_data, save_general_document_file, delete_general_document_file
 # For proforma_invoices_crud, we will NOT add them here due to SQLAlchemy vs sqlite3 differences.
 # Files using proforma_invoices_crud will import it directly.
 from .cruds.application_settings_crud import get_setting, set_setting
@@ -53,6 +53,11 @@ from .cruds.tasks_crud import (
     delete_task,
     get_task_by_id,
     get_tasks_by_assignee_id,
+    get_tasks_by_project_id_ordered_by_sequence,
+    add_task_dependency,
+    get_predecessor_tasks,
+    remove_task_dependency,
+
 )
 from .cruds.kpis_crud import get_kpis_for_project
 from .cruds.activity_logs_crud import add_activity_log, get_activity_logs
@@ -71,6 +76,7 @@ from .cruds.team_members_crud import (
 )
 from .cruds.clients_crud import ( # Modified
     get_all_clients,
+    get_client_by_id, # Added
     get_active_clients_count,
     get_client_counts_by_country,
     get_client_segmentation_by_city,
@@ -115,7 +121,9 @@ from .cruds.templates_crud import ( # Modified
     get_distinct_template_languages,
     get_distinct_template_types,
     get_filtered_templates,
-    get_distinct_languages_for_template_type
+    get_distinct_languages_for_template_type,
+    add_utility_document_template,
+    get_utility_documents,
 )
 from .cruds.cover_page_templates_crud import get_cover_page_template_by_id
 from .cruds.milestones_crud import (
@@ -182,6 +190,10 @@ from .cruds.partners_crud import (
     delete_partner_category,
     update_partner_category,
     get_partner_category_by_id, # Added
+    add_partner_interaction,
+    get_interactions_for_partner,
+    update_partner_interaction,
+    delete_partner_interaction,
 )
 from .cruds.locations_crud import get_all_countries, add_country, get_or_add_country, get_all_cities, add_city, get_or_add_city, get_country_by_id, get_city_by_id, get_country_by_name, get_city_by_name_and_country_id
 from .cruds.transporters_crud import get_all_transporters, add_transporter, get_transporter_by_id, update_transporter, delete_transporter
@@ -223,6 +235,8 @@ __all__ = [
     "delete_client_document_note",
     "get_client_document_note_by_id",
     "get_document_context_data",
+    "save_general_document_file",
+    "delete_general_document_file",
     "get_all_products", # Added
     "get_all_products_for_selection_filtered", # Added
 
@@ -240,6 +254,11 @@ __all__ = [
     "delete_task",
     "get_task_by_id",
     "get_tasks_by_assignee_id",
+    "get_tasks_by_project_id_ordered_by_sequence",
+    "add_task_dependency",
+    "get_predecessor_tasks",
+    "remove_task_dependency",
+
     "get_kpis_for_project",
     "add_activity_log",
     "get_activity_logs",
@@ -253,6 +272,7 @@ __all__ = [
     "update_team_member",
     "delete_team_member",
     "get_all_clients",
+    "get_client_by_id", # Added
     "get_active_clients_count",
     "get_total_clients_count", # Added
     "get_client_counts_by_country", # Added
@@ -290,6 +310,8 @@ __all__ = [
     "get_distinct_template_types", # Added from templates_crud.py
     "get_distinct_languages_for_template_type", # Added this line
     "get_filtered_templates", # Added from templates_crud.py
+    "add_utility_document_template", # Added from templates_crud.py
+    "get_utility_documents", # Added from templates_crud.py
     "get_cover_page_template_by_id", # Now from cover_page_templates_crud
     "get_milestones_for_project",
     "add_milestone",
@@ -346,6 +368,10 @@ __all__ = [
     "delete_partner_category",
     "update_partner_category",
     "get_partner_category_by_id", # Added
+    "add_partner_interaction",
+    "get_interactions_for_partner",
+    "update_partner_interaction",
+    "delete_partner_interaction",
     "get_all_countries",
     "add_country",
     "get_or_add_country",
@@ -380,3 +406,5 @@ __all__ = [
     "assign_forwarder_to_client",
     "unassign_forwarder_from_client",
 ]
+
+from .connection import get_db_connection

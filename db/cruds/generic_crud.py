@@ -66,6 +66,18 @@ class GenericCRUD:
     if they intend to use these generic methods directly without overriding or
     if they call super() to these methods.
     """
+
+    # Helper function to convert sqlite3.Row objects to dictionaries
+    # This is useful if not using conn.row_factory = sqlite3.Row globally,
+    # or if needing to ensure dict conversion at a specific point.
+    # However, with conn.row_factory = sqlite3.Row, direct dict(row) works.
+    # Let's define it here for explicitness and potential complex object handling later.
+    def _object_to_dict(self, db_row: sqlite3.Row) -> dict | None:
+        """Converts a sqlite3.Row object to a dictionary."""
+        if db_row is None:
+            return None
+        return dict(db_row)
+
     @_manage_conn
     def get_by_id(self, table_name: str, id_column: str, item_id: any, conn: sqlite3.Connection) -> dict | None:
         """
@@ -83,7 +95,7 @@ class GenericCRUD:
         query = f"SELECT * FROM {table_name} WHERE {id_column} = ?"
         cursor = conn.execute(query, (item_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        return self._object_to_dict(row)
 
     @_manage_conn
     def delete_by_id(self, table_name: str, id_column: str, item_id: any, conn: sqlite3.Connection) -> bool:
@@ -142,7 +154,7 @@ class GenericCRUD:
             query += f" ORDER BY {order_by}"
         cursor = conn.execute(query)
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        return [self._object_to_dict(row) for row in rows]
 
     # Placeholder for query construction helper
     # def _build_query(self, query_type: str, **kwargs) -> str:
@@ -150,3 +162,11 @@ class GenericCRUD:
     #     # This method would handle more complex query building logic
     #     # For example, handling multiple conditions, joins, etc.
     #     pass
+
+# Utility function, can be outside the class if preferred, or static.
+# Making it a top-level function for easier import/use by other modules if needed.
+def object_to_dict(db_row: sqlite3.Row) -> dict | None:
+    """Converts a sqlite3.Row object to a dictionary."""
+    if db_row is None:
+        return None
+    return dict(db_row)

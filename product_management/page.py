@@ -20,49 +20,114 @@ class ProductManagementPage(QWidget):
         main_layout = QVBoxLayout(self)
 
         title_layout = QHBoxLayout()
-        # Title for a page is usually managed by the main window's structure, not within the page itself.
-        # If this is a section title within the page:
         title_label = QLabel(self.tr("Product Database Management"))
-        title_label.setStyleSheet("font-size: 16pt; font-weight: bold;") # Example styling
+        title_label.setStyleSheet("font-size: 16pt; font-weight: bold;")
         title_layout.addWidget(title_label)
-        title_layout.addStretch() # Pushes title to left if other items were added
-        # self.title_edit = QLineEdit(self.tr("Product Management")) # QLineEdit for title seems unusual for a page
-        # title_layout.addWidget(self.title_edit)
+        title_layout.addStretch()
         main_layout.addLayout(title_layout)
 
-        filter_group_box = QGroupBox(self.tr("Filters"))
-        filter_form_layout = QFormLayout(filter_group_box)
+        # Top Controls (Add, Edit, Delete, Export)
+        self.add_product_button = QPushButton(self.tr("Add Product"))
+        self.add_product_button.clicked.connect(self._open_add_product_dialog)
+        self.edit_product_button = QPushButton(self.tr("Edit Product"))
+        self.edit_product_button.clicked.connect(self._open_edit_product_dialog)
+        self.edit_product_button.setEnabled(False)
+        self.delete_product_button = QPushButton(self.tr("Delete Product"))
+        self.delete_product_button.clicked.connect(self._delete_selected_product)
+        self.delete_product_button.setEnabled(False)
+        self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
+        self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder)
+
+        top_controls_layout = QHBoxLayout()
+        top_controls_layout.addWidget(self.add_product_button)
+        top_controls_layout.addSpacing(5)
+        top_controls_layout.addWidget(self.edit_product_button)
+        top_controls_layout.addSpacing(5)
+        top_controls_layout.addWidget(self.delete_product_button)
+        top_controls_layout.addStretch()
+        top_controls_layout.addWidget(self.export_pdf_button)
+        main_layout.addLayout(top_controls_layout)
+        main_layout.addSpacing(10) # Spacing after top_controls_layout
+
+        # Filter Toggle Button
+        filter_toggle_layout = QHBoxLayout()
+        self.toggle_filters_button = QPushButton(self.tr("Hide Filters"))
+        self.toggle_filters_button.setObjectName("toggleFiltersButton")
+        self.toggle_filters_button.clicked.connect(self._toggle_filter_visibility)
+        filter_toggle_layout.addWidget(self.toggle_filters_button)
+        filter_toggle_layout.addStretch()
+        main_layout.addLayout(filter_toggle_layout)
+        # main_layout.addSpacing(5) # Optional spacing between toggle button and filter box
+
+        # Filters Group Box
+        self.filter_group_box = QGroupBox(self.tr("Filters")) # Changed to self.filter_group_box
+        # self.filter_group_box.setContentsMargins(10, 15, 10, 10) # QSS already provides padding: 10px. Adjust top for title.
+        filter_group_main_layout = QVBoxLayout(self.filter_group_box) # Main layout for the group box
+
+        # filter_group_main_layout.setContentsMargins(5, 5, 5, 5) # Margins for the layout within the groupbox
+
+        filter_search_layout = QHBoxLayout() # Layout for language, category, search
+
+        # Language ComboBox
         self.language_combo = QComboBox()
         self.language_combo.addItems([self.tr("All Languages"), "fr", "en", "ar", "tr", "pt"])
         self.language_combo.setCurrentIndex(0)
         self.language_combo.currentIndexChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Language:"), self.language_combo)
+        filter_search_layout.addWidget(QLabel(self.tr("Language:")))
+        filter_search_layout.addWidget(self.language_combo)
+        filter_search_layout.addSpacing(10)
+
+        # Category Filter Input
         self.category_filter_input = QLineEdit()
         self.category_filter_input.setPlaceholderText(self.tr("Filter by category..."))
         self.category_filter_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Category:"), self.category_filter_input)
+        filter_search_layout.addWidget(QLabel(self.tr("Category:")))
+        filter_search_layout.addWidget(self.category_filter_input)
+        filter_search_layout.addSpacing(10)
+
+        # Search Product Input
         self.search_product_input = QLineEdit()
         self.search_product_input.setPlaceholderText(self.tr("Search by product name..."))
         self.search_product_input.textChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.tr("Search Name:"), self.search_product_input)
+        filter_search_layout.addWidget(QLabel(self.tr("Search Name:")))
+        filter_search_layout.addWidget(self.search_product_input)
+        filter_search_layout.addSpacing(10)
+
+        # Search Product Code Input
+        self.search_product_code_input = QLineEdit()
+        self.search_product_code_input.setPlaceholderText(self.tr("Search by product code..."))
+        self.search_product_code_input.textChanged.connect(self.apply_filters_and_reload)
+        filter_search_layout.addWidget(QLabel(self.tr("Search Code:")))
+        filter_search_layout.addWidget(self.search_product_code_input)
+
+        filter_search_layout.addStretch()
+
+        filter_group_main_layout.addLayout(filter_search_layout)
+        filter_group_main_layout.addSpacing(5) # Spacing between filter_search_layout and checkbox
+
+        # Include Deleted Checkbox
         self.include_deleted_checkbox = QCheckBox(self.tr("Include Deleted Products"))
         self.include_deleted_checkbox.stateChanged.connect(self.apply_filters_and_reload)
-        filter_form_layout.addRow(self.include_deleted_checkbox)
-        main_layout.addWidget(filter_group_box)
+        filter_group_main_layout.addWidget(self.include_deleted_checkbox)
+
+        main_layout.addWidget(self.filter_group_box) # Changed to self.filter_group_box
+
+        main_layout.addSpacing(10) # Spacing after filter_group_box
 
         self.product_table = QTableWidget()
-        self.product_table.setColumnCount(7)
+        self.product_table.setColumnCount(8) # Increased column count for Product Code
         self.product_table.setHorizontalHeaderLabels([
-            "ID", self.tr("Product Name"), self.tr("Description"), self.tr("Price"),
+            "ID", self.tr("Product Name"), self.tr("Product Code"), self.tr("Description"), self.tr("Price"),
             self.tr("Language"), self.tr("Tech Specs"), self.tr("Translations")
         ])
-        self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.product_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Interactive)
-        self.product_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.product_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        self.product_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.product_table.hideColumn(0)
+        self.product_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch) # Name
+        self.product_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Interactive) # Product Code
+        self.product_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch) # Description
+        self.product_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive) # Price
+        self.product_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents) # Language
+        self.product_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents) # Tech Specs
+        self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents) # Translations
+        self.product_table.hideColumn(0) # Hide ID column
         self.product_table.itemChanged.connect(self.handle_price_change)
         self.product_table.itemSelectionChanged.connect(self._update_button_states)
         self.product_table.itemDoubleClicked.connect(self._open_edit_product_dialog_from_item)
@@ -79,27 +144,24 @@ class ProductManagementPage(QWidget):
         pagination_layout.addWidget(self.next_page_button)
         main_layout.addLayout(pagination_layout)
 
-        button_layout = QHBoxLayout()
-        self.add_product_button = QPushButton(self.tr("Add Product"))
-        self.add_product_button.clicked.connect(self._open_add_product_dialog)
-        button_layout.addWidget(self.add_product_button)
-        self.edit_product_button = QPushButton(self.tr("Edit Product"))
-        self.edit_product_button.clicked.connect(self._open_edit_product_dialog)
-        self.edit_product_button.setEnabled(False)
-        button_layout.addWidget(self.edit_product_button)
-        self.delete_product_button = QPushButton(self.tr("Delete Product"))
-        self.delete_product_button.clicked.connect(self._delete_selected_product)
-        self.delete_product_button.setEnabled(False)
-        button_layout.addWidget(self.delete_product_button)
-        button_layout.addStretch()
-        self.export_pdf_button = QPushButton(self.tr("Export to PDF"))
-        self.export_pdf_button.clicked.connect(self.export_to_pdf_placeholder) # Renamed from export_to_pdf
-        button_layout.addWidget(self.export_pdf_button)
-        main_layout.addLayout(button_layout)
+        # Removed old button_layout as buttons are now in top_controls_layout
+        # main_layout.addLayout(button_layout) # This line is removed
 
         self.setLayout(main_layout)
         self.load_products_to_table()
         self._update_button_states()
+
+    def _toggle_filter_visibility(self):
+        if self.filter_group_box.isVisible():
+            self.filter_group_box.setVisible(False)
+            self.toggle_filters_button.setText(self.tr("Show Filters"))
+            # Optionally, set icon for "show" state
+            # self.toggle_filters_button.setIcon(QIcon(":/icons/chevron-right.svg")) # Example
+        else:
+            self.filter_group_box.setVisible(True)
+            self.toggle_filters_button.setText(self.tr("Hide Filters"))
+            # Optionally, set icon for "hide" state
+            # self.toggle_filters_button.setIcon(QIcon(":/icons/chevron-down.svg")) # Example
 
     def _open_add_product_dialog(self):
         # Pass self as parent if ProductEditDialog expects a QWidget parent for modality or window management
@@ -180,11 +242,14 @@ class ProductManagementPage(QWidget):
 
         category_filter = self.category_filter_input.text().strip()
         search_name_filter = self.search_product_input.text().strip()
+        search_code_filter = self.search_product_code_input.text().strip() # Added product_code filter
         include_deleted = self.include_deleted_checkbox.isChecked()
         filters = {}
         if language_code: filters['language_code'] = language_code
         if category_filter: filters['category'] = category_filter
-        if search_name_filter: filters['product_name'] = f"%{search_name_filter}%"
+        if search_name_filter: filters['product_name'] = f"%{search_name_filter}%" # Assuming backend handles LIKE
+        if search_code_filter: filters['product_code_like'] = f"%{search_code_filter}%" # Assuming backend handles LIKE for product_code
+
         try:
             products = products_crud_instance.get_all_products(
                 filters=filters, limit=self.limit_per_page, offset=self.current_offset, include_deleted=include_deleted
@@ -193,27 +258,38 @@ class ProductManagementPage(QWidget):
                 self.product_table.setRowCount(len(products))
                 for row, product_data in enumerate(products):
                     product_id = product_data.get("product_id")
+                    col = 0
                     id_item = QTableWidgetItem(str(product_id)); id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 0, id_item)
+                    self.product_table.setItem(row, col, id_item); col += 1
+
                     name_item = QTableWidgetItem(product_data.get("product_name")); name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable); name_item.setData(Qt.UserRole, product_id)
-                    self.product_table.setItem(row, 1, name_item)
+                    self.product_table.setItem(row, col, name_item); col += 1
+
+                    code_item = QTableWidgetItem(product_data.get("product_code", "")); code_item.setFlags(code_item.flags() & ~Qt.ItemIsEditable)
+                    self.product_table.setItem(row, col, code_item); col += 1
+
                     desc_item = QTableWidgetItem(product_data.get("description")); desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 2, desc_item)
+                    self.product_table.setItem(row, col, desc_item); col += 1
+
                     price_val = product_data.get("base_unit_price"); price_str = f"{price_val:.2f}" if isinstance(price_val, (float, int)) else str(price_val)
-                    price_item = QTableWidgetItem(price_str)
-                    self.product_table.setItem(row, 3, price_item)
+                    price_item = QTableWidgetItem(price_str) # Price editable by default based on itemChanged connection
+                    self.product_table.setItem(row, col, price_item); col += 1
+
                     lang_code_val = product_data.get("language_code", ""); lang_item = QTableWidgetItem(lang_code_val); lang_item.setFlags(lang_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 4, lang_item)
+                    self.product_table.setItem(row, col, lang_item); col += 1
+
                     tech_specs_data = products_crud_instance.get_product_dimension(product_id)
                     has_tech_specs_bool = bool(tech_specs_data and (tech_specs_data.get('technical_image_path') or any(str(tech_specs_data.get(f'dim_{chr(ord("A")+i)}','')).strip() for i in range(10))))
                     tech_specs_indicator = self.tr("Yes") if has_tech_specs_bool else self.tr("No")
                     tech_specs_item = QTableWidgetItem(tech_specs_indicator); tech_specs_item.setFlags(tech_specs_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 5, tech_specs_item)
+                    self.product_table.setItem(row, col, tech_specs_item); col += 1
+
                     equivalent_products = products_crud_instance.get_equivalent_products(product_id, include_deleted=False)
                     translations_count = len(equivalent_products) if equivalent_products else 0
                     translations_indicator = str(translations_count) if translations_count > 0 else self.tr("No")
                     translations_item = QTableWidgetItem(translations_indicator); translations_item.setFlags(translations_item.flags() & ~Qt.ItemIsEditable)
-                    self.product_table.setItem(row, 6, translations_item)
+                    self.product_table.setItem(row, col, translations_item); col += 1
+
             self.update_pagination_controls(len(products) if products else 0)
         except Exception as e:
             print(f"Error loading products to table: {e}")
@@ -238,7 +314,8 @@ class ProductManagementPage(QWidget):
             self.load_products_to_table()
 
     def handle_price_change(self, item):
-        if item.column() == 3:
+        # Column index for price is now 4 due to "Product Code" column insertion
+        if item.column() == 4: # Price column index updated
             row = item.row()
             # Try to get product_id from hidden ID column first
             id_item = self.product_table.item(row, 0)
@@ -315,9 +392,9 @@ class ProductManagementPage(QWidget):
             html_template_string = '''
             <!DOCTYPE html><html><head><meta charset="UTF-8"><title>{{ title }}</title>
             <style>body{font-family:sans-serif;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background-color:#f2f2f2;}h1{text-align:center;}</style>
-            </head><body><h1>{{ title }}</h1><table><thead><tr><th>Product Name</th><th>Description</th><th>Price</th><th>Language</th><th>Tech Specs</th><th>Translations</th></tr></thead>
-            <tbody>{{#each products}}<tr><td>{{this.product_name}}</td><td>{{this.description}}</td><td>{{this.base_unit_price}}</td><td>{{this.language_code_display}}</td><td>{{this.tech_specs_indicator}}</td><td>{{this.translations_indicator}}</td></tr>{{/each}}
-            {{#if products_empty}}<tr><td colspan="6" style="text-align:center;">No products to display.</td></tr>{{/if}}
+            </head><body><h1>{{ title }}</h1><table><thead><tr><th>Product Name</th><th>Product Code</th><th>Description</th><th>Price</th><th>Language</th><th>Tech Specs</th><th>Translations</th></tr></thead>
+            <tbody>{{#each products}}<tr><td>{{this.product_name}}</td><td>{{this.product_code}}</td><td>{{this.description}}</td><td>{{this.base_unit_price}}</td><td>{{this.language_code_display}}</td><td>{{this.tech_specs_indicator}}</td><td>{{this.translations_indicator}}</td></tr>{{/each}}
+            {{#if products_empty}}<tr><td colspan="7" style="text-align:center;">No products to display.</td></tr>{{/if}}
             </tbody></table></body></html>'''
             context = {'title': page_title_text, 'products': product_list_for_pdf, 'products_empty': not bool(product_list_for_pdf)}
             rendered_html = html_to_pdf_util.render_html_template(html_template_string, context)

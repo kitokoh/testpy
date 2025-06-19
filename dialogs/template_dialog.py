@@ -52,14 +52,24 @@ class TemplateDialog(QDialog):
         filter_layout.addWidget(self.doc_type_filter_label, 0, 4)
         filter_layout.addWidget(self.doc_type_filter_combo, 0, 5)
 
+        self.client_filter_label = QLabel(self.tr("Client:"))
+        self.client_filter_combo = QComboBox()
+        filter_layout.addWidget(self.client_filter_label, 1, 0) # New row for client filter
+        filter_layout.addWidget(self.client_filter_combo, 1, 1, 1, 5) # Span across multiple columns
+
         # Add some stretch to push filters to the left if needed, or set column stretch factors
         filter_layout.setColumnStretch(6, 1) # Add stretch to the right of filters
-
         left_vbox_layout.addLayout(filter_layout)
 
-        self.template_list = QTreeWidget(); self.template_list.setColumnCount(4)
-        self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Default Status")])
-        header = self.template_list.header(); header.setSectionResizeMode(0, QHeaderView.Stretch); header.setSectionResizeMode(1, QHeaderView.ResizeToContents); header.setSectionResizeMode(2, QHeaderView.ResizeToContents); header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.template_list = QTreeWidget(); self.template_list.setColumnCount(6) # Increased column count for Purpose
+        self.template_list.setHeaderLabels([self.tr("Name"), self.tr("Type"), self.tr("Language"), self.tr("Client"), self.tr("Default Status"), self.tr("Purpose")])
+        header = self.template_list.header()
+        header.setSectionResizeMode(0, QHeaderView.Stretch) # Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents) # Type
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents) # Language
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) # Client
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents) # Default Status
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents) # Purpose
         self.template_list.setAlternatingRowColors(True); font = self.template_list.font(); font.setPointSize(font.pointSize() + 1); self.template_list.setFont(font)
         left_vbox_layout.addWidget(self.template_list)
         btn_layout = QHBoxLayout(); btn_layout.setSpacing(8)
@@ -75,20 +85,41 @@ class TemplateDialog(QDialog):
         self.populate_category_filter()
         self.populate_language_filter()
         self.populate_doc_type_filter()
+        self.populate_client_filter() # Populate new client filter
 
         # Connect filter signals
         self.category_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
         self.language_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
         self.doc_type_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
+        self.client_filter_combo.currentIndexChanged.connect(self.handle_filter_changed) # Connect new filter
 
         self.load_templates(); self.template_list.currentItemChanged.connect(self.handle_tree_item_selection)
 
     def handle_filter_changed(self):
         category_id = self.category_filter_combo.currentData()
         language_code = self.language_filter_combo.currentData()
-        doc_type = self.doc_type_filter_combo.currentData() # This is the DB value
+        doc_type = self.doc_type_filter_combo.currentData()
+        client_filter_data = self.client_filter_combo.currentData()
 
-        self.load_templates(category_filter=category_id, language_filter=language_code, type_filter=doc_type)
+        client_id = None
+        fetch_global_only = False
+
+        if isinstance(client_filter_data, str):
+            if client_filter_data == "__ALL__":
+                client_id = None
+            elif client_filter_data == "__GLOBAL_ONLY__":
+                fetch_global_only = True
+                client_id = None # Ensure client_id is None when fetching global only
+            else: # This means a specific client_id was stored
+                client_id = client_filter_data
+
+        self.load_templates(
+            category_filter=category_id,
+            language_filter=language_code,
+            type_filter=doc_type,
+            client_id_filter=client_id,
+            fetch_global_only=fetch_global_only
+        )
 
     def populate_category_filter(self):
         self.category_filter_combo.addItem(self.tr("All Categories"), "all")
@@ -134,11 +165,33 @@ class TemplateDialog(QDialog):
             if doc_types:
                 for type_tuple in doc_types:
                     db_type = type_tuple[0]
-                    display_name = self.doc_type_map.get(db_type, db_type)
+                    display_name = self.doc_type_map.get(db_type, db_type) # Use existing map
+                    # Add new types if not in map
+                    if db_type not in self.doc_type_map:
+                         self.doc_type_map[db_type] = db_type # Store new types as they are
+                         display_name = db_type
                     self.doc_type_filter_combo.addItem(display_name, db_type)
         except Exception as e:
             logging.error(f"Error populating document type filter: {e}")
             QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template document types for filtering."))
+
+    def populate_client_filter(self):
+        self.client_filter_combo.addItem(self.tr("All Clients & Global"), "__ALL__") # Represents client_id_filter = None
+        self.client_filter_combo.addItem(self.tr("Global Templates Only"), "__GLOBAL_ONLY__") # Represents fetch_global_only = True
+        try:
+            # Fetching all clients to populate the filter.
+            # db_manager.get_all_clients() should return a list of client dicts.
+            clients = db_manager.get_all_clients() # Assuming this function exists and works
+            if clients:
+                for client in clients:
+                    # Display client name, store client_id
+                    self.client_filter_combo.addItem(client.get('client_name', client.get('company_name', 'Unknown Client')), client.get('client_id'))
+            else:
+                logging.info("No clients found to populate client filter.")
+        except Exception as e:
+            logging.error(f"Error populating client filter: {e}")
+            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load clients for filtering."))
+
 
     def handle_tree_item_selection(self,current_item,previous_item):
         if current_item is not None and current_item.parent() is not None: self.show_template_preview(current_item); self.edit_btn.setEnabled(True); self.delete_btn.setEnabled(True); self.default_btn.setEnabled(True)
@@ -171,7 +224,7 @@ class TemplateDialog(QDialog):
             else: self.preview_area.setPlainText(self.tr("Détails du modèle non trouvés dans la base de données."))
         except Exception as e_general: self.preview_area.setPlainText(self.tr("Une erreur est survenue lors de la récupération des détails du modèle:\n{0}").format(str(e_general)))
 
-    def load_templates(self, category_filter=None, language_filter=None, type_filter=None):
+    def load_templates(self, category_filter=None, language_filter=None, type_filter=None, client_id_filter=None, fetch_global_only=False):
         self.template_list.clear()
         self.preview_area.clear()
         self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
@@ -180,10 +233,14 @@ class TemplateDialog(QDialog):
         effective_language_code = language_filter if language_filter != "all" else None
         effective_template_type = type_filter if type_filter != "all" else None
 
+        # client_id_filter and fetch_global_only are passed directly
+
         all_templates_from_db = get_filtered_templates(
             category_id=effective_category_id,
             language_code=effective_language_code,
-            template_type=effective_template_type
+            template_type=effective_template_type,
+            client_id_filter=client_id_filter,
+            fetch_global_only=fetch_global_only
         )
 
         if not all_templates_from_db:
@@ -196,14 +253,28 @@ class TemplateDialog(QDialog):
         if effective_category_id is not None:
             category_details = db_manager.get_template_category_details(effective_category_id)
             if category_details:
-                category_item = QTreeWidgetItem(self.template_list, [category_details['category_name']])
+                category_display_name = category_details['category_name']
+                category_purpose = category_details.get('purpose', self.tr('N/A')) # Get purpose
+                # Display purpose in the category item itself, or adjust columns if needed
+                # For QTreeWidget, modifying the first column text is common for top-level items.
+                # If Purpose is a new column for templates, category items won't use it directly.
+                # Let's assume Purpose is a column for templates, and for category rows, we can show it in the name.
+                # However, the header setup implies Purpose is a column for all items.
+                # For a category row, it would look like: [Category Name, "", "", "", "", Purpose]
+                category_item_texts = [category_display_name, "", "", "", "", category_purpose]
+                category_item = QTreeWidgetItem(self.template_list, category_item_texts)
+
                 for template_dict in all_templates_from_db:
                     template_name = template_dict['template_name']
                     template_db_type = template_dict.get('template_type', 'N/A')
                     display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
                     language = template_dict['language_code']
+                    client_display = template_dict.get('client_id', self.tr("Global"))
+                    if client_display is None: client_display = self.tr("Global")
                     is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, is_default])
+                    # Template items won't have a specific "Purpose" column value, it's a category attribute.
+                    # So the 6th column for template rows will be empty.
+                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""])
                     template_item.setData(0, Qt.UserRole, template_dict['template_id'])
         else:
             all_db_categories = db_manager.get_all_template_categories()
@@ -222,14 +293,20 @@ class TemplateDialog(QDialog):
 
             for cat_id, category_details_dict in categories_map.items():
                 if cat_id in templates_by_category:
-                    category_item = QTreeWidgetItem(self.template_list, [category_details_dict['category_name']])
+                    category_display_name = category_details_dict['category_name']
+                    category_purpose = category_details_dict.get('purpose', self.tr('N/A'))
+                    category_item_texts = [category_display_name, "", "", "", "", category_purpose]
+                    category_item = QTreeWidgetItem(self.template_list, category_item_texts)
+
                     for template_dict in templates_by_category[cat_id]:
                         template_name = template_dict['template_name']
                         template_db_type = template_dict.get('template_type', 'N/A')
                         display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
                         language = template_dict['language_code']
+                        client_display = template_dict.get('client_id', self.tr("Global"))
+                        if client_display is None: client_display = self.tr("Global")
                         is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, is_default])
+                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""]) # Empty for purpose column
                         template_item.setData(0, Qt.UserRole, template_dict['template_id'])
 
         self.template_list.expandAll()
@@ -248,13 +325,23 @@ class TemplateDialog(QDialog):
         if not ok:return
         final_category_id=None
         if selected_category_name==create_new_option:
-            new_category_text,ok_new=QInputDialog.getText(self,self.tr("New Category"),self.tr("Enter name for new category:"))
-            if ok_new and new_category_text.strip(): final_category_id=db_manager.add_template_category(new_category_text.strip());
-            if not final_category_id:QMessageBox.warning(self,self.tr("Error"),self.tr("Could not create or find category: {0}").format(new_category_text.strip()));return
-            # Original code had 'else: return' here, which seems like a bug. If category is created, it should proceed.
-            # Corrected: remove 'else: return' or ensure it's logically sound.
-            # For now, assuming if new category created, it should proceed to use it.
-            # If `add_template_category` returns None on failure, the `if not final_category_id` handles it.
+            new_category_name_text, ok_new_name = QInputDialog.getText(self, self.tr("New Category Name"), self.tr("Enter name for new category:"))
+            if ok_new_name and new_category_name_text.strip():
+                new_category_purpose_text, ok_new_purpose = QInputDialog.getText(self, self.tr("New Category Purpose"), self.tr("Enter purpose for new category (e.g., client_document, email):"))
+                if ok_new_purpose: # User might cancel purpose input, or leave it empty
+                    final_category_id = db_manager.add_template_category(
+                        category_name=new_category_name_text.strip(),
+                        description=f"{new_category_name_text.strip()} category", # Default description
+                        purpose=new_category_purpose_text.strip() if new_category_purpose_text.strip() else None
+                    )
+                    if not final_category_id:
+                        QMessageBox.warning(self, self.tr("Error"), self.tr("Could not create category: {0}").format(new_category_name_text.strip()))
+                        return
+                    self.populate_category_filter() # Refresh filter
+                else: # User cancelled purpose input
+                    return
+            else: # User cancelled name input or left it blank
+                return
         else:
             found_cat=next((cat for cat in existing_categories if cat['category_name']==selected_category_name),None)
             if found_cat:final_category_id=found_cat['category_id']
@@ -266,15 +353,32 @@ class TemplateDialog(QDialog):
 
         languages=["fr","en","ar","tr","pt"]; lang,ok=QInputDialog.getItem(self,self.tr("Langue du Modèle"),self.tr("Sélectionnez la langue:"),languages,0,False)
         if not ok:return
+
+        # Get Client ID
+        client_id_text, ok_client = QInputDialog.getText(self, self.tr("Client ID (Optional)"), self.tr("Enter Client ID if this is a client-specific template (leave blank for global):"))
+        if not ok_client: return # User cancelled client_id input
+        final_client_id = client_id_text.strip() if client_id_text.strip() else None
+
         target_dir=os.path.join(self.config["templates_dir"],lang); os.makedirs(target_dir,exist_ok=True)
         base_file_name=os.path.basename(file_path); target_path=os.path.join(target_dir,base_file_name)
         file_ext=os.path.splitext(base_file_name)[1].lower(); template_type_for_db="document_other"
         if file_ext==".xlsx":template_type_for_db="document_excel"
         elif file_ext==".docx":template_type_for_db="document_word"
         elif file_ext==".html":template_type_for_db="document_html"
-        template_metadata={'template_name':name.strip(),'template_type':template_type_for_db,'language_code':lang,'base_file_name':base_file_name,'description':f"Modèle {name.strip()} en {lang} ({base_file_name})",'category_id':final_category_id,'is_default_for_type_lang':False}
+
+        template_metadata={
+            'template_name':name.strip(),
+            'template_type':template_type_for_db,
+            'language_code':lang,
+            'base_file_name':base_file_name,
+            'description':f"Modèle {name.strip()} en {lang} ({base_file_name})",
+            'category_id':final_category_id,
+            'is_default_for_type_lang':False,
+            'client_id': final_client_id # Add client_id here
+        }
         try:
-            shutil.copy(file_path,target_path); new_template_id=db_manager.add_template(template_metadata)
+            # The add_template CRUD function now expects client_id in the data dictionary
+            new_template_id=db_manager.add_template(template_metadata)
             if new_template_id:
                 self.load_templates()
                 from main import get_notification_manager # Local import

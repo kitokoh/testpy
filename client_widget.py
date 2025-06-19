@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+# import logging # logging is already imported
 import logging
 import shutil
 from datetime import datetime
@@ -28,6 +29,10 @@ from html_editor import HtmlEditor
 from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
+
+from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
+from document_manager_logic import create_final_invoice_and_update_db
+
 
 # Globals imported from main (temporary, to be refactored)
 SUPPORTED_LANGUAGES = ["en", "fr", "ar", "tr", "pt"] # Define supported languages
@@ -77,6 +82,8 @@ class ClientWidget(QWidget):
 
     def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
+        logging.info(f"ClientWidget initialized with client_info: {client_info}")
+        logging.info(f"ClientWidget __init__: client_id={client_info.get('client_id')}, client_name={client_info.get('client_name')}")
         self.client_info = client_info
         self.notification_manager = notification_manager # Store notification_manager
         # self.config = config # Original config passed
@@ -120,89 +127,1131 @@ class ClientWidget(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
-        # --- Collapsible Client Info Section ---
-        self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
-        self.client_info_group_box.setCheckable(True)
-        client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
-
-        self.info_container_widget = QWidget() # Container for all info elements
-        info_container_layout = QVBoxLayout(self.info_container_widget)
-        info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
-        info_container_layout.setSpacing(10) # Adjust spacing as needed
-
-        self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
-        self.header_label.setObjectName("clientHeaderLabel")
-        info_container_layout.addWidget(self.header_label)
-
-        action_layout = QHBoxLayout()
-        self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
-        self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using bell.svg as fallback
-        self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
-        self.create_docs_btn.setObjectName("primaryButton") # Keep primary styling for now
         try:
-            # Disconnect previous connection if it exists
-            self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
-        except TypeError:
-            print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
-        self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
-        action_layout.addWidget(self.create_docs_btn)
+            # --- Collapsible Client Info Section ---
+            self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
+            self.client_info_group_box.setCheckable(True)
+            client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
 
-        self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
-        self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export"))
-        self.compile_pdf_btn.setProperty("primary", True)
-        self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog)
-        action_layout.addWidget(self.compile_pdf_btn)
+            self.info_container_widget = QWidget() # Container for all info elements
+            info_container_layout = QVBoxLayout(self.info_container_widget)
+            info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
+            info_container_layout.setSpacing(10) # Adjust spacing as needed
 
-        self.edit_save_client_btn = QPushButton(self.tr("Modifier Client"))
-        self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
-        self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
-        self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
-        action_layout.addWidget(self.edit_save_client_btn)
+            self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
+            self.header_label.setObjectName("clientHeaderLabel")
+            info_container_layout.addWidget(self.header_label)
 
-        self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
-        self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Changed placeholder
-        self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
-        self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
-        action_layout.addWidget(self.send_whatsapp_btn)
-        info_container_layout.addLayout(action_layout)
+            action_layout = QHBoxLayout()
+            self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
+            self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Reverted
+            self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
+            self.create_docs_btn.setObjectName("primaryButton") # Keep primary styling for now
+            try:
+                # Disconnect previous connection if it exists
+                self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
+            except TypeError:
+                print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
+            self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
+            action_layout.addWidget(self.create_docs_btn)
 
-        # Status combo (part of details, but initialized here due to load_statuses)
-        self.status_combo = QComboBox()
-        self.load_statuses()
-        self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
-        self.status_combo.currentTextChanged.connect(self.update_client_status)
+            self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
+            self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export"))
+            self.compile_pdf_btn.setProperty("primary", True)
+            self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog)
+            action_layout.addWidget(self.compile_pdf_btn)
 
-        # Details layout (QFormLayout)
-        self.details_layout = QFormLayout()
-        self.details_layout.setLabelAlignment(Qt.AlignLeft)
-        self.details_layout.setSpacing(10)
+            self.edit_save_client_btn = QPushButton(self.tr("Modifier Client"))
+            self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Reverted
+            self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
+            self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
+            action_layout.addWidget(self.edit_save_client_btn)
 
-        # Initialize category labels (used in populate_details_layout)
-        self.category_label = QLabel(self.tr("Catégorie:"))
-        self.category_value_label = QLabel(self.client_info.get("category", self.tr("N/A")))
+            self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
+            self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Reverted
+            self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
+            self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
+            action_layout.addWidget(self.send_whatsapp_btn)
+            info_container_layout.addLayout(action_layout)
 
-        # Initialize distributor specific info labels (used in populate_details_layout)
-        # self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
-        # self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
-        # self.distributor_info_value_label.setWordWrap(True)
+            # Status combo (part of details, but initialized here due to load_statuses)
+            self.status_combo = QComboBox()
+            self.load_statuses()
+            self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
+            self.status_combo.currentTextChanged.connect(self.update_client_status)
 
+            # Details layout (QFormLayout)
+            self.details_layout = QFormLayout()
+            self.details_layout.setLabelAlignment(Qt.AlignLeft)
+            self.details_layout.setSpacing(10)
 
-        self.populate_details_layout() # Builds the details_layout
-        info_container_layout.addLayout(self.details_layout)
+            # Initialize category labels (used in populate_details_layout)
+            self.category_label = QLabel(self.tr("Catégorie:"))
+            self.category_value_label = QLabel()
 
-        # Add the container widget to the group box's layout
-        client_info_group_layout.addWidget(self.info_container_widget)
+            self.populate_details_layout() # Builds the details_layout
+            info_container_layout.addLayout(self.details_layout)
 
-        # Connect toggled signal and set initial state
-        # self.client_info_group_box.toggled.connect(self.info_container_widget.setVisible)
-        self.client_info_group_box.setChecked(True) # Initially expanded
+            client_info_group_layout.addWidget(self.info_container_widget)
+            self.client_info_group_box.setChecked(True)
+            layout.addWidget(self.client_info_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Client Info Section: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
 
-        layout.addWidget(self.client_info_group_box) # Add the group box to the main layout
-        # --- End Collapsible Client Info Section ---
+        try:
+            self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
+            self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
+            # --- Collapsible Notes Section ---
+            self.notes_group_box = QGroupBox(self.tr("Notes"))
+            self.notes_group_box.setCheckable(True)
+            notes_group_layout = QVBoxLayout(self.notes_group_box)
+            self.notes_container_widget = QWidget()
+            notes_container_layout = QVBoxLayout(self.notes_container_widget)
+            notes_container_layout.setContentsMargins(0, 5, 0, 0)
+            notes_container_layout.addWidget(self.notes_edit)
+            notes_group_layout.addWidget(self.notes_container_widget)
+            self.notes_group_box.setChecked(False)
+            layout.addWidget(self.notes_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Notes Section: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section notes:\n{0}").format(str(e)))
 
-        self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
-        self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
-        # self.notes_edit.textChanged.connect(self.save_client_notes) # Disconnected old signal
+        try:
+            # --- Collapsible Tabs Section ---
+            self.tabs_group_box = QGroupBox(self.tr("Autres Informations"))
+            self.tabs_group_box.setCheckable(True)
+            tabs_group_layout = QVBoxLayout(self.tabs_group_box)
+            self.tab_widget = QTabWidget()
+            tabs_group_layout.addWidget(self.tab_widget)
+            self.tabs_group_box.setChecked(False)
+            layout.addWidget(self.tabs_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Main Tabs Container: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets:\n{0}").format(str(e)))
+
+        try:
+            # --- Documents Tab Structure ---
+            docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
+            self.doc_filter_layout_widget = QWidget()
+            doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
+            doc_filter_layout.setContentsMargins(0,0,0,0)
+            doc_filter_label = QLabel(self.tr("Filtrer par Commande:"))
+            doc_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_filter_label)
+            self.doc_order_filter_combo = QComboBox()
+            self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_order_filter_combo)
+            doc_filter_layout.addSpacing(10)
+            doc_lang_filter_label = QLabel(self.tr("Filtrer par Langue:"))
+            doc_lang_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_lang_filter_label)
+            self.doc_language_filter_combo = QComboBox()
+            self.doc_language_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_language_filter_combo.addItem(self.tr("Toutes"), "ALL")
+            for lang_code in SUPPORTED_LANGUAGES:
+                self.doc_language_filter_combo.addItem(lang_code, lang_code)
+            self.doc_language_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_language_filter_combo)
+            doc_filter_layout.addSpacing(10)
+            doc_type_filter_label = QLabel(self.tr("Filtrer par Type:"))
+            doc_type_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_type_filter_label)
+            self.doc_type_filter_combo = QComboBox()
+            self.doc_type_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_type_filter_combo.addItem(self.tr("Tous"), "ALL")
+            self.doc_type_filter_combo.addItem("HTML", "HTML")
+            self.doc_type_filter_combo.addItem("PDF", "PDF")
+            self.doc_type_filter_combo.addItem("XLSX", "XLSX")
+            self.doc_type_filter_combo.addItem("DOCX", "DOCX")
+            self.doc_type_filter_combo.addItem(self.tr("Autre"), "OTHER")
+            self.doc_type_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_type_filter_combo)
+            docs_layout.addWidget(self.doc_filter_layout_widget)
+            self.doc_filter_layout_widget.setVisible(True)
+            self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+            self.documents_empty_label.setAlignment(Qt.AlignCenter)
+            font_docs_empty = self.documents_empty_label.font()
+            font_docs_empty.setPointSize(10)
+            self.documents_empty_label.setFont(font_docs_empty)
+            docs_layout.addWidget(self.documents_empty_label)
+            self.doc_table = QTableWidget()
+            self.doc_table.setColumnCount(5)
+            self.doc_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Type"), self.tr("Langue"), self.tr("Date"), self.tr("Actions")])
+            self.doc_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.doc_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.doc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            docs_layout.addWidget(self.doc_table)
+            doc_btn_layout = QHBoxLayout()
+            self.add_doc_btn = QPushButton(self.tr("Importer Document"))
+            self.add_doc_btn.setIcon(QIcon(":/icons/file-plus.svg")) # Reverted
+            self.add_doc_btn.setToolTip(self.tr("Importer un fichier document existant pour ce client"))
+            self.add_doc_btn.clicked.connect(self.add_document)
+            doc_btn_layout.addWidget(self.add_doc_btn)
+            self.refresh_docs_btn = QPushButton(self.tr("Actualiser"))
+            self.refresh_docs_btn.setIcon(QIcon.fromTheme("view-refresh"))
+            self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
+            doc_btn_layout.addWidget(self.refresh_docs_btn)
+            self.add_template_btn = QPushButton(self.tr("Générer via Modèle"))
+            self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg")))
+            self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle"))
+            self.add_template_btn.clicked.connect(self.open_create_docs_dialog)
+            doc_btn_layout.addWidget(self.add_template_btn)
+            docs_layout.addLayout(doc_btn_layout)
+            self.tab_widget.addTab(docs_tab, self.tr("Documents"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Documents Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Documents:\n{0}").format(str(e)))
+
+        try:
+            # --- Contacts Tab Structure ---
+            contacts_tab = QWidget()
+            contacts_layout = QVBoxLayout(contacts_tab)
+            self.contacts_table = QTableWidget()
+            self.contacts_table.setColumnCount(5)
+            self.contacts_table.setHorizontalHeaderLabels([
+                self.tr("Nom"), self.tr("Email"), self.tr("Téléphone"),
+                self.tr("Position"), self.tr("Principal")
+            ])
+            self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.contacts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.contacts_table.setAlternatingRowColors(True)
+            self.contacts_table.cellDoubleClicked.connect(self.edit_contact)
+            self.contacts_empty_label = QLabel(self.tr("Aucun contact ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+            self.contacts_empty_label.setAlignment(Qt.AlignCenter)
+            font = self.contacts_empty_label.font()
+            font.setPointSize(10)
+            self.contacts_empty_label.setFont(font)
+            contacts_layout.addWidget(self.contacts_empty_label)
+            contacts_layout.addWidget(self.contacts_table)
+            contacts_pagination_layout = QHBoxLayout()
+            self.prev_contact_button = QPushButton("<< Précédent")
+            self.prev_contact_button.setObjectName("paginationButton")
+            self.prev_contact_button.clicked.connect(self.prev_contact_page)
+            self.contact_page_info_label = QLabel("Page 1 / 1")
+            self.contact_page_info_label.setObjectName("paginationLabel")
+            self.next_contact_button = QPushButton("Suivant >>")
+            self.next_contact_button.setObjectName("paginationButton")
+            self.next_contact_button.clicked.connect(self.next_contact_page)
+            contacts_pagination_layout.addStretch()
+            contacts_pagination_layout.addWidget(self.prev_contact_button)
+            contacts_pagination_layout.addWidget(self.contact_page_info_label)
+            contacts_pagination_layout.addWidget(self.next_contact_button)
+            contacts_pagination_layout.addStretch()
+            contacts_layout.addLayout(contacts_pagination_layout)
+            contacts_btn_layout = QHBoxLayout()
+            self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg")); # Reverted
+            self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
+            self.edit_contact_btn = QPushButton(self.tr("Modifier")); self.edit_contact_btn.setIcon(QIcon(":/icons/pencil.svg")); # Reverted
+            self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
+            self.remove_contact_btn = QPushButton(self.tr("Supprimer")); self.remove_contact_btn.setIcon(QIcon(":/icons/trash.svg")); # Reverted
+            self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client")); self.remove_contact_btn.setObjectName("dangerButton"); self.remove_contact_btn.clicked.connect(self.remove_contact); contacts_btn_layout.addWidget(self.remove_contact_btn)
+            contacts_layout.addLayout(contacts_btn_layout)
+            self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Contacts Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Contacts:\n{0}").format(str(e)))
+
+        try:
+            # --- Products Tab Structure ---
+            products_tab = QWidget()
+            products_layout = QVBoxLayout(products_tab)
+            product_filters_layout = QHBoxLayout()
+            product_filters_layout.addWidget(QLabel(self.tr("Filtrer par langue:")))
+            self.product_lang_filter_combo = QComboBox()
+            self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
+            self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
+            self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
+            self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
+            self.product_lang_filter_combo.addItem(self.tr("Turkish (tr)"), "tr")
+            self.product_lang_filter_combo.addItem(self.tr("Portuguese (pt)"), "pt")
+            self.product_lang_filter_combo.currentTextChanged.connect(self.load_products)
+            product_filters_layout.addWidget(self.product_lang_filter_combo)
+            product_filters_layout.addStretch()
+            products_layout.addLayout(product_filters_layout)
+            self.products_empty_label = QLabel(self.tr("Aucun produit ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+            self.products_empty_label.setAlignment(Qt.AlignCenter)
+            font_products_empty = self.products_empty_label.font()
+            font_products_empty.setPointSize(10)
+            self.products_empty_label.setFont(font_products_empty)
+            products_layout.addWidget(self.products_empty_label)
+            self.products_table = QTableWidget()
+            self.products_table.setColumnCount(8)
+            self.products_table.setHorizontalHeaderLabels([
+                self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"),
+                self.tr("Poids"), self.tr("Dimensions"),
+                self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")
+            ])
+            self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked)
+            self.products_table.itemChanged.connect(self.handle_product_item_changed)
+            self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.products_table.hideColumn(0)
+            products_layout.addWidget(self.products_table)
+            products_btn_layout = QHBoxLayout()
+            self.add_product_btn = QPushButton(self.tr("Ajouter")); self.add_product_btn.setIcon(QIcon(":/icons/plus-circle.svg")); # Reverted
+            self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
+            self.edit_product_btn = QPushButton(self.tr("Modifier")); self.edit_product_btn.setIcon(QIcon(":/icons/pencil.svg")); # Reverted
+            self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
+            self.remove_product_btn = QPushButton(self.tr("Supprimer")); self.remove_product_btn.setIcon(QIcon(":/icons/trash.svg")); # Reverted
+            self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
+            products_layout.addLayout(products_btn_layout)
+            self.tab_widget.addTab(products_tab, self.tr("Produits"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Products Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Produits:\n{0}").format(str(e)))
+
+        try:
+            # --- Document Notes Tab Structure ---
+            self.document_notes_tab = QWidget()
+            doc_notes_layout = QVBoxLayout(self.document_notes_tab)
+            doc_notes_filters_layout = QHBoxLayout()
+            doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
+            self.doc_notes_type_filter_combo = QComboBox()
+            doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
+            doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
+            self.doc_notes_lang_filter_combo = QComboBox()
+            doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
+            doc_notes_filters_layout.addStretch()
+            doc_notes_layout.addLayout(doc_notes_filters_layout)
+            self.document_notes_table = QTableWidget()
+            self.document_notes_table.setColumnCount(5)
+            self.document_notes_table.setHorizontalHeaderLabels([
+                self.tr("Type Document"), self.tr("Langue"),
+                self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
+            ])
+            self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            doc_notes_layout.addWidget(self.document_notes_table)
+            doc_notes_buttons_layout = QHBoxLayout()
+            self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
+            self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new"))
+            doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
+            self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
+            self.refresh_doc_notes_button.setIcon(QIcon.fromTheme("view-refresh"))
+            doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
+            doc_notes_buttons_layout.addStretch()
+            doc_notes_layout.addLayout(doc_notes_buttons_layout)
+            self.document_notes_tab.setLayout(doc_notes_layout)
+            self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Document Notes Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Notes de Document:\n{0}").format(str(e)))
+
+        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
+
+        try:
+            # --- Product Dimensions Tab Structure ---
+            self.product_dimensions_tab = QWidget()
+            prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
+            self.dim_product_selector_combo = QComboBox()
+            self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+            prod_dims_layout.addWidget(self.dim_product_selector_combo)
+            self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
+            self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Reverted
+            self.edit_client_product_dimensions_button.setEnabled(False)
+            prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
+            prod_dims_layout.addStretch()
+            produits_tab_index = -1
+            for i in range(self.tab_widget.count()):
+                if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
+                    produits_tab_index = i
+                    break
+            if produits_tab_index != -1:
+                self.tab_widget.insertTab(produits_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+            else:
+                self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Product Dimensions Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Dimensions Produit:\n{0}").format(str(e)))
+
+        try:
+            self.load_products_for_dimension_tab()
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
+
+        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+
+        try:
+            self.load_products_for_dimension_tab() # Initial population of product selector
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
+
+        # Connect signals for the Product Dimensions Tab
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
+        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
+
+        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        try:
+            self.populate_doc_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        try:
+            self.load_contacts()
+        except Exception as e:
+            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        try:
+            self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+        except Exception as e:
+            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
+
+        try:
+            self.load_document_notes_filters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        try:
+            self.load_document_notes_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
+
+        try:
+            # SAV Tab
+            self.sav_tab = QWidget()
+            sav_layout = QVBoxLayout(self.sav_tab)
+            sav_layout.addWidget(QLabel("<h3>Historique des Achats</h3>"))
+            self.purchase_history_table = QTableWidget()
+            self.purchase_history_table.setColumnCount(6)
+            self.purchase_history_table.setHorizontalHeaderLabels([
+                self.tr("ID CPP (Hidden)"), self.tr("Produit"), self.tr("Quantité"),
+                self.tr("Numéro de Série"), self.tr("Date d'Achat"), self.tr("Actions")
+            ])
+            self.purchase_history_table.setColumnHidden(0, True)
+            self.purchase_history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.purchase_history_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.purchase_history_table.itemChanged.connect(self.handle_purchase_history_item_changed)
+            sav_layout.addWidget(self.purchase_history_table)
+            self.refresh_purchase_history_btn = QPushButton(self.tr("Rafraîchir l'historique"))
+            self.refresh_purchase_history_btn.setIcon(QIcon.fromTheme("view-refresh"))
+            self.refresh_purchase_history_btn.clicked.connect(self.load_purchase_history_table)
+            sav_layout.addWidget(self.refresh_purchase_history_btn)
+            sav_layout.addWidget(QLabel("<h3>Tickets SAV (Prochainement)</h3>"))
+            sav_layout.addStretch()
+            self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
+            self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+        except Exception as e:
+            logging.error(f"Error during UI setup of SAV Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet SAV:\n{0}").format(str(e)))
+
+        try:
+            # --- Assignments Tab ---
+            self.assignments_tab = QWidget()
+            assignments_main_layout = QVBoxLayout(self.assignments_tab)
+            self.assignments_sub_tabs = QTabWidget()
+            assignments_main_layout.addWidget(self.assignments_sub_tabs)
+            self.tab_widget.addTab(self.assignments_tab, self.tr("Affectations"))
+            # Sub-Tab: Assigned Vendors/Sellers (CompanyPersonnel)
+            assigned_vendors_widget = QWidget()
+            assigned_vendors_layout = QVBoxLayout(assigned_vendors_widget)
+            self.assigned_vendors_table = QTableWidget()
+            self.assigned_vendors_table.setColumnCount(4)
+            self.assigned_vendors_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+            self.assigned_vendors_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_vendors_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_vendors_table.horizontalHeader().setStretchLastSection(True)
+            assigned_vendors_layout.addWidget(self.assigned_vendors_table)
+            vendor_buttons_layout = QHBoxLayout()
+            self.add_assigned_vendor_btn = QPushButton(self.tr("Ajouter Vendeur/Personnel"))
+            self.add_assigned_vendor_btn.clicked.connect(self.handle_add_assigned_vendor)
+            self.remove_assigned_vendor_btn = QPushButton(self.tr("Retirer Vendeur/Personnel"))
+            self.remove_assigned_vendor_btn.clicked.connect(self.handle_remove_assigned_vendor)
+            vendor_buttons_layout.addWidget(self.add_assigned_vendor_btn)
+            vendor_buttons_layout.addWidget(self.remove_assigned_vendor_btn)
+            assigned_vendors_layout.addLayout(vendor_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_vendors_widget, self.tr("Vendeurs & Personnel"))
+            # Sub-Tab: Assigned Technicians
+            assigned_technicians_widget = QWidget()
+            assigned_technicians_layout = QVBoxLayout(assigned_technicians_widget)
+            self.assigned_technicians_table = QTableWidget()
+            self.assigned_technicians_table.setColumnCount(4)
+            self.assigned_technicians_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+            self.assigned_technicians_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_technicians_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_technicians_table.horizontalHeader().setStretchLastSection(True)
+            assigned_technicians_layout.addWidget(self.assigned_technicians_table)
+            technician_buttons_layout = QHBoxLayout()
+            self.add_assigned_technician_btn = QPushButton(self.tr("Ajouter Technicien"))
+            self.add_assigned_technician_btn.clicked.connect(self.handle_add_assigned_technician)
+            self.remove_assigned_technician_btn = QPushButton(self.tr("Retirer Technicien"))
+            self.remove_assigned_technician_btn.clicked.connect(self.handle_remove_assigned_technician)
+            technician_buttons_layout.addWidget(self.add_assigned_technician_btn)
+            technician_buttons_layout.addWidget(self.remove_assigned_technician_btn)
+            assigned_technicians_layout.addLayout(technician_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_technicians_widget, self.tr("Techniciens"))
+            # Sub-Tab: Assigned Transporters
+            assigned_transporters_widget = QWidget()
+            assigned_transporters_layout = QVBoxLayout(assigned_transporters_widget)
+            self.assigned_transporters_table = QTableWidget()
+            self.assigned_transporters_table.setColumnCount(6)
+            self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé"), self.tr("Actions")])
+            self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_transporters_table.horizontalHeader().setStretchLastSection(True)
+            assigned_transporters_layout.addWidget(self.assigned_transporters_table)
+            transporter_buttons_layout = QHBoxLayout()
+            self.add_assigned_transporter_btn = QPushButton(self.tr("Ajouter Transporteur"))
+            self.add_assigned_transporter_btn.clicked.connect(self.handle_add_assigned_transporter)
+            self.remove_assigned_transporter_btn = QPushButton(self.tr("Retirer Transporteur"))
+            self.remove_assigned_transporter_btn.clicked.connect(self.handle_remove_assigned_transporter)
+            transporter_buttons_layout.addWidget(self.add_assigned_transporter_btn)
+            transporter_buttons_layout.addWidget(self.remove_assigned_transporter_btn)
+            assigned_transporters_layout.addLayout(transporter_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_transporters_widget, self.tr("Transporteurs"))
+            # Sub-Tab: Assigned Freight Forwarders
+            assigned_forwarders_widget = QWidget()
+            assigned_forwarders_layout = QVBoxLayout(assigned_forwarders_widget)
+            self.assigned_forwarders_table = QTableWidget()
+            self.assigned_forwarders_table.setColumnCount(5)
+            self.assigned_forwarders_table.setHorizontalHeaderLabels([self.tr("Nom Transitaire"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Description Tâche"), self.tr("Coût Estimé")])
+            self.assigned_forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_forwarders_table.horizontalHeader().setStretchLastSection(True)
+            assigned_forwarders_layout.addWidget(self.assigned_forwarders_table)
+            forwarder_buttons_layout = QHBoxLayout()
+            self.add_assigned_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire"))
+            self.add_assigned_forwarder_btn.clicked.connect(self.handle_add_assigned_forwarder)
+            self.remove_assigned_forwarder_btn = QPushButton(self.tr("Retirer Transitaire"))
+            self.remove_assigned_forwarder_btn.clicked.connect(self.handle_remove_assigned_forwarder)
+            forwarder_buttons_layout.addWidget(self.add_assigned_forwarder_btn)
+            forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
+            assigned_forwarders_layout.addLayout(forwarder_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_forwarders_widget, self.tr("Transitaires"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Assignments Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Affectations:\n{0}").format(str(e)))
+
+        # Call to load SAV tickets table initially if tab is visible
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+        except Exception as e:
+            logging.error(f"Error during initial visibility update/load of SAV tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors de la mise à jour/chargement initial de l'onglet SAV:\n{0}").format(str(e)))
+
+        # Initial load for assignment tabs
+        try:
+            self.load_assigned_vendors_personnel()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Vendors/Personnel: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des vendeurs/personnel assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_technicians()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Technicians: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des techniciens assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_transporters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Transporters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transporteurs assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_freight_forwarders()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Freight Forwarders: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transitaires assignés:\n{0}").format(str(e)))
+
+        # Connect selection changed signals for assignment tables
+        self.assigned_vendors_table.itemSelectionChanged.connect(self.update_assigned_vendors_buttons_state)
+        self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
+        self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
+        self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
+
+        try:
+            # --- Billing Tab ---
+            self.billing_tab = QWidget()
+            self.billing_tab_layout = QVBoxLayout(self.billing_tab)
+            self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
+            self.generate_invoice_button.setToolTip(self.tr("Open dialog to prepare and generate a final invoice for this client."))
+            self.generate_invoice_button.clicked.connect(self.handle_generate_final_invoice)
+            self.billing_tab_layout.addWidget(self.generate_invoice_button)
+            self.billing_tab_layout.addStretch()
+            self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Billing Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Facturation:\n{0}").format(str(e)))
+
+        # Connect new accordion handlers
+        self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+
+    def _handle_edit_pdf_action(self, file_path, document_id):
+        if file_path and os.path.exists(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+=======
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
+
+        try:
+            # --- Collapsible Client Info Section ---
+            self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
+            self.client_info_group_box.setCheckable(True)
+            client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
+
+            self.info_container_widget = QWidget() # Container for all info elements
+            info_container_layout = QVBoxLayout(self.info_container_widget)
+            info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
+            info_container_layout.setSpacing(10) # Adjust spacing as needed
+
+            self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
+            self.header_label.setObjectName("clientHeaderLabel")
+            info_container_layout.addWidget(self.header_label)
+
+            action_layout = QHBoxLayout()
+            self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
+            self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Using bell.svg as fallback
+            self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
+            self.create_docs_btn.setObjectName("primaryButton") # Keep primary styling for now
+            try:
+                # Disconnect previous connection if it exists
+                self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
+            except TypeError:
+                print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
+            self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
+            action_layout.addWidget(self.create_docs_btn)
+
+            self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
+            self.compile_pdf_btn.setIcon(QIcon.fromTheme("document-export"))
+            self.compile_pdf_btn.setProperty("primary", True)
+            self.compile_pdf_btn.clicked.connect(self.open_compile_pdf_dialog)
+            action_layout.addWidget(self.compile_pdf_btn)
+
+            self.edit_save_client_btn = QPushButton(self.tr("Modifier Client"))
+            self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
+            self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
+            self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
+            action_layout.addWidget(self.edit_save_client_btn)
+
+            self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
+            self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Changed placeholder
+            self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
+            self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
+            action_layout.addWidget(self.send_whatsapp_btn)
+            info_container_layout.addLayout(action_layout)
+
+            # Status combo (part of details, but initialized here due to load_statuses)
+            self.status_combo = QComboBox()
+            self.load_statuses()
+            self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
+            self.status_combo.currentTextChanged.connect(self.update_client_status)
+
+            # Details layout (QFormLayout)
+            self.details_layout = QFormLayout()
+            self.details_layout.setLabelAlignment(Qt.AlignLeft)
+            self.details_layout.setSpacing(10)
+
+            # Initialize category labels (used in populate_details_layout)
+            self.category_label = QLabel(self.tr("Catégorie:"))
+            self.category_value_label = QLabel()
+
+            self.populate_details_layout() # Builds the details_layout
+            info_container_layout.addLayout(self.details_layout)
+
+            client_info_group_layout.addWidget(self.info_container_widget)
+            self.client_info_group_box.setChecked(True)
+            layout.addWidget(self.client_info_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Client Info Section: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
+
+        try:
+            self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
+            self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
+            # --- Collapsible Notes Section ---
+            self.notes_group_box = QGroupBox(self.tr("Notes"))
+            self.notes_group_box.setCheckable(True)
+            notes_group_layout = QVBoxLayout(self.notes_group_box)
+            self.notes_container_widget = QWidget()
+            notes_container_layout = QVBoxLayout(self.notes_container_widget)
+            notes_container_layout.setContentsMargins(0, 5, 0, 0)
+            notes_container_layout.addWidget(self.notes_edit)
+            notes_group_layout.addWidget(self.notes_container_widget)
+            self.notes_group_box.setChecked(False)
+            layout.addWidget(self.notes_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Notes Section: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section notes:\n{0}").format(str(e)))
+
+        try:
+            # --- Collapsible Tabs Section ---
+            self.tabs_group_box = QGroupBox(self.tr("Autres Informations"))
+            self.tabs_group_box.setCheckable(True)
+            tabs_group_layout = QVBoxLayout(self.tabs_group_box)
+            self.tab_widget = QTabWidget()
+            tabs_group_layout.addWidget(self.tab_widget)
+            self.tabs_group_box.setChecked(False)
+            layout.addWidget(self.tabs_group_box)
+        except Exception as e:
+            logging.error(f"Error during UI setup of Main Tabs Container: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets:\n{0}").format(str(e)))
+
+        try:
+            # --- Documents Tab Structure ---
+            docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
+            self.doc_filter_layout_widget = QWidget()
+            doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
+            doc_filter_layout.setContentsMargins(0,0,0,0)
+            doc_filter_label = QLabel(self.tr("Filtrer par Commande:"))
+            doc_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_filter_label)
+            self.doc_order_filter_combo = QComboBox()
+            self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_order_filter_combo)
+            doc_filter_layout.addSpacing(10)
+            doc_lang_filter_label = QLabel(self.tr("Filtrer par Langue:"))
+            doc_lang_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_lang_filter_label)
+            self.doc_language_filter_combo = QComboBox()
+            self.doc_language_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_language_filter_combo.addItem(self.tr("Toutes"), "ALL")
+            for lang_code in SUPPORTED_LANGUAGES:
+                self.doc_language_filter_combo.addItem(lang_code, lang_code)
+            self.doc_language_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_language_filter_combo)
+            doc_filter_layout.addSpacing(10)
+            doc_type_filter_label = QLabel(self.tr("Filtrer par Type:"))
+            doc_type_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            doc_filter_layout.addWidget(doc_type_filter_label)
+            self.doc_type_filter_combo = QComboBox()
+            self.doc_type_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.doc_type_filter_combo.addItem(self.tr("Tous"), "ALL")
+            self.doc_type_filter_combo.addItem("HTML", "HTML")
+            self.doc_type_filter_combo.addItem("PDF", "PDF")
+            self.doc_type_filter_combo.addItem("XLSX", "XLSX")
+            self.doc_type_filter_combo.addItem("DOCX", "DOCX")
+            self.doc_type_filter_combo.addItem(self.tr("Autre"), "OTHER")
+            self.doc_type_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+            doc_filter_layout.addWidget(self.doc_type_filter_combo)
+            docs_layout.addWidget(self.doc_filter_layout_widget)
+            self.doc_filter_layout_widget.setVisible(True)
+            self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+            self.documents_empty_label.setAlignment(Qt.AlignCenter)
+            font_docs_empty = self.documents_empty_label.font()
+            font_docs_empty.setPointSize(10)
+            self.documents_empty_label.setFont(font_docs_empty)
+            docs_layout.addWidget(self.documents_empty_label)
+            self.doc_table = QTableWidget()
+            self.doc_table.setColumnCount(5)
+            self.doc_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Type"), self.tr("Langue"), self.tr("Date"), self.tr("Actions")])
+            self.doc_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.doc_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.doc_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            docs_layout.addWidget(self.doc_table)
+            doc_btn_layout = QHBoxLayout()
+            self.add_doc_btn = QPushButton(self.tr("Importer Document"))
+            self.add_doc_btn.setIcon(QIcon(":/icons/file-plus.svg"))
+            self.add_doc_btn.setToolTip(self.tr("Importer un fichier document existant pour ce client"))
+            self.add_doc_btn.clicked.connect(self.add_document)
+            doc_btn_layout.addWidget(self.add_doc_btn)
+            self.refresh_docs_btn = QPushButton(self.tr("Actualiser"))
+            self.refresh_docs_btn.setIcon(QIcon.fromTheme("view-refresh"))
+            self.refresh_docs_btn.clicked.connect(self.populate_doc_table)
+            doc_btn_layout.addWidget(self.refresh_docs_btn)
+            self.add_template_btn = QPushButton(self.tr("Générer via Modèle"))
+            self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg")))
+            self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle"))
+            self.add_template_btn.clicked.connect(self.open_create_docs_dialog)
+            doc_btn_layout.addWidget(self.add_template_btn)
+            docs_layout.addLayout(doc_btn_layout)
+            self.tab_widget.addTab(docs_tab, self.tr("Documents"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Documents Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Documents:\n{0}").format(str(e)))
+
+        try:
+            # --- Contacts Tab Structure ---
+            contacts_tab = QWidget()
+            contacts_layout = QVBoxLayout(contacts_tab)
+            self.contacts_table = QTableWidget()
+            self.contacts_table.setColumnCount(5)
+            self.contacts_table.setHorizontalHeaderLabels([
+                self.tr("Nom"), self.tr("Email"), self.tr("Téléphone"),
+                self.tr("Position"), self.tr("Principal")
+            ])
+            self.contacts_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.contacts_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.contacts_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.contacts_table.setAlternatingRowColors(True)
+            self.contacts_table.cellDoubleClicked.connect(self.edit_contact)
+            self.contacts_empty_label = QLabel(self.tr("Aucun contact ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+            self.contacts_empty_label.setAlignment(Qt.AlignCenter)
+            font = self.contacts_empty_label.font()
+            font.setPointSize(10)
+            self.contacts_empty_label.setFont(font)
+            contacts_layout.addWidget(self.contacts_empty_label)
+            contacts_layout.addWidget(self.contacts_table)
+            contacts_pagination_layout = QHBoxLayout()
+            self.prev_contact_button = QPushButton("<< Précédent")
+            self.prev_contact_button.setObjectName("paginationButton")
+            self.prev_contact_button.clicked.connect(self.prev_contact_page)
+            self.contact_page_info_label = QLabel("Page 1 / 1")
+            self.contact_page_info_label.setObjectName("paginationLabel")
+            self.next_contact_button = QPushButton("Suivant >>")
+            self.next_contact_button.setObjectName("paginationButton")
+            self.next_contact_button.clicked.connect(self.next_contact_page)
+            contacts_pagination_layout.addStretch()
+            contacts_pagination_layout.addWidget(self.prev_contact_button)
+            contacts_pagination_layout.addWidget(self.contact_page_info_label)
+            contacts_pagination_layout.addWidget(self.next_contact_button)
+            contacts_pagination_layout.addStretch()
+            contacts_layout.addLayout(contacts_pagination_layout)
+            contacts_btn_layout = QHBoxLayout()
+            self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg")); self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
+            self.edit_contact_btn = QPushButton(self.tr("Modifier")); self.edit_contact_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
+            self.remove_contact_btn = QPushButton(self.tr("Supprimer")); self.remove_contact_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client")); self.remove_contact_btn.setObjectName("dangerButton"); self.remove_contact_btn.clicked.connect(self.remove_contact); contacts_btn_layout.addWidget(self.remove_contact_btn)
+            contacts_layout.addLayout(contacts_btn_layout)
+            self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Contacts Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Contacts:\n{0}").format(str(e)))
+
+        try:
+            # --- Products Tab Structure ---
+            products_tab = QWidget()
+            products_layout = QVBoxLayout(products_tab)
+            product_filters_layout = QHBoxLayout()
+            product_filters_layout.addWidget(QLabel(self.tr("Filtrer par langue:")))
+            self.product_lang_filter_combo = QComboBox()
+            self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
+            self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
+            self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
+            self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
+            self.product_lang_filter_combo.addItem(self.tr("Turkish (tr)"), "tr")
+            self.product_lang_filter_combo.addItem(self.tr("Portuguese (pt)"), "pt")
+            self.product_lang_filter_combo.currentTextChanged.connect(self.load_products)
+            product_filters_layout.addWidget(self.product_lang_filter_combo)
+            product_filters_layout.addStretch()
+            products_layout.addLayout(product_filters_layout)
+            self.products_empty_label = QLabel(self.tr("Aucun produit ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
+            self.products_empty_label.setAlignment(Qt.AlignCenter)
+            font_products_empty = self.products_empty_label.font()
+            font_products_empty.setPointSize(10)
+            self.products_empty_label.setFont(font_products_empty)
+            products_layout.addWidget(self.products_empty_label)
+            self.products_table = QTableWidget()
+            self.products_table.setColumnCount(8)
+            self.products_table.setHorizontalHeaderLabels([
+                self.tr("ID"), self.tr("Nom Produit"), self.tr("Description"),
+                self.tr("Poids"), self.tr("Dimensions"),
+                self.tr("Qté"), self.tr("Prix Unitaire"), self.tr("Prix Total")
+            ])
+            self.products_table.setEditTriggers(QAbstractItemView.DoubleClicked)
+            self.products_table.itemChanged.connect(self.handle_product_item_changed)
+            self.products_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.products_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.products_table.hideColumn(0)
+            products_layout.addWidget(self.products_table)
+            products_btn_layout = QHBoxLayout()
+            self.add_product_btn = QPushButton(self.tr("Ajouter")); self.add_product_btn.setIcon(QIcon(":/icons/plus-circle.svg")); self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
+            self.edit_product_btn = QPushButton(self.tr("Modifier")); self.edit_product_btn.setIcon(QIcon(":/icons/pencil.svg")); self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
+            self.remove_product_btn = QPushButton(self.tr("Supprimer")); self.remove_product_btn.setIcon(QIcon(":/icons/trash.svg")); self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
+            products_layout.addLayout(products_btn_layout)
+            self.tab_widget.addTab(products_tab, self.tr("Produits"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Products Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Produits:\n{0}").format(str(e)))
+
+        try:
+            # --- Document Notes Tab Structure ---
+            self.document_notes_tab = QWidget()
+            doc_notes_layout = QVBoxLayout(self.document_notes_tab)
+            doc_notes_filters_layout = QHBoxLayout()
+            doc_notes_filters_layout.addWidget(QLabel(self.tr("Type de Document:")))
+            self.doc_notes_type_filter_combo = QComboBox()
+            doc_notes_filters_layout.addWidget(self.doc_notes_type_filter_combo)
+            doc_notes_filters_layout.addWidget(QLabel(self.tr("Langue:")))
+            self.doc_notes_lang_filter_combo = QComboBox()
+            doc_notes_filters_layout.addWidget(self.doc_notes_lang_filter_combo)
+            doc_notes_filters_layout.addStretch()
+            doc_notes_layout.addLayout(doc_notes_filters_layout)
+            self.document_notes_table = QTableWidget()
+            self.document_notes_table.setColumnCount(5)
+            self.document_notes_table.setHorizontalHeaderLabels([
+                self.tr("Type Document"), self.tr("Langue"),
+                self.tr("Aperçu Note"), self.tr("Actif"), self.tr("Actions")
+            ])
+            self.document_notes_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+            self.document_notes_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.document_notes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            doc_notes_layout.addWidget(self.document_notes_table)
+            doc_notes_buttons_layout = QHBoxLayout()
+            self.add_doc_note_button = QPushButton(self.tr("Ajouter Note de Document"))
+            self.add_doc_note_button.setIcon(QIcon.fromTheme("document-new"))
+            doc_notes_buttons_layout.addWidget(self.add_doc_note_button)
+            self.refresh_doc_notes_button = QPushButton(self.tr("Actualiser Liste"))
+            self.refresh_doc_notes_button.setIcon(QIcon.fromTheme("view-refresh"))
+            doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
+            doc_notes_buttons_layout.addStretch()
+            doc_notes_layout.addLayout(doc_notes_buttons_layout)
+            self.document_notes_tab.setLayout(doc_notes_layout)
+            self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Document Notes Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Notes de Document:\n{0}").format(str(e)))
+
+        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
+
+        try:
+            # --- Product Dimensions Tab Structure ---
+            self.product_dimensions_tab = QWidget()
+            prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
+            self.dim_product_selector_combo = QComboBox()
+            self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+            prod_dims_layout.addWidget(self.dim_product_selector_combo)
+            self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
+            self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
+            self.edit_client_product_dimensions_button.setEnabled(False)
+            prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
+            prod_dims_layout.addStretch()
+            produits_tab_index = -1
+            for i in range(self.tab_widget.count()):
+                if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
+                    produits_tab_index = i
+                    break
+            if produits_tab_index != -1:
+                self.tab_widget.insertTab(produits_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+            else:
+                self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Product Dimensions Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Dimensions Produit:\n{0}").format(str(e)))
+
+        try:
+            self.load_products_for_dimension_tab()
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
+
+        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+
+        try:
+            self.load_products_for_dimension_tab() # Initial population of product selector
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
+
+        # Connect signals for the Product Dimensions Tab
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
+        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
+
+        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        try:
+            self.populate_doc_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        try:
+            self.load_contacts()
+        except Exception as e:
+            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        try:
+            self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+        except Exception as e:
+            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
+
+        try:
+            self.load_document_notes_filters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        try:
+            self.load_document_notes_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
+
+        try:
+            # SAV Tab
+            self.sav_tab = QWidget()
+            sav_layout = QVBoxLayout(self.sav_tab)
+            sav_layout.addWidget(QLabel("<h3>Historique des Achats</h3>"))
+            self.purchase_history_table = QTableWidget()
+            self.purchase_history_table.setColumnCount(6)
+            self.purchase_history_table.setHorizontalHeaderLabels([
+                self.tr("ID CPP (Hidden)"), self.tr("Produit"), self.tr("Quantité"),
+                self.tr("Numéro de Série"), self.tr("Date d'Achat"), self.tr("Actions")
+            ])
+            self.purchase_history_table.setColumnHidden(0, True)
+            self.purchase_history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            self.purchase_history_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.purchase_history_table.itemChanged.connect(self.handle_purchase_history_item_changed)
+            sav_layout.addWidget(self.purchase_history_table)
+            self.refresh_purchase_history_btn = QPushButton(self.tr("Rafraîchir l'historique"))
+            self.refresh_purchase_history_btn.setIcon(QIcon.fromTheme("view-refresh"))
+            self.refresh_purchase_history_btn.clicked.connect(self.load_purchase_history_table)
+            sav_layout.addWidget(self.refresh_purchase_history_btn)
+            sav_layout.addWidget(QLabel("<h3>Tickets SAV (Prochainement)</h3>"))
+            sav_layout.addStretch()
+            self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
+            self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+        except Exception as e:
+            logging.error(f"Error during UI setup of SAV Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet SAV:\n{0}").format(str(e)))
+
+        try:
+            # --- Assignments Tab ---
+            self.assignments_tab = QWidget()
+            assignments_main_layout = QVBoxLayout(self.assignments_tab)
+            self.assignments_sub_tabs = QTabWidget()
+            assignments_main_layout.addWidget(self.assignments_sub_tabs)
+            self.tab_widget.addTab(self.assignments_tab, self.tr("Affectations"))
+            # Sub-Tab: Assigned Vendors/Sellers (CompanyPersonnel)
+            assigned_vendors_widget = QWidget()
+            assigned_vendors_layout = QVBoxLayout(assigned_vendors_widget)
+            self.assigned_vendors_table = QTableWidget()
+            self.assigned_vendors_table.setColumnCount(4)
+            self.assigned_vendors_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+            self.assigned_vendors_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_vendors_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_vendors_table.horizontalHeader().setStretchLastSection(True)
+            assigned_vendors_layout.addWidget(self.assigned_vendors_table)
+            vendor_buttons_layout = QHBoxLayout()
+            self.add_assigned_vendor_btn = QPushButton(self.tr("Ajouter Vendeur/Personnel"))
+            self.add_assigned_vendor_btn.clicked.connect(self.handle_add_assigned_vendor)
+            self.remove_assigned_vendor_btn = QPushButton(self.tr("Retirer Vendeur/Personnel"))
+            self.remove_assigned_vendor_btn.clicked.connect(self.handle_remove_assigned_vendor)
+            vendor_buttons_layout.addWidget(self.add_assigned_vendor_btn)
+            vendor_buttons_layout.addWidget(self.remove_assigned_vendor_btn)
+            assigned_vendors_layout.addLayout(vendor_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_vendors_widget, self.tr("Vendeurs & Personnel"))
+            # Sub-Tab: Assigned Technicians
+            assigned_technicians_widget = QWidget()
+            assigned_technicians_layout = QVBoxLayout(assigned_technicians_widget)
+            self.assigned_technicians_table = QTableWidget()
+            self.assigned_technicians_table.setColumnCount(4)
+            self.assigned_technicians_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
+            self.assigned_technicians_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_technicians_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_technicians_table.horizontalHeader().setStretchLastSection(True)
+            assigned_technicians_layout.addWidget(self.assigned_technicians_table)
+            technician_buttons_layout = QHBoxLayout()
+            self.add_assigned_technician_btn = QPushButton(self.tr("Ajouter Technicien"))
+            self.add_assigned_technician_btn.clicked.connect(self.handle_add_assigned_technician)
+            self.remove_assigned_technician_btn = QPushButton(self.tr("Retirer Technicien"))
+            self.remove_assigned_technician_btn.clicked.connect(self.handle_remove_assigned_technician)
+            technician_buttons_layout.addWidget(self.add_assigned_technician_btn)
+            technician_buttons_layout.addWidget(self.remove_assigned_technician_btn)
+            assigned_technicians_layout.addLayout(technician_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_technicians_widget, self.tr("Techniciens"))
+            # Sub-Tab: Assigned Transporters
+            assigned_transporters_widget = QWidget()
+            assigned_transporters_layout = QVBoxLayout(assigned_transporters_widget)
+            self.assigned_transporters_table = QTableWidget()
+            self.assigned_transporters_table.setColumnCount(6)
+            self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé"), self.tr("Actions")])
+            self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_transporters_table.horizontalHeader().setStretchLastSection(True)
+            assigned_transporters_layout.addWidget(self.assigned_transporters_table)
+            transporter_buttons_layout = QHBoxLayout()
+            self.add_assigned_transporter_btn = QPushButton(self.tr("Ajouter Transporteur"))
+            self.add_assigned_transporter_btn.clicked.connect(self.handle_add_assigned_transporter)
+            self.remove_assigned_transporter_btn = QPushButton(self.tr("Retirer Transporteur"))
+            self.remove_assigned_transporter_btn.clicked.connect(self.handle_remove_assigned_transporter)
+            transporter_buttons_layout.addWidget(self.add_assigned_transporter_btn)
+            transporter_buttons_layout.addWidget(self.remove_assigned_transporter_btn)
+            assigned_transporters_layout.addLayout(transporter_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_transporters_widget, self.tr("Transporteurs"))
+            # Sub-Tab: Assigned Freight Forwarders
+            assigned_forwarders_widget = QWidget()
+            assigned_forwarders_layout = QVBoxLayout(assigned_forwarders_widget)
+            self.assigned_forwarders_table = QTableWidget()
+            self.assigned_forwarders_table.setColumnCount(5)
+            self.assigned_forwarders_table.setHorizontalHeaderLabels([self.tr("Nom Transitaire"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Description Tâche"), self.tr("Coût Estimé")])
+            self.assigned_forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_forwarders_table.horizontalHeader().setStretchLastSection(True)
+            assigned_forwarders_layout.addWidget(self.assigned_forwarders_table)
+            forwarder_buttons_layout = QHBoxLayout()
+            self.add_assigned_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire"))
+            self.add_assigned_forwarder_btn.clicked.connect(self.handle_add_assigned_forwarder)
+            self.remove_assigned_forwarder_btn = QPushButton(self.tr("Retirer Transitaire"))
+            self.remove_assigned_forwarder_btn.clicked.connect(self.handle_remove_assigned_forwarder)
+            forwarder_buttons_layout.addWidget(self.add_assigned_forwarder_btn)
+            forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
+            assigned_forwarders_layout.addLayout(forwarder_buttons_layout)
+            self.assignments_sub_tabs.addTab(assigned_forwarders_widget, self.tr("Transitaires"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Assignments Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Affectations:\n{0}").format(str(e)))
+
+        # Call to load SAV tickets table initially if tab is visible
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+        except Exception as e:
+            logging.error(f"Error during initial visibility update/load of SAV tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors de la mise à jour/chargement initial de l'onglet SAV:\n{0}").format(str(e)))
+
+        # Initial load for assignment tabs
+        try:
+            self.load_assigned_vendors_personnel()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Vendors/Personnel: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des vendeurs/personnel assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_technicians()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Technicians: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des techniciens assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_transporters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Transporters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transporteurs assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_freight_forwarders()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Freight Forwarders: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transitaires assignés:\n{0}").format(str(e)))
+
+        # Connect selection changed signals for assignment tables
+        self.assigned_vendors_table.itemSelectionChanged.connect(self.update_assigned_vendors_buttons_state)
+        self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
+        self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
+        self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
+
+        try:
+            # --- Billing Tab ---
+            self.billing_tab = QWidget()
+            self.billing_tab_layout = QVBoxLayout(self.billing_tab)
+            self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
+            self.generate_invoice_button.setToolTip(self.tr("Open dialog to prepare and generate a final invoice for this client."))
+            self.generate_invoice_button.clicked.connect(self.handle_generate_final_invoice)
+            self.billing_tab_layout.addWidget(self.generate_invoice_button)
+            self.billing_tab_layout.addStretch()
+            self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
+        except Exception as e:
+            logging.error(f"Error during UI setup of Billing Tab Structure: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Facturation:\n{0}").format(str(e)))
+
+        # Connect new accordion handlers
+        self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+
+    def _handle_edit_pdf_action(self, file_path, document_id):
+        if file_path and os.path.exists(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
         try:
             self.notes_edit.textChanged.disconnect(self.save_client_notes)
         except TypeError:
@@ -258,16 +1307,43 @@ class ClientWidget(QWidget):
         doc_filter_layout.addWidget(doc_filter_label)
 
         self.doc_order_filter_combo = QComboBox()
-        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed) # Allow combo to expand but not vertically
+        self.doc_order_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.doc_order_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
         doc_filter_layout.addWidget(self.doc_order_filter_combo)
+        doc_filter_layout.addSpacing(10)
 
-        # doc_filter_layout.addStretch() # Removing stretch to see if default behavior is better; can be added back if needed.
-                                     # If parent is QVBoxLayout, QHBoxLayout should by default take available width.
-                                     # If it needs to be left-aligned within a wider space, addStretch() is correct.
-                                     # Forcing on single line, it's more about child widget policies.
+        # Language Filter
+        doc_lang_filter_label = QLabel(self.tr("Filtrer par Langue:"))
+        doc_lang_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        doc_filter_layout.addWidget(doc_lang_filter_label)
+
+        self.doc_language_filter_combo = QComboBox()
+        self.doc_language_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.doc_language_filter_combo.addItem(self.tr("Toutes"), "ALL")
+        for lang_code in SUPPORTED_LANGUAGES:
+            self.doc_language_filter_combo.addItem(lang_code, lang_code)
+        self.doc_language_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+        doc_filter_layout.addWidget(self.doc_language_filter_combo)
+        doc_filter_layout.addSpacing(10)
+
+        # Type Filter
+        doc_type_filter_label = QLabel(self.tr("Filtrer par Type:"))
+        doc_type_filter_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        doc_filter_layout.addWidget(doc_type_filter_label)
+
+        self.doc_type_filter_combo = QComboBox()
+        self.doc_type_filter_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.doc_type_filter_combo.addItem(self.tr("Tous"), "ALL")
+        self.doc_type_filter_combo.addItem("HTML", "HTML")
+        self.doc_type_filter_combo.addItem("PDF", "PDF")
+        self.doc_type_filter_combo.addItem("XLSX", "XLSX")
+        self.doc_type_filter_combo.addItem("DOCX", "DOCX")
+        self.doc_type_filter_combo.addItem(self.tr("Autre"), "OTHER")
+        self.doc_type_filter_combo.currentIndexChanged.connect(self.populate_doc_table)
+        doc_filter_layout.addWidget(self.doc_type_filter_combo)
+
         docs_layout.addWidget(self.doc_filter_layout_widget)
-        self.doc_filter_layout_widget.setVisible(False) # Initially hidden
+        self.doc_filter_layout_widget.setVisible(True) # Make filter bar always visible
 
         # Create and add the empty state label for documents
         self.documents_empty_label = QLabel(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
@@ -297,7 +1373,7 @@ class ClientWidget(QWidget):
         doc_btn_layout.addWidget(self.refresh_docs_btn)
 
         self.add_template_btn = QPushButton(self.tr("Générer via Modèle"))
-        self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg")))
+            self.add_template_btn.setIcon(QIcon.fromTheme("document-new", QIcon(":/icons/file-plus.svg"))) # Reverted
         self.add_template_btn.setToolTip(self.tr("Générer un nouveau document pour ce client à partir d'un modèle"))
         self.add_template_btn.clicked.connect(self.open_create_docs_dialog)
         doc_btn_layout.addWidget(self.add_template_btn)
@@ -469,33 +1545,52 @@ class ClientWidget(QWidget):
         else:
             self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
 
-        self.load_products_for_dimension_tab()
+        try:
+            self.load_products_for_dimension_tab()
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
 
         self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
         self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
-        self.load_products_for_dimension_tab() # Initial population of product selector
+
+        try:
+            self.load_products_for_dimension_tab() # Initial population of product selector
+        except Exception as e:
+            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
 
         # Connect signals for the Product Dimensions Tab
-        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
-        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
+        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
 
         # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        try:
+            self.populate_doc_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        try:
+            self.load_contacts()
+        except Exception as e:
+            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        try:
+            self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+        except Exception as e:
+            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
 
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
-
-        self.populate_doc_table(); self.load_contacts(); self.load_products()
-        self.load_document_notes_filters()
-        self.load_document_notes_table()
+        try:
+            self.load_document_notes_filters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        try:
+            self.load_document_notes_table()
+        except Exception as e:
+            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
 
         # SAV Tab
         self.sav_tab = QWidget()
@@ -619,13 +1714,33 @@ class ClientWidget(QWidget):
         # --- End Assignments Tab ---
 
         # Call to load SAV tickets table initially if tab is visible
-        self.update_sav_tab_visibility() # This will also call load_sav_tickets_table if visible
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+        except Exception as e:
+            logging.error(f"Error during initial visibility update/load of SAV tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors de la mise à jour/chargement initial de l'onglet SAV:\n{0}").format(str(e)))
 
         # Initial load for assignment tabs
-        self.load_assigned_vendors_personnel()
-        self.load_assigned_technicians()
-        self.load_assigned_transporters()
-        self.load_assigned_freight_forwarders()
+        try:
+            self.load_assigned_vendors_personnel()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Vendors/Personnel: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des vendeurs/personnel assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_technicians()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Technicians: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des techniciens assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_transporters()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Transporters: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transporteurs assignés:\n{0}").format(str(e)))
+        try:
+            self.load_assigned_freight_forwarders()
+        except Exception as e:
+            logging.error(f"Error during initial load of Assigned Freight Forwarders: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des transitaires assignés:\n{0}").format(str(e)))
 
         # Connect selection changed signals for assignment tables
         self.assigned_vendors_table.itemSelectionChanged.connect(self.update_assigned_vendors_buttons_state)
@@ -633,10 +1748,28 @@ class ClientWidget(QWidget):
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
+        # --- Billing Tab ---
+        self.billing_tab = QWidget()
+        self.billing_tab_layout = QVBoxLayout(self.billing_tab)
+
+        self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
+        self.generate_invoice_button.setToolTip(self.tr("Open dialog to prepare and generate a final invoice for this client."))
+        self.generate_invoice_button.clicked.connect(self.handle_generate_final_invoice)
+        self.billing_tab_layout.addWidget(self.generate_invoice_button)
+        self.billing_tab_layout.addStretch()
+
+        self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
         # Connect new accordion handlers
         self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
         self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
         self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+
+    def _handle_edit_pdf_action(self, file_path, document_id):
+        if file_path and os.path.exists(file_path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        else:
+            QMessageBox.warning(self, self.tr("Fichier Introuvable"),
+                                self.tr("Le fichier PDF spécifié est introuvable ou le chemin est invalide:\n{0}").format(file_path))
 
     def open_send_whatsapp_dialog(self):
        client_uuid = self.client_info.get("client_id")
@@ -1543,48 +2676,113 @@ class ClientWidget(QWidget):
 
                 shutil.copy(selected_file_path, target_file_path)
 
-                # Update client's selected languages if necessary
-                current_selected_languages = self.client_info.get("selected_languages", [])
-                # Ensure it's a list, as it might be a comma-separated string from DB
-                if isinstance(current_selected_languages, str):
-                    current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                # Metadata gathering
+                client_id = self.client_info.get("client_id")
+                document_name = os.path.basename(selected_file_path)
+                file_name_on_disk = document_name
+                file_path_relative = os.path.join(selected_doc_language, file_name) # Assuming target_dir structure
 
-                if not current_selected_languages: # Handle empty or None case
-                    current_selected_languages = []
+                # Infer document_type_generated from extension
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext == ".html":
+                    document_type_generated = "HTML"
+                elif ext == ".pdf":
+                    document_type_generated = "PDF"
+                elif ext == ".xlsx":
+                    document_type_generated = "XLSX"
+                elif ext == ".docx":
+                    document_type_generated = "DOCX"
+                else:
+                    document_type_generated = ext.upper().replace(".", "") if ext else "OTHER"
 
-                if selected_doc_language not in current_selected_languages:
-                    add_lang_reply = QMessageBox.question(
-                        self,
-                        self.tr("Ajouter Langue"),
-                        self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes
+                language_code = selected_doc_language
+                source_template_id = None # For imported documents
+
+                order_identifier = None
+                if hasattr(self, 'doc_order_filter_combo') and self.doc_order_filter_combo.isVisible():
+                    current_order_data = self.doc_order_filter_combo.currentData()
+                    if current_order_data not in ["ALL", "NONE"]:
+                        order_identifier = current_order_data
+
+                created_by_user_id = None # ClientWidget does not have self.current_user_id
+                notes = None
+                version_tag = "1.0"
+
+                doc_db_data = {
+                    "client_id": client_id,
+                    "document_name": document_name,
+                    "file_name_on_disk": file_name_on_disk,
+                    "file_path_relative": file_path_relative,
+                    "document_type_generated": document_type_generated,
+                    "language_code": language_code,
+                    "source_template_id": source_template_id,
+                    "order_identifier": order_identifier,
+                    "created_by_user_id": created_by_user_id, # Corrected key for db_manager
+                    "notes": notes,
+                    "version_tag": version_tag,
+                    # project_id is not explicitly gathered here, will be None if not in dict
+                }
+                # The key in add_client_document is 'user_id', not 'created_by_user_id'
+                # Let's adjust doc_db_data to use 'user_id' for the CRUD function based on its definition.
+                doc_db_data_for_crud = doc_db_data.copy()
+                doc_db_data_for_crud['user_id'] = doc_db_data_for_crud.pop('created_by_user_id')
+
+
+                db_success = False
+                try:
+                    new_doc_db_id = db_manager.add_client_document(doc_db_data_for_crud)
+                    if new_doc_db_id:
+                        db_success = True
+                        # Update client's selected languages if necessary
+                        current_selected_languages = self.client_info.get("selected_languages", [])
+                        if isinstance(current_selected_languages, str):
+                            current_selected_languages = [lang.strip() for lang in current_selected_languages.split(',') if lang.strip()]
+                        if not current_selected_languages: current_selected_languages = []
+
+                        if selected_doc_language not in current_selected_languages:
+                            add_lang_reply = QMessageBox.question(
+                                self, self.tr("Ajouter Langue"),
+                                self.tr("Voulez-vous ajouter '{0}' aux langues sélectionnées pour ce client?").format(selected_doc_language),
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                            )
+                            if add_lang_reply == QMessageBox.Yes:
+                                updated_languages_list = current_selected_languages + [selected_doc_language]
+                                updated_languages_str = ",".join(updated_languages_list)
+                                client_id_to_update = self.client_info.get("client_id")
+                                if client_id_to_update:
+                                    if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
+                                        self.client_info["selected_languages"] = updated_languages_list
+                                        print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
+                                    else:
+                                        QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
+                                else:
+                                    QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
+
+                        self.populate_doc_table() # Call after successful DB operation
+                        QMessageBox.information(
+                            self, self.tr("Succès"),
+                            self.tr("Document '{0}' importé et enregistré avec succès en langue '{1}'.").format(file_name, selected_doc_language)
+                        )
+                    else:
+                        # db_success remains False
+                        self.populate_doc_table() # Still populate to show the file if copied
+                        QMessageBox.warning(
+                            self, self.tr("Échec Enregistrement DB"),
+                            self.tr("Document '{0}' copié avec succès en langue '{1}', mais échec de l'enregistrement dans la base de données. Le document pourrait ne pas s'afficher correctement.").format(file_name, selected_doc_language)
+                        )
+                except Exception as db_e:
+                    # db_success remains False
+                    logging.error(f"Error during database operation in add_document: {db_e}", exc_info=True)
+                    self.populate_doc_table() # Still populate to show the file if copied
+                    QMessageBox.warning(
+                        self, self.tr("Erreur Base de Données"),
+                        self.tr("Document '{0}' copié, mais une erreur est survenue lors de l'enregistrement dans la base de données: {1}. Le document pourrait ne pas s'afficher correctement.").format(file_name, str(db_e))
                     )
-                    if add_lang_reply == QMessageBox.Yes:
-                        updated_languages_list = current_selected_languages + [selected_doc_language]
-                        updated_languages_str = ",".join(updated_languages_list)
 
-                        client_id_to_update = self.client_info.get("client_id")
-                        if client_id_to_update:
-                            if db_manager.update_client(client_id_to_update, {'selected_languages': updated_languages_str}):
-                                self.client_info["selected_languages"] = updated_languages_list # Update local info
-                                print(f"Client {client_id_to_update} selected_languages updated to {updated_languages_str}")
-                            else:
-                                QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour des langues du client dans la DB."))
-                        else:
-                            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible, impossible de mettre à jour les langues."))
-
-                self.populate_doc_table()
-
-                QMessageBox.information(
-                    self,
-                    self.tr("Succès"),
-                    self.tr("Document '{0}' ajouté avec succès en langue '{1}'.").format(file_name, selected_doc_language)
-                )
             except Exception as e:
+                logging.error(f"Error copying file or preparing metadata in add_document: {e}", exc_info=True)
                 QMessageBox.warning(
-                    self,
-                    self.tr("Erreur"),
+                    self, self.tr("Erreur"),
                     self.tr("Impossible d'ajouter le document : {0}").format(str(e))
                 )
 
@@ -1640,87 +2838,108 @@ class ClientWidget(QWidget):
             self.details_layout.removeRow(0)
 
         self.detail_value_labels = {} # Re-initialize
+        logging.info(f"Populating details layout for: {self.client_info.get('client_name')}")
 
         # Project ID
         project_id_label = QLabel(self.tr("ID Projet:"))
-        project_id_value = QLabel(self.client_info.get("project_identifier", self.tr("N/A")))
-        self.details_layout.addRow(project_id_label, project_id_value)
-        self.detail_value_labels["project_identifier"] = project_id_value
+        project_identifier_value = self.client_info.get("project_identifier", self.tr("N/A"))
+        logging.info(f"Setting project_identifier: {project_identifier_value}")
+        project_id_value_label = QLabel(project_identifier_value)
+        self.details_layout.addRow(project_id_label, project_id_value_label)
+        self.detail_value_labels["project_identifier"] = project_id_value_label
 
         # Country and City
         country_city_widget = QWidget()
         country_city_h_layout = QHBoxLayout(country_city_widget)
         country_city_h_layout.setContentsMargins(0,0,0,0)
         country_label = QLabel(self.tr("Pays:"))
-        country_value = QLabel(self.client_info.get("country", self.tr("N/A")))
+        country_text_value = self.client_info.get("country", self.tr("N/A"))
+        logging.info(f"Setting country: {country_text_value}")
+        country_value_label = QLabel(country_text_value)
         city_label = QLabel(self.tr("Ville:"))
-        city_value = QLabel(self.client_info.get("city", self.tr("N/A")))
+        city_text_value = self.client_info.get("city", self.tr("N/A"))
+        logging.info(f"Setting city: {city_text_value}")
+        city_value_label = QLabel(city_text_value)
         country_city_h_layout.addWidget(country_label)
-        country_city_h_layout.addWidget(country_value)
+        country_city_h_layout.addWidget(country_value_label)
         country_city_h_layout.addSpacing(20)
         country_city_h_layout.addWidget(city_label)
-        country_city_h_layout.addWidget(city_value)
+        country_city_h_layout.addWidget(city_value_label)
         country_city_h_layout.addStretch()
         self.details_layout.addRow(self.tr("Localisation:"), country_city_widget)
-        self.detail_value_labels["country"] = country_value
-        self.detail_value_labels["city"] = city_value
+        self.detail_value_labels["country"] = country_value_label
+        self.detail_value_labels["city"] = city_value_label
 
         # Price and Creation Date
         price_date_widget = QWidget()
         price_date_h_layout = QHBoxLayout(price_date_widget)
         price_date_h_layout.setContentsMargins(0,0,0,0)
         price_label = QLabel(self.tr("Prix Final:"))
-        price_value = QLabel(f"{self.client_info.get('price', 0)} €")
+        price_value_data = self.client_info.get('price', 0)
+        logging.info(f"Setting price: {price_value_data}")
+        price_value_label = QLabel(f"{price_value_data} €")
         date_label = QLabel(self.tr("Date Création:"))
-        date_value = QLabel(self.client_info.get("creation_date", self.tr("N/A")))
+        creation_date_data = self.client_info.get("creation_date", self.tr("N/A"))
+        logging.info(f"Setting creation_date: {creation_date_data}")
+        date_value_label = QLabel(creation_date_data)
         price_date_h_layout.addWidget(price_label)
-        price_date_h_layout.addWidget(price_value)
+        price_date_h_layout.addWidget(price_value_label)
         price_date_h_layout.addSpacing(20)
         price_date_h_layout.addWidget(date_label)
-        price_date_h_layout.addWidget(date_value)
+        price_date_h_layout.addWidget(date_value_label)
         price_date_h_layout.addStretch()
         self.details_layout.addRow(self.tr("Finances & Date:"), price_date_widget)
-        self.detail_value_labels["price"] = price_value
-        self.detail_value_labels["creation_date"] = date_value
+        self.detail_value_labels["price"] = price_value_label
+        self.detail_value_labels["creation_date"] = date_value_label
 
         # Status and Category
         status_category_widget = QWidget()
         status_category_h_layout = QHBoxLayout(status_category_widget)
         status_category_h_layout.setContentsMargins(0,0,0,0)
+        logging.info(f"Setting status: {self.client_info.get('status', self.tr('En cours'))}") # status_combo text set elsewhere
         status_category_h_layout.addWidget(QLabel(self.tr("Statut:")))
-        status_category_h_layout.addWidget(self.status_combo)
+        status_category_h_layout.addWidget(self.status_combo) # status_combo itself is added
         status_category_h_layout.addSpacing(20)
-        status_category_h_layout.addWidget(self.category_label)
-        status_category_h_layout.addWidget(self.category_value_label)
+        category_text_value = self.client_info.get("category", self.tr("N/A"))
+        logging.info(f"Setting category: {category_text_value}")
+        self.category_value_label.setText(category_text_value) # Set text on the instance member
+        status_category_h_layout.addWidget(self.category_label) # Add instance member label
+        status_category_h_layout.addWidget(self.category_value_label) # Add instance member value label
         status_category_h_layout.addStretch()
         self.details_layout.addRow(self.tr("Classification:"), status_category_widget)
         self.detail_value_labels["category_value"] = self.category_value_label # Store for edit mode
 
         # Distributor Specific Info (conditionally visible)
         self.distributor_info_label = QLabel(self.tr("Info Distributeur:"))
-        self.distributor_info_value_label = QLabel(self.client_info.get('distributor_specific_info', ''))
+        distributor_specific_info_value = self.client_info.get('distributor_specific_info', '')
+        # Logging for distributor_specific_info is implicitly covered by toggle_distributor_info_visibility if shown
+        self.distributor_info_value_label = QLabel(distributor_specific_info_value)
         self.distributor_info_value_label.setWordWrap(True)
-        self.distributor_info_value_label.setObjectName("distributorInfoValueLabel") # Keep object name if used in QSS
+        self.distributor_info_value_label.setObjectName("distributorInfoValueLabel")
         self.distributor_info_label.setObjectName("distributorInfoLabel")
         self.details_layout.addRow(self.distributor_info_label, self.distributor_info_value_label)
-        self.toggle_distributor_info_visibility() # Call to set initial visibility
+        self.toggle_distributor_info_visibility()
 
         # Need (Besoin Principal)
         need_label = QLabel(self.tr("Besoin Principal:"))
-        need_value = QLabel(self.client_info.get("need", self.client_info.get("primary_need_description", self.tr("N/A")))) # check both keys
-        self.details_layout.addRow(need_label, need_value)
-        self.detail_value_labels["need"] = need_value
+        need_text_value = self.client_info.get("need", self.client_info.get("primary_need_description", self.tr("N/A")))
+        logging.info(f"Setting need: {need_text_value}")
+        need_value_label = QLabel(need_text_value)
+        self.details_layout.addRow(need_label, need_value_label)
+        self.detail_value_labels["need"] = need_value_label
 
         # Base Folder Path
         folder_label = QLabel(self.tr("Chemin Dossier:"))
-        folder_path = self.client_info.get('base_folder_path','')
-        folder_value = QLabel(f"<a href='file:///{folder_path}'>{folder_path}</a>")
-        folder_value.setOpenExternalLinks(True)
-        folder_value.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.details_layout.addRow(folder_label, folder_value)
-        self.detail_value_labels["base_folder_path"] = folder_value
+        folder_path_value = self.client_info.get('base_folder_path','')
+        logging.info(f"Setting base_folder_path: {folder_path_value}")
+        folder_value_label = QLabel(f"<a href='file:///{folder_path_value}'>{folder_path_value}</a>")
+        folder_value_label.setOpenExternalLinks(True)
+        folder_value_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.details_layout.addRow(folder_label, folder_value_label)
+        self.detail_value_labels["base_folder_path"] = folder_value_label
 
     def refresh_display(self, new_client_info):
+        # logging.info(f"ClientWidget refresh_display: client_id={new_client_info.get('client_id')}, client_name={new_client_info.get('client_name')}")
         self.client_info = new_client_info
         # Update GroupBox title if it includes client name
         if hasattr(self, 'client_info_group_box'):
@@ -1729,32 +2948,51 @@ class ClientWidget(QWidget):
         self.header_label.setText(f"<h2>{self.client_info.get('client_name', '')}</h2>")
 
         # Repopulate the details section with the new client_info
-        self.populate_details_layout()
+        self.populate_details_layout() # This now contains logging
 
         # Ensure status_combo and category_value_label (and distributor info) are updated
         # These are handled by populate_details_layout and its call to toggle_distributor_info_visibility
         self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
-        self.category_value_label.setText(self.client_info.get("category", self.tr("N/A")))
+        # self.category_value_label.setText(self.client_info.get("category", self.tr("N/A"))) # Done in populate_details_layout
         # distributor_info_value_label is updated within populate_details_layout
 
         self.notes_edit.setText(self.client_info.get("notes", ""))
         self.update_sav_tab_visibility() # Refresh SAV tab visibility
         # Also ensure SAV tickets table is loaded if tab is visible
-        if self.tab_widget.isTabEnabled(self.sav_tab_index):
+        if hasattr(self, 'sav_tab_index') and self.tab_widget.isTabEnabled(self.sav_tab_index): # Check sav_tab_index exists
             self.load_sav_tickets_table()
-
 
     def load_statuses(self):
         try:
             # Assuming 'Client' is the status_type for this context
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
-            if client_statuses is None: client_statuses = [] # Handle case where db_manager returns None
 
             self.status_combo.clear() # Clear before populating
-            for status_dict in client_statuses:
-                # Add status_name for display and status_id as item data
-                self.status_combo.addItem(status_dict['status_name'], status_dict.get('status_id'))
+            if client_statuses: # Ensure client_statuses is not None and not empty
+                for status_dict in client_statuses:
+                    if not isinstance(status_dict, dict):
+                        logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
+                        continue
+
+                    status_name = status_dict.get('status_name')
+                    status_id = status_dict.get('status_id')
+
+                    if status_id is None: # status_id is essential for functionality
+                        logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
+                        continue
+
+                    if not status_name: # status_name is essential for display
+                        status_name = self.tr("Unnamed Status ({0})").format(status_id)
+                        logging.warning(f"Status name missing for status_id {status_id}, using default: '{status_name}'")
+
+                    self.status_combo.addItem(str(status_name), status_id) # Ensure name is a string
+            # else: # Handle case where client_statuses is None or empty after fetching
+                # logging.info("No client statuses found or returned from DB to populate status_combo.")
+                # Optionally, add a default item or leave the combo box empty.
+                # If left empty, ensure currentTextChanged signal handling is robust.
+
         except Exception as e: # Catch a more generic exception if db_manager might raise something other than sqlite3.Error
+            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True) # Log with more detail
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:\n{0}").format(str(e)))
 
     def update_client_status(self, status_text):
@@ -1894,28 +3132,23 @@ class ClientWidget(QWidget):
             logging.warning("populate_doc_table: client_id is missing from client_info.")
             return
 
+        # Order filter population (existing logic)
         order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
         is_distributor_type = self.client_info.get('category') == 'Distributeur'
         has_multiple_orders = order_events and len(order_events) > 1
-        show_order_filter = is_distributor_type or has_multiple_orders
+        show_order_filter_dropdown = is_distributor_type or has_multiple_orders # Determines if order dropdown is specifically populated/used
 
-        self.doc_filter_layout_widget.setVisible(bool(show_order_filter))
+        # Visibility of the entire filter bar container.
+        # For now, let's make it always visible as per instruction to show filters even for empty list.
+        # self.doc_filter_layout_widget.setVisible(True) # This is now set in setup_ui
 
         current_order_filter_selection = None
-        if show_order_filter:
+        if show_order_filter_dropdown: # Populate order filter only if relevant
             current_order_filter_selection = self.doc_order_filter_combo.currentData()
             self.doc_order_filter_combo.blockSignals(True)
             self.doc_order_filter_combo.clear()
             self.doc_order_filter_combo.addItem(self.tr("Toutes les Commandes"), "ALL")
             self.doc_order_filter_combo.addItem(self.tr("Documents Généraux (sans commande)"), "NONE")
-
-            # Fetch distinct order_identifiers from ClientDocuments for this client
-            # This requires a new DB function: get_distinct_order_identifiers_for_client(client_id)
-            # For now, we'll use purchase_confirmed_at from ClientProjectProducts as a proxy,
-            # assuming documents might be linked to these "order events".
-            # A more robust solution would be to get distinct order_identifier values directly from ClientDocuments.
-
-            # Using order_events (distinct purchase_confirmed_at) for the filter
             if order_events:
                 for event_ts in order_events:
                     if event_ts:
@@ -1925,25 +3158,74 @@ class ClientWidget(QWidget):
                             self.doc_order_filter_combo.addItem(display_text, event_ts)
                         except ValueError:
                             self.doc_order_filter_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
-
             if current_order_filter_selection:
                 index = self.doc_order_filter_combo.findData(current_order_filter_selection)
                 if index >= 0: self.doc_order_filter_combo.setCurrentIndex(index)
-                else: self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+                else: self.doc_order_filter_combo.setCurrentIndex(0)
             else:
-                 self.doc_order_filter_combo.setCurrentIndex(0) # Default to "All Orders"
+                 self.doc_order_filter_combo.setCurrentIndex(0)
             self.doc_order_filter_combo.blockSignals(False)
+        else: # Hide or disable order filter if not applicable
+            self.doc_order_filter_combo.clear()
+            self.doc_order_filter_combo.addItem(self.tr("N/A"), "ALL") # Default to ALL if not used
+            self.doc_order_filter_combo.setEnabled(False)
 
-        filters = {}
-        if show_order_filter:
-            selected_order_filter_data = self.doc_order_filter_combo.currentData()
-            if selected_order_filter_data == "NONE":
-                filters['order_identifier'] = None
-            elif selected_order_filter_data != "ALL":
-                filters['order_identifier'] = selected_order_filter_data
 
-        client_documents = db_manager.get_documents_for_client(client_id, filters=filters)
-        client_documents = client_documents if client_documents else []
+        db_filters = {} # Filters for the DB query (currently only order_identifier)
+        selected_order_filter_data = self.doc_order_filter_combo.currentData()
+        if selected_order_filter_data == "NONE":
+            db_filters['order_identifier'] = None
+        elif selected_order_filter_data != "ALL":
+            db_filters['order_identifier'] = selected_order_filter_data
+
+        # Fetch documents based on DB filters (order filter)
+        client_documents_from_db = db_manager.get_documents_for_client(client_id, filters=db_filters)
+        client_documents_from_db = client_documents_from_db if client_documents_from_db else []
+
+        # Get language and type filter values for client-side filtering
+        selected_lang_filter = self.doc_language_filter_combo.currentData()
+        selected_type_filter = self.doc_type_filter_combo.currentData()
+
+        filtered_list = []
+        for doc_data in client_documents_from_db:
+            doc_passes_lang_filter = True
+            doc_passes_type_filter = True
+
+            # Language Filtering
+            if selected_lang_filter != "ALL":
+                doc_lang = doc_data.get('language_code')
+                # Infer if not present (though it should be from import)
+                if not doc_lang and doc_data.get('file_path_relative'):
+                    path_parts = doc_data.get('file_path_relative').split(os.sep)
+                    if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
+                        doc_lang = path_parts[0]
+                if doc_lang != selected_lang_filter:
+                    doc_passes_lang_filter = False
+
+            # Type Filtering
+            if selected_type_filter != "ALL":
+                doc_type_generated = doc_data.get('document_type_generated', '').upper()
+                file_name_on_disk = doc_data.get('file_name_on_disk', '').lower()
+
+                is_html = doc_type_generated == 'HTML' or file_name_on_disk.endswith('.html')
+                is_pdf = doc_type_generated == 'PDF' or file_name_on_disk.endswith('.pdf')
+                is_xlsx = doc_type_generated == 'XLSX' or file_name_on_disk.endswith('.xlsx')
+                is_docx = doc_type_generated == 'DOCX' or file_name_on_disk.endswith('.docx')
+
+                if selected_type_filter == "HTML":
+                    if not is_html: doc_passes_type_filter = False
+                elif selected_type_filter == "PDF":
+                    if not is_pdf: doc_passes_type_filter = False
+                elif selected_type_filter == "XLSX":
+                    if not is_xlsx: doc_passes_type_filter = False
+                elif selected_type_filter == "DOCX":
+                    if not is_docx: doc_passes_type_filter = False
+                elif selected_type_filter == "OTHER":
+                    if is_html or is_pdf or is_xlsx or is_docx:
+                        doc_passes_type_filter = False
+
+            if doc_passes_lang_filter and doc_passes_type_filter:
+                filtered_list.append(doc_data)
 
         base_client_path = self.client_info.get("base_folder_path")
         if not base_client_path or not os.path.isdir(base_client_path):
@@ -1954,27 +3236,24 @@ class ClientWidget(QWidget):
             self.doc_table.setVisible(False)
             return
 
-        if not client_documents:
+        if not filtered_list: # Check the final filtered list
             if hasattr(self, 'documents_empty_label'):
-                 self.documents_empty_label.setText(self.tr("Aucun document trouvé pour ce client.\nUtilisez les boutons ci-dessous pour ajouter ou générer des documents."))
+                 self.documents_empty_label.setText(self.tr("Aucun document ne correspond aux filtres sélectionnés.\nModifiez vos filtres ou ajoutez/générez des documents."))
                  self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
             return
 
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
         self.doc_table.setVisible(True)
-        self.doc_table.setRowCount(len(client_documents))
+        self.doc_table.setRowCount(len(filtered_list))
 
-        for row_idx, doc_data in enumerate(client_documents):
+        for row_idx, doc_data in enumerate(filtered_list):
             document_id = doc_data.get('document_id')
             doc_name = doc_data.get('document_name', 'N/A')
             file_path_relative_from_db = doc_data.get('file_path_relative', '') # e.g., "fr/doc.pdf" or "order_xyz/fr/doc.pdf"
             order_identifier_for_doc = doc_data.get('order_identifier') # This is the raw timestamp or ID
 
             # Determine language code from relative path structure
-            # This assumes path_relative is like "lang_code/filename.ext" OR part of a deeper structure if order_identifier is used
-            # For now, let's simplify and assume file_path_relative from DB is just "lang/filename.ext"
-            # The full path construction will handle the order subfolder.
             language_code = doc_data.get('language_code', "N/A") # Prefer direct field if available
             if language_code == "N/A" and file_path_relative_from_db: # Fallback to inferring from path
                 path_parts = file_path_relative_from_db.split(os.sep)
@@ -1992,7 +3271,6 @@ class ClientWidget(QWidget):
 
                 if not os.path.exists(full_file_path):
                     logging.warning(f"Document file path does not exist: {full_file_path} for doc_id {document_id}")
-                    # Optionally mark this row differently or skip
             else:
                 logging.warning(f"Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
 
@@ -2016,13 +3294,163 @@ class ClientWidget(QWidget):
             self.doc_table.setItem(row_idx, 3, QTableWidgetItem(mod_time_formatted))
 
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
-            pdf_btn = QPushButton(""); pdf_btn.setIcon(QIcon.fromTheme("document-export", QIcon(":/icons/pdf.svg"))); pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document")); pdf_btn.setFixedSize(30,30); pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p)); action_layout.addWidget(pdf_btn)
-            source_btn = QPushButton(""); source_btn.setIcon(QIcon.fromTheme("document-open", QIcon(":/icons/eye.svg"))); source_btn.setToolTip(self.tr("Afficher le fichier source")); source_btn.setFixedSize(30,30); source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p))); action_layout.addWidget(source_btn)
-            if doc_name.lower().endswith(('.xlsx', '.html')): # Check original doc_name for editability
-                edit_btn = QPushButton(""); edit_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))); edit_btn.setToolTip(self.tr("Modifier le contenu du document")); edit_btn.setFixedSize(30,30); edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p)); action_layout.addWidget(edit_btn)
-            else: spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
-            delete_btn = QPushButton(""); delete_btn.setIcon(QIcon.fromTheme("edit-delete", QIcon(":/icons/trash.svg"))); delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)")); delete_btn.setFixedSize(30,30); delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p)); action_layout.addWidget(delete_btn)
+
+            # 1. pdf_btn (Generate/Open PDF)
+            pdf_btn = QPushButton("")
+            pdf_btn.setIcon(QIcon(":/icons/file-text.svg"))
+            pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document"))
+            pdf_btn.setFixedSize(30,30)
+            pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p))
+            action_layout.addWidget(pdf_btn)
+
+            source_template_id = doc_data.get('source_template_id')
+
+            # 2. source_btn (View Source File)
+            source_btn = QPushButton("")
+            source_btn.setIcon(QIcon(":/icons/eye.svg"))
+            source_btn.setToolTip(self.tr("Afficher le fichier source"))
+            source_btn.setFixedSize(30,30)
+            source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
+            action_layout.addWidget(source_btn)
+
+            can_edit_source_template = False
+            if source_template_id:
+                template_info_for_edit_btn = db_manager.get_template_by_id(source_template_id)
+                if template_info_for_edit_btn and template_info_for_edit_btn.get('template_type', '').startswith('html'):
+                    can_edit_source_template = True
+
+            if can_edit_source_template:
+                # 3. edit_source_template_btn
+                edit_source_template_btn = QPushButton("")
+                edit_source_template_btn.setIcon(QIcon(":/icons/edit-2.svg"))
+                edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document"))
+                edit_source_template_btn.setFixedSize(30,30)
+                edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d))
+                action_layout.addWidget(edit_source_template_btn)
+            elif file_type_str.upper() == "PDF":
+                edit_pdf_btn = QPushButton(self.tr("Modifier PDF"))
+                edit_pdf_btn.setIcon(QIcon(":/icons/pencil.svg"))
+                edit_pdf_btn.setToolTip(self.tr("Modifier le fichier PDF"))
+                edit_pdf_btn.setFixedSize(30, 30)
+                edit_pdf_btn.clicked.connect(lambda _, p=full_file_path, doc_id=document_id: self._handle_edit_pdf_action(p, doc_id))
+                action_layout.addWidget(edit_pdf_btn)
+            elif doc_name.lower().endswith(('.xlsx', '.html')): # Keep this for non-PDF office docs
+                # 4. edit_btn (Direct edit for .xlsx, .html)
+                edit_btn = QPushButton("")
+                edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
+                edit_btn.setToolTip(self.tr("Modifier le contenu du document"))
+                edit_btn.setFixedSize(30,30)
+                edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p))
+                action_layout.addWidget(edit_btn)
+            else:
+                # This spacer is added if no other edit-like button is added for this slot.
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+
+            # 5. delete_btn (Delete Document)
+            delete_btn = QPushButton("")
+            delete_btn.setIcon(QIcon(":/icons/trash.svg"))
+            delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)"))
+            delete_btn.setFixedSize(30,30)
+            delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p))
+            action_layout.addWidget(delete_btn)
+
             action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+
+    def handle_edit_source_template(self, document_data):
+        source_template_id = document_data.get('source_template_id')
+        current_client_id = self.client_info.get('client_id')
+
+        if not source_template_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun ID de modèle source associé à ce document."))
+            return
+
+        original_template = db_manager.get_template_by_id(source_template_id)
+        if not original_template:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Modèle source (ID: {0}) introuvable.").format(source_template_id))
+            return
+
+        template_to_edit_id = source_template_id
+        template_for_editor = original_template.copy() # Work with a copy
+
+        if original_template.get('client_id') is None: # Global template
+            reply = QMessageBox.question(self, self.tr("Modèle Global"),
+                                         self.tr("Ce document a été généré à partir d'un modèle global. Voulez-vous créer une copie spécifique à ce client ({0}) pour modification?").format(self.client_info.get('client_name', current_client_id)),
+                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if reply == QMessageBox.Yes:
+                new_template_data = template_for_editor # Already a copy
+                new_template_data['client_id'] = current_client_id
+                new_template_data['template_name'] = f"{original_template.get('template_name', 'Template')} ({self.client_info.get('client_name', current_client_id)[:15]} Copy)"
+                new_template_data.pop('template_id', None)
+                new_template_data['is_default_for_type_lang'] = False
+
+                new_id = db_manager.add_template(new_template_data)
+                if new_id:
+                    template_to_edit_id = new_id
+                    template_for_editor = db_manager.get_template_by_id(new_id) # Get the full new template data
+                    QMessageBox.information(self, self.tr("Copie Créée"), self.tr("Une copie client-spécifique du modèle a été créée et va maintenant être ouverte pour édition."))
+                    self.populate_doc_table() # Refresh doc list if template source ID might change (though it doesn't for existing docs)
+                else:
+                    QMessageBox.critical(self, self.tr("Erreur"), self.tr("Impossible de créer la copie client-spécifique du modèle."))
+                    return
+            else: # User chose not to create a copy
+                return
+        elif original_template.get('client_id') != current_client_id:
+            QMessageBox.warning(self, self.tr("Accès Interdit"), self.tr("Ce modèle appartient à un autre client et ne peut pas être modifié directement ici. Une copie pour le client actuel peut être envisagée si nécessaire (fonctionnalité à implémenter)."))
+            return # Or implement copy logic similar to global templates
+
+        # At this point, template_for_editor is the correct one to edit (original or new copy)
+        raw_html_content = template_for_editor.get('raw_template_file_data')
+        base_file_name = template_for_editor.get('base_file_name')
+        lang_code = template_for_editor.get('language_code')
+
+        if not base_file_name or not lang_code:
+            QMessageBox.critical(self, self.tr("Erreur Modèle"), self.tr("Les informations du fichier de base du modèle (nom ou langue) sont manquantes."))
+            return
+
+        # Construct path in the central template store
+        template_file_path_for_editor = os.path.join(self.config.get("templates_dir", "templates"), lang_code, base_file_name)
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(template_file_path_for_editor), exist_ok=True)
+
+        # Write DB content to file for editor, to ensure editor loads the canonical version
+        try:
+            content_to_write = raw_html_content
+            if isinstance(raw_html_content, bytes):
+                content_to_write = raw_html_content.decode('utf-8')
+
+            with open(template_file_path_for_editor, 'w', encoding='utf-8') as f:
+                f.write(content_to_write if content_to_write else "")
+        except Exception as e:
+            QMessageBox.critical(self, self.tr("Erreur Écriture Fichier"), self.tr("Impossible d'écrire le contenu du modèle vers le fichier temporaire pour édition: {0}").format(str(e)))
+            return
+
+        editor_client_data = self.client_info.copy() # Pass a copy
+        html_editor = HtmlEditor(
+            file_path=template_file_path_for_editor,
+            client_data=editor_client_data,
+            template_id=template_to_edit_id, # Pass the ID of the template being edited
+            parent=self
+        )
+        if html_editor.exec_() == QDialog.Accepted:
+            try:
+                with open(template_file_path_for_editor, 'r', encoding='utf-8') as f:
+                    updated_html_content = f.read()
+
+                # Save updated content back to DB
+                update_payload = {'raw_template_file_data': updated_html_content}
+                # Optionally, update 'updated_at' or 'version' if those fields are important here
+                if db_manager.update_template(template_to_edit_id, update_payload):
+                    QMessageBox.information(self, self.tr("Modèle Sauvegardé"), self.tr("Les modifications du modèle ont été sauvegardées dans la base de données."))
+                else:
+                    QMessageBox.warning(self, self.tr("Erreur Sauvegarde DB"), self.tr("Impossible de sauvegarder les modifications du modèle dans la base de données."))
+            except Exception as e:
+                QMessageBox.critical(self, self.tr("Erreur Lecture Fichier"), self.tr("Impossible de relire le fichier modèle modifié: {0}").format(str(e)))
+
+        # Clean up temporary file if it was solely for this edit session and raw_template_file_data is truth
+        # For now, assume file is persistent in templates_dir. If base_file_name was temporary, then:
+        # if os.path.exists(template_file_path_for_editor) and is_temp_file: os.remove(template_file_path_for_editor)
+
 
     def open_create_docs_dialog(self):
         dialog = self.CreateDocumentDialog(self.client_info, self.config, self)
@@ -2235,52 +3663,103 @@ class ClientWidget(QWidget):
             # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
 
             # Example of what might be happening and how to fix it:
-            # (This is illustrative as the actual product saving loop is not shown in the provided code)
-
-            client_country_id = self.client_info.get('country_id') # Get country_id from ClientWidget's info
+            products_list_data = dialog.get_data() # This is a list of product_entry dicts
 
             processed_count = 0
             if products_list_data:
                 for product_entry in products_list_data:
-                    # product_entry is a dict from ProductDialog.get_data(), which now includes:
-                    # 'client_id', 'product_id' (global ID), 'name', 'quantity', 'unit_price',
-                    # 'language_code', 'weight', 'dimensions',
-                    # 'client_country_id', 'client_city_id'
+                    client_id_for_product = self.client_info.get('client_id')
+                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
+                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
+                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
 
-                    # If there was faulty logic here like:
-                    # city_name_from_client = self.client_info.get('city')
-                    # if city_name_from_client:
-                    #     # Incorrect call: db_manager.get_or_add_city(city_name=city_name_from_client, country_id=None)
-                    #     # Corrected call would be:
-                    #     db_manager.get_or_add_city(city_name=city_name_from_client, country_id=client_country_id)
-                    # This part is speculative as the original call to City() is not found.
+                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
+                    client_id_for_product = self.client_info.get('client_id')
+                    global_product_id = product_entry.get('product_id')
+                    quantity_raw = product_entry.get('quantity')
+                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
 
-                    # The primary action is linking the product:
-                    # Ensure product_entry has all necessary fields for add_product_to_client_or_project
-                    # It already contains client_id, product_id (as 'product_id'), quantity, unit_price_override (as 'unit_price')
+                    quantity = None
+                    if quantity_raw is not None:
+                        try:
+                            quantity = float(quantity_raw)
+                            if quantity <= 0:
+                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
+                                quantity = None # Treat as missing/invalid
+                        except ValueError:
+                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
+                            quantity = None # Treat as missing/invalid
 
+                    unit_price_override = None # Initialize to None
+                    # unit_price_override should only be set if unit_price_override_raw is not None.
+                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
+                    # If unit_price_override_raw is provided, it must be a valid float.
+                    if unit_price_override_raw is not None:
+                        try:
+                            unit_price_override = float(unit_price_override_raw)
+                            if unit_price_override < 0: # Negative prices are not allowed for an override
+                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
+                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
+                                unit_price_override = None # Mark as invalid for the 'all' check.
+                        except ValueError:
+                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
+                            unit_price_override = None # Mark as invalid for the 'all' check.
+
+                    # Determine project_id. It can be None.
+                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
+                    project_id_for_db = self.client_info.get('project_id', None)
+                    if project_id_for_db is None:
+                        # If 'project_id' is not directly in client_info,
+                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
+                        # For now, assume if 'project_id' is not there, it's None.
+                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
+
+
+                    # Critical data for adding a link: client_id, product_id, quantity.
+                    # unit_price_override is optional in db_call_payload (None means use base price).
+                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
+                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
+                    # And quantity must always be valid.
+                    conditions_met = all([
+                        client_id_for_product,
+                        global_product_id,
+                        quantity is not None, # Quantity must be valid positive number
+                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
+                    ])
+
+                    if not conditions_met:
+                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
+                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
+                        continue
+
+                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
+                    # The add_product_to_client_or_project function handles None override by using base price.
                     db_call_payload = {
-                        'client_id': product_entry.get('client_id'),
-                        'product_id': product_entry.get('product_id'), # This is the global product_id
-                        'quantity': product_entry.get('quantity'),
-                        'unit_price_override': product_entry.get('unit_price'), # ProductDialog uses 'unit_price' for this
-                        'project_id': self.client_info.get('project_id'), # Or from a project selector if applicable
-                        # serial_number, purchase_confirmed_at would be None unless set explicitly
+                        'client_id': client_id_for_product,
+                        'product_id': global_product_id,
+                        'quantity': quantity, # Validated float
+                        'unit_price_override': unit_price_override, # Validated float or None
+                        'project_id': project_id_for_db,
                     }
 
+                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
+
                     if link_id:
                         processed_count += 1
+                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
                     else:
-                        QMessageBox.warning(self, self.tr("DB Error"),
-                                            self.tr(f"Failed to add product '{product_entry.get('name')}' to client."))
+                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        QMessageBox.warning(self, self.tr("Erreur Base de Données"),
+                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
 
             if processed_count > 0:
-                 QMessageBox.information(self, self.tr("Success"),
-                                         self.tr(f"{processed_count} product(s) added to client successfully."))
-            # --- END HYPOTHETICAL ACTUAL FIX AREA ---
+                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                                         self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
 
-            if products_list_data: self.load_products() # Refresh UI
+            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+                self.load_products()
 
     def edit_product(self):
         selected_row = self.products_table.currentRow();
@@ -2477,8 +3956,10 @@ class ClientWidget(QWidget):
             # We also need to call self.load_products_for_dimension_tab() to update its own combo box
             # if this load_products method is the central point of refresh for product data.
 
-            for row_idx, prod_link_data in enumerate(filtered_products):
-                self.products_table.insertRow(row_idx)
+            # The following loop was identified as redundant and causing blank rows.
+            # for row_idx, prod_link_data in enumerate(filtered_products):
+            #     self.products_table.insertRow(row_idx) # DO NOT UNCOMMENT - This is the bug source
+
             if not filtered_products:
                 # Empty state remains: label visible, table hidden
                 # (already set at the beginning of the method)
@@ -2491,61 +3972,63 @@ class ClientWidget(QWidget):
                 self.products_table.setVisible(True)
 
                 for row_idx, prod_link_data in enumerate(filtered_products):
+                # This is the correct loop for inserting and populating rows.
+                # Ensure insertRow is called here, once per product.
                     self.products_table.insertRow(row_idx)
 
-                id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
-                id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
-                id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
-                self.products_table.setItem(row_idx, 0, id_item)
+                    id_item = QTableWidgetItem(str(prod_link_data.get('client_project_product_id')))
+                    id_item.setData(Qt.UserRole, prod_link_data.get('client_project_product_id'))
+                    id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable) # Not editable
+                    self.products_table.setItem(row_idx, 0, id_item)
 
-                # Name (Column 1)
-                name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 1, name_item)
+                    # Name (Column 1)
+                    name_item = QTableWidgetItem(prod_link_data.get('product_name', 'N/A'))
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 1, name_item)
 
-                desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
-                desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 2, desc_item)
+                    desc_item = QTableWidgetItem(prod_link_data.get('product_description', ''))
+                    desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 2, desc_item)
 
-                # Weight (Column 3 - Not Editable from this table)
-                weight_val = prod_link_data.get('weight')
-                weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
-                weight_item = QTableWidgetItem(weight_str)
-                weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
-                weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.products_table.setItem(row_idx, 3, weight_item)
+                    # Weight (Column 3 - Not Editable from this table)
+                    weight_val = prod_link_data.get('weight')
+                    weight_str = f"{weight_val} kg" if weight_val is not None else self.tr("N/A")
+                    weight_item = QTableWidgetItem(weight_str)
+                    weight_item.setFlags(weight_item.flags() & ~Qt.ItemIsEditable)
+                    weight_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.products_table.setItem(row_idx, 3, weight_item)
 
-                # Dimensions (Column 4 - Not Editable from this table)
-                dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
-                dimensions_item = QTableWidgetItem(dimensions_val)
-                dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 4, dimensions_item)
+                    # Dimensions (Column 4 - Not Editable from this table)
+                    dimensions_val = prod_link_data.get('dimensions', self.tr("N/A"))
+                    dimensions_item = QTableWidgetItem(dimensions_val)
+                    dimensions_item.setFlags(dimensions_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 4, dimensions_item)
 
-                # Quantity (Column 5 - Editable)
-                qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
-                qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
-                qty_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 5, qty_item)
+                    # Quantity (Column 5 - Editable)
+                    qty_item = QTableWidgetItem(str(prod_link_data.get('quantity', 0)))
+                    qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    qty_item.setFlags(qty_item.flags() | Qt.ItemIsEditable)
+                    qty_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 5, qty_item)
 
-                # Unit Price (Column 6 - Editable)
-                unit_price_override = prod_link_data.get('unit_price_override')
-                base_price = prod_link_data.get('base_unit_price')
-                effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
-                effective_unit_price = float(effective_unit_price)
-                unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
-                unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
-                unit_price_item.setBackground(editable_cell_bg_color) # Apply background
-                self.products_table.setItem(row_idx, 6, unit_price_item)
+                    # Unit Price (Column 6 - Editable)
+                    unit_price_override = prod_link_data.get('unit_price_override')
+                    base_price = prod_link_data.get('base_unit_price')
+                    effective_unit_price = unit_price_override if unit_price_override is not None else (base_price if base_price is not None else 0.0)
+                    effective_unit_price = float(effective_unit_price)
+                    unit_price_item = QTableWidgetItem(f"{effective_unit_price:.2f}")
+                    unit_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    unit_price_item.setFlags(unit_price_item.flags() | Qt.ItemIsEditable)
+                    unit_price_item.setBackground(editable_cell_bg_color) # Apply background
+                    self.products_table.setItem(row_idx, 6, unit_price_item)
 
-                # Total Price (Column 7 - Not Editable)
-                total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
-                total_price_calculated_val = float(total_price_calculated_val)
-                total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
-                total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
-                self.products_table.setItem(row_idx, 7, total_price_item)
+                    # Total Price (Column 7 - Not Editable)
+                    total_price_calculated_val = prod_link_data.get('total_price_calculated', 0.0)
+                    total_price_calculated_val = float(total_price_calculated_val)
+                    total_price_item = QTableWidgetItem(f"€ {total_price_calculated_val:.2f}")
+                    total_price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    total_price_item.setFlags(total_price_item.flags() & ~Qt.ItemIsEditable)
+                    self.products_table.setItem(row_idx, 7, total_price_item)
 
             # self.products_table.resizeColumnsToContents() # Can make UI jumpy, consider specific column resize modes
         except Exception as e:
@@ -2554,7 +4037,11 @@ class ClientWidget(QWidget):
             self.products_table.blockSignals(False)
 
             # Refresh the product selector in the "Dimensions Produit (Client)" tab
-            self.load_products_for_dimension_tab()
+            try:
+                self.load_products_for_dimension_tab()
+            except Exception as e:
+                logging.error(f"Error during load_products_for_dimension_tab called from load_products: {e}", exc_info=True)
+                QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des produits pour l'onglet dimensions (depuis load_products):\n{0}").format(str(e)))
 
     def handle_product_item_changed(self, item):
         if not item:
@@ -3066,13 +4553,19 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def eventFilter(self, obj, event):
-        if obj is self.notes_edit and event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
-                    return super().eventFilter(obj, event)
-                else: # Enter pressed
-                    self.append_new_note_with_timestamp()
-                    return True # Event handled
+        if obj is self.notes_edit:
+            if event.type() == QEvent.KeyPress:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    if event.modifiers() == Qt.ShiftModifier: # Shift+Enter for newline
+                        # Let the base class handle Shift+Enter for newline
+                        return super().eventFilter(obj, event)
+                    else: # Enter pressed
+                        self.append_new_note_with_timestamp()
+                        return True # Event handled, stop further processing for this Enter key press
+            elif event.type() == QEvent.FocusOut:
+                self.save_client_notes()
+                # Return False to allow normal FocusOut processing after saving
+                return False
         return super().eventFilter(obj, event)
 
     def append_new_note_with_timestamp(self):
@@ -3138,7 +4631,108 @@ class ClientWidget(QWidget):
 
         self.save_client_notes()
 
+    def handle_generate_final_invoice(self):
+        if not self.client_info or not self.client_info.get('client_id'):
+            QMessageBox.warning(self, self.tr("Client Error"), self.tr("Client information is not available."))
+            return
 
+        client_id = self.client_info.get('client_id')
+
+        current_default_company_id = "0e718801-9f2f-4e6a-9254-80c738f991F9" # Fallback Placeholder UUID
+        if hasattr(self, 'config') and self.config.get('default_company_id'):
+            current_default_company_id = self.config.get('default_company_id')
+        elif hasattr(self.parent(), 'config') and self.parent().config.get('default_company_id'): # Check main window
+            current_default_company_id = self.parent().config.get('default_company_id')
+        elif self.default_company_id: # from __init__
+             current_default_company_id = self.default_company_id
+        else:
+             QMessageBox.critical(self, self.tr("Configuration Error"),
+                                 self.tr("Default selling company ID is not configured. Cannot generate invoice."))
+             return
+
+        client_langs = self.client_info.get('selected_languages', 'en')
+        if isinstance(client_langs, str):
+            client_langs_list = [lang.strip() for lang in client_langs.split(',') if lang.strip()]
+        elif isinstance(client_langs, list):
+            client_langs_list = client_langs
+        else:
+            client_langs_list = ['en']
+
+        lang_code = client_langs_list[0].strip() if client_langs_list else 'en'
+
+        # Determine project_id for the invoice. ClientWidget might be specific to a project,
+        # or it might be a general client view. If general, project_id might be None here,
+        # and selected within FinalInvoiceDataDialog or not used if it's a client-level invoice.
+        # For this integration, let's assume it's a client-level invoice for now, or
+        # FinalInvoiceDataDialog handles project selection if necessary.
+        # If ClientWidget is contextually aware of a single project, pass that.
+        # Let's assume for now project_id is not directly passed from ClientWidget context,
+        # but could be part of self.client_info if ClientWidget is for a specific project view.
+        active_project_id_for_invoice = self.client_info.get('project_id_context', None) # Example if such context exists
+
+        dialog = FinalInvoiceDataDialog(
+            client_id=client_id,
+            project_id=active_project_id_for_invoice,
+            company_id=current_default_company_id,
+            parent=self
+        )
+
+        if dialog.exec_() == QDialog.Accepted:
+            line_items, additional_context = dialog.get_data()
+
+            if not line_items:
+                QMessageBox.warning(self, self.tr("No Items"), self.tr("Cannot generate an invoice with no line items."))
+                return
+
+            current_user_id = None
+            main_window = self # Start with self, then try parent
+            # Traverse up to find DocumentManager instance which should have current_user
+            # This assumes ClientWidget is always a child of DocumentManager or a similar structure
+            # Maximum of, say, 5 levels up to prevent infinite loops in weird scenarios
+            for _ in range(5):
+                if hasattr(main_window, 'current_user') and main_window.current_user:
+                    current_user_id = main_window.current_user.get('user_id')
+                    break
+                if hasattr(main_window, 'parent') and callable(main_window.parent):
+                    main_window = main_window.parent()
+                    if main_window is None: # Reached top level QApplication object or similar
+                        break
+                else: # No more parents
+                    main_window = None
+                    break
+
+            if not current_user_id:
+                logging.warning("Could not determine current_user_id for invoice generation in ClientWidget.")
+
+            try:
+                success, new_invoice_id, new_doc_id = create_final_invoice_and_update_db(
+                    client_id=client_id,
+                    company_id=current_default_company_id,
+                    target_language_code=lang_code,
+                    line_items=line_items,
+                    project_id=active_project_id_for_invoice,
+                    additional_context_overrides=additional_context,
+                    created_by_user_id=current_user_id
+                )
+
+                if success:
+                    QMessageBox.information(self, self.tr("Success"),
+                                            self.tr("Invoice successfully generated and saved (Invoice DB ID: {0}, Document ID: {1}).").format(new_invoice_id, new_doc_id))
+                    if hasattr(self, 'populate_doc_table'):
+                        self.populate_doc_table()
+
+                    if main_window and hasattr(main_window, 'invoice_management_widget_instance'):
+                        if hasattr(main_window.invoice_management_widget_instance, 'load_invoices'):
+                             main_window.invoice_management_widget_instance.load_invoices()
+                             logging.info("Refreshed global invoice list.")
+                else:
+                    QMessageBox.critical(self, self.tr("Error"), self.tr("Failed to generate or save the final invoice. Check logs for details."))
+            except Exception as e_gen:
+                logging.error(f"Exception during final invoice creation process from ClientWidget: {e_gen}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Critical Error"), self.tr("An unexpected error occurred: {0}").format(str(e_gen)))
+
+
+# Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # are correctly available either as methods of ClientWidget or properly imported.
 # The dynamic import _import_main_elements() is a temporary measure.

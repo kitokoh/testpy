@@ -341,7 +341,41 @@ def initialize_database():
         {'status_name': 'En Investigation', 'status_type': 'SAVTicket', 'color_hex': '#f39c12', 'icon_name': 'system-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
         {'status_name': 'En Attente (Client)', 'status_type': 'SAVTicket', 'color_hex': '#3498db', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
         {'status_name': 'Résolu', 'status_type': 'SAVTicket', 'color_hex': '#2ecc71', 'icon_name': 'folder-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 3},
-        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
+        {'status_name': 'Fermé', 'status_type': 'SAVTicket', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4},
+
+        # Recruitment Module Statuses
+        # JobOpening Statuses
+        {'status_name': 'Open', 'status_type': 'JobOpening', 'color_hex': '#27ae60', 'icon_name': 'folder-open', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Closed', 'status_type': 'JobOpening', 'color_hex': '#95a5a6', 'icon_name': 'folder', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 1},
+        {'status_name': 'On Hold', 'status_type': 'JobOpening', 'color_hex': '#f39c12', 'icon_name': 'folder-locked', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Draft', 'status_type': 'JobOpening', 'color_hex': '#bdc3c7', 'icon_name': 'folder-edit', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+
+        # CandidateApplication Statuses
+        {'status_name': 'Applied', 'status_type': 'CandidateApplication', 'color_hex': '#3498db', 'icon_name': 'user-plus', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Screening', 'status_type': 'CandidateApplication', 'color_hex': '#1abc9c', 'icon_name': 'user-search', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Interviewing', 'status_type': 'CandidateApplication', 'color_hex': '#9b59b6', 'icon_name': 'users-meeting', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Assessment', 'status_type': 'CandidateApplication', 'color_hex': '#e67e22', 'icon_name': 'user-clipboard', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Reference Check', 'status_type': 'CandidateApplication', 'color_hex': '#f1c40f', 'icon_name': 'user-check', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 4},
+        {'status_name': 'Offer Extended', 'status_type': 'CandidateApplication', 'color_hex': '#2ecc71', 'icon_name': 'user-contract', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 5},
+        {'status_name': 'Offer Accepted', 'status_type': 'CandidateApplication', 'color_hex': '#27ae60', 'icon_name': 'user-star', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 6},
+        {'status_name': 'Offer Declined', 'status_type': 'CandidateApplication', 'color_hex': '#e74c3c', 'icon_name': 'user-minus', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 7},
+        {'status_name': 'Hired', 'status_type': 'CandidateApplication', 'color_hex': '#16a085', 'icon_name': 'user-tie', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 8},
+        {'status_name': 'Rejected', 'status_type': 'CandidateApplication', 'color_hex': '#c0392b', 'icon_name': 'user-times', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 9},
+        {'status_name': 'Withdrawn', 'status_type': 'CandidateApplication', 'color_hex': '#7f8c8d', 'icon_name': 'user-slash', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 10},
+
+        # CandidateProgress Statuses
+        {'status_name': 'Pending', 'status_type': 'CandidateProgress', 'color_hex': '#bdc3c7', 'icon_name': 'progress-clock', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'In Progress', 'status_type': 'CandidateProgress', 'color_hex': '#3498db', 'icon_name': 'progress-download', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Completed', 'status_type': 'CandidateProgress', 'color_hex': '#2ecc71', 'icon_name': 'progress-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 2},
+        {'status_name': 'Skipped', 'status_type': 'CandidateProgress', 'color_hex': '#95a5a6', 'icon_name': 'progress-alert', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'Failed', 'status_type': 'CandidateProgress', 'color_hex': '#e74c3c', 'icon_name': 'progress-close', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 4},
+
+        # InterviewStatus Statuses
+        {'status_name': 'Scheduled', 'status_type': 'InterviewStatus', 'color_hex': '#3498db', 'icon_name': 'calendar-clock', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 0},
+        {'status_name': 'Completed', 'status_type': 'InterviewStatus', 'color_hex': '#2ecc71', 'icon_name': 'calendar-check', 'is_completion_status': True, 'is_archival_status': False, 'sort_order': 1},
+        {'status_name': 'Cancelled', 'status_type': 'InterviewStatus', 'color_hex': '#e74c3c', 'icon_name': 'calendar-times', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 2},
+        {'status_name': 'Rescheduled', 'status_type': 'InterviewStatus', 'color_hex': '#f39c12', 'icon_name': 'calendar-edit', 'is_completion_status': False, 'is_archival_status': False, 'sort_order': 3},
+        {'status_name': 'No Show', 'status_type': 'InterviewStatus', 'color_hex': '#c0392b', 'icon_name': 'calendar-question', 'is_completion_status': True, 'is_archival_status': True, 'sort_order': 4}
     ]
     for status in default_statuses:
         cursor.execute("""
@@ -521,6 +555,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS Products (
         product_id INTEGER PRIMARY KEY AUTOINCREMENT,
         product_name TEXT NOT NULL,
+        product_code TEXT UNIQUE,
         description TEXT,
         category TEXT,
         language_code TEXT DEFAULT 'fr',
@@ -710,21 +745,40 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS TemplateCategories (
         category_id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_name TEXT NOT NULL UNIQUE,
-        description TEXT
+        description TEXT,
+        purpose TEXT -- New column
     )
     """)
+
+    # Idempotently add purpose column if it doesn't exist
+    cursor.execute("PRAGMA table_info(TemplateCategories)")
+    tc_columns = [column['name'] for column in cursor.fetchall()]
+    if 'purpose' not in tc_columns:
+        try:
+            cursor.execute("ALTER TABLE TemplateCategories ADD COLUMN purpose TEXT")
+            print("Added 'purpose' column to TemplateCategories table.")
+        except sqlite3.Error as e_alter_tc:
+            print(f"Error adding 'purpose' column to TemplateCategories table: {e_alter_tc}")
+
     general_category_id_for_migration = None
     try:
+        # Seed initial categories - purpose will be updated shortly after
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('General', 'General purpose templates'))
         cursor.execute("SELECT category_id FROM TemplateCategories WHERE category_name = 'General'")
         general_row = cursor.fetchone()
-        if general_row: general_category_id_for_migration = general_row['category_id'] # Corrected: general_row[0] or general_row['category_id']
+        if general_row: general_category_id_for_migration = general_row['category_id']
 
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Document Utilitaires', 'Modèles de documents utilitaires généraux (ex: catalogues, listes de prix)'))
         cursor.execute("INSERT OR IGNORE INTO TemplateCategories (category_name, description) VALUES (?, ?)", ('Modèles Email', 'Modèles pour les corps des emails'))
+
+        # Update purposes for these initial categories
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'General'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('client_document', 'Document Utilitaires'))
+        cursor.execute("UPDATE TemplateCategories SET purpose = ? WHERE category_name = ?", ('email', 'Modèles Email'))
+
         # No commit here, part of larger transaction
     except sqlite3.Error as e_cat_init:
-        print(f"Error initializing TemplateCategories: {e_cat_init}")
+        print(f"Error initializing TemplateCategories or setting purposes: {e_cat_init}")
 
 
     # Templates table migration logic (from ca.py, seems more complete for this part)
@@ -797,17 +851,46 @@ def initialize_database():
             print(f"Error during Templates table migration (category to category_id): {e}. Changes for this migration might be rolled back.")
     else:
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Templates (
-            template_id INTEGER PRIMARY KEY AUTOINCREMENT, template_name TEXT NOT NULL, template_type TEXT NOT NULL,
-            description TEXT, base_file_name TEXT, language_code TEXT, is_default_for_type_lang BOOLEAN DEFAULT FALSE,
-            category_id INTEGER, content_definition TEXT, email_subject_template TEXT, email_variables_info TEXT,
-            cover_page_config_json TEXT, document_mapping_config_json TEXT, raw_template_file_data BLOB,
-            version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by_user_id TEXT,
-            FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
-            FOREIGN KEY (category_id) REFERENCES TemplateCategories(category_id) ON DELETE SET NULL,
-            UNIQUE (template_name, template_type, language_code, version)
-        )""")
+CREATE TABLE IF NOT EXISTS Templates (
+    template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_name TEXT NOT NULL,
+    template_type TEXT NOT NULL,
+    description TEXT,
+    base_file_name TEXT,
+    language_code TEXT,
+    is_default_for_type_lang BOOLEAN DEFAULT FALSE,
+    category_id INTEGER,
+    content_definition TEXT,
+    email_subject_template TEXT,
+    email_variables_info TEXT,
+    cover_page_config_json TEXT,
+    document_mapping_config_json TEXT,
+    raw_template_file_data BLOB,
+    version TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by_user_id TEXT,
+    client_id TEXT DEFAULT NULL,
+    FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+    FOREIGN KEY (category_id) REFERENCES TemplateCategories (category_id) ON DELETE SET NULL,
+    FOREIGN KEY (client_id) REFERENCES Clients (client_id) ON DELETE SET NULL,
+    UNIQUE (template_name, template_type, language_code, version)
+)
+""")
+
+
+    # Idempotently add client_id column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(Templates)")
+    templates_columns = [column['name'] for column in cursor.fetchall()]
+    if 'client_id' not in templates_columns:
+        try:
+            cursor.execute("ALTER TABLE Templates ADD COLUMN client_id TEXT DEFAULT NULL")
+            # Note: Adding FOREIGN KEY constraint via ALTER TABLE is tricky in older SQLite.
+            # The FK definition in CREATE TABLE handles new DBs. For existing DBs, this adds the column.
+            # Full FK enforcement for old DBs might require more complex migration (recreate table).
+            print("Added 'client_id' column to Templates table.")
+        except sqlite3.Error as e_alter_templates:
+            print(f"Error adding 'client_id' column to Templates table: {e_alter_templates}")
 
     # Create Tasks table (from ca.py)
     cursor.execute("""
@@ -999,6 +1082,9 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS Transporters (
         transporter_id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_person TEXT,
         phone TEXT, email TEXT, address TEXT, service_area TEXT, notes TEXT,
+        latitude REAL,
+        longitude REAL,
+        current_cargo TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
 
@@ -1240,6 +1326,261 @@ def initialize_database():
             UNIQUE (user_google_account_id, google_contact_id)
         )""")
 
+    # ReportConfigurations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigurations (
+        report_config_id TEXT PRIMARY KEY, -- UUID
+        report_name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        target_entity TEXT NOT NULL, -- e.g., 'Assets', 'Clients', 'Projects'
+        output_format TEXT NOT NULL, -- e.g., 'PDF', 'CSV', 'JSON'
+        created_by_user_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_system_report BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+
+    # ReportConfigFields Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFields (
+        report_config_field_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL, -- Original field name from the entity
+        display_name TEXT,        -- Custom display name for the report
+        sort_order INTEGER DEFAULT 0,     -- 0 for no sort, 1 for primary sort, 2 for secondary, etc.
+        sort_direction TEXT,      -- 'ASC' or 'DESC', NULL if not sorted
+        group_by_priority INTEGER DEFAULT 0, -- 0 for no group, 1 for primary group, etc.
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # ReportConfigFilters Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ReportConfigFilters (
+        report_config_filter_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_config_id TEXT NOT NULL,
+        field_name TEXT NOT NULL,
+        operator TEXT NOT NULL, -- e.g., '=', '!=', '>', '<', 'IN', 'NOT IN', 'LIKE', 'BETWEEN'
+        filter_value_1 TEXT,    -- Primary value, or start value for BETWEEN
+        filter_value_2 TEXT,    -- End value for BETWEEN, NULL otherwise
+        logical_group TEXT DEFAULT 'AND', -- 'AND' or 'OR' for grouping with next filter
+        FOREIGN KEY (report_config_id) REFERENCES ReportConfigurations (report_config_id) ON DELETE CASCADE
+    )
+    """)
+
+    # --- Recruitment Module Tables ---
+
+    # JobOpenings Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS JobOpenings (
+        job_opening_id TEXT PRIMARY KEY, -- UUID
+        title TEXT NOT NULL,
+        description TEXT,
+        status_id INTEGER, -- FK to StatusSettings
+        department_id INTEGER, -- Optional FK to a potential Departments table or link to TeamMembers department
+        created_by_user_id TEXT, -- FK to Users
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        closing_date DATE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+        -- department_id FK can be added later if Departments table is implemented
+    )
+    """)
+
+    # Candidates Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Candidates (
+        candidate_id TEXT PRIMARY KEY, -- UUID
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        phone TEXT,
+        resume_path TEXT,
+        cover_letter_path TEXT,
+        application_source TEXT, -- e.g., 'Website', 'Referral', 'LinkedIn'
+        current_status_id INTEGER, -- FK to StatusSettings
+        application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT,
+        linked_contact_id INTEGER, -- Optional FK to Contacts
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        FOREIGN KEY (current_status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (linked_contact_id) REFERENCES Contacts (contact_id)
+    )
+    """)
+
+    # RecruitmentSteps Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS RecruitmentSteps (
+        recruitment_step_id TEXT PRIMARY KEY, -- UUID
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        step_name TEXT NOT NULL, -- e.g., 'Application Review', 'Phone Screen'
+        step_order INTEGER NOT NULL,
+        description TEXT,
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        UNIQUE (job_opening_id, step_order),
+        UNIQUE (job_opening_id, step_name)
+    )
+    """)
+
+    # CandidateProgress Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CandidateProgress (
+        candidate_progress_id TEXT PRIMARY KEY, -- UUID
+        candidate_id TEXT NOT NULL, -- FK to Candidates
+        recruitment_step_id TEXT NOT NULL, -- FK to RecruitmentSteps
+        status_id INTEGER, -- FK to StatusSettings
+        notes TEXT,
+        completed_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (candidate_id) REFERENCES Candidates (candidate_id) ON DELETE CASCADE,
+        FOREIGN KEY (recruitment_step_id) REFERENCES RecruitmentSteps (recruitment_step_id) ON DELETE CASCADE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        UNIQUE (candidate_id, recruitment_step_id)
+    )
+    """)
+
+    # Interviews Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Interviews (
+        interview_id TEXT PRIMARY KEY, -- UUID
+        candidate_id TEXT NOT NULL, -- FK to Candidates
+        job_opening_id TEXT NOT NULL, -- FK to JobOpenings
+        recruitment_step_id TEXT, -- FK to RecruitmentSteps
+        interviewer_team_member_id INTEGER, -- FK to TeamMembers
+        scheduled_at TIMESTAMP,
+        duration_minutes INTEGER,
+        interview_type TEXT, -- e.g., 'Phone', 'Video', 'On-site'
+        location_or_link TEXT,
+        status_id INTEGER, -- FK to StatusSettings
+        feedback_notes_overall TEXT,
+        feedback_rating INTEGER, -- e.g., 1-5 scale
+        created_by_user_id TEXT, -- FK to Users
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (candidate_id) REFERENCES Candidates (candidate_id) ON DELETE CASCADE,
+        FOREIGN KEY (job_opening_id) REFERENCES JobOpenings (job_opening_id),
+        FOREIGN KEY (recruitment_step_id) REFERENCES RecruitmentSteps (recruitment_step_id),
+        FOREIGN KEY (interviewer_team_member_id) REFERENCES TeamMembers (team_member_id),
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+    )
+    """)
+    # --- End Recruitment Module Tables ---
+
+    # ItemLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemLocations (
+        location_id TEXT PRIMARY KEY,
+        location_name TEXT,
+        location_type TEXT,
+        parent_location_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_location_id) REFERENCES ItemLocations(location_id) ON DELETE SET NULL
+    )
+    """)
+
+    # InternalStockItems Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS InternalStockItems (
+        item_id TEXT PRIMARY KEY,
+        item_name TEXT,
+        item_code TEXT UNIQUE,
+        category TEXT,
+        description TEXT,
+        quantity REAL DEFAULT 0,
+        unit_of_measure TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # ItemStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ItemStorageLocations (
+        item_storage_location_id TEXT PRIMARY KEY,
+        item_id TEXT,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_id) REFERENCES InternalStockItems(item_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (item_id, location_id)
+    )
+    """)
+
+    # ProductStorageLocations Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ProductStorageLocations (
+        product_storage_location_id TEXT PRIMARY KEY,
+        product_id INTEGER,
+        location_id TEXT,
+        quantity_at_location REAL DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE,
+        FOREIGN KEY (location_id) REFERENCES ItemLocations(location_id) ON DELETE CASCADE,
+        UNIQUE (product_id, location_id)
+    )
+    """)
+
+
+    # CompanyAssets Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS CompanyAssets (
+        asset_id TEXT PRIMARY KEY, -- UUID
+        asset_name TEXT NOT NULL,
+        asset_type TEXT NOT NULL,
+        serial_number TEXT UNIQUE,
+        description TEXT,
+        purchase_date DATE,
+        purchase_value REAL,
+        current_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TIMESTAMP
+    )
+    """)
+
+    # AssetAssignments Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetAssignments (
+        assignment_id TEXT PRIMARY KEY, -- UUID
+        asset_id TEXT NOT NULL,
+        personnel_id INTEGER NOT NULL,
+        assignment_date TIMESTAMP NOT NULL,
+        expected_return_date TIMESTAMP,
+        actual_return_date TIMESTAMP,
+        assignment_status TEXT NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (personnel_id) REFERENCES CompanyPersonnel (personnel_id) ON DELETE RESTRICT
+    )
+    """)
+
+    # AssetMediaLinks Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS AssetMediaLinks (
+        link_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        display_order INTEGER DEFAULT 0,
+        alt_text TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES CompanyAssets (asset_id) ON DELETE CASCADE,
+        FOREIGN KEY (media_item_id) REFERENCES MediaItems (media_item_id) ON DELETE CASCADE,
+        UNIQUE (asset_id, media_item_id),
+        UNIQUE (asset_id, display_order)
+    )
+    """)
+
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients
@@ -1250,6 +1591,18 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_created_by_user_id ON Clients(created_by_user_id)")
+
+    # ReportConfigurations Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_report_name ON ReportConfigurations(report_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_target_entity ON ReportConfigurations(target_entity)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_created_by_user_id ON ReportConfigurations(created_by_user_id)")
+
+    # ReportConfigFields Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfields_report_config_id ON ReportConfigFields(report_config_id)")
+
+    # ReportConfigFilters Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigfilters_report_config_id ON ReportConfigFilters(report_config_id)")
+
     # Projects
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_client_id ON Projects(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_projects_status_id ON Projects(status_id)")
@@ -1269,6 +1622,7 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_language_code ON Templates(language_code)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_category_id ON Templates(category_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_is_default_for_type_lang ON Templates(is_default_for_type_lang)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_templates_client_id ON Templates(client_id)") # Index for the new column
     # ClientDocuments
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_client_id ON ClientDocuments(client_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clientdocuments_project_id ON ClientDocuments(project_id)")
@@ -1352,6 +1706,52 @@ def initialize_database():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_product_id ON ProductMediaLinks(product_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_productmedialinks_media_item_id ON ProductMediaLinks(media_item_id)")
 
+    # --- Recruitment Module Indexes ---
+    # JobOpenings
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_status_id ON JobOpenings(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_department_id ON JobOpenings(department_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_created_by_user_id ON JobOpenings(created_by_user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobopenings_title ON JobOpenings(title)")
+
+    # Candidates
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_job_opening_id ON Candidates(job_opening_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_email ON Candidates(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_current_status_id ON Candidates(current_status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidates_last_name ON Candidates(last_name)")
+
+    # RecruitmentSteps
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_recruitmentsteps_job_opening_id ON RecruitmentSteps(job_opening_id)")
+
+    # CandidateProgress
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_candidate_id ON CandidateProgress(candidate_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_recruitment_step_id ON CandidateProgress(recruitment_step_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_candidateprogress_status_id ON CandidateProgress(status_id)")
+
+    # Interviews
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_candidate_id ON Interviews(candidate_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_job_opening_id ON Interviews(job_opening_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_recruitment_step_id ON Interviews(recruitment_step_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_interviewer_team_member_id ON Interviews(interviewer_team_member_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_scheduled_at ON Interviews(scheduled_at)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_interviews_status_id ON Interviews(status_id)")
+    # --- End Recruitment Module Indexes ---
+
+    # ItemLocations
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_parent_id ON ItemLocations(parent_location_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemlocations_type ON ItemLocations(location_type)")
+
+    # Indexes for InternalStockItems
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_item_name ON InternalStockItems(item_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_item_code ON InternalStockItems(item_code)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_internalstockitems_category ON InternalStockItems(category)")
+
+    # ItemStorageLocations (formerly ProductStorageLocations)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemstoragelocations_item_id ON ItemStorageLocations(item_id)") # Renamed from product_id
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_itemstoragelocations_location_id ON ItemStorageLocations(location_id)")
+    # ProductStorageLocations
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_product_id ON ProductStorageLocations(product_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_productstoragelocations_location_id ON ProductStorageLocations(location_id)")
+
     # ProformaInvoices
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_proforma_invoice_number ON proforma_invoices(proforma_invoice_number)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_proforma_invoices_client_id ON proforma_invoices(client_id)")
@@ -1401,6 +1801,7 @@ def initialize_database():
         # Using the imported set_setting CRUD function, passing the connection
         set_setting('initial_data_seeded_version', '1.3_consolidated_schema', conn=conn) # Pass conn
         set_setting('default_app_language', 'en', conn=conn) # Pass conn
+        set_setting('client_document_template_categories', 'General,Document Utilitaires', conn=conn) # New setting
         print("DEBUG_INIT_DB: Application settings seeded.")
 
         # Populate Default Cover Page Templates
