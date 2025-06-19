@@ -646,6 +646,7 @@ class DocumentManager(QMainWindow):
 
         logging.info(f"Creating new tab for client ID {client_id_to_open}")
         notification_manager = QApplication.instance().notification_manager
+        logging.info(f"Client data being passed to ClientWidget: {client_data_to_show}")
         client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
         tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
         self.client_tabs_widget.setCurrentIndex(tab_idx)
