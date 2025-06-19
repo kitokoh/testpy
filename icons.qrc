@@ -30,7 +30,7 @@
     <file alias="team.svg">icons/team.svg</file>
     <file alias="bell.svg">icons/bell.svg</file>
     <file alias="help-circle.svg">icons/help-circle.svg</file>
-    <file alias="users.svg">icons/users.svg</file>
+    <file alias="user.svg">icons/user.svg</file>
     <file alias="file-text.svg">icons/file-text.svg</file>
     <file alias="book.svg">icons/book.svg</file>
     <file alias="briefcase.svg">icons/briefcase.svg</file>
@@ -40,7 +40,6 @@
     <file alias="layout.svg">icons/layout.svg</file>
     <file alias="activity.svg">icons/activity.svg</file>
     <file alias="plus-circle.svg">icons/plus-circle.svg</file>
-    <file alias="user.svg">icons/user.svg</file>
     <file alias="log-out.svg">icons/log-out.svg</file>
     <file alias="refresh-cw.svg">icons/refresh-cw.svg</file>
     <file alias="user-add.svg">icons/user-add.svg</file>
@@ -60,5 +59,7 @@
     <file alias="map.svg">icons/placeholder_icon.svg</file>
     <file alias="credit-card.svg">icons/placeholder_icon.svg</file>
     <file alias="modern/settings.svg">icons/settings.svg</file>
+    <file alias="search.svg">icons/search.svg</file>
+    <file alias="arrow-left-circle.svg">icons/arrow-left-circle.svg</file>
 </qresource>
 </RCC>
