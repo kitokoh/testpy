@@ -244,6 +244,39 @@ class DocumentManager(QMainWindow):
             # self.notify(self.tr("Download Monitoring"), self.tr("Service is disabled."), type='INFO') # Optional: notify if disabled
 
     @pyqtSlot(str)
+    def handle_add_client_from_stats_map(self, country_name_str):
+        logging.info(f"Received request to add client for country: {country_name_str} from statistics map using new dialog.")
+        try:
+            dialog = StatisticsAddClientDialog(initial_country_name=country_name_str, parent=self)
+
+            if dialog.exec_() == QDialog.Accepted:
+                new_client_data = dialog.get_data()
+                logging.info(f"StatisticsAddClientDialog accepted. Data: {new_client_data}")
+
+                if not new_client_data.get('country_id'):
+                    QMessageBox.critical(self, self.tr("Erreur Pays"), self.tr("ID du pays non obtenu depuis le dialogue. Impossible de continuer."))
+                    return
+
+                client_data_for_db = {
+                    "client_name": new_client_data["client_name"],
+                    "company_name": new_client_data.get("company_name"),
+                    "country_id": new_client_data["country_id"],
+                    "city_id": new_client_data.get("city_id"),
+                    "project_identifier": new_client_data.get("project_identifier"),
+                    "primary_need_description": new_client_data.get("primary_need_description"),
+                    "selected_languages": new_client_data.get("selected_languages"),
+                    "created_by_user_id": self.current_user_id
+                }
+
+                logging.info(f"Proceeding to call handle_create_client_execution with data from new dialog: {client_data_for_db}")
+                handle_create_client_execution(self, client_data_dict=client_data_for_db)
+            else:
+                logging.info("StatisticsAddClientDialog cancelled by user.")
+        except Exception as e:
+            logging.error(f"Error opening or executing StatisticsAddClientDialog for country {country_name_str}: {e}", exc_info=True)
+            QMessageBox.critical(self,
+                                 self.tr("Erreur Dialogue"),
+                                 self.tr("Impossible d'ouvrir le dialogue 'Ajouter Client'. Veuillez consulter les logs de l'application pour plus de détails."))
     def handle_new_document_detected(self, file_path):
         logging.info(f"Main_window: New document detected by service: {file_path}")
         try:

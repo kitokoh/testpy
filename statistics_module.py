@@ -11,6 +11,7 @@ from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 
+
 from datetime import datetime # Added for client acquisition stats
 from dateutil.relativedelta import relativedelta # Added for client acquisition stats
 import json # Added for robust JS string escaping
@@ -33,6 +34,8 @@ from db import (
     get_city_by_id,
     get_status_setting_by_id
 )
+# It seems db_manager is not directly imported, but functions are. If needed, import db as db_manager
+from db.cruds.clients_crud import clients_crud_instance
 from db.cruds.proforma_invoices_crud import list_proforma_invoices # Added for proforma sales
 from db.connection import get_db_connection # Added for proforma sales
 # It seems db_manager is not directly imported, but functions are. If needed, import db as db_manager
@@ -186,6 +189,7 @@ class StatisticsDashboard(QWidget):
         global_stats_layout.addRow(self.tr("Nombre de projets actifs:"), self.stats_labels["active_projects"])
         global_stats_layout.addRow(self.tr("Nombre total de produits (BDD):"), self.stats_labels["total_products"])
 
+
         total_sales_proforma_layout = QHBoxLayout()
         total_sales_proforma_layout.addWidget(self.stats_labels["total_sales_proforma"])
         total_sales_proforma_layout.addSpacing(10)
@@ -254,12 +258,56 @@ class StatisticsDashboard(QWidget):
         while self.client_details_layout.rowCount() > 0:
             self.client_details_layout.removeRow(0)
 
+
         try:
             client_data = clients_crud_instance.get_client_by_id(client_id_str, include_deleted=True)
             if not client_data:
                 self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Client non trouvé.")))
                 self.stats_stack.setCurrentWidget(self.client_details_widget)
                 return
+
+        try:
+            client_data = clients_crud_instance.get_client_by_id(client_id_str, include_deleted=True)
+            if not client_data:
+                self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Client non trouvé.")))
+                self.stats_stack.setCurrentWidget(self.client_details_widget)
+                return
+
+            country_name = self.tr("N/A")
+            if client_data.get('country_id'):
+                country_obj = get_country_by_id(client_data['country_id'])
+                if country_obj: country_name = country_obj.get('country_name', self.tr("N/A"))
+
+            city_name = self.tr("N/A")
+            if client_data.get('city_id'):
+                city_obj = get_city_by_id(client_data['city_id'])
+                if city_obj: city_name = city_obj.get('city_name', self.tr("N/A"))
+
+            status_name = self.tr("N/A")
+            if client_data.get('status_id'):
+                status_obj = get_status_setting_by_id(client_data['status_id'])
+                if status_obj: status_name = status_obj.get('status_name', self.tr("N/A"))
+
+            details_to_display = {
+                self.tr("Nom Client:"): client_data.get('client_name', self.tr("N/A")),
+                self.tr("Société:"): client_data.get('company_name', self.tr("N/A")) or self.tr("N/A"), # Ensure empty string becomes N/A
+                self.tr("Pays:"): country_name,
+                self.tr("Ville:"): city_name,
+                self.tr("Statut:"): status_name,
+                self.tr("Date Création:"): client_data.get('created_at_str', self.tr("N/A")), # Assuming 'created_at_str' exists
+                self.tr("Besoin Principal:"): client_data.get('primary_need_description', self.tr("N/A")) or self.tr("N/A")
+            }
+
+            for label, value in details_to_display.items():
+                value_label = QLabel(str(value))
+                value_label.setWordWrap(True) # Allow text wrapping for longer values
+                self.client_details_layout.addRow(QLabel(label), value_label)
+
+        except Exception as e:
+            logging.error(f"Error fetching/displaying client details for ID {client_id_str}: {e}", exc_info=True)
+            self.client_details_layout.addRow(QLabel(self.tr("Erreur:")), QLabel(self.tr("Impossible de charger les détails du client.")))
+
+        self.stats_stack.setCurrentWidget(self.client_details_widget)
 
 
             country_name = self.tr("N/A")
@@ -327,7 +375,49 @@ class StatisticsDashboard(QWidget):
                 self.map_view.setHtml(m.get_root().render())
                 return
 
-            m = folium.Map(location=[20, 0], zoom_start=2, tiles="CartoDB positron") # Standardized casing
+            m = folium.Map(location=[20, 0], zoom_start=2, tiles="CartoDB positron")
+
+            if clients_by_country_counts: # Check if there's any data
+                counts_dict = {item['country_name']: item['client_count'] for item in clients_by_country_counts}
+                max_observed_clients = max(item['client_count'] for item in clients_by_country_counts) if clients_by_country_counts else 0
+
+                category_colors = ['#f7f7f7', '#c6dbef', '#6baed6', '#08519c'] # Light Grey, Light Blue, Medium Blue, Dark Blue
+                color_index = [0, 1, 2, 4] # Min value for each color category (0, 1, 2-3, 4+)
+
+                client_colormap = StepColormap(
+                    colors=category_colors,
+                    index=color_index,
+                    vmin=0,
+                    vmax=max(4, max_observed_clients),
+                    caption=self.tr("Nombre de Clients par Pays (Catégories)")
+                )
+
+                def style_function(feature):
+                    count = counts_dict.get(feature['properties']['name'], 0) # Default to 0 if country not in data
+                    return {
+                        'fillColor': client_colormap(count),
+                        'color': '#555555', # Border color for countries
+                        'weight': 0.5,
+                        'fillOpacity': 0.7
+                    }
+
+                if os.path.exists(geojson_path):
+                    folium.GeoJson(
+                        geojson_path,
+                        name=self.tr("Distribution des Clients par Pays"),
+                        style_function=style_function,
+                        tooltip=folium.features.GeoJsonTooltip(
+                            fields=['name'], # Show country name on hover
+                            aliases=[self.tr('Pays:')], # Use self.tr for alias
+                            localize=True
+                        )
+                    ).add_to(m)
+                    client_colormap.add_to(m) # Add legend to map
+                else:
+                    logging.warning(f"GeoJSON file not found at {geojson_path}, choropleth layer skipped.")
+            else:
+                logging.info("No client count data to display on map for choropleth/GeoJson coloring.")
+
 
             if data_for_map["country_name"] and data_for_map["client_count"]:
                 df = pd.DataFrame(data_for_map)
@@ -425,6 +515,7 @@ class StatisticsDashboard(QWidget):
                             # Use json.dumps directly on the raw data for JS arguments
                             js_client_id_arg = json.dumps(client_data_item['id'])
                             js_client_name_arg = json.dumps(client_data_item['name'])
+
                             onclick_js = f"pyMapConnector.clientClickedOnMap({js_client_id_arg}, {js_client_name_arg}); return false;"
                             popup_html += f"<li><a href='#' onclick='{onclick_js}'>{client_data_item['name']}</a></li>"
                         popup_html += "</ul>"
@@ -434,6 +525,7 @@ class StatisticsDashboard(QWidget):
                 # "Ajouter Client Ici" button
                 js_country_name_arg = json.dumps(country_name)
                 button_text = self.tr('Ajouter Client Ici')
+
                 onclick_country_js = f"pyMapConnector.countryClicked({js_country_name_arg}); return false;"
                 popup_html += f"<br><button onclick='{onclick_country_js}'>{button_text}</button>"
 
@@ -455,11 +547,42 @@ class StatisticsDashboard(QWidget):
             # QWebChannel works by injecting objects into the page's main window.
             # The onclick handlers in popups should correctly call `window.pyMapConnector.method()`.
 
-            # No explicit JS script needed here as pyMapConnector is registered with QWebChannel.
-            # The onclick attributes in the HTML popups will use this.
+            map_html_content = m.get_root().render()
 
-            self.map_view.setHtml(m.get_root().render())
-            logging.info("Interactive map updated successfully.")
+            # Define the QWebChannel setup JavaScript
+            webchannel_setup_js = """
+            <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
+            <script type="text/javascript">
+                document.addEventListener("DOMContentLoaded", function() {
+                    if (typeof QWebChannel !== 'undefined') {
+                        new QWebChannel(qt.webChannelTransport, function(channel) {
+                            window.pyMapConnector = channel.objects.pyMapConnector;
+                            if (window.pyMapConnector === undefined) {
+                                console.error("pyMapConnector object not found in channel.objects. Available objects:", Object.keys(channel.objects));
+                            } else {
+                                console.log("pyMapConnector initialized successfully.");
+                            }
+                        });
+                    } else {
+                        console.error("QWebChannel JavaScript library not loaded. pyMapConnector will not be available.");
+                    }
+                });
+            </script>
+            """
+
+            # Inject the QWebChannel setup script into the map HTML
+            if "</body>" in map_html_content:
+                map_html_content = map_html_content.replace("</body>", webchannel_setup_js + "</body>", 1)
+            elif "</html>" in map_html_content: # Fallback if no body tag
+                map_html_content = map_html_content.replace("</html>", webchannel_setup_js + "</html>", 1)
+            else: # Fallback if no body or html tag
+                map_html_content += webchannel_setup_js
+
+            # Removed the debug_map.html saving functionality
+            # The console.log messages in webchannel_setup_js will remain for advanced debugging.
+
+            self.map_view.setHtml(map_html_content)
+            logging.info("Interactive map updated successfully with QWebChannel JS.")
         except Exception as e:
             logging.error(f"Error updating interactive map: {e}", exc_info=True)
             error_map = folium.Map(location=[0,0], zoom_start=1)
