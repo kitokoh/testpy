@@ -21,5 +21,6 @@ from .freight_forwarder_dialog import FreightForwarderDialog
 from .assign_personnel_dialog import AssignPersonnelDialog
 from .assign_transporter_dialog import AssignTransporterDialog
 from .assign_freight_forwarder_dialog import AssignFreightForwarderDialog
+from .assign_money_transfer_agent_dialog import AssignMoneyTransferAgentDialog
 from .add_edit_milestone_dialog import AddEditMilestoneDialog
 from .statistics_add_client_dialog import StatisticsAddClientDialog

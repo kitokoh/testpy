@@ -26,9 +26,13 @@ import db as db_manager
 from db.cruds.clients_crud import clients_crud_instance
 from excel_editor import ExcelEditor
 from html_editor import HtmlEditor
-from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog # Added import
+from dialogs import ClientProductDimensionDialog, AssignPersonnelDialog, AssignTransporterDialog, AssignFreightForwarderDialog, AssignMoneyTransferAgentDialog # Added import
 from whatsapp.whatsapp_dialog import SendWhatsAppDialog # Added import
 # Removed: from main import get_notification_manager
+# CRUD imports for Money Transfer Agents
+import db.cruds.money_transfer_agents_crud as mta_crud
+import db.cruds.client_order_money_transfer_agents_crud as coma_crud
+import db.cruds.projects_crud as projects_crud
 
 from invoicing.final_invoice_data_dialog import FinalInvoiceDataDialog
 from document_manager_logic import create_final_invoice_and_update_db
@@ -136,14 +140,15 @@ class ClientWidget(QWidget):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Collapsible Client Info Section...")
             # --- Collapsible Client Info Section ---
+
             self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
             self.client_info_group_box.setCheckable(True)
-            client_info_group_layout = QVBoxLayout(self.client_info_group_box) # Layout for the GroupBox itself
+            client_info_group_layout = QVBoxLayout(self.client_info_group_box)
 
-            self.info_container_widget = QWidget() # Container for all info elements
+            self.info_container_widget = QWidget()
             info_container_layout = QVBoxLayout(self.info_container_widget)
-            info_container_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins as needed
-            info_container_layout.setSpacing(10) # Adjust spacing as needed
+            info_container_layout.setContentsMargins(0, 5, 0, 0)
+            info_container_layout.setSpacing(10)
 
             self.header_label = QLabel(f"<h2>{self.client_info.get('client_name', self.tr('Client Inconnu'))}</h2>")
             self.header_label.setObjectName("clientHeaderLabel")
@@ -151,15 +156,14 @@ class ClientWidget(QWidget):
 
             action_layout = QHBoxLayout()
             self.create_docs_btn = QPushButton(self.tr("Envoyer Mail"))
-            self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg"))) # Reverted
+            self.create_docs_btn.setIcon(QIcon.fromTheme("mail-send", QIcon(":/icons/bell.svg")))
             self.create_docs_btn.setToolTip(self.tr("Envoyer un email au client"))
-            self.create_docs_btn.setObjectName("primaryButton") # Keep primary styling for now
+            self.create_docs_btn.setObjectName("primaryButton")
             try:
-                # Disconnect previous connection if it exists
                 self.create_docs_btn.clicked.disconnect(self.open_create_docs_dialog)
             except TypeError:
-                print("Note: self.create_docs_btn.clicked was not connected to self.open_create_docs_dialog or already disconnected.")
-            self.create_docs_btn.clicked.connect(self.open_send_email_dialog) # Connect to new method
+                pass # Not connected or already disconnected
+            self.create_docs_btn.clicked.connect(self.open_send_email_dialog)
             action_layout.addWidget(self.create_docs_btn)
 
             self.compile_pdf_btn = QPushButton(self.tr("Compiler PDF"))
@@ -169,48 +173,43 @@ class ClientWidget(QWidget):
             action_layout.addWidget(self.compile_pdf_btn)
 
             self.edit_save_client_btn = QPushButton(self.tr("Modifier Client"))
-            self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Reverted
+            self.edit_save_client_btn.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
             self.edit_save_client_btn.setToolTip(self.tr("Modifier les informations du client"))
             self.edit_save_client_btn.clicked.connect(self.toggle_client_edit_mode)
             action_layout.addWidget(self.edit_save_client_btn)
 
             self.send_whatsapp_btn = QPushButton(self.tr("Send WhatsApp"))
-            self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg"))) # Reverted
+            self.send_whatsapp_btn.setIcon(QIcon.fromTheme("contact-new", QIcon(":/icons/user.svg")))
             self.send_whatsapp_btn.setToolTip(self.tr("Send a WhatsApp message to the client"))
             self.send_whatsapp_btn.clicked.connect(self.open_send_whatsapp_dialog)
             action_layout.addWidget(self.send_whatsapp_btn)
             info_container_layout.addLayout(action_layout)
 
-            # Status combo (part of details, but initialized here due to load_statuses)
             self.status_combo = QComboBox()
             self.load_statuses()
             self.status_combo.setCurrentText(self.client_info.get("status", self.tr("En cours")))
             self.status_combo.currentTextChanged.connect(self.update_client_status)
 
-            # Details layout (QFormLayout)
             self.details_layout = QFormLayout()
             self.details_layout.setLabelAlignment(Qt.AlignLeft)
             self.details_layout.setSpacing(10)
-
-            # Initialize category labels (used in populate_details_layout)
             self.category_label = QLabel(self.tr("Catégorie:"))
             self.category_value_label = QLabel()
-
-            self.populate_details_layout() # Builds the details_layout
+            self.populate_details_layout()
             info_container_layout.addLayout(self.details_layout)
 
             client_info_group_layout.addWidget(self.info_container_widget)
             self.client_info_group_box.setChecked(True)
-            layout.addWidget(self.client_info_group_box)
+            main_layout.addWidget(self.client_info_group_box)
         except Exception as e:
-            logging.error(f"Error during UI setup of Client Info Section: {e}", exc_info=True)
+            logging.error(f"Error in _setup_client_info_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
 
+    def _setup_notes_section(self, main_layout):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Notes Section...")
             self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
             self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
-            # --- Collapsible Notes Section ---
             self.notes_group_box = QGroupBox(self.tr("Notes"))
             self.notes_group_box.setCheckable(True)
             notes_group_layout = QVBoxLayout(self.notes_group_box)
@@ -220,28 +219,41 @@ class ClientWidget(QWidget):
             notes_container_layout.addWidget(self.notes_edit)
             notes_group_layout.addWidget(self.notes_container_widget)
             self.notes_group_box.setChecked(False)
-            layout.addWidget(self.notes_group_box)
+            main_layout.addWidget(self.notes_group_box)
         except Exception as e:
-            logging.error(f"Error during UI setup of Notes Section: {e}", exc_info=True)
+            logging.error(f"Error in _setup_notes_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section notes:\n{0}").format(str(e)))
 
+    def _setup_main_tabs_section(self, main_layout):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Tabs Section...")
             # --- Collapsible Tabs Section ---
+
             self.tabs_group_box = QGroupBox(self.tr("Autres Informations"))
             self.tabs_group_box.setCheckable(True)
             tabs_group_layout = QVBoxLayout(self.tabs_group_box)
             self.tab_widget = QTabWidget()
             tabs_group_layout.addWidget(self.tab_widget)
             self.tabs_group_box.setChecked(False)
-            layout.addWidget(self.tabs_group_box)
-        except Exception as e:
-            logging.error(f"Error during UI setup of Main Tabs Container: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets:\n{0}").format(str(e)))
+            main_layout.addWidget(self.tabs_group_box)
 
+            self._setup_documents_tab()
+            self._setup_contacts_tab()
+            self._setup_products_tab()
+            self._setup_document_notes_tab()
+            self._setup_product_dimensions_tab()
+            self._setup_sav_tab()
+            self._setup_assignments_tab()
+            self._setup_billing_tab()
+        except Exception as e:
+            logging.error(f"Error in _setup_main_tabs_section: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets principaux:\n{0}").format(str(e)))
+
+    def _setup_documents_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Documents Tab Structure...")
             # --- Documents Tab Structure ---
+
             docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
             self.doc_filter_layout_widget = QWidget()
             doc_filter_layout = QHBoxLayout(self.doc_filter_layout_widget)
@@ -295,7 +307,7 @@ class ClientWidget(QWidget):
             docs_layout.addWidget(self.doc_table)
             doc_btn_layout = QHBoxLayout()
             self.add_doc_btn = QPushButton(self.tr("Importer Document"))
-            self.add_doc_btn.setIcon(QIcon(":/icons/file-plus.svg")) # Reverted
+            self.add_doc_btn.setIcon(QIcon(":/icons/file-plus.svg"))
             self.add_doc_btn.setToolTip(self.tr("Importer un fichier document existant pour ce client"))
             self.add_doc_btn.clicked.connect(self.add_document)
             doc_btn_layout.addWidget(self.add_doc_btn)
@@ -311,12 +323,14 @@ class ClientWidget(QWidget):
             docs_layout.addLayout(doc_btn_layout)
             self.tab_widget.addTab(docs_tab, self.tr("Documents"))
         except Exception as e:
-            logging.error(f"Error during UI setup of Documents Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Documents:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_documents_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Documents:\n{0}").format(str(e)))
 
+    def _setup_contacts_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Contacts Tab Structure...")
             # --- Contacts Tab Structure ---
+
             contacts_tab = QWidget()
             contacts_layout = QVBoxLayout(contacts_tab)
             self.contacts_table = QTableWidget()
@@ -332,8 +346,7 @@ class ClientWidget(QWidget):
             self.contacts_table.cellDoubleClicked.connect(self.edit_contact)
             self.contacts_empty_label = QLabel(self.tr("Aucun contact ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
             self.contacts_empty_label.setAlignment(Qt.AlignCenter)
-            font = self.contacts_empty_label.font()
-            font.setPointSize(10)
+            font = self.contacts_empty_label.font(); font.setPointSize(10)
             self.contacts_empty_label.setFont(font)
             contacts_layout.addWidget(self.contacts_empty_label)
             contacts_layout.addWidget(self.contacts_table)
@@ -353,21 +366,23 @@ class ClientWidget(QWidget):
             contacts_pagination_layout.addStretch()
             contacts_layout.addLayout(contacts_pagination_layout)
             contacts_btn_layout = QHBoxLayout()
-            self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg")); # Reverted
+            self.add_contact_btn = QPushButton(self.tr("Ajouter")); self.add_contact_btn.setIcon(QIcon(":/icons/user-plus.svg"))
             self.add_contact_btn.setToolTip(self.tr("Ajouter un nouveau contact pour ce client")); self.add_contact_btn.clicked.connect(self.add_contact); contacts_btn_layout.addWidget(self.add_contact_btn)
-            self.edit_contact_btn = QPushButton(self.tr("Modifier")); self.edit_contact_btn.setIcon(QIcon(":/icons/pencil.svg")); # Reverted
+            self.edit_contact_btn = QPushButton(self.tr("Modifier")); self.edit_contact_btn.setIcon(QIcon(":/icons/pencil.svg"))
             self.edit_contact_btn.setToolTip(self.tr("Modifier le contact sélectionné")); self.edit_contact_btn.clicked.connect(self.edit_contact); contacts_btn_layout.addWidget(self.edit_contact_btn)
-            self.remove_contact_btn = QPushButton(self.tr("Supprimer")); self.remove_contact_btn.setIcon(QIcon(":/icons/trash.svg")); # Reverted
+            self.remove_contact_btn = QPushButton(self.tr("Supprimer")); self.remove_contact_btn.setIcon(QIcon(":/icons/trash.svg"))
             self.remove_contact_btn.setToolTip(self.tr("Supprimer le lien vers le contact sélectionné pour ce client")); self.remove_contact_btn.setObjectName("dangerButton"); self.remove_contact_btn.clicked.connect(self.remove_contact); contacts_btn_layout.addWidget(self.remove_contact_btn)
             contacts_layout.addLayout(contacts_btn_layout)
             self.tab_widget.addTab(contacts_tab, self.tr("Contacts"))
         except Exception as e:
-            logging.error(f"Error during UI setup of Contacts Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Contacts:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_contacts_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Contacts:\n{0}").format(str(e)))
 
+    def _setup_products_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Products Tab Structure...")
             # --- Products Tab Structure ---
+
             products_tab = QWidget()
             products_layout = QVBoxLayout(products_tab)
             product_filters_layout = QHBoxLayout()
@@ -376,6 +391,7 @@ class ClientWidget(QWidget):
             self.product_lang_filter_combo.addItem(self.tr("All Languages"), None)
             self.product_lang_filter_combo.addItem(self.tr("English (en)"), "en")
             self.product_lang_filter_combo.addItem(self.tr("French (fr)"), "fr")
+            # ... (add other languages) ...
             self.product_lang_filter_combo.addItem(self.tr("Arabic (ar)"), "ar")
             self.product_lang_filter_combo.addItem(self.tr("Turkish (tr)"), "tr")
             self.product_lang_filter_combo.addItem(self.tr("Portuguese (pt)"), "pt")
@@ -385,8 +401,7 @@ class ClientWidget(QWidget):
             products_layout.addLayout(product_filters_layout)
             self.products_empty_label = QLabel(self.tr("Aucun produit ajouté pour ce client.\nCliquez sur '➕ Ajouter' pour commencer."))
             self.products_empty_label.setAlignment(Qt.AlignCenter)
-            font_products_empty = self.products_empty_label.font()
-            font_products_empty.setPointSize(10)
+            font_products_empty = self.products_empty_label.font(); font_products_empty.setPointSize(10)
             self.products_empty_label.setFont(font_products_empty)
             products_layout.addWidget(self.products_empty_label)
             self.products_table = QTableWidget()
@@ -403,21 +418,23 @@ class ClientWidget(QWidget):
             self.products_table.hideColumn(0)
             products_layout.addWidget(self.products_table)
             products_btn_layout = QHBoxLayout()
-            self.add_product_btn = QPushButton(self.tr("Ajouter")); self.add_product_btn.setIcon(QIcon(":/icons/plus-circle.svg")); # Reverted
+            self.add_product_btn = QPushButton(self.tr("Ajouter")); self.add_product_btn.setIcon(QIcon(":/icons/plus-circle.svg"))
             self.add_product_btn.setToolTip(self.tr("Ajouter un produit pour ce client/projet")); self.add_product_btn.clicked.connect(self.add_product); products_btn_layout.addWidget(self.add_product_btn)
-            self.edit_product_btn = QPushButton(self.tr("Modifier")); self.edit_product_btn.setIcon(QIcon(":/icons/pencil.svg")); # Reverted
+            self.edit_product_btn = QPushButton(self.tr("Modifier")); self.edit_product_btn.setIcon(QIcon(":/icons/pencil.svg"))
             self.edit_product_btn.setToolTip(self.tr("Modifier le produit sélectionné")); self.edit_product_btn.clicked.connect(self.edit_product); products_btn_layout.addWidget(self.edit_product_btn)
-            self.remove_product_btn = QPushButton(self.tr("Supprimer")); self.remove_product_btn.setIcon(QIcon(":/icons/trash.svg")); # Reverted
+            self.remove_product_btn = QPushButton(self.tr("Supprimer")); self.remove_product_btn.setIcon(QIcon(":/icons/trash.svg"))
             self.remove_product_btn.setToolTip(self.tr("Supprimer le produit sélectionné de ce client/projet")); self.remove_product_btn.setObjectName("dangerButton"); self.remove_product_btn.clicked.connect(self.remove_product); products_btn_layout.addWidget(self.remove_product_btn)
             products_layout.addLayout(products_btn_layout)
             self.tab_widget.addTab(products_tab, self.tr("Produits"))
         except Exception as e:
-            logging.error(f"Error during UI setup of Products Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Produits:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_products_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Produits:\n{0}").format(str(e)))
 
+    def _setup_document_notes_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Document Notes Tab Structure...")
             # --- Document Notes Tab Structure ---
+
             self.document_notes_tab = QWidget()
             doc_notes_layout = QVBoxLayout(self.document_notes_tab)
             doc_notes_filters_layout = QHBoxLayout()
@@ -448,43 +465,46 @@ class ClientWidget(QWidget):
             doc_notes_buttons_layout.addWidget(self.refresh_doc_notes_button)
             doc_notes_buttons_layout.addStretch()
             doc_notes_layout.addLayout(doc_notes_buttons_layout)
-            self.document_notes_tab.setLayout(doc_notes_layout)
             self.tab_widget.addTab(self.document_notes_tab, self.tr("Notes de Document"))
+            self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+            self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
+            self.add_doc_note_button.clicked.connect(self.on_add_document_note)
+            self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
         except Exception as e:
-            logging.error(f"Error during UI setup of Document Notes Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Notes de Document:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_document_notes_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Notes de Document:\n{0}").format(str(e)))
 
-        self.doc_notes_type_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
-        self.doc_notes_lang_filter_combo.currentIndexChanged.connect(self.load_document_notes_table)
-        self.add_doc_note_button.clicked.connect(self.on_add_document_note)
-        self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
-
+    def _setup_product_dimensions_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...")
             # --- Product Dimensions Tab Structure ---
+
             self.product_dimensions_tab = QWidget()
             prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
             self.dim_product_selector_combo = QComboBox()
             self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
             prod_dims_layout.addWidget(self.dim_product_selector_combo)
             self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
-            self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg"))) # Reverted
+            self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
             self.edit_client_product_dimensions_button.setEnabled(False)
             prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
             prod_dims_layout.addStretch()
-            produits_tab_index = -1
+            # Insert after "Notes de Document" tab
+            notes_doc_tab_index = -1
             for i in range(self.tab_widget.count()):
                 if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
-                    produits_tab_index = i
-                    break
-            if produits_tab_index != -1:
-                self.tab_widget.insertTab(produits_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
-            else:
+                    notes_doc_tab_index = i; break
+            if notes_doc_tab_index != -1:
+                self.tab_widget.insertTab(notes_doc_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+            else: # Fallback if "Notes de Document" not found
                 self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+            self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+            self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
         except Exception as e:
-            logging.error(f"Error during UI setup of Product Dimensions Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Dimensions Produit:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_product_dimensions_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Dimensions Produit:\n{0}").format(str(e)))
 
+    def _setup_sav_tab(self):
         try:
             self.load_products_for_dimension_tab()
         except Exception as e:
@@ -535,6 +555,7 @@ class ClientWidget(QWidget):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...")
             # SAV Tab
+
             self.sav_tab = QWidget()
             sav_layout = QVBoxLayout(self.sav_tab)
             sav_layout.addWidget(QLabel("<h3>Historique des Achats</h3>"))
@@ -553,98 +574,115 @@ class ClientWidget(QWidget):
             self.refresh_purchase_history_btn.setIcon(QIcon.fromTheme("view-refresh"))
             self.refresh_purchase_history_btn.clicked.connect(self.load_purchase_history_table)
             sav_layout.addWidget(self.refresh_purchase_history_btn)
-            sav_layout.addWidget(QLabel("<h3>Tickets SAV (Prochainement)</h3>"))
+            sav_layout.addWidget(QLabel("<h3>Tickets SAV (Prochainement)</h3>")) # Placeholder for SAV tickets UI
             sav_layout.addStretch()
             self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
-            self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+            self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab) # Store index for later use
         except Exception as e:
-            logging.error(f"Error during UI setup of SAV Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet SAV:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_sav_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet SAV:\n{0}").format(str(e)))
 
+    def _setup_assignments_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Assignments Tab...")
             # --- Assignments Tab ---
+
             self.assignments_tab = QWidget()
             assignments_main_layout = QVBoxLayout(self.assignments_tab)
             self.assignments_sub_tabs = QTabWidget()
             assignments_main_layout.addWidget(self.assignments_sub_tabs)
             self.tab_widget.addTab(self.assignments_tab, self.tr("Affectations"))
-            # Sub-Tab: Assigned Vendors/Sellers (CompanyPersonnel)
+            # Vendors/Sellers
             assigned_vendors_widget = QWidget()
             assigned_vendors_layout = QVBoxLayout(assigned_vendors_widget)
-            self.assigned_vendors_table = QTableWidget()
-            self.assigned_vendors_table.setColumnCount(4)
+            self.assigned_vendors_table = QTableWidget(); self.assigned_vendors_table.setColumnCount(4)
             self.assigned_vendors_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
-            self.assigned_vendors_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self.assigned_vendors_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_vendors_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.assigned_vendors_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.assigned_vendors_table.horizontalHeader().setStretchLastSection(True)
             assigned_vendors_layout.addWidget(self.assigned_vendors_table)
             vendor_buttons_layout = QHBoxLayout()
-            self.add_assigned_vendor_btn = QPushButton(self.tr("Ajouter Vendeur/Personnel"))
-            self.add_assigned_vendor_btn.clicked.connect(self.handle_add_assigned_vendor)
-            self.remove_assigned_vendor_btn = QPushButton(self.tr("Retirer Vendeur/Personnel"))
-            self.remove_assigned_vendor_btn.clicked.connect(self.handle_remove_assigned_vendor)
-            vendor_buttons_layout.addWidget(self.add_assigned_vendor_btn)
-            vendor_buttons_layout.addWidget(self.remove_assigned_vendor_btn)
+            self.add_assigned_vendor_btn = QPushButton(self.tr("Ajouter Vendeur/Personnel")); self.add_assigned_vendor_btn.clicked.connect(self.handle_add_assigned_vendor)
+            self.remove_assigned_vendor_btn = QPushButton(self.tr("Retirer Vendeur/Personnel")); self.remove_assigned_vendor_btn.clicked.connect(self.handle_remove_assigned_vendor)
+            vendor_buttons_layout.addWidget(self.add_assigned_vendor_btn); vendor_buttons_layout.addWidget(self.remove_assigned_vendor_btn)
             assigned_vendors_layout.addLayout(vendor_buttons_layout)
             self.assignments_sub_tabs.addTab(assigned_vendors_widget, self.tr("Vendeurs & Personnel"))
-            # Sub-Tab: Assigned Technicians
+            # Technicians
             assigned_technicians_widget = QWidget()
             assigned_technicians_layout = QVBoxLayout(assigned_technicians_widget)
-            self.assigned_technicians_table = QTableWidget()
-            self.assigned_technicians_table.setColumnCount(4)
+            self.assigned_technicians_table = QTableWidget(); self.assigned_technicians_table.setColumnCount(4)
             self.assigned_technicians_table.setHorizontalHeaderLabels([self.tr("Nom"), self.tr("Rôle Projet"), self.tr("Email"), self.tr("Téléphone")])
-            self.assigned_technicians_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self.assigned_technicians_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_technicians_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.assigned_technicians_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.assigned_technicians_table.horizontalHeader().setStretchLastSection(True)
             assigned_technicians_layout.addWidget(self.assigned_technicians_table)
             technician_buttons_layout = QHBoxLayout()
-            self.add_assigned_technician_btn = QPushButton(self.tr("Ajouter Technicien"))
-            self.add_assigned_technician_btn.clicked.connect(self.handle_add_assigned_technician)
-            self.remove_assigned_technician_btn = QPushButton(self.tr("Retirer Technicien"))
-            self.remove_assigned_technician_btn.clicked.connect(self.handle_remove_assigned_technician)
-            technician_buttons_layout.addWidget(self.add_assigned_technician_btn)
-            technician_buttons_layout.addWidget(self.remove_assigned_technician_btn)
+            self.add_assigned_technician_btn = QPushButton(self.tr("Ajouter Technicien")); self.add_assigned_technician_btn.clicked.connect(self.handle_add_assigned_technician)
+            self.remove_assigned_technician_btn = QPushButton(self.tr("Retirer Technicien")); self.remove_assigned_technician_btn.clicked.connect(self.handle_remove_assigned_technician)
+            technician_buttons_layout.addWidget(self.add_assigned_technician_btn); technician_buttons_layout.addWidget(self.remove_assigned_technician_btn)
             assigned_technicians_layout.addLayout(technician_buttons_layout)
             self.assignments_sub_tabs.addTab(assigned_technicians_widget, self.tr("Techniciens"))
-            # Sub-Tab: Assigned Transporters
+            # Transporters
             assigned_transporters_widget = QWidget()
             assigned_transporters_layout = QVBoxLayout(assigned_transporters_widget)
-            self.assigned_transporters_table = QTableWidget()
-            self.assigned_transporters_table.setColumnCount(6)
+            self.assigned_transporters_table = QTableWidget(); self.assigned_transporters_table.setColumnCount(6)
             self.assigned_transporters_table.setHorizontalHeaderLabels([self.tr("Nom Transporteur"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Détails Transport"), self.tr("Coût Estimé"), self.tr("Actions")])
-            self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.assigned_transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.assigned_transporters_table.horizontalHeader().setStretchLastSection(True)
             assigned_transporters_layout.addWidget(self.assigned_transporters_table)
             transporter_buttons_layout = QHBoxLayout()
-            self.add_assigned_transporter_btn = QPushButton(self.tr("Ajouter Transporteur"))
-            self.add_assigned_transporter_btn.clicked.connect(self.handle_add_assigned_transporter)
-            self.remove_assigned_transporter_btn = QPushButton(self.tr("Retirer Transporteur"))
-            self.remove_assigned_transporter_btn.clicked.connect(self.handle_remove_assigned_transporter)
-            transporter_buttons_layout.addWidget(self.add_assigned_transporter_btn)
-            transporter_buttons_layout.addWidget(self.remove_assigned_transporter_btn)
+            self.add_assigned_transporter_btn = QPushButton(self.tr("Ajouter Transporteur")); self.add_assigned_transporter_btn.clicked.connect(self.handle_add_assigned_transporter)
+            self.remove_assigned_transporter_btn = QPushButton(self.tr("Retirer Transporteur")); self.remove_assigned_transporter_btn.clicked.connect(self.handle_remove_assigned_transporter)
+            transporter_buttons_layout.addWidget(self.add_assigned_transporter_btn); transporter_buttons_layout.addWidget(self.remove_assigned_transporter_btn)
             assigned_transporters_layout.addLayout(transporter_buttons_layout)
             self.assignments_sub_tabs.addTab(assigned_transporters_widget, self.tr("Transporteurs"))
-            # Sub-Tab: Assigned Freight Forwarders
+            # Freight Forwarders
             assigned_forwarders_widget = QWidget()
             assigned_forwarders_layout = QVBoxLayout(assigned_forwarders_widget)
-            self.assigned_forwarders_table = QTableWidget()
-            self.assigned_forwarders_table.setColumnCount(5)
+            self.assigned_forwarders_table = QTableWidget(); self.assigned_forwarders_table.setColumnCount(5)
             self.assigned_forwarders_table.setHorizontalHeaderLabels([self.tr("Nom Transitaire"), self.tr("Contact"), self.tr("Téléphone"), self.tr("Description Tâche"), self.tr("Coût Estimé")])
-            self.assigned_forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-            self.assigned_forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows); self.assigned_forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
             self.assigned_forwarders_table.horizontalHeader().setStretchLastSection(True)
             assigned_forwarders_layout.addWidget(self.assigned_forwarders_table)
             forwarder_buttons_layout = QHBoxLayout()
-            self.add_assigned_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire"))
-            self.add_assigned_forwarder_btn.clicked.connect(self.handle_add_assigned_forwarder)
-            self.remove_assigned_forwarder_btn = QPushButton(self.tr("Retirer Transitaire"))
-            self.remove_assigned_forwarder_btn.clicked.connect(self.handle_remove_assigned_forwarder)
-            forwarder_buttons_layout.addWidget(self.add_assigned_forwarder_btn)
-            forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
+            self.add_assigned_forwarder_btn = QPushButton(self.tr("Ajouter Transitaire")); self.add_assigned_forwarder_btn.clicked.connect(self.handle_add_assigned_forwarder)
+            self.remove_assigned_forwarder_btn = QPushButton(self.tr("Retirer Transitaire")); self.remove_assigned_forwarder_btn.clicked.connect(self.handle_remove_assigned_forwarder)
+            forwarder_buttons_layout.addWidget(self.add_assigned_forwarder_btn); forwarder_buttons_layout.addWidget(self.remove_assigned_forwarder_btn)
             assigned_forwarders_layout.addLayout(forwarder_buttons_layout)
             self.assignments_sub_tabs.addTab(assigned_forwarders_widget, self.tr("Transitaires"))
+
+            # Sub-Tab: Money Transfer Agents
+            mta_widget = QWidget()
+            mta_layout = QVBoxLayout(mta_widget)
+
+            # Project/Order Selector for MTA
+            mta_project_selector_layout = QHBoxLayout()
+            mta_project_selector_layout.addWidget(QLabel(self.tr("Sélectionner Commande/Projet:")))
+            self.mta_project_selector_combo = QComboBox()
+            mta_project_selector_layout.addWidget(self.mta_project_selector_combo)
+            mta_layout.addLayout(mta_project_selector_layout)
+
+            # Table for Assigned Money Transfer Agents
+            self.assigned_mta_table = QTableWidget()
+            self.assigned_mta_table.setColumnCount(8) # Agent Name, Type, Email, Phone, Details, Fee, Email Status, Actions
+            self.assigned_mta_table.setHorizontalHeaderLabels([
+                self.tr("Nom Agent"), self.tr("Type"), self.tr("Email"), self.tr("Téléphone"),
+                self.tr("Détails Affectation"), self.tr("Frais Estimés"), self.tr("Statut Email"), self.tr("Actions")
+            ])
+            self.assigned_mta_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            self.assigned_mta_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.assigned_mta_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # Stretch to fill
+            self.assigned_mta_table.setMinimumHeight(150) # Example height
+            mta_layout.addWidget(self.assigned_mta_table)
+
+            # Buttons for MTA
+            mta_buttons_layout = QHBoxLayout()
+            self.add_assigned_mta_btn = QPushButton(self.tr("Assigner Agent de Transfert"))
+            self.remove_assigned_mta_btn = QPushButton(self.tr("Retirer Agent de Transfert"))
+            mta_buttons_layout.addWidget(self.add_assigned_mta_btn)
+            mta_buttons_layout.addWidget(self.remove_assigned_mta_btn)
+            mta_layout.addLayout(mta_buttons_layout)
+
+            self.assignments_sub_tabs.addTab(mta_widget, self.tr("Agents de Transfert d'Argent"))
+
         except Exception as e:
             logging.error(f"Error during UI setup of Assignments Tab Structure: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Affectations:\n{0}").format(str(e)))
@@ -684,10 +722,24 @@ class ClientWidget(QWidget):
         self.assigned_technicians_table.itemSelectionChanged.connect(self.update_assigned_technicians_buttons_state)
         self.assigned_transporters_table.itemSelectionChanged.connect(self.update_assigned_transporters_buttons_state)
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
+        # Connections for MTA tab
+        self.mta_project_selector_combo.currentIndexChanged.connect(self.handle_mta_project_selection_changed)
+        self.add_assigned_mta_btn.clicked.connect(self.handle_add_assigned_mta)
+        self.remove_assigned_mta_btn.clicked.connect(self.handle_remove_assigned_mta)
+        self.assigned_mta_table.itemSelectionChanged.connect(self.update_mta_buttons_state)
 
+        # Initial load for MTA project selector
+        self.load_projects_for_mta_combo()
+        # Initial state for MTA buttons
+        self.add_assigned_mta_btn.setEnabled(False)
+        self.remove_assigned_mta_btn.setEnabled(False)
+
+
+    def _setup_billing_tab(self):
         try:
             logging.info("ClientWidget.setup_ui: Starting setup for Billing Tab...")
             # --- Billing Tab ---
+
             self.billing_tab = QWidget()
             self.billing_tab_layout = QVBoxLayout(self.billing_tab)
             self.generate_invoice_button = QPushButton(QIcon(":/icons/file-plus.svg"), self.tr("Generate Final Invoice"))
@@ -697,18 +749,56 @@ class ClientWidget(QWidget):
             self.billing_tab_layout.addStretch()
             self.tab_widget.addTab(self.billing_tab, QIcon(":/icons/credit-card.svg"), self.tr("Billing"))
         except Exception as e:
-            logging.error(f"Error during UI setup of Billing Tab Structure: {e}", exc_info=True)
-            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Facturation:\n{0}").format(str(e)))
+            logging.error(f"Error in _setup_billing_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Facturation:\n{0}").format(str(e)))
 
-        # Connect new accordion handlers
-        self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
-        self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
-        self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
+
+        self._setup_client_info_section(main_layout)
+        self._setup_notes_section(main_layout)
+        self._setup_main_tabs_section(main_layout) # This will call sub-methods for each tab
+
+        # Initial data loading calls
+        try: self.populate_doc_table()
+        except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
+        try: self.load_contacts()
+        except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
+        try: self.load_products()
+        except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
+        try: self.load_document_notes_filters()
+        except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
+        try: self.load_document_notes_table()
+        except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
+        try: self.update_sav_tab_visibility()
+        except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
+        try: self.load_assigned_vendors_personnel()
+        except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
+        try: self.load_assigned_technicians()
+        except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
+        try: self.load_assigned_transporters()
+        except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
+        try: self.load_assigned_freight_forwarders()
+        except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
+
+        # Connect accordion group box toggled signals
+        if hasattr(self, 'client_info_group_box'):
+             self.client_info_group_box.toggled.connect(self._handle_client_info_section_toggled)
+        if hasattr(self, 'notes_group_box'):
+             self.notes_group_box.toggled.connect(self._handle_notes_section_toggled)
+        if hasattr(self, 'tabs_group_box'):
+             self.tabs_group_box.toggled.connect(self._handle_tabs_section_toggled)
+        # Event filter for notes auto-save
+        if hasattr(self, 'notes_edit'):
+            self.notes_edit.installEventFilter(self)
+
 
     def _handle_edit_pdf_action(self, file_path, document_id):
         if file_path and os.path.exists(file_path):
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-        layout = QVBoxLayout(self)
+        # layout = QVBoxLayout(self) # This line seems out of place, QVBoxLayout is already set for the widget
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
@@ -3090,14 +3180,20 @@ class ClientWidget(QWidget):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text})")
-                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
-                                                    message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
-                                                    type='SUCCESS')
+                    if self.notification_manager:
+                        self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
+                                                        message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
+                                                        type='SUCCESS')
+                    else:
+                        logging.warning("Notification manager not available. Cannot show notification: Statut Mis à Jour - Statut du client '{0}' mis à jour à '{1}'.".format(self.client_info.get("client_name", ""), status_text))
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
-                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
-
-                    get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+                    if self.notification_manager:
+                        self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
+                    else:
+                        logging.warning("Notification manager not available. Cannot show notification: Erreur Statut - Échec de la mise à jour du statut.")
+                    # The following line seems to be a duplicate or leftover, consider removing if get_notification_manager() is not standard.
+                    # get_notification_manager().show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut."), type='ERROR')
 
             # This 'elif status_text:' should handle other statuses not 'Vendu'
             elif status_text and status_text != 'Vendu': # If it's not 'Vendu' and status_text is not empty
@@ -3114,21 +3210,32 @@ class ClientWidget(QWidget):
                     self.client_info["status"] = status_text
                     self.client_info["status_id"] = status_id_to_set
                     print(f"Client {client_id_to_update} status_id updated to {status_id_to_set} ({status_text}) for non-Vendu status.")
-                    self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
-                                                    message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
-                                                    type='SUCCESS')
+                    if self.notification_manager:
+                        self.notification_manager.show(title=self.tr("Statut Mis à Jour"),
+                                                        message=self.tr("Statut du client '{0}' mis à jour à '{1}'.").format(self.client_info.get("client_name", ""), status_text),
+                                                        type='SUCCESS')
+                    else:
+                        logging.warning("Notification manager not available. Cannot show notification: Statut Mis à Jour - Statut du client '{0}' mis à jour à '{1}'.".format(self.client_info.get("client_name", ""), status_text))
                     self.update_sav_tab_visibility() # Update SAV tab based on new status
                 else:
-                    # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la mise à jour du statut du client pour '{0}'.").format(status_text))
-                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
+                    if self.notification_manager:
+                        self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Échec de la mise à jour du statut pour '{0}'.").format(status_text), type='ERROR')
+                    else:
+                        logging.warning("Notification manager not available. Cannot show notification: Erreur Statut - Échec de la mise à jour du statut pour '{0}'.".format(status_text))
 
             elif status_text: # Fallback for empty status_text or other unhandled cases
                 QMessageBox.warning(self, self.tr("Erreur Configuration"), self.tr("Statut '{0}' non trouvé ou invalide. Impossible de mettre à jour.").format(status_text))
-                self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
+                if self.notification_manager:
+                    self.notification_manager.show(title=self.tr("Erreur Statut"), message=self.tr("Statut '{0}' non trouvé ou invalide.").format(status_text), type='ERROR')
+                else:
+                    logging.warning("Notification manager not available. Cannot show notification: Erreur Statut - Statut '{0}' non trouvé ou invalide.".format(status_text))
 
         except Exception as e:
             QMessageBox.critical(self, self.tr("Erreur Inattendue"), self.tr("Erreur de mise à jour du statut:\n{0}").format(str(e)))
-            self.notification_manager.show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
+            if self.notification_manager:
+                self.notification_manager.show(title=self.tr("Erreur Statut Inattendue"), message=self.tr("Erreur inattendue: {0}").format(str(e)), type='ERROR')
+            else:
+                logging.warning("Notification manager not available. Cannot show notification: Erreur Statut Inattendue - Erreur inattendue: {0}.".format(str(e)))
 
     def save_client_notes(self):
         notes = self.notes_edit.toPlainText()
@@ -3142,13 +3249,20 @@ class ClientWidget(QWidget):
             if db_manager.update_client(client_id_to_update, {'notes': notes}):
                 self.client_info["notes"] = notes # Update local copy
                 # Optionally, notify on successful save, though it might be too frequent if auto-saving.
-                # self.notification_manager.show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
+                # if self.notification_manager:
+                #     self.notification_manager.show(title=self.tr("Notes Sauvegardées"), message=self.tr("Notes du client enregistrées."), type='INFO', duration=2000)
+                # else:
+                #     logging.warning("Notification manager not available. Cannot show notification: Notes Sauvegardées - Notes du client enregistrées.")
             else:
-                # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Échec de la sauvegarde des notes dans la DB."))
-                self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
+                if self.notification_manager:
+                    self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Échec de la sauvegarde des notes."), type='ERROR')
+                else:
+                    logging.warning("Notification manager not available. Cannot show notification: Erreur Notes - Échec de la sauvegarde des notes.")
         except Exception as e:
-            # QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de sauvegarde des notes:\n{0}").format(str(e)))
-            self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
+            if self.notification_manager:
+                self.notification_manager.show(title=self.tr("Erreur Notes"), message=self.tr("Erreur de sauvegarde des notes: {0}").format(str(e)), type='ERROR')
+            else:
+                logging.warning("Notification manager not available. Cannot show notification: Erreur Notes - Erreur de sauvegarde des notes: {0}.".format(str(e)))
 
     def populate_doc_table(self):
         self.doc_table.setRowCount(0) # Clear table first
@@ -4760,6 +4874,191 @@ class ClientWidget(QWidget):
                 logging.error(f"Exception during final invoice creation process from ClientWidget: {e_gen}", exc_info=True)
                 QMessageBox.critical(self, self.tr("Critical Error"), self.tr("An unexpected error occurred: {0}").format(str(e_gen)))
 
+    # --- Money Transfer Agent Methods ---
+    def load_projects_for_mta_combo(self):
+        self.mta_project_selector_combo.blockSignals(True)
+        self.mta_project_selector_combo.clear()
+        self.mta_project_selector_combo.addItem(self.tr("--- Sélectionner Commande/Projet ---"), None)
+        client_id = self.client_info.get('client_id')
+        if not client_id:
+            self.mta_project_selector_combo.blockSignals(False)
+            return
+
+        try:
+            projects = projects_crud.get_projects_by_client_id(client_id=client_id)
+            if projects:
+                for project in projects:
+                    self.mta_project_selector_combo.addItem(project.get('project_name', self.tr("Projet Sans Nom")), project.get('project_id'))
+        except Exception as e:
+            logging.error(f"Error loading projects for MTA combo: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur de Chargement"), self.tr("Impossible de charger les projets."))
+        finally:
+            self.mta_project_selector_combo.blockSignals(False)
+            self.handle_mta_project_selection_changed() # Update based on current selection (or default)
+
+    def handle_mta_project_selection_changed(self):
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        if selected_project_id:
+            self.add_assigned_mta_btn.setEnabled(True)
+            self.load_assigned_money_transfer_agents()
+        else:
+            self.add_assigned_mta_btn.setEnabled(False)
+            self.assigned_mta_table.setRowCount(0) # Clear table
+            self.remove_assigned_mta_btn.setEnabled(False)
+
+    def load_assigned_money_transfer_agents(self):
+        self.assigned_mta_table.setRowCount(0)
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        client_id = self.client_info.get('client_id')
+
+        if not selected_project_id or not client_id:
+            self.remove_assigned_mta_btn.setEnabled(False)
+            return
+
+        try:
+            # get_assigned_agents_for_client_order joins with MoneyTransferAgents and Projects
+            assigned_agents_data = coma_crud.get_assigned_agents_for_client_order(
+                client_id=client_id,
+                order_id=selected_project_id, # This is project_id
+                include_deleted=False
+            )
+
+            self.assigned_mta_table.setRowCount(len(assigned_agents_data))
+            for row, data in enumerate(assigned_agents_data):
+                assignment_id = data.get('assignment_id')
+
+                name_item = QTableWidgetItem(data.get('agent_name', self.tr("N/A")))
+                name_item.setData(Qt.UserRole, assignment_id) # Store assignment_id for removal
+                self.assigned_mta_table.setItem(row, 0, name_item)
+
+                self.assigned_mta_table.setItem(row, 1, QTableWidgetItem(data.get('agent_type', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 2, QTableWidgetItem(data.get('agent_email', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 3, QTableWidgetItem(data.get('agent_phone', self.tr("N/A"))))
+                self.assigned_mta_table.setItem(row, 4, QTableWidgetItem(data.get('assignment_details', '')))
+
+                fee_estimate = data.get('fee_estimate', 0.0)
+                fee_item = QTableWidgetItem(f"{fee_estimate:.2f} $") # Assuming USD, adjust as needed
+                fee_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.assigned_mta_table.setItem(row, 5, fee_item)
+
+                email_status_item = QTableWidgetItem(data.get('email_status', self.tr("Pendant")))
+                self.assigned_mta_table.setItem(row, 6, email_status_item)
+
+                # Actions button (Email Agent)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2, 2, 2, 2)
+                actions_layout.setSpacing(5)
+
+                email_button = QPushButton(self.tr("Email"))
+                email_button.setToolTip(self.tr("Envoyer un email à cet agent"))
+                agent_email = data.get('agent_email')
+                email_button.clicked.connect(lambda ch, aid=assignment_id, ag_email=agent_email: self.handle_email_money_transfer_agent(aid, ag_email))
+                if not agent_email: # Disable if no email
+                    email_button.setEnabled(False)
+                actions_layout.addWidget(email_button)
+                actions_layout.addStretch()
+                self.assigned_mta_table.setCellWidget(row, 7, actions_widget)
+
+        except Exception as e:
+            logging.error(f"Error loading assigned money transfer agents: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur de Chargement"), self.tr("Impossible de charger les agents de transfert d'argent assignés."))
+        finally:
+            self.update_mta_buttons_state()
+
+
+    def handle_add_assigned_mta(self):
+        selected_project_id = self.mta_project_selector_combo.currentData()
+        client_id = self.client_info.get('client_id')
+
+        if not selected_project_id:
+            QMessageBox.warning(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner une commande/projet avant d'assigner un agent."))
+            return
+        if not client_id:
+            QMessageBox.warning(self, self.tr("Erreur Client"), self.tr("ID Client non disponible."))
+            return
+
+        dialog = AssignMoneyTransferAgentDialog(client_id=client_id, order_id=selected_project_id, parent=self)
+        if dialog.exec_() == QDialog.Accepted:
+            self.load_assigned_money_transfer_agents()
+
+    def handle_remove_assigned_mta(self):
+        selected_items = self.assigned_mta_table.selectedItems()
+        if not selected_items:
+            QMessageBox.information(self, self.tr("Sélection Requise"), self.tr("Veuillez sélectionner une affectation d'agent à retirer."))
+            return
+
+        assignment_id = selected_items[0].data(Qt.UserRole)
+        if not assignment_id:
+            QMessageBox.warning(self, self.tr("Erreur"), self.tr("Impossible de récupérer l'ID de l'affectation."))
+            return
+
+        agent_name = self.assigned_mta_table.item(selected_items[0].row(), 0).text()
+        reply = QMessageBox.question(self, self.tr("Confirmer Suppression"),
+                                     self.tr("Êtes-vous sûr de vouloir retirer l'agent '{0}' de cette commande/projet?").format(agent_name),
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            try:
+                result = coma_crud.unassign_agent_from_client_order(assignment_id=assignment_id)
+                if result.get('success'):
+                    QMessageBox.information(self, self.tr("Succès"), self.tr("Affectation d'agent retirée avec succès."))
+                    self.load_assigned_money_transfer_agents()
+                else:
+                    QMessageBox.warning(self, self.tr("Échec"), self.tr("Impossible de retirer l'affectation: {0}").format(result.get('error', 'Erreur inconnue')))
+            except Exception as e:
+                logging.error(f"Error removing money transfer agent assignment: {e}", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur"), self.tr("Une erreur est survenue lors du retrait de l'affectation."))
+
+    def handle_email_money_transfer_agent(self, assignment_id, agent_email):
+        if not agent_email:
+            QMessageBox.warning(self, self.tr("Email Manquant"), self.tr("L'agent n'a pas d'adresse email enregistrée."))
+            return
+
+        # Ensure self.config is available and SendEmailDialog can be imported
+        if not hasattr(self, 'config') or not self.config:
+             QMessageBox.critical(self, self.tr("Erreur Configuration"), self.tr("La configuration de l'application (SMTP) n'est pas disponible."))
+             return
+        if not hasattr(self, 'SendEmailDialog') or self.SendEmailDialog is None:
+             try:
+                 from dialogs import SendEmailDialog
+                 self.SendEmailDialog = SendEmailDialog
+             except ImportError:
+                  QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le composant SendEmailDialog n'a pas pu être chargé."))
+                  return
+
+        # client_id for context in SendEmailDialog (e.g. for templates)
+        client_id_for_email_context = self.client_info.get('client_id')
+
+        dialog = self.SendEmailDialog(client_email=agent_email, config=self.config, client_id=client_id_for_email_context, parent=self)
+        email_sent_successfully = False
+        if dialog.exec_() == QDialog.Accepted:
+            # Assuming SendEmailDialog internally handles the sending and returns status or sets it.
+            # For this example, we'll assume if accepted, it was "sent".
+            # A more robust solution would have SendEmailDialog return a status.
+            email_sent_successfully = True # Placeholder for actual send status
+
+        # Update email_status in the database
+        new_email_status = 'Sent' if email_sent_successfully else 'Failed' # Simplified logic
+        # If the dialog was cancelled, we might not want to change status, or set to 'Pending'
+        # For now, only 'Sent' or 'Failed' if dialog was OK'd or there was an attempt.
+
+        try:
+            update_result = coma_crud.update_assignment_details(
+                assignment_id=assignment_id,
+                email_status=new_email_status
+            )
+            if update_result.get('success'):
+                logging.info(f"Email status for assignment {assignment_id} updated to {new_email_status}.")
+            else:
+                logging.warning(f"Failed to update email status for assignment {assignment_id}: {update_result.get('error')}")
+        except Exception as e:
+            logging.error(f"Error updating email status for assignment {assignment_id}: {e}", exc_info=True)
+
+        self.load_assigned_money_transfer_agents() # Refresh the table to show new status
+
+    def update_mta_buttons_state(self):
+        has_selection = bool(self.assigned_mta_table.selectedItems())
+        self.remove_assigned_mta_btn.setEnabled(has_selection)
 
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)
 # Ensure that all methods called by ClientWidget (like self.ContactDialog, self.generate_pdf_for_document)

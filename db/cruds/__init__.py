@@ -5,6 +5,7 @@ from . import client_assigned_personnel_crud # Added
 from . import client_documents_crud
 from . import client_freight_forwarders_crud # Added
 from . import client_project_products_crud
+from . import client_order_money_transfer_agents_crud # Added
 from . import client_transporters_crud # Added
 from . import clients_crud
 from . import companies_crud
@@ -34,6 +35,7 @@ from . import team_members_crud
 from . import template_categories_crud
 from . import templates_crud
 from . import transporters_crud # Added
+from . import money_transfer_agents_crud # Added
 from . import users_crud
 
 # Recruitment CRUDs
