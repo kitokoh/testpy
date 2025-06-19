@@ -95,6 +95,36 @@ class AddNewClientDialog(QDialog):
         self.load_countries_into_combo()
         self._handle_initial_country()
 
+    def populate_from_voice_data(self, data: dict):
+        """
+        Populates the dialog fields from data extracted by VoiceInputService.
+        """
+        self.client_name_input.setText(data.get('client_name', ''))
+        self.company_name_input.setText(data.get('company_name', ''))
+        self.client_need_input.setText(data.get('primary_need_description', ''))
+        self.project_id_input_field.setText(data.get('project_identifier', ''))
+
+        country_name = data.get('country_name')
+        if country_name:
+            self.country_select_combo.lineEdit().setText(country_name)
+            # Call load_cities_for_country to attempt to populate the city combo
+            # based on the recognized country name. This is crucial because the
+            # accept() method might rely on city_id which could be resolved if
+            # cities are loaded correctly.
+            self.load_cities_for_country(country_name)
+
+        city_name = data.get('city_name')
+        if city_name:
+            # This should ideally be called *after* cities for the country are loaded.
+            # If country_name was also present, load_cities_for_country would have run.
+            # If only city_name is present, this might not be very effective without country context.
+            self.city_select_combo.lineEdit().setText(city_name)
+            # We might need to find the city in the combo if it was populated by load_cities_for_country
+            # and set current index, but just setting text is a good first step.
+
+        # Optionally log that data has been populated
+        # print(f"AddNewClientDialog populated with voice data: {data}") # Or use proper logging
+
     def _handle_initial_country(self):
         if self.initial_country_name:
             print(f"Attempting to pre-select country: {self.initial_country_name}")

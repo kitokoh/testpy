@@ -7,7 +7,8 @@ import sqlite3 # For specific error checking if needed, though current db.py han
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-import db as db_manager
+import db as db_manager # For add_user, get_user_by_id etc. from db/__init__
+from db import init_schema # For initialize_database
 
 class TestAuth(unittest.TestCase):
 
@@ -23,7 +24,7 @@ class TestAuth(unittest.TestCase):
         # Ensure DATABASE_NAME in db.py is either a test-specific DB or handle cleanup carefully.
         # For this exercise, we assume db_manager.initialize_database() sets up the necessary tables
         # and we will manually add/delete users for each test to maintain independence.
-        db_manager.initialize_database()
+        init_schema.initialize_database() # Correctly call initialize_database
         # It's good practice to ensure the Users table is clean before auth tests,
         # but db.py doesn't have a 'delete_all_users' function.
         # We will rely on specific user deletion in each test.
