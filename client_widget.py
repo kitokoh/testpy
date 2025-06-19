@@ -82,6 +82,7 @@ class ClientWidget(QWidget):
 
     def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
+        logging.info(f"ClientWidget.__init__: Received client_info: {client_info}")
         logging.info(f"ClientWidget initialized with client_info: {client_info}")
         logging.info(f"ClientWidget __init__: client_id={client_info.get('client_id')}, client_name={client_info.get('client_name')}")
         self.client_info = client_info
@@ -89,7 +90,9 @@ class ClientWidget(QWidget):
         # self.config = config # Original config passed
 
         # Dynamically import main elements to avoid circular import at module load time
+        logging.info("ClientWidget.__init__: Calling _import_main_elements()...")
         _import_main_elements()
+        logging.info("ClientWidget.__init__: Finished _import_main_elements().")
         self.config = MAIN_MODULE_CONFIG
         self.app_root_dir = app_root_dir
         self.DATABASE_NAME = MAIN_MODULE_DATABASE_NAME
@@ -120,14 +123,18 @@ class ClientWidget(QWidget):
         self.total_contacts_count = 0
         # self.CONTACT_PAGE_LIMIT is a class attribute
 
+        logging.info("ClientWidget.__init__: Calling self.setup_ui()...")
         self.setup_ui()
+        logging.info("ClientWidget.__init__: Finished self.setup_ui().")
 
     def setup_ui(self):
+        logging.info("ClientWidget.setup_ui: Starting UI setup...")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(15)
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Collapsible Client Info Section...")
             # --- Collapsible Client Info Section ---
             self.client_info_group_box = QGroupBox(self.client_info.get('client_name', self.tr("Client Information")))
             self.client_info_group_box.setCheckable(True)
@@ -200,6 +207,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Notes Section...")
             self.notes_edit = QTextEdit(self.client_info.get("notes", ""))
             self.notes_edit.setPlaceholderText(self.tr("Ajoutez des notes sur ce client..."))
             # --- Collapsible Notes Section ---
@@ -218,6 +226,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section notes:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Tabs Section...")
             # --- Collapsible Tabs Section ---
             self.tabs_group_box = QGroupBox(self.tr("Autres Informations"))
             self.tabs_group_box.setCheckable(True)
@@ -231,6 +240,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Documents Tab Structure...")
             # --- Documents Tab Structure ---
             docs_tab = QWidget(); docs_layout = QVBoxLayout(docs_tab)
             self.doc_filter_layout_widget = QWidget()
@@ -305,6 +315,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Documents:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Contacts Tab Structure...")
             # --- Contacts Tab Structure ---
             contacts_tab = QWidget()
             contacts_layout = QVBoxLayout(contacts_tab)
@@ -355,6 +366,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Contacts:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Products Tab Structure...")
             # --- Products Tab Structure ---
             products_tab = QWidget()
             products_layout = QVBoxLayout(products_tab)
@@ -404,6 +416,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet Produits:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Document Notes Tab Structure...")
             # --- Document Notes Tab Structure ---
             self.document_notes_tab = QWidget()
             doc_notes_layout = QVBoxLayout(self.document_notes_tab)
@@ -447,6 +460,7 @@ class ClientWidget(QWidget):
         self.refresh_doc_notes_button.clicked.connect(self.load_document_notes_table)
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...")
             # --- Product Dimensions Tab Structure ---
             self.product_dimensions_tab = QWidget()
             prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
@@ -519,6 +533,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...")
             # SAV Tab
             self.sav_tab = QWidget()
             sav_layout = QVBoxLayout(self.sav_tab)
@@ -547,6 +562,7 @@ class ClientWidget(QWidget):
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation structure onglet SAV:\n{0}").format(str(e)))
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Assignments Tab...")
             # --- Assignments Tab ---
             self.assignments_tab = QWidget()
             assignments_main_layout = QVBoxLayout(self.assignments_tab)
@@ -635,6 +651,7 @@ class ClientWidget(QWidget):
 
         # Call to load SAV tickets table initially if tab is visible
         try:
+            logging.info("ClientWidget.setup_ui: Updating SAV tab visibility and loading initial data...")
             self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
         except Exception as e:
             logging.error(f"Error during initial visibility update/load of SAV tab: {e}", exc_info=True)
@@ -669,6 +686,7 @@ class ClientWidget(QWidget):
         self.assigned_forwarders_table.itemSelectionChanged.connect(self.update_assigned_forwarders_buttons_state)
 
         try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Billing Tab...")
             # --- Billing Tab ---
             self.billing_tab = QWidget()
             self.billing_tab_layout = QVBoxLayout(self.billing_tab)
@@ -2929,11 +2947,23 @@ class ClientWidget(QWidget):
 
         # Base Folder Path
         folder_label = QLabel(self.tr("Chemin Dossier:"))
-        folder_path_value = self.client_info.get('base_folder_path','')
-        logging.info(f"Setting base_folder_path: {folder_path_value}")
-        folder_value_label = QLabel(f"<a href='file:///{folder_path_value}'>{folder_path_value}</a>")
-        folder_value_label.setOpenExternalLinks(True)
-        folder_value_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        folder_path_value = self.client_info.get('base_folder_path')
+        if not folder_path_value:
+            folder_path_value = self.client_info.get('default_base_folder_path', '') # Fallback to default_base_folder_path
+        logging.info(f"Retrieved folder_path_value: '{folder_path_value}' (tried 'base_folder_path' then 'default_base_folder_path')")
+        if folder_path_value and os.path.isdir(folder_path_value): # Check if path is valid and a directory
+            folder_display_text = f"<a href='file:///{folder_path_value}'>{folder_path_value}</a>"
+            folder_value_label = QLabel(folder_display_text)
+            folder_value_label.setOpenExternalLinks(True)
+            folder_value_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        else:
+            if not folder_path_value:
+                logging.warning(f"Client {self.client_info.get('client_id')}: base_folder_path and default_base_folder_path are missing or empty.")
+                folder_display_text = self.tr("N/A - Chemin non configuré")
+            else: # Path exists but is not a directory
+                logging.warning(f"Client {self.client_info.get('client_id')}: folder_path_value '{folder_path_value}' is not a valid directory.")
+                folder_display_text = self.tr("Chemin invalide: {0}").format(folder_path_value)
+            folder_value_label = QLabel(folder_display_text)
         self.details_layout.addRow(folder_label, folder_value_label)
         self.detail_value_labels["base_folder_path"] = folder_value_label
 

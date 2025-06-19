@@ -827,14 +827,17 @@ class DocumentManager(QMainWindow):
         except Exception as e:
             print(self.tr("Erreur chargement statuts pour filtre: {0}").format(str(e)))
             
-    def handle_client_list_click(self, item): 
+    def handle_client_list_click(self, item):
+        logging.info(f"handle_client_list_click entered. Item text: {item.text()}, Item data: {item.data(Qt.UserRole)}")
         client_data = item.data(Qt.UserRole)
         if client_data and client_data.get("client_id"):
             self.open_client_tab_by_id(client_data["client_id"])
         
     def open_client_tab_by_id(self, client_id_to_open):
         # Attempt to fetch fresh client data directly from the database
+        logging.info(f"open_client_tab_by_id: Called with client_id_to_open={client_id_to_open}")
         client_data_to_show = clients_crud_instance.get_client_by_id(client_id_to_open, include_deleted=False)
+        logging.info(f"open_client_tab_by_id: client_data_to_show after fetching from DB: {client_data_to_show}")
 
         if not client_data_to_show:
             # If fetching from DB fails, show an error and return.
@@ -864,6 +867,7 @@ class DocumentManager(QMainWindow):
         elif not isinstance(client_data_to_show.get('selected_languages'), list): # If it's not a list already (e.g. None or empty string from .get())
             client_data_to_show['selected_languages'] = []
 
+        logging.info(f"open_client_tab_by_id: client_data_to_show after augmentation: {client_data_to_show}")
 
         for i in range(self.client_tabs_widget.count()):
             tab_widget_ref = self.client_tabs_widget.widget(i) 
