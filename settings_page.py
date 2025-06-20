@@ -435,6 +435,7 @@ class SettingsPage(QWidget):
         self._setup_freight_forwarders_tab() # New
         self._setup_template_visibility_tab() # New Tab for Template Visibility
         self._setup_global_template_management_tab() # New Tab for Global Template Management
+        self._setup_backup_tab() # New Backup Tab
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -463,6 +464,39 @@ class SettingsPage(QWidget):
             self._load_forwarders_table() # Initial load
         else:
             print("WARNING: db_manager not available. Transporter and Forwarder tables will not be loaded.")
+
+    def _setup_backup_tab(self):
+        backup_tab_widget = QWidget()
+        backup_form_layout = QFormLayout(backup_tab_widget)
+        backup_form_layout.setContentsMargins(10, 10, 10, 10)
+        backup_form_layout.setSpacing(10)
+
+        self.backup_server_address_input = QLineEdit()
+        self.backup_server_address_input.setPlaceholderText(self.tr("Enter server address (e.g., 192.168.1.100 or domain.com)"))
+        backup_form_layout.addRow(self.tr("Server Address:"), self.backup_server_address_input)
+
+        self.backup_port_input = QLineEdit()
+        self.backup_port_input.setPlaceholderText(self.tr("Enter port (e.g., 22 for SFTP, 443 for HTTPS)"))
+        backup_form_layout.addRow(self.tr("Port:"), self.backup_port_input)
+
+        self.backup_username_input = QLineEdit()
+        self.backup_username_input.setPlaceholderText(self.tr("Enter username for backup server"))
+        backup_form_layout.addRow(self.tr("Username:"), self.backup_username_input)
+
+        self.backup_password_input = QLineEdit()
+        self.backup_password_input.setEchoMode(QLineEdit.Password)
+        self.backup_password_input.setPlaceholderText(self.tr("Enter password for backup server"))
+        backup_form_layout.addRow(self.tr("Password:"), self.backup_password_input)
+
+        self.run_backup_button = QPushButton(self.tr("Run Backup"))
+        self.run_backup_button.setObjectName("primaryButton") # Optional: for styling
+        self.run_backup_button.clicked.connect(self._handle_run_backup) # Connect to handler method
+
+        backup_form_layout.addRow(self.run_backup_button)
+
+        backup_tab_widget.setLayout(backup_form_layout)
+        self.tabs_widget.addTab(backup_tab_widget, self.tr("Backup"))
+
 
     def _setup_general_tab(self):
         general_tab_widget = QWidget()
@@ -980,6 +1014,12 @@ class SettingsPage(QWidget):
         default_download_path = os.path.join(os.path.expanduser('~'), 'Downloads')
         self.download_monitor_path_input.setText(self.main_config.get("download_monitor_path", default_download_path))
 
+    def _load_backup_tab_data(self):
+        self.backup_server_address_input.setText(self.main_config.get("backup_server_address", ""))
+        self.backup_port_input.setText(self.main_config.get("backup_port", ""))
+        self.backup_username_input.setText(self.main_config.get("backup_username", ""))
+        self.backup_password_input.setText(self.main_config.get("backup_password", ""))
+
     def _browse_directory(self, line_edit_target, dialog_title):
         start_dir = line_edit_target.text();
         if not os.path.isdir(start_dir): start_dir = os.getcwd()
@@ -1019,11 +1059,20 @@ class SettingsPage(QWidget):
             "download_monitor_path": self.download_monitor_path_input.text().strip()
         }
 
+    def get_backup_settings_data(self):
+        return {
+            "backup_server_address": self.backup_server_address_input.text().strip(),
+            "backup_port": self.backup_port_input.text().strip(),
+            "backup_username": self.backup_username_input.text().strip(),
+            "backup_password": self.backup_password_input.text() # Password is not stripped
+        }
+
     def _load_all_settings_from_config(self):
         self._load_general_tab_data()
         self._load_email_tab_data()
         self._load_download_monitor_tab_data()
         self._load_modules_tab_data() # Load data for the new modules tab
+        self._load_backup_tab_data() # Load data for the backup tab
         # Transporter and Forwarder data are loaded from DB directly.
         print("SettingsPage: All settings reloaded.")
 
@@ -1041,6 +1090,11 @@ class SettingsPage(QWidget):
         # Download Monitor Settings
         download_monitor_settings = self.get_download_monitor_settings_data()
         for key, value in download_monitor_settings.items():
+            self.main_config[key] = value
+
+        # Backup Settings
+        backup_settings = self.get_backup_settings_data()
+        for key, value in backup_settings.items():
             self.main_config[key] = value
 
         # Save to the actual config file (e.g., JSON)
@@ -1303,6 +1357,35 @@ class SettingsPage(QWidget):
         # For mocked version:
         QMessageBox.information(self, self.tr("Mock Save"), self.tr("Template visibility data (mocked) prepared. Check console for payload."))
         # self._load_template_visibility_data() # Optionally refresh after mock save too
+
+    def _handle_run_backup(self):
+        server_address = self.backup_server_address_input.text().strip()
+        port = self.backup_port_input.text().strip()
+        username = self.backup_username_input.text().strip()
+        # For security, we retrieve the password but should be careful with logging or displaying it.
+        # For this placeholder, we'll just acknowledge it's retrieved.
+        password = self.backup_password_input.text() # No strip, as passwords can have leading/trailing spaces
+
+        details_message = self.tr(
+            "Backup process would start now with these details:\n\n"
+            "Server Address: {0}\n"
+            "Port: {1}\n"
+            "Username: {2}\n"
+            "Password: {3}" # In a real scenario, avoid displaying/logging the password
+        ).format(
+            server_address if server_address else self.tr("[Not provided]"),
+            port if port else self.tr("[Not provided]"),
+            username if username else self.tr("[Not provided]"),
+            self.tr("********") if password else self.tr("[Not provided]") # Mask password in message
+        )
+
+        QMessageBox.information(
+            self,
+            self.tr("Run Backup"),
+            details_message
+        )
+        # Actual backup logic would be implemented here or called from here.
+        print(f"Backup Details: Address='{server_address}', Port='{port}', User='{username}', Password_Length='{len(password)}'")
 
 
 if __name__ == '__main__':

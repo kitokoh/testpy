@@ -194,26 +194,40 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
-    # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
-    if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
-        language_code = language_code_from_db.strip()
-        logging.info(f"Language '{language_code}' loaded from database setting.")
-    else:
-        default_lang = QLocale.system().name().split('_')[0]
-        language_code = CONFIG.get("language", default_lang)
-        if language_code_from_db is None:
-            logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
-        else: # Empty string or not a string
-            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
+    # --- TEMPORARILY MODIFIED FOR TESTING ---
+    language_code = "fr"
+    logging.info(f"TESTING: Language forced to '{language_code}' for translation loading test.")
+    # Original logic commented out:
+    # language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
+    # # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
+    # if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
+    #     language_code = language_code_from_db.strip()
+    #     logging.info(f"Language '{language_code}' loaded from database setting.")
+    # else:
+    #     default_lang = QLocale.system().name().split('_')[0]
+    #     language_code = CONFIG.get("language", default_lang)
+    #     if language_code_from_db is None:
+    #         logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
+    #     else: # Empty string or not a string
+    #         logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
+    # --- END TEMPORARY MODIFICATION ---
 
-    translator = QTranslator()
-    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", "qm", f"app_{language_code}.qm")
-    if translator.load(translation_path_app):
-        app.installTranslator(translator)
-        logging.info(f"Loaded custom translation for {language_code} from {translation_path_app}")
+    # Load application translations from language-specific directory
+    lang_spec_translations_dir = os.path.join(APP_ROOT_DIR, "translations", "qm", language_code)
+    logging.info(f"Attempting to load translations from language-specific directory: {lang_spec_translations_dir}")
+
+    if os.path.isdir(lang_spec_translations_dir):
+        for filename in os.listdir(lang_spec_translations_dir):
+            if filename.endswith(".qm"):
+                translator = QTranslator()
+                translation_path = os.path.join(lang_spec_translations_dir, filename)
+                if translator.load(translation_path):
+                    app.installTranslator(translator)
+                    logging.info(f"Successfully loaded and installed translation: {translation_path}")
+                else:
+                    logging.warning(f"Failed to load translation from {translation_path}. Error: {translator.errorString()}")
     else:
-        logging.warning(f"Failed to load custom translation for {language_code} from {translation_path_app}")
+        logging.warning(f"Language-specific translations directory not found: {lang_spec_translations_dir}. No application translations loaded for '{language_code}'.")
 
     qt_translator = QTranslator()
     # Use QLibraryInfo.location(QLibraryInfo.TranslationsPath) for Qt base translations
