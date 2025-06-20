@@ -24,10 +24,11 @@ from utils import populate_docx_template
 import icons_rc # Import for Qt resource file
 
 class CreateDocumentDialog(QDialog):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, parent=None, template_data=None): # Added template_data
         super().__init__(parent)
         self.client_info = client_info
         self.config = config # Store config passed from main
+        self.template_data = template_data # Store template_data
         self.setWindowTitle(self.tr("Créer des Documents"))
         self.setMinimumSize(600, 500)
         self._initial_load_complete = False
@@ -296,6 +297,20 @@ class CreateDocumentDialog(QDialog):
                     item.setFont(font)
                     # item.setBackground(QColor("#E0F0E0")) # Optional: QColor needs import
                 self.templates_list.addItem(item)
+
+            if self.template_data and self.template_data.get('template_id'):
+                target_template_id = self.template_data.get('template_id')
+                for i in range(self.templates_list.count()):
+                    item = self.templates_list.item(i)
+                    item_template_data = item.data(Qt.UserRole)
+                    if isinstance(item_template_data, dict) and item_template_data.get('template_id') == target_template_id:
+                        # For MultiSelection, this adds to selection. If only one should be pre-selected,
+                        # self.templates_list.clearSelection() could be called first.
+                        item.setSelected(True)
+                        # Ensure the item is visible
+                        from PyQt5.QtWidgets import QAbstractItemView # Import for PositionAtCenter
+                        self.templates_list.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+                        break
         except Exception as e:
             # Log the full traceback for detailed debugging
             logging.error("Error loading templates in dialog", exc_info=True)
