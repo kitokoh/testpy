@@ -3,6 +3,7 @@ import sys
 import os
 # import logging # logging is already imported
 import logging
+from PyQt5.QtCore import QStringListModel
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -12,7 +13,6 @@ from PyQt5.QtWidgets import (
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QTextEdit, QSplitter, QApplication, # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
-    QStringListModel # Added for search bar completer
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -156,6 +156,7 @@ class DocumentManager(QMainWindow):
             parent=self
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
+        self.searchable_actions_map = {}
 
         if self.module_states.get('botpress_integration', True):
             self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
@@ -196,7 +197,6 @@ class DocumentManager(QMainWindow):
         # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
-        self.searchable_actions_map = {}
 
     def _load_module_states(self):
         """Loads the enabled/disabled state of configurable modules from the database."""
@@ -604,7 +604,7 @@ class DocumentManager(QMainWindow):
 
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.show_settings_page) # Changed to show_settings_page
-        self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
+        # self.template_action removed
         self.status_action = QAction(QIcon(":/icons/check-square.svg"), self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog); self.status_action.setEnabled(False); self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
         self.exit_action = QAction(QIcon(":/icons/log-out.svg"), self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
         self.project_management_action = QAction(QIcon(":/icons/dashboard.svg"), self.tr("Gestion de Projet"), self); self.project_management_action.triggered.connect(self.show_project_management_view)
@@ -630,7 +630,7 @@ class DocumentManager(QMainWindow):
 
         # Populate searchable_actions_map
         self.searchable_actions_map[self.tr("Paramètres")] = self.settings_action
-        self.searchable_actions_map[self.tr("Gérer les Modèles")] = self.template_action
+        # self.searchable_actions_map[self.tr("Gérer les Modèles")] removed
         self.searchable_actions_map[self.tr("Gérer les Statuts")] = self.status_action
         self.searchable_actions_map[self.tr("Quitter")] = self.exit_action
         self.searchable_actions_map[self.tr("Gestion de Projet")] = self.project_management_action
@@ -647,7 +647,7 @@ class DocumentManager(QMainWindow):
 
 
     def create_menus_main(self): 
-        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); # file_menu.addAction(self.product_equivalency_action);
+        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.status_action); # self.template_action removed, file_menu.addAction(self.product_equivalency_action);
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
@@ -1067,8 +1067,7 @@ class DocumentManager(QMainWindow):
         self.init_or_update_download_monitor()
         logging.info("Settings saved from SettingsPage. Checked for module changes and re-initialized download monitor.")
 
-            
-    def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
+    # def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_() # Method removed
     def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
     # def open_product_list_placeholder(self): ProductListDialog(self).exec_() # Removed
     def closeEvent(self, event):

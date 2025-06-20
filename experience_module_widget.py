@@ -14,6 +14,7 @@ from db.cruds import clients_crud, projects_crud, products_crud, partners_crud, 
 from db.cruds import media_items_crud
 
 
+
 class ExperienceModuleWidget(QWidget):
     def __init__(self, parent=None, current_user_id=None):
         super().__init__(parent)
@@ -24,14 +25,17 @@ class ExperienceModuleWidget(QWidget):
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
+
         toolbar_layout = QHBoxLayout()
         self.add_experience_button = QPushButton("Add New Experience")
         self.add_experience_button.clicked.connect(self._on_add_experience_clicked)
         toolbar_layout.addWidget(self.add_experience_button)
+
         self.edit_experience_button = QPushButton("Edit Experience")
         self.edit_experience_button.setEnabled(False)
         self.edit_experience_button.clicked.connect(self._on_edit_experience_clicked)
         toolbar_layout.addWidget(self.edit_experience_button)
+
         self.delete_experience_button = QPushButton("Delete Experience")
         self.delete_experience_button.setEnabled(False)
         self.delete_experience_button.clicked.connect(self._on_delete_experience_clicked)
@@ -62,6 +66,7 @@ class ExperienceModuleWidget(QWidget):
         filter_groupbox.setLayout(filter_layout); main_layout.addWidget(filter_groupbox)
 
         self.experiences_table = QTableWidget(0, 4)
+
         self.experiences_table.setHorizontalHeaderLabels(["Title", "Date", "Type", "Description (Snippet)"])
         self.experiences_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.experiences_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Interactive)
@@ -74,6 +79,7 @@ class ExperienceModuleWidget(QWidget):
 
     def _load_experiences(self, passed_filters=None):
         self.experiences_table.setRowCount(0); self.experiences_table.clearSelection()
+
         filters_dict = {}
         try:
             if passed_filters is None:
@@ -118,6 +124,7 @@ class ExperienceModuleWidget(QWidget):
                     else: QMessageBox.warning(self, "Tag Error", f"Could not find/create ID for tag: {name}"); all_ok = False
             except Exception as e: logging.error(f"Error processing tag '{name}': {e}", exc_info=True); all_ok = False
         return all_ok
+
 
     def _on_add_experience_clicked(self):
         dialog = AddEditExperienceDialog(parent=self)
@@ -376,6 +383,7 @@ class AddEditExperienceDialog(QDialog):
         data["related_entities"]=[self.related_entities_list_widget.item(i).data(Qt.UserRole) for i in range(self.related_entities_list_widget.count())]
         data["media_ids"]=[self.media_list_widget.item(i).data(Qt.UserRole)['id'] for i in range(self.media_list_widget.count())]
         if self.experience_data and "experience_id" in self.experience_data: data["experience_id"]=self.experience_data["experience_id"]
+
         return data
 
     def _on_add_related_entity_clicked(self):
@@ -412,8 +420,10 @@ class AddEditExperienceDialog(QDialog):
         for item in self.media_list_widget.selectedItems(): self.media_list_widget.takeItem(self.media_list_widget.row(item))
     def _on_media_selection_changed(self): self.remove_media_button.setEnabled(bool(self.media_list_widget.selectedItems()))
 
+
 if __name__ == '__main__':
     from PyQt5.QtWidgets import QApplication
     app = QApplication(sys.argv)
     widget = ExperienceModuleWidget(current_user_id="test_user_uuid")
     widget.resize(800,600); widget.show(); sys.exit(app.exec_())
+
