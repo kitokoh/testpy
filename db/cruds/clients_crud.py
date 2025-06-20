@@ -213,7 +213,7 @@ class ClientsCRUD(GenericCRUD):
             # conn.commit() # Handled by _manage_conn
             return {'success': cursor.rowcount > 0, 'updated_count': cursor.rowcount}
         except sqlite3.Error as e:
-            logging.error(f"Failed to update client {client_id}: {e}")
+            logging.error(f"clients_crud.update_client: Failed to update client {client_id} with data {data_to_set}. Error: {type(e).__name__} - {e}", exc_info=True)
             # conn.rollback() # Handled by _manage_conn
             return {'success': False, 'error': str(e)}
 
