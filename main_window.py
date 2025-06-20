@@ -3,6 +3,7 @@ import sys
 import os
 # import logging # logging is already imported
 import logging
+from PyQt5.QtCore import QStringListModel
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -12,7 +13,6 @@ from PyQt5.QtWidgets import (
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QTextEdit, QSplitter, QApplication, # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
-    QStringListModel # Added for search bar completer
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -72,6 +72,7 @@ from camera_management.camera_management_widget import CameraManagementWidget # 
 
 from recruitment.recruitment_dashboard import RecruitmentDashboard # Import RecruitmentDashboard
 
+from experience_module_widget import ExperienceModuleWidget # Added
 from download_monitor_service import DownloadMonitorService
 from dialogs.assign_document_dialog import AssignDocumentToClientDialog
 from db.cruds.client_documents_crud import add_client_document # For assign dialog
@@ -84,6 +85,7 @@ CONFIGURABLE_MODULES = [
     {'key': 'module_partner_management_enabled', 'name': 'partner_management', 'action_attr': 'partner_management_action', 'widget_attr': 'partner_management_widget_instance'},
     {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
     {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
+    {'key': 'module_experience_management_enabled', 'name': 'experience_management', 'action_attr': 'experience_management_action', 'widget_attr': 'experience_management_widget_instance'}, # Added
     {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
     {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None}, # Carrier map is a dialog
 
@@ -154,6 +156,7 @@ class DocumentManager(QMainWindow):
             parent=self
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
+        self.searchable_actions_map = {}
 
         if self.module_states.get('botpress_integration', True):
             self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
@@ -178,6 +181,12 @@ class DocumentManager(QMainWindow):
         else:
             self.camera_management_widget_instance = None
 
+        if self.module_states.get('experience_management', True): # Default to True
+            self.experience_management_widget_instance = ExperienceModuleWidget(parent=self)
+            self.main_area_stack.addWidget(self.experience_management_widget_instance)
+        else:
+            self.experience_management_widget_instance = None
+
         self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
         
@@ -188,7 +197,6 @@ class DocumentManager(QMainWindow):
         # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
-        self.searchable_actions_map = {}
 
     def _load_module_states(self):
         """Loads the enabled/disabled state of configurable modules from the database."""
@@ -616,6 +624,10 @@ class DocumentManager(QMainWindow):
         self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
         self.camera_management_action.triggered.connect(self.show_camera_management_view)
 
+        self.experience_management_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion des Connaissances"), self) # Consider a more specific icon if available
+        self.experience_management_action.triggered.connect(self.show_experience_module_view)
+
+
         # Populate searchable_actions_map
         self.searchable_actions_map[self.tr("Paramètres")] = self.settings_action
         # self.searchable_actions_map[self.tr("Gérer les Modèles")] removed
@@ -631,6 +643,7 @@ class DocumentManager(QMainWindow):
         self.searchable_actions_map[self.tr("Gestion Stock Atelier")] = self.inventory_browser_action
         self.searchable_actions_map[self.tr("Recrutement")] = self.recruitment_action
         self.searchable_actions_map[self.tr("Gestion Caméras")] = self.camera_management_action
+        self.searchable_actions_map[self.tr("Gestion des Connaissances")] = self.experience_management_action
 
 
     def create_menus_main(self): 
@@ -1076,3 +1089,10 @@ class DocumentManager(QMainWindow):
         pass
     def add_new_city_dialog(self): # ... (unchanged)
         pass
+
+    def show_experience_module_view(self):
+        if self.experience_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.experience_management_widget_instance)
+        else:
+            logging.warning("Experience Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion des Connaissances est désactivé."))

@@ -182,19 +182,23 @@ class CreateDocumentDialog(QDialog):
 
         effective_lang_filter = selected_lang if selected_lang != self.tr("All") else None
         current_client_id = self.client_info.get('client_id')
+        logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
 
         try:
             # Fetch client-specific and global templates based on filters
-            # get_all_templates is now client-aware and handles other filters
-
             category_ids_to_filter = []
-            all_categories = get_all_template_categories() # Fetches all categories from the DB
+            # Define desired purposes
+            desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
+            all_categories = get_all_template_categories()
 
             if all_categories:
                 for category in all_categories:
                     purpose = category.get('purpose')
                     if purpose == 'client_document' or purpose == 'utility':
+
                         category_ids_to_filter.append(category['category_id'])
+
+            logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
 
             if not category_ids_to_filter:
                 logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
@@ -213,13 +217,15 @@ class CreateDocumentDialog(QDialog):
                 # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
                 # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
+
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=category_ids_to_filter # Pass the list of category IDs
+                category_id_filter=final_category_id_filter
             )
             if templates_from_db is None: templates_from_db = []
+            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
 
             # Apply search text filter locally first
             if search_text:
@@ -305,15 +311,12 @@ class CreateDocumentDialog(QDialog):
                     item = self.templates_list.item(i)
                     item_template_data = item.data(Qt.UserRole)
                     if isinstance(item_template_data, dict) and item_template_data.get('template_id') == target_template_id:
-                        # For MultiSelection, this adds to selection. If only one should be pre-selected,
-                        # self.templates_list.clearSelection() could be called first.
+                        logging.info(f"Pre-selecting template item based on template_id: {target_template_id} (Name: {item_template_data.get('template_name')})")
                         item.setSelected(True)
-                        # Ensure the item is visible
                         from PyQt5.QtWidgets import QAbstractItemView # Import for PositionAtCenter
                         self.templates_list.scrollToItem(item, QAbstractItemView.PositionAtCenter)
                         break
         except Exception as e:
-            # Log the full traceback for detailed debugging
             logging.error("Error loading templates in dialog", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
@@ -345,15 +348,18 @@ class CreateDocumentDialog(QDialog):
             if not actual_template_filename:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.").format(db_template_name)); continue
 
-            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            # Path construction modification: include template_type as a subdirectory
+            template_type_folder = template_type if template_type and template_type.strip() else "unknown_type"
 
-            # === Added Existence Check ===
+            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], template_type_folder, db_template_lang, actual_template_filename)
+            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Type: {template_type_folder}, Lang: {db_template_lang}, File: {actual_template_filename})")
+
             if not os.path.exists(template_file_on_disk_abs):
                 logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'. Skipping this template.")
                 QMessageBox.warning(self, self.tr("Fichier Modèle Introuvable"),
-                                    self.tr("Le fichier pour le modèle '{0}' ({1}) est introuvable à l'emplacement attendu:\n{2}\n\nCe modèle sera ignoré.").format(db_template_name, db_template_lang, template_file_on_disk_abs))
+                                    self.tr("Le fichier pour le modèle '{0}' ({1}) de type '{2}' est introuvable à l'emplacement attendu:\n{3}\n\nCe modèle sera ignoré.").format(db_template_name, db_template_lang, template_type, template_file_on_disk_abs))
                 continue
-            # === End of Added Existence Check ===
+            # No need for '=== Added Existence Check ===' comments, the logic is integrated.
 
             # The original if os.path.exists(template_file_on_disk_abs) is now redundant due to the check above,
             # but the logic inside it should proceed if the file exists (i.e., if the `continue` above wasn't hit).
