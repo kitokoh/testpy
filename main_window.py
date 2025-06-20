@@ -876,20 +876,38 @@ class DocumentManager(QMainWindow):
         logging.info(f"open_client_tab_by_id: client_data_to_show after augmentation: {client_data_to_show}")
 
         for i in range(self.client_tabs_widget.count()):
-            tab_widget_ref = self.client_tabs_widget.widget(i) 
+            tab_widget_ref = self.client_tabs_widget.widget(i)
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
-                logging.info(f"Refreshing existing tab for client ID {client_id_to_open}")
+                logging.info(f"main_window.open_client_tab_by_id: Refreshing existing tab for client_id: {client_id_to_open}")
                 self.client_tabs_widget.setCurrentIndex(i)
                 if hasattr(tab_widget_ref, 'refresh_display'):
                     tab_widget_ref.refresh_display(client_data_to_show)
                 return
 
-        logging.info(f"Creating new tab for client ID {client_id_to_open}")
-        notification_manager = QApplication.instance().notification_manager
-        logging.info(f"Client data being passed to ClientWidget: {client_data_to_show}")
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
-        tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
-        self.client_tabs_widget.setCurrentIndex(tab_idx)
+        logging.info(f"main_window.open_client_tab_by_id: Preparing to instantiate ClientWidget with data: {client_data_to_show}")
+        logging.info(f"main_window.open_client_tab_by_id: Attempting to create ClientWidget for client_id: {client_id_to_open}")
+        try:
+            notification_manager = QApplication.instance().notification_manager
+            client_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
+            logging.info(f"main_window.open_client_tab_by_id: Successfully created ClientWidget for client_id: {client_id_to_open}")
+        except Exception as e:
+            logging.error(f"main_window.open_client_tab_by_id: Error instantiating ClientWidget for client_id: {client_id_to_open} - {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Impossible de créer l'onglet client. Erreur: {0}").format(str(e)))
+            return
+
+        logging.info(f"main_window.open_client_tab_by_id: Attempting to add ClientWidget to tab for client_id: {client_id_to_open}")
+        try:
+            client_name_for_tab = client_data_to_show.get("client_name", self.tr("Client Inconnu"))
+            index = self.client_tabs_widget.addTab(client_widget, client_name_for_tab)
+            self.client_tabs_widget.setCurrentIndex(index)
+            logging.info(f"main_window.open_client_tab_by_id: Successfully added ClientWidget tab for client_id: {client_id_to_open} at index {index}")
+        except Exception as e:
+            logging.error(f"main_window.open_client_tab_by_id: Error adding ClientWidget to tab for client_id: {client_id_to_open} - {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Impossible d'ajouter l'onglet client au gestionnaire d'onglets. Erreur: {0}").format(str(e)))
+            # Attempt to clean up the partially created widget if it exists
+            if 'client_widget' in locals() and client_widget:
+                client_widget.deleteLater()
+            return
             
     def close_client_tab(self, index): 
         widget_to_close = self.client_tabs_widget.widget(index) 
