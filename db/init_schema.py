@@ -1619,6 +1619,58 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
+    # --- Experience Module Tables ---
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Experiences (
+        experience_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        experience_date DATE,
+        type TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        user_id TEXT,
+        FOREIGN KEY (user_id) REFERENCES Users(user_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ExperienceRelatedEntities (
+        experience_related_entity_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        experience_id TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (experience_id) REFERENCES Experiences(experience_id) ON DELETE CASCADE,
+        UNIQUE (experience_id, entity_type, entity_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ExperienceMedia (
+        experience_media_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        experience_id TEXT NOT NULL,
+        media_item_id TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (experience_id) REFERENCES Experiences(experience_id) ON DELETE CASCADE,
+        FOREIGN KEY (media_item_id) REFERENCES MediaItems(media_item_id) ON DELETE CASCADE,
+        UNIQUE (experience_id, media_item_id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ExperienceTags (
+        experience_tag_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        experience_id TEXT NOT NULL,
+        tag_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (experience_id) REFERENCES Experiences(experience_id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES Tags(tag_id) ON DELETE CASCADE,
+        UNIQUE (experience_id, tag_id)
+    )
+    """)
+    # --- End Experience Module Tables ---
+
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients
@@ -1820,6 +1872,22 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_user_google_account_id ON ContactSyncLog(user_google_account_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
+
+    # --- Experience Module Indexes ---
+    # Experiences
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_experiences_type ON Experiences(type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_experiences_experience_date ON Experiences(experience_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_experiences_user_id ON Experiences(user_id)")
+    # ExperienceRelatedEntities
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_related_entities_experience_id ON ExperienceRelatedEntities(experience_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_related_entities_entity_type_id ON ExperienceRelatedEntities(entity_type, entity_id)")
+    # ExperienceMedia
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_media_experience_id ON ExperienceMedia(experience_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_media_media_item_id ON ExperienceMedia(media_item_id)")
+    # ExperienceTags
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_tags_experience_id ON ExperienceTags(experience_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_tags_tag_id ON ExperienceTags(tag_id)")
+    # --- End Experience Module Indexes ---
 
     # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
     try:
