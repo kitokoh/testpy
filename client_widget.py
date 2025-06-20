@@ -86,6 +86,7 @@ class ClientWidget(QWidget):
 
     def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
+        logging.info(f"ClientWidget.__init__: INSTANTIATION STARTED for client_id={client_info.get('client_id')}")
         logging.info(f"ClientWidget.__init__: Received client_info: {client_info}")
         logging.info(f"ClientWidget initialized with client_info: {client_info}")
         logging.info(f"ClientWidget __init__: client_id={client_info.get('client_id')}, client_name={client_info.get('client_name')}")
@@ -130,6 +131,7 @@ class ClientWidget(QWidget):
         logging.info("ClientWidget.__init__: Calling self.setup_ui()...")
         self.setup_ui()
         logging.info("ClientWidget.__init__: Finished self.setup_ui().")
+        logging.info(f"ClientWidget.__init__: INSTANTIATION COMPLETED for client_id={self.client_info.get('client_id')}")
 
     def setup_ui(self):
         logging.info("ClientWidget.setup_ui: Starting UI setup...")
@@ -209,26 +211,79 @@ class ClientWidget(QWidget):
         self._setup_main_tabs_section(layout) # This will call sub-methods for each tab
 
         # Initial data loading calls
-        try: self.populate_doc_table()
-        except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
-        try: self.load_contacts()
-        except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
-        try: self.load_products()
-        except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
-        try: self.load_document_notes_filters()
-        except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
-        try: self.load_document_notes_table()
-        except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
-        try: self.update_sav_tab_visibility()
-        except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
-        try: self.load_assigned_vendors_personnel()
-        except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
-        try: self.load_assigned_technicians()
-        except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
-        try: self.load_assigned_transporters()
-        except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
-        try: self.load_assigned_freight_forwarders()
-        except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
+        logging.info("ClientWidget.setup_ui: Starting initial data loading for tabs...")
+
+        logging.info("ClientWidget.setup_ui: Attempting self.populate_doc_table()")
+        try:
+            self.populate_doc_table()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.populate_doc_table()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.populate_doc_table(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_contacts()")
+        try:
+            self.load_contacts()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_contacts()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_contacts(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_products()")
+        try:
+            self.load_products() # This also calls load_products_for_dimension_tab
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_products()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_products(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_document_notes_filters()")
+        try:
+            self.load_document_notes_filters()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_document_notes_filters()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_document_notes_filters(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_document_notes_table()")
+        try:
+            self.load_document_notes_table()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_document_notes_table()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_document_notes_table(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.update_sav_tab_visibility()")
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+            logging.info("ClientWidget.setup_ui: Successfully completed self.update_sav_tab_visibility()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.update_sav_tab_visibility(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_vendors_personnel()")
+        try:
+            self.load_assigned_vendors_personnel()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_vendors_personnel()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_vendors_personnel(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_technicians()")
+        try:
+            self.load_assigned_technicians()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_technicians()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_technicians(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_transporters()")
+        try:
+            self.load_assigned_transporters()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_transporters()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_transporters(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_freight_forwarders()")
+        try:
+            self.load_assigned_freight_forwarders()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_freight_forwarders()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_freight_forwarders(): {e}", exc_info=True)
+        
+        logging.info("ClientWidget.setup_ui: Finished initial data loading for tabs.")
 
         # Connect accordion group box toggled signals
         if hasattr(self, 'client_info_group_box'):
@@ -240,6 +295,7 @@ class ClientWidget(QWidget):
         # Event filter for notes auto-save
         if hasattr(self, 'notes_edit'):
             self.notes_edit.installEventFilter(self)
+        logging.info(f"ClientWidget.setup_ui: FULL UI SETUP COMPLETED for client_id={self.client_info.get('client_id')}")
 
     def _setup_notes_section(self, main_layout):
         try:
@@ -278,7 +334,17 @@ class ClientWidget(QWidget):
             self._setup_products_tab()
             self._setup_document_notes_tab()
             self._setup_product_dimensions_tab()
-            self._setup_sav_tab()
+
+            logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_sav_tab()")
+            try:
+                logging.debug("ClientWidget._setup_main_tabs_section: ATTEMPTING CALL self._setup_sav_tab()")
+                self._setup_sav_tab()
+                logging.info("ClientWidget._setup_main_tabs_section: POST-CALL self._setup_sav_tab() - SUCCESS")
+            except Exception as e:
+                logging.error("ClientWidget._setup_main_tabs_section: CRITICAL ERROR DURING OR IMMEDIATELY AFTER CALL TO self._setup_sav_tab()", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur critique est survenue lors de l'initialisation de l'onglet SAV."))
+            
+            logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_assignments_tab()")
             self._setup_assignments_tab()
             self._setup_billing_tab()
         except Exception as e:
@@ -512,84 +578,186 @@ class ClientWidget(QWidget):
 
     def _setup_product_dimensions_tab(self):
         try:
-            logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...")
-            # --- Product Dimensions Tab Structure ---
+            logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...") # Existing log
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Line after initial info log")
 
             self.product_dimensions_tab = QWidget()
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created self.product_dimensions_tab")
+
             prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created prod_dims_layout")
+
             self.dim_product_selector_combo = QComboBox()
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created self.dim_product_selector_combo")
+
             self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added initial item to dim_product_selector_combo")
+
             prod_dims_layout.addWidget(self.dim_product_selector_combo)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added dim_product_selector_combo to layout")
+
             self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created edit_client_product_dimensions_button")
+
             self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Set icon for edit_client_product_dimensions_button")
+
             self.edit_client_product_dimensions_button.setEnabled(False)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Disabled edit_client_product_dimensions_button")
+
             prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added edit_client_product_dimensions_button to layout")
+
             prod_dims_layout.addStretch()
-            # Insert after "Notes de Document" tab
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added stretch to layout")
+
             notes_doc_tab_index = -1
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Initialized notes_doc_tab_index")
             for i in range(self.tab_widget.count()):
+                logging.debug(f"ClientWidget._setup_product_dimensions_tab: Loop iteration {i}, tabText: {self.tab_widget.tabText(i)}")
                 if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
-                    notes_doc_tab_index = i; break
+                    notes_doc_tab_index = i
+                    logging.debug(f"ClientWidget._setup_product_dimensions_tab: Found 'Notes de Document' tab at index {i}")
+                    break
+            
+            logging.debug(f"ClientWidget._setup_product_dimensions_tab: notes_doc_tab_index determined as {notes_doc_tab_index}")
+
             if notes_doc_tab_index != -1:
                 self.tab_widget.insertTab(notes_doc_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+                logging.debug(f"ClientWidget._setup_product_dimensions_tab: Inserted product_dimensions_tab at index {notes_doc_tab_index + 1}")
             else: # Fallback if "Notes de Document" not found
                 self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+                logging.debug("ClientWidget._setup_product_dimensions_tab: Added product_dimensions_tab as a new tab (fallback)")
+
             self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Connected currentIndexChanged for dim_product_selector_combo")
+
             self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Connected clicked for edit_client_product_dimensions_button")
+            
+            logging.info("ClientWidget._setup_product_dimensions_tab: SUCCESSFULLY COMPLETED")
+
         except Exception as e:
             logging.error(f"Error in _setup_product_dimensions_tab: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Dimensions Produit:\n{0}").format(str(e)))
 
     def _setup_sav_tab(self):
+        logging.debug("ClientWidget._setup_sav_tab: Evaluating client status for SAV content setup.")
+        client_status_id = self.client_info.get('status_id')
+        vendu_status_info = None
+        try:
+            vendu_status_info = db_manager.get_status_setting_by_name('Vendu', 'Client')
+        except Exception as e_db_status:
+            logging.error(f"ClientWidget._setup_sav_tab: Error fetching 'Vendu' status: {e_db_status}", exc_info=True)
+            # vendu_status_info remains None
+
+        is_client_vendu = False
+        if vendu_status_info and client_status_id == vendu_status_info.get('status_id'):
+            is_client_vendu = True
+
+        if not is_client_vendu:
+            vendu_id_for_log = vendu_status_info.get('status_id') if vendu_status_info else 'Not Found/DB Error'
+            logging.info(f"ClientWidget._setup_sav_tab: Client status_id {client_status_id} is not 'Vendu' (Vendu status ID: {vendu_id_for_log}). SAV tab UI will be minimal.")
+            
+            self.sav_tab = QWidget()
+            sav_layout = QVBoxLayout(self.sav_tab)
+            placeholder_label = QLabel(self.tr("La section SAV n'est pas applicable pour le statut actuel de ce client."))
+            placeholder_label.setAlignment(Qt.AlignCenter)
+            sav_layout.addWidget(placeholder_label)
+            
+            if hasattr(self, 'tab_widget') and self.tab_widget is not None:
+                self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
+                self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+                self.tab_widget.setTabEnabled(self.sav_tab_index, False) # Explicitly disable
+                logging.debug(f"ClientWidget._setup_sav_tab: Minimal SAV tab created and disabled for client_status_id {client_status_id}.")
+            else:
+                logging.error("ClientWidget._setup_sav_tab: self.tab_widget not available for minimal SAV tab setup.")
+            return # Crucial: skip the rest of the method
+
+        # --- Original _setup_sav_tab logic continues below, only if is_client_vendu is True ---
+
+        # Initial calls before the main SAV tab UI setup
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting first call to self.load_products_for_dimension_tab()")
         try:
             self.load_products_for_dimension_tab()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed first call to self.load_products_for_dimension_tab()")
         except Exception as e:
-            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during first call to self.load_products_for_dimension_tab(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After first call to self.load_products_for_dimension_tab() block.")
 
-        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
-        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting to connect dim_product_selector_combo.currentIndexChanged")
+        if hasattr(self, 'dim_product_selector_combo'): # Ensure it exists before connecting
+            self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully connected dim_product_selector_combo.currentIndexChanged")
+        else:
+            logging.warning("ClientWidget._setup_sav_tab: Preamble - dim_product_selector_combo not found, skipping connection.")
 
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting to connect edit_client_product_dimensions_button.clicked")
+        if hasattr(self, 'edit_client_product_dimensions_button'): # Ensure it exists
+            self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully connected edit_client_product_dimensions_button.clicked")
+        else:
+            logging.warning("ClientWidget._setup_sav_tab: Preamble - edit_client_product_dimensions_button not found, skipping connection.")
+        
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting second call to self.load_products_for_dimension_tab()")
         try:
             self.load_products_for_dimension_tab() # Initial population of product selector
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed second call to self.load_products_for_dimension_tab()")
         except Exception as e:
-            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during second call to self.load_products_for_dimension_tab(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After second call to self.load_products_for_dimension_tab() block.")
 
-        # Connect signals for the Product Dimensions Tab
-        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
-        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
-
-        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.populate_doc_table()")
         try:
             self.populate_doc_table()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.populate_doc_table()")
         except Exception as e:
-            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.populate_doc_table(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.populate_doc_table() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_contacts()")
         try:
             self.load_contacts()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_contacts()")
         except Exception as e:
-            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_contacts(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_contacts() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_products()")
         try:
             self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_products()")
         except Exception as e:
-            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_products(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_products() block.")
 
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_document_notes_filters()")
         try:
             self.load_document_notes_filters()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_document_notes_filters()")
         except Exception as e:
-            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_document_notes_filters(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_document_notes_filters() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_document_notes_table()")
         try:
             self.load_document_notes_table()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_document_notes_table()")
         except Exception as e:
-            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_document_notes_table(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_document_notes_table() block.")
 
+        # Main SAV tab setup logic starts here
         try:
-            logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...")
+            logging.info("ClientWidget._setup_sav_tab: ENTERING METHOD (main UI block for 'Vendu' client)") 
+            logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...") # Existing log
             # SAV Tab
 
             self.sav_tab = QWidget()
@@ -615,7 +783,7 @@ class ClientWidget(QWidget):
             self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
             self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab) # Store index for later use
         except Exception as e:
-            logging.error(f"Error in _setup_sav_tab: {e}", exc_info=True)
+            logging.error(f"Error in _setup_sav_tab (main UI block for 'Vendu' client): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet SAV:\n{0}").format(str(e)))
 
     def _setup_assignments_tab(self):
