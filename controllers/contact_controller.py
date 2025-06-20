@@ -68,7 +68,7 @@ class ContactController:
             logging.error(f"Error in ContactController.update_contact for ID {contact_id}: {e}")
             return False
 
-    def link_contact_to_client(self, client_id, contact_id, is_primary=False, role=None):
+    def link_contact_to_client(self, client_id, contact_id, is_primary=False, can_receive_documents=True, role=None):
         """
         Links a contact (from central table) to a client.
         Returns the ID of the link record or None on failure.
@@ -78,7 +78,8 @@ class ContactController:
             return None
         try:
             # contacts_crud.link_contact_to_client is expected to return link ID
-            link_id = contacts_crud.link_contact_to_client(client_id, contact_id, is_primary, role)
+            # Role is accepted in signature for future use but not passed to CRUD yet.
+            link_id = contacts_crud.link_contact_to_client(client_id, contact_id, is_primary, can_receive_documents)
             return link_id
         except Exception as e:
             logging.error(f"Error linking contact {contact_id} to client {client_id}: {e}")
@@ -115,8 +116,13 @@ class ContactController:
             tuple: (contact_id_linked_or_found, link_id_if_created)
                    Returns (None, None) on critical failure.
         """
-        if not client_id or not contact_form_data or not contact_form_data.get('email'):
-            logging.error("get_or_create_contact_and_link: Missing client_id or contact email.")
+        logging.info(f"get_or_create_contact_and_link called with client_id: {client_id}") # New log
+        if not client_id: # Changed condition
+            logging.error("get_or_create_contact_and_link: client_id is None or empty. Cannot link contact.")
+            return None, None
+
+        if not contact_form_data or not contact_form_data.get('email'): # Original check for contact_form_data
+            logging.error("get_or_create_contact_and_link: Missing contact_form_data or contact email.")
             return None, None
 
         email = contact_form_data['email'].strip()
@@ -146,6 +152,7 @@ class ContactController:
                     self.update_contact(contact_id_to_link, update_payload)
             else:
                 logging.info(f"No existing global contact found for email {email}. Creating new one.")
+                logging.info(f"Attempting to add new global contact for email {email} with details: {contact_details_for_db}") # New log
                 new_contact_id = self.add_contact(contact_details_for_db)
                 if new_contact_id:
                     contact_id_to_link = new_contact_id
@@ -180,11 +187,21 @@ class ContactController:
             # else:
             #    # Create new link
 
+            # Corrected call:
+            is_primary = contact_form_data.get('is_primary_for_client', False)
+            can_receive = contact_form_data.get('can_receive_documents', True) # Get from form data
+            role_from_form = contact_form_data.get('role_in_project')
+
+            if role_from_form:
+                logging.info(f"Contact role '{role_from_form}' was provided for contact {contact_id_to_link} and client {client_id}, but is not currently saved to the ClientContacts link.")
+
+            logging.info(f"Attempting to link contact_id {contact_id_to_link} to client_id {client_id} with is_primary={is_primary}, can_receive_docs={can_receive}") # New log
             link_id = self.link_contact_to_client(
                 client_id,
                 contact_id_to_link,
-                is_primary=is_primary_for_client,
-                role=contact_form_data.get('role_in_project') # Pass role if available
+                is_primary=is_primary,
+                can_receive_documents=can_receive,
+                role=role_from_form # This 'role' is now handled by the method's signature but not passed to CRUD
             )
 
             if not link_id:
