@@ -4161,103 +4161,138 @@ class ClientWidget(QWidget):
         dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
-
-            # --- BEGIN HYPOTHETICAL ACTUAL FIX AREA ---
-            # This is where the actual loop processing products_list_data would be.
-            # Assuming the loop and the call to db_manager.add_product_to_client_project_link_and_global
-            # or similar database function occurs here.
-
-            # If the error "TypeError: City() missing 1 required positional argument: 'country_id'"
-            # originates from an attempt to process city information *within this loop*
-            # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
-
-            # Example of what might be happening and how to fix it:
-            products_list_data = dialog.get_data() # This is a list of product_entry dicts
-
             processed_count = 0
             if products_list_data:
+                # Attempt to import products_crud_instance if not already available
+                # This is a common pattern, adjust if your project structure is different
+                try:
+                    from db.cruds.products_crud import products_crud_instance
+                except ImportError:
+                    logging.error("Failed to import products_crud_instance. Global product creation will fail.")
+                    QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le module de gestion des produits globaux n'a pas pu être chargé."))
+                    products_crud_instance = None # Ensure it's defined for checks later
+
                 for product_entry in products_list_data:
                     product_name_for_msg = product_entry.get('name', 'Unknown Product')
-
-                    # 1. Check for product_id
                     global_product_id = product_entry.get('product_id')
-                    if global_product_id is None:
-                        QMessageBox.warning(self, self.tr("Invalid Product ID"),
-                                            self.tr("Skipping product '{0}' as it does not have a valid global product ID. Please ensure products are selected from the existing list in the 'Add Products' dialog.").format(product_name_for_msg))
-                        continue
+                    product_code = product_entry.get('product_code') # Retrieved from ProductDialog's get_data
 
-                    # 2. Validate quantity
+                    if global_product_id is None: # This is a new global product
+                        if not products_crud_instance:
+                            QMessageBox.warning(self, self.tr("Erreur Module"),
+                                                self.tr("Le module Produits Globaux n'est pas chargé. Impossible de créer '{0}'.").format(product_name_for_msg))
+                            continue
+
+                        if not product_code:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Code produit (SKU) manquant pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+                        if not product_entry.get('name'):
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Nom manquant pour le nouveau produit avec code '{0}'. Ignoré.").format(product_code))
+                            continue
+
+                        unit_price_raw = product_entry.get('unit_price')
+                        if unit_price_raw is None:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Prix unitaire manquant pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+                        try:
+                            base_unit_price_for_new_global = float(unit_price_raw)
+                        except ValueError:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Prix unitaire invalide pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+
+                        new_global_product_data = {
+                            'product_name': product_entry.get('name'),
+                            'product_code': product_code,
+                            'description': product_entry.get('description', ''),
+                            'category': product_entry.get('category', ''), # Will be blank if not provided by ProductDialog
+                            'language_code': product_entry.get('language_code', 'fr'), # Default or from dialog
+                            'base_unit_price': base_unit_price_for_new_global,
+                            'weight': product_entry.get('weight', 0.0),
+                            'dimensions': product_entry.get('dimensions', ''),
+                            'is_active': True
+                        }
+                        add_result = products_crud_instance.add_product(product_data=new_global_product_data)
+                        if add_result.get('success'):
+                            global_product_id = add_result.get('id')
+                            logging.info(f"New global product '{product_name_for_msg}' created with ID: {global_product_id}")
+                        else:
+                            QMessageBox.critical(self, self.tr("Échec Création Produit Global"),
+                                                 self.tr("Impossible de créer le produit global '{0}': {1}").format(product_name_for_msg, add_result.get('error', 'Erreur inconnue')))
+                            continue # Skip linking this failed product
+
+                    # Validate quantity (common for both new and existing global products)
                     quantity_raw = product_entry.get('quantity')
-                    quantity = None # Initialize quantity
+                    quantity = None
                     if quantity_raw is not None:
                         try:
                             quantity = float(quantity_raw)
                             if quantity <= 0:
-                                QMessageBox.warning(self, self.tr("Invalid Quantity"),
-                                                    self.tr("Skipping product '{0}' due to invalid quantity: {1}. Quantity must be a positive number.").format(product_name_for_msg, quantity_raw))
+                                QMessageBox.warning(self, self.tr("Quantité Invalide"),
+                                                    self.tr("La quantité pour '{0}' doit être un nombre positif. Ignoré.").format(product_name_for_msg))
                                 continue
                         except ValueError:
-                            QMessageBox.warning(self, self.tr("Invalid Quantity"),
-                                                self.tr("Skipping product '{0}' due to invalid quantity: {1}. Quantity must be a valid number.").format(product_name_for_msg, quantity_raw))
+                            QMessageBox.warning(self, self.tr("Quantité Invalide"),
+                                                self.tr("La quantité '{0}' pour '{1}' est invalide. Ignoré.").format(quantity_raw, product_name_for_msg))
                             continue
-                    else: # quantity_raw is None
-                        QMessageBox.warning(self, self.tr("Missing Quantity"),
-                                            self.tr("Skipping product '{0}' as quantity is missing.").format(product_name_for_msg))
+                    else:
+                        QMessageBox.warning(self, self.tr("Quantité Manquante"),
+                                            self.tr("Quantité manquante pour '{0}'. Ignoré.").format(product_name_for_msg))
                         continue
 
-                    # At this point, quantity is a positive float. global_product_id is not None.
+                    # At this point, global_product_id is set (either existing or newly created) and quantity is valid.
+                    # Unit price for this specific client link
+                    unit_price_override_for_client_raw = product_entry.get('unit_price')
+                    unit_price_override_for_client = None
+                    if unit_price_override_for_client_raw is not None:
+                        try:
+                            unit_price_override_for_client = float(unit_price_override_for_client_raw)
+                            if unit_price_override_for_client < 0:
+                                QMessageBox.warning(self, self.tr("Prix Invalide"),
+                                                    self.tr("Le prix unitaire pour '{0}' ne peut être négatif. Ignoré.").format(product_name_for_msg))
+                                continue
+                        except ValueError:
+                             QMessageBox.warning(self, self.tr("Prix Invalide"),
+                                                self.tr("Le prix unitaire '{0}' pour '{1}' est invalide. Ignoré.").format(unit_price_override_for_client_raw, product_name_for_msg))
+                             continue
+                    # If unit_price_override_for_client is None here, it means it wasn't provided or was invalid.
+                    # The DB function add_product_to_client_or_project should handle unit_price_override being None
+                    # (meaning it might use the global product's base_unit_price by default or store null).
 
                     client_id_for_product = self.client_info.get('client_id')
-                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
-                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
-
-                    unit_price_override = None
-                    if unit_price_override_raw is not None:
-                        try:
-                            unit_price_override = float(unit_price_override_raw)
-                            if unit_price_override < 0:
-                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
-                                unit_price_override = None
-                        except ValueError:
-                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
-                            unit_price_override = None
-
                     project_id_for_db = self.client_info.get('project_id', None)
-                    if project_id_for_db is None:
-                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
-
-                    # Simplified conditions_met check as product_id and quantity are validated prior.
-                    # We only need to ensure that if unit_price_override_raw was provided, its conversion (unit_price_override) is valid.
-                    if unit_price_override_raw is not None and unit_price_override is None:
-                        logging.error(f"Skipping product entry due to invalid unit price override (post-conversion): {product_entry} for client_id {client_id_for_product}.")
-                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
-                                            self.tr("Impossible d'ajouter le produit '{0}' car le prix unitaire personnalisé est invalide.").format(product_entry.get('name', 'Nom inconnu')))
-                        continue
 
                     db_call_payload = {
                         'client_id': client_id_for_product,
-                        'product_id': global_product_id, # Validated
-                        'quantity': quantity, # Validated positive float
-                        'unit_price_override': unit_price_override, # Validated float or None
+                        'product_id': global_product_id,
+                        'quantity': quantity,
+                        'unit_price_override': unit_price_override_for_client, # This is the price for this client
                         'project_id': project_id_for_db,
+                        # Include weight and dimensions for the client-specific link if they can differ
+                        # from global or are part of product_entry from ProductDialog
+                        'weight_override': product_entry.get('weight'),
+                        'dimensions_override': product_entry.get('dimensions')
                     }
 
-                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
+                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
 
                     if link_id:
                         processed_count += 1
-                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
+                        logging.info(f"Successfully linked product '{product_name_for_msg}' to client {client_id_for_product}. Link ID: {link_id}")
                     else:
-                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        logging.error(f"Failed to link product '{product_name_for_msg}' to client {client_id_for_product}. Payload: {db_call_payload}")
                         QMessageBox.warning(self, self.tr("Erreur Base de Données"),
-                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
+                                            self.tr("Impossible d'ajouter/lier le produit '{0}'.").format(product_name_for_msg))
 
             if processed_count > 0:
-                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                 QMessageBox.information(self, self.tr("Produits Ajoutés/Liés"),
                                          self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
 
-            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+            if products_list_data or processed_count > 0:
                 self.load_products()
 
     def edit_product(self):
@@ -4380,9 +4415,14 @@ class ClientWidget(QWidget):
                 new_override_price = new_unit_price_for_client if float(new_unit_price_for_client) != float(base_unit_price) else None
 
                 update_payload = {
-                    'quantity': new_quantity,
-                    'unit_price_override': new_override_price
+                    'quantity': new_data.get('quantity'), # Use new_data directly
+                    'unit_price_override': new_override_price,
+                    'weight_override': new_data.get('weight'), # Add weight_override
+                    'dimensions_override': new_data.get('dimensions') # Add dimensions_override
                 }
+                # Remove None values from payload if db_manager.update_client_project_product expects only provided fields
+                update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
 
                 if db_manager.update_client_project_product(link_id, update_payload):
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))
