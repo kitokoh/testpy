@@ -1,0 +1,95 @@
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0; /* Assuming default margin is not desired */
+    padding: 20mm; /* As per existing, seems reasonable */
+    display: flex; /* For centering .cover-container */
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 40mm); /* Ensure body takes full height for centering */
+    box-sizing: border-box;
+}
+
+.cover-container {
+    max-width: 800px;
+    padding: 40px 50px;
+    background-color: #fff;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.07);
+    border-top: 6px solid #3498db;
+    border-radius: 6px;
+    text-align: center; /* Align text centrally */
+}
+
+.logo {
+    max-width: 170px;
+    max-height: 70px;
+    margin-bottom: 30px;
+    object-fit: contain; /* Ensure logo scales well */
+}
+
+h1 {
+    font-size: 2.2em;
+    color: #3498db;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+h2 {
+    font-size: 1.4em;
+    color: #555;
+    margin-bottom: 25px;
+    font-weight: 400;
+}
+
+.meta-info {
+    margin-top: 30px;
+    margin-bottom: 30px;
+    padding: 15px 0;
+    border-top: 1px solid #eee; /* Add subtle separators */
+    border-bottom: 1px solid #eee; /* Add subtle separators */
+}
+
+.meta-info p {
+    font-size: 0.95em;
+    margin: 8px 0;
+    line-height: 1.5;
+    color: #444; /* Slightly darker for better readability */
+}
+
+.meta-info strong {
+    color: #3498db;
+    font-weight: 600;
+}
+
+.details-section {
+    margin-top: 30px;
+    text-align: left; /* Details are usually better left-aligned */
+}
+
+.details-column {
+    /* Assuming a two-column layout might be implemented in HTML later, for now styles apply per column */
+    margin-bottom: 20px; /* Space between detail sections if they stack */
+}
+
+.details-column h4 {
+    font-size: 1.0em; /* Was 1.0em, adjusted to 1.1em for better hierarchy if needed, but sticking to spec */
+    color: #333;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    font-weight: 600;
+    border-bottom: 1px solid #eee; /* Separator for heading */
+}
+
+.details-column p {
+    font-size: 0.9em;
+    line-height: 1.4;
+    margin-bottom: 5px;
+    color: #444;
+}
+
+.footer {
+    margin-top: 40px;
+    font-size: 0.8em;
+    color: #888;
+    text-align: center;
+}
