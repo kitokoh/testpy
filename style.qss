@@ -950,3 +950,116 @@ QFrame#promoAreaFrame QLabel#promoTextLabel {
 
 
 /* End of Modern Theme for ClientDocManager */
+
+/* Search bar in Menu Bar */
+QLineEdit#menuBarSearch {
+    font-size: 9pt;
+    border: 1px solid #B0BEC5; /* Softer border */
+    border-radius: 12px; /* Rounded edges */
+    padding: 4px 8px 4px 8px; /* Top, Right, Bottom, Left */
+    background-color: #FFFFFF;
+    color: #263238;
+    min-width: 200px;
+    margin-top: 4px; /* Add some top margin */
+    margin-bottom: 4px; /* Add some bottom margin */
+    margin-right: 5px; /* Add some right margin if needed */
+}
+
+QLineEdit#menuBarSearch:focus {
+    border-color: #007BFF; /* Accent color on focus */
+}
+
+/* Styling for the completer popup */
+QListView#menuBarSearchCompleterView {
+    background-color: #FFFFFF;
+    border: 1px solid #DDE2E6; /* Consistent with other dropdowns */
+    selection-background-color: #007BFF;
+    selection-color: #FFFFFF;
+    outline: 0px; /* Remove focus outline on the popup itself */
+    font-size: 9pt; /* Match search bar font or app default */
+}
+
+QListView#menuBarSearchCompleterView::item {
+    padding: 5px 8px; /* Slightly more padding for readability */
+    border-radius: 0px; /* Ensure items are not rounded */
+}
+
+QListView#menuBarSearchCompleterView::item:selected {
+    /* Already covered by selection-background-color and selection-color on the QListView */
+}
+
+/* == MENU STYLING ENHANCEMENTS == */
+
+QMenuBar {
+    background-color: #FFFFFF; /* Clean white background for the menu bar */
+    border-bottom: 1px solid #DDE2E6; /* Subtle separator from content */
+    padding: 2px; /* Overall padding for the menu bar */
+    font-size: 10pt; /* Ensure consistent font size */
+}
+
+QMenuBar::item {
+    spacing: 4px; /* Spacing between menu bar items */
+    padding: 6px 12px; /* Padding within each menu bar item */
+    background: transparent;
+    color: #263238; /* Primary Text */
+    border-radius: 4px; /* Slightly rounded corners for items */
+}
+
+QMenuBar::item:selected { /* When menu is open */
+    background-color: #E3F2FD; /* Light blue background */
+    color: #007BFF; /* Accent color for text */
+}
+
+QMenuBar::item:pressed, QMenuBar::item:hover { /* Hover and press */
+    background-color: #F0F4F8; /* A very light grey/blue for hover */
+    color: #0056B3; /* Darker Accent Blue for text on hover */
+}
+
+/* QMenu (Dropdowns) - Refinements */
+QMenu {
+    background-color: #FFFFFF;
+    border: 1px solid #DDE2E6; /* Slightly lighter border */
+    padding: 6px; /* Increase padding slightly */
+    border-radius: 5px; /* Slightly more rounding */
+}
+
+QMenu::item {
+    padding: 7px 22px 7px 18px; /* Adjusted padding: top/bottom, right, left */
+    color: #263238;
+    background-color: transparent;
+    border-radius: 4px; /* Rounded corners for items */
+    margin: 1px 0; /* Small margin between items */
+}
+
+QMenu::item:selected { /* Hover/selected state in dropdown */
+    background-color: #007BFF;
+    color: #FFFFFF;
+}
+
+QMenu::icon {
+    padding-left: 5px; /* Space for icons */
+    /* size: 16px 16px; */ /* Consider for explicit icon sizing */
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #ECEFF1; /* Lighter separator */
+    margin: 5px 2px; /* Adjusted margin */
+}
+
+QMenu::indicator { /* For checkable menu items */
+    width: 18px;
+    height: 18px;
+    left: 8px; /* Adjust position */
+    /* Non-exclusive means checkable, exclusive means radio button style */
+}
+
+QMenu::indicator:non-exclusive:checked {
+    image: url(:/icons/check.svg); /* Ensure this icon is suitable */
+}
+
+QMenu::indicator:non-exclusive:unchecked {
+    image: none; /* Or a specific unchecked image if available/desired */
+}
+
+/* == END OF MENU STYLING ENHANCEMENTS == */

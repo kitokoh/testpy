@@ -11,7 +11,8 @@ from PyQt5.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QTextEdit, QSplitter, QApplication # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
+    QTextEdit, QSplitter, QApplication, # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
+    QStringListModel # Added for search bar completer
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -187,6 +188,7 @@ class DocumentManager(QMainWindow):
         # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
+        self.searchable_actions_map = {}
 
     def _load_module_states(self):
         """Loads the enabled/disabled state of configurable modules from the database."""
@@ -614,6 +616,21 @@ class DocumentManager(QMainWindow):
         self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
         self.camera_management_action.triggered.connect(self.show_camera_management_view)
 
+        # Populate searchable_actions_map
+        self.searchable_actions_map[self.tr("Paramètres")] = self.settings_action
+        self.searchable_actions_map[self.tr("Gérer les Modèles")] = self.template_action
+        self.searchable_actions_map[self.tr("Gérer les Statuts")] = self.status_action
+        self.searchable_actions_map[self.tr("Quitter")] = self.exit_action
+        self.searchable_actions_map[self.tr("Gestion de Projet")] = self.project_management_action
+        self.searchable_actions_map[self.tr("Gestion Documents")] = self.documents_view_action
+        self.searchable_actions_map[self.tr("Product Management")] = self.product_list_action
+        self.searchable_actions_map[self.tr("Partner Management")] = self.partner_management_action
+        self.searchable_actions_map[self.tr("Statistiques")] = self.statistics_action
+        self.searchable_actions_map[self.tr("Carrier Map")] = self.open_carrier_map_action
+        self.searchable_actions_map[self.tr("Botpress Integration")] = self.botpress_integration_action
+        self.searchable_actions_map[self.tr("Gestion Stock Atelier")] = self.inventory_browser_action
+        self.searchable_actions_map[self.tr("Recrutement")] = self.recruitment_action
+        self.searchable_actions_map[self.tr("Gestion Caméras")] = self.camera_management_action
 
 
     def create_menus_main(self): 
@@ -643,6 +660,53 @@ class DocumentManager(QMainWindow):
 
 
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
+        # Add about_action to searchable_actions_map
+        self.searchable_actions_map[self.tr("À propos")] = about_action
+
+        # Search bar in menu bar
+        self.search_bar_line_edit = QLineEdit(self)
+        self.search_bar_line_edit.setObjectName("menuBarSearch")
+        self.search_bar_line_edit.setPlaceholderText(self.tr("Rechercher une fonctionnalité..."))
+
+        self.search_completer_model = QStringListModel([])
+        self.search_completer = QCompleter(self.search_completer_model, self)
+        self.search_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.search_completer.setFilterMode(Qt.MatchContains)
+
+        completer_popup = self.search_completer.popup()
+        completer_popup.setObjectName("menuBarSearchCompleterView")
+
+        self.search_bar_line_edit.setCompleter(self.search_completer)
+
+        # Update completer model with action names
+        action_names = list(self.searchable_actions_map.keys())
+        self.search_completer_model.setStringList(action_names)
+
+        # Connect signals for search activation
+        self.search_completer.activated[str].connect(self.handle_search_activation)
+        self.search_bar_line_edit.returnPressed.connect(self.handle_search_return_pressed)
+
+        self.menuBar().setCornerWidget(self.search_bar_line_edit, Qt.TopRightCorner)
+
+    @pyqtSlot(str)
+    def handle_search_activation(self, text):
+        logging.info(f"Search activated for: {text}")
+        action_to_trigger = self.searchable_actions_map.get(text)
+        if action_to_trigger:
+            logging.info(f"Triggering action: {action_to_trigger.text()}")
+            action_to_trigger.trigger()
+            self.search_bar_line_edit.clear() # Clear search bar after activation
+        else:
+            logging.warning(f"No action found for search term: {text}")
+
+    def handle_search_return_pressed(self):
+        text = self.search_bar_line_edit.text()
+        # Check if the current text is an exact match for a completer suggestion
+        # This is a bit simplified; a more robust way might involve checking against the model
+        if text in self.searchable_actions_map:
+            self.handle_search_activation(text)
+        # Optionally, if there's a unique completion, activate it,
+        # or if multiple, do nothing or show popup. For now, exact match.
 
     def open_carrier_map_dialog(self):
         # This module is just a dialog, check its state if needed before opening
