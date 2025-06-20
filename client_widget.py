@@ -282,7 +282,7 @@ class ClientWidget(QWidget):
             logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_freight_forwarders()")
         except Exception as e:
             logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_freight_forwarders(): {e}", exc_info=True)
-        
+
         logging.info("ClientWidget.setup_ui: Finished initial data loading for tabs.")
 
         # Connect accordion group box toggled signals
@@ -343,7 +343,7 @@ class ClientWidget(QWidget):
             except Exception as e:
                 logging.error("ClientWidget._setup_main_tabs_section: CRITICAL ERROR DURING OR IMMEDIATELY AFTER CALL TO self._setup_sav_tab()", exc_info=True)
                 QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur critique est survenue lors de l'initialisation de l'onglet SAV."))
-            
+
             logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_assignments_tab()")
             self._setup_assignments_tab()
             self._setup_billing_tab()
@@ -619,7 +619,7 @@ class ClientWidget(QWidget):
                     notes_doc_tab_index = i
                     logging.debug(f"ClientWidget._setup_product_dimensions_tab: Found 'Notes de Document' tab at index {i}")
                     break
-            
+
             logging.debug(f"ClientWidget._setup_product_dimensions_tab: notes_doc_tab_index determined as {notes_doc_tab_index}")
 
             if notes_doc_tab_index != -1:
@@ -634,7 +634,7 @@ class ClientWidget(QWidget):
 
             self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
             logging.debug("ClientWidget._setup_product_dimensions_tab: Connected clicked for edit_client_product_dimensions_button")
-            
+
             logging.info("ClientWidget._setup_product_dimensions_tab: SUCCESSFULLY COMPLETED")
 
         except Exception as e:
@@ -658,13 +658,13 @@ class ClientWidget(QWidget):
         if not is_client_vendu:
             vendu_id_for_log = vendu_status_info.get('status_id') if vendu_status_info else 'Not Found/DB Error'
             logging.info(f"ClientWidget._setup_sav_tab: Client status_id {client_status_id} is not 'Vendu' (Vendu status ID: {vendu_id_for_log}). SAV tab UI will be minimal.")
-            
+
             self.sav_tab = QWidget()
             sav_layout = QVBoxLayout(self.sav_tab)
             placeholder_label = QLabel(self.tr("La section SAV n'est pas applicable pour le statut actuel de ce client."))
             placeholder_label.setAlignment(Qt.AlignCenter)
             sav_layout.addWidget(placeholder_label)
-            
+
             if hasattr(self, 'tab_widget') and self.tab_widget is not None:
                 self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
                 self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
@@ -699,7 +699,7 @@ class ClientWidget(QWidget):
             logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully connected edit_client_product_dimensions_button.clicked")
         else:
             logging.warning("ClientWidget._setup_sav_tab: Preamble - edit_client_product_dimensions_button not found, skipping connection.")
-        
+
         logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting second call to self.load_products_for_dimension_tab()")
         try:
             self.load_products_for_dimension_tab() # Initial population of product selector
@@ -756,7 +756,7 @@ class ClientWidget(QWidget):
 
         # Main SAV tab setup logic starts here
         try:
-            logging.info("ClientWidget._setup_sav_tab: ENTERING METHOD (main UI block for 'Vendu' client)") 
+            logging.info("ClientWidget._setup_sav_tab: ENTERING METHOD (main UI block for 'Vendu' client)")
             logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...") # Existing log
             # SAV Tab
 
