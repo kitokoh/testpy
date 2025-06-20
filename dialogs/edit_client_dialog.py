@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt # For QCompleter flags and other Qt specific attributes
 
 import db as db_manager
+from db.cruds.templates_crud import get_all_templates # Added for template selection
 
 class EditClientDialog(QDialog):
     def __init__(self, client_info, config, parent=None): # Config is passed
@@ -92,9 +93,33 @@ class EditClientDialog(QDialog):
         else: self.language_select_combo.setCurrentText(self.tr("Français uniquement (fr)")) # Fallback
         layout.addRow(self.tr("Langues:"), self.language_select_combo)
 
+        self.default_template_combo = QComboBox()
+        layout.addRow(self.tr("Default Template:"), self.default_template_combo)
+        self.populate_template_combo() # Populate before trying to set
+        current_default_template_id = self.client_info.get('default_template_id')
+        if current_default_template_id is not None:
+            index = self.default_template_combo.findData(current_default_template_id)
+            if index >= 0:
+                self.default_template_combo.setCurrentIndex(index)
+        else: # If None, ensure "-- No Default --" is selected if it exists and is the first item
+            if self.default_template_combo.count() > 0 and self.default_template_combo.itemData(0) is None:
+                 self.default_template_combo.setCurrentIndex(0)
+
+
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.button(QDialogButtonBox.Ok).setText(self.tr("OK")); button_box.button(QDialogButtonBox.Cancel).setText(self.tr("Annuler"))
         button_box.accepted.connect(self.accept); button_box.rejected.connect(self.reject); layout.addRow(button_box)
+
+    def populate_template_combo(self):
+        self.default_template_combo.clear()
+        self.default_template_combo.addItem(self.tr("-- No Default --"), None)
+        try:
+            templates = get_all_templates() # Assuming get_all_templates can be called without args or with None conn
+            if templates:
+                for template in templates:
+                    self.default_template_combo.addItem(template['template_name'], template['template_id'])
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Template Loading Error"), self.tr("Could not load templates: {0}").format(str(e)))
 
     def populate_statuses(self):
         self.status_select_combo.clear()
@@ -160,6 +185,7 @@ class EditClientDialog(QDialog):
         selected_lang_display_text = self.language_select_combo.currentText()
         lang_codes_list = self.lang_display_to_codes_map.get(selected_lang_display_text, ["fr"])
         data['selected_languages'] = ",".join(lang_codes_list)
+        data['default_template_id'] = self.default_template_combo.currentData()
         return data
 
     # The accept method for EditClientDialog was not in the provided dialogs.py snippet.
