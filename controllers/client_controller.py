@@ -157,7 +157,7 @@ class ClientController:
                 if not created_client_details:
                     logging.warning(f"Client created with ID {new_client_id}, but failed to fetch details. Returning minimal info.")
                     created_client_details = {'client_id': new_client_id, 'client_name': db_client_data.get('client_name'), 'success': True, 'warning': 'Details fetch failed'}
-                    else:
+                else:
                     logging.info(f"Client '{created_client_details.get('client_name')}' created successfully with ID {new_client_id}.")
 
                 # --- Add Product if data is provided ---
@@ -226,10 +226,10 @@ class ClientController:
             else: # Should not happen if success is True and client_id is missing from clients_crud.add_client result
                 logging.error("Client creation reported success by CRUD but no client_id was returned.")
                 return {'success': False, 'error': 'Client ID missing after reported successful creation.'}
-            else:
-                error_message = result.get('error', 'Failed to create client in database.')
-                print(f"Error: {error_message}")
-                return {'success': False, 'error': error_message} # Return the error dict
+            # else:
+            #     error_message = result.get('error', 'Failed to create client in database.')
+            #     print(f"Error: {error_message}")
+            #     return {'success': False, 'error': error_message} # Return the error dict
 
         except Exception as e:
             logging.exception(f"Unhandled exception in ClientController.create_client: {e}")
