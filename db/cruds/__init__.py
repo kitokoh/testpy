@@ -1,4 +1,6 @@
 # db/cruds/__init__.py
+import logging # Added logging import
+
 from . import activity_logs_crud
 from . import application_settings_crud
 from . import client_assigned_personnel_crud # Added
@@ -39,6 +41,12 @@ from . import templates_crud
 from . import transporters_crud # Added
 from . import money_transfer_agents_crud # Added
 from . import users_crud
+
+try:
+    from . import media_items_crud
+except ImportError:
+    media_items_crud = None
+    logging.warning("db.cruds.media_items_crud module not found. Media item functionality will be limited.")
 
 # Recruitment CRUDs
 from . import recruitment_job_openings_crud
