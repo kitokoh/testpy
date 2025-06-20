@@ -194,7 +194,7 @@ class CreateDocumentDialog(QDialog):
             if all_categories:
                 for category in all_categories:
                     purpose = category.get('purpose')
-                    if purpose == 'client_document' or purpose == 'utility':
+                    if purpose in ['client_document', 'utility', 'document_global']:
 
                         category_ids_to_filter.append(category['category_id'])
 
@@ -226,6 +226,8 @@ class CreateDocumentDialog(QDialog):
             )
             if templates_from_db is None: templates_from_db = []
             logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
+            # Add new log here
+            logging.info(f"Templates received from get_all_templates (before search/default processing): {len(templates_from_db)}")
 
             # Apply search text filter locally first
             if search_text:
@@ -294,6 +296,8 @@ class CreateDocumentDialog(QDialog):
                     item_text = f"[D] {item_text}"
 
                 item = QListWidgetItem(item_text)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
                 # Store the original template_dict (or its copy if modification is an issue) in UserRole
                 # Here, template_dict_display_item contains the original data + 'is_display_default'
                 item.setData(Qt.UserRole, template_dict_display_item)
@@ -312,7 +316,8 @@ class CreateDocumentDialog(QDialog):
                     item_template_data = item.data(Qt.UserRole)
                     if isinstance(item_template_data, dict) and item_template_data.get('template_id') == target_template_id:
                         logging.info(f"Pre-selecting template item based on template_id: {target_template_id} (Name: {item_template_data.get('template_name')})")
-                        item.setSelected(True)
+                        # item.setSelected(True) # Selection driven by check state
+                        item.setCheckState(Qt.Checked) # Ensure it's checked
                         from PyQt5.QtWidgets import QAbstractItemView # Import for PositionAtCenter
                         self.templates_list.scrollToItem(item, QAbstractItemView.PositionAtCenter)
                         break
@@ -321,8 +326,15 @@ class CreateDocumentDialog(QDialog):
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):
-        selected_items = self.templates_list.selectedItems()
-        if not selected_items: QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer.")); return
+        selected_items_data = []
+        for i in range(self.templates_list.count()):
+            item = self.templates_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_items_data.append(item.data(Qt.UserRole))
+
+        if not selected_items_data:
+            QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez cocher au moins un document à créer."))
+            return
         created_files_count = 0
 
         default_company_obj = db_manager.get_default_company()
@@ -333,9 +345,9 @@ class CreateDocumentDialog(QDialog):
         client_id_for_context = self.client_info.get('client_id')
         project_id_for_context_arg = self.client_info.get('project_id', self.client_info.get('project_identifier'))
 
-        for item in selected_items:
-            template_data = item.data(Qt.UserRole)
-            if not isinstance(template_data, dict):
+        for template_data in selected_items_data: # Iterate over collected data
+            # template_data is already the dictionary from item.data(Qt.UserRole)
+            if not isinstance(template_data, dict): # Should not happen if data integrity is maintained
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Données de modèle invalides pour l'élément sélectionné."))
                 continue
 
@@ -517,8 +529,8 @@ class CreateDocumentDialog(QDialog):
         if created_files_count > 0:
             QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
             self.accept()
-        elif not selected_items:
-            # This case should be handled by the initial check, but good to have robustness
+        elif not selected_items_data: # Check against selected_items_data
+            # This case is handled by the check at the beginning of the method.
             pass
-        else: # Some items were selected, but none were created
+        else: # Some items were selected (checked), but none were created
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les messages d'erreur précédents ou les logs pour plus de détails."))
