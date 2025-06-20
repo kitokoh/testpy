@@ -77,9 +77,13 @@ class ProductDialog(QDialog):
 
             self._update_current_line_total_preview()
             self.current_selected_global_product_id = product_data.get('product_id')
+            self.product_code_input.setText(product_data.get('product_code', ''))
+            self.product_code_input.setReadOnly(True)
             self.view_detailed_dimensions_button.setEnabled(bool(self.current_selected_global_product_id))
         else:
             self.current_selected_global_product_id = None
+            self.product_code_input.clear()
+            self.product_code_input.setReadOnly(False)
             self.view_detailed_dimensions_button.setEnabled(False)
             self.weight_input.setValue(0.0)
             self.dimensions_input.clear()
@@ -102,6 +106,8 @@ class ProductDialog(QDialog):
 
         input_group_box=QGroupBox(self.tr("Détails de la Ligne de Produit Actuelle (ou Produit Sélectionné)"));form_layout=QFormLayout(input_group_box);form_layout.setSpacing(10);
         self.name_input=QLineEdit();form_layout.addRow(self._create_icon_label_widget("package-x-generic",self.tr("Nom du Produit:")),self.name_input)
+        self.product_code_input = QLineEdit() # Add product_code_input
+        form_layout.addRow(self.tr("Code Produit (SKU):"), self.product_code_input) # Add to form
         self.description_input=QTextEdit();self.description_input.setFixedHeight(80);form_layout.addRow(self.tr("Description:"),self.description_input) # QTextEdit was missing from plan
         self.quantity_input=QDoubleSpinBox();self.quantity_input.setRange(0,1000000);self.quantity_input.setValue(0.0);self.quantity_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("format-list-numbered",self.tr("Quantité:")),self.quantity_input)
         self.unit_price_input=QDoubleSpinBox();self.unit_price_input.setRange(0,10000000);self.unit_price_input.setPrefix("€ ");self.unit_price_input.setValue(0.0);self.unit_price_input.valueChanged.connect(self._update_current_line_total_preview);form_layout.addRow(self._create_icon_label_widget("cash",self.tr("Prix Unitaire:")),self.unit_price_input)
@@ -135,37 +141,51 @@ class ProductDialog(QDialog):
         quantity=self.quantity_input.value();unit_price=self.unit_price_input.value();current_quantity=quantity if isinstance(quantity,(int,float)) else 0.0;current_unit_price=unit_price if isinstance(unit_price,(int,float)) else 0.0;line_total=current_quantity*current_unit_price;self.current_line_total_label.setText(f"€ {line_total:.2f}")
 
     def _add_current_line_to_table(self):
-        # Check if a product is selected
-        if self.current_selected_global_product_id is None:
-            QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"),
-                                self.tr("Please select a product from the 'Rechercher Produit Existant' list first. You can then customize its quantity and price."))
-            return
-
-        name=self.name_input.text().strip();description=self.description_input.toPlainText().strip();quantity=self.quantity_input.value();unit_price=self.unit_price_input.value()
+        name=self.name_input.text().strip()
+        description=self.description_input.toPlainText().strip()
+        quantity=self.quantity_input.value()
+        unit_price=self.unit_price_input.value()
         current_weight = self.weight_input.value()
         current_dimensions = self.dimensions_input.text().strip()
+        product_code = self.product_code_input.text().strip()
 
-        if not name:QMessageBox.warning(self,self.tr("Champ Requis"),self.tr("Le nom du produit est requis."));self.name_input.setFocus();return
-        if quantity<=0:QMessageBox.warning(self,self.tr("Quantité Invalide"),self.tr("La quantité doit être supérieure à zéro."));self.quantity_input.setFocus();return
+        if not name:
+            QMessageBox.warning(self,self.tr("Champ Requis"),self.tr("Le nom du produit est requis."));self.name_input.setFocus();return
+        if quantity<=0:
+            QMessageBox.warning(self,self.tr("Quantité Invalide"),self.tr("La quantité doit être supérieure à zéro."));self.quantity_input.setFocus();return
+
+        # Logic for new vs existing global product
+        actual_global_product_id = self.current_selected_global_product_id
+
+        if actual_global_product_id is None: # Potentially a new global product
+            if not product_code:
+                QMessageBox.warning(self, self.tr("Code Produit Requis"),
+                                    self.tr("Le code produit (SKU) est requis pour un nouveau produit global."))
+                self.product_code_input.setFocus()
+                return
+            # For a new global product, product_id in table is None
+            # product_code is taken from the input field
+        else:
+            # For an existing product, product_code was populated from DB and field was read-only
+            # We still take it from the input field as it's the most reliable source here
+            pass
+
         line_total=quantity*unit_price;row_position=self.products_table.rowCount();self.products_table.insertRow(row_position);name_item=QTableWidgetItem(name);current_lang_code=self.product_language_filter_combo.currentText()
-        if current_lang_code==self.tr("All"):current_lang_code="fr"
+        if current_lang_code==self.tr("All"):current_lang_code="fr" # Default language if "All"
+
         name_item.setData(Qt.UserRole+1,current_lang_code)
         name_item.setData(Qt.UserRole+2, current_weight)
         name_item.setData(Qt.UserRole+3, current_dimensions)
-        # This check is now redundant here because we check at the beginning,
-        # but ensuring it's not None before setting data is still good practice.
-        if self.current_selected_global_product_id is not None:
-            name_item.setData(Qt.UserRole + 4, self.current_selected_global_product_id)
-        else:
-            # This case should ideally not be reached if the initial check is in place.
-            # However, to be safe and prevent potential errors, we can set it to None.
-            name_item.setData(Qt.UserRole + 4, None)
+        name_item.setData(Qt.UserRole+4, actual_global_product_id) # This will be None for new global products
+        name_item.setData(Qt.UserRole+5, product_code) # Store product_code
 
         self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)
 
-        self.name_input.clear();self.description_input.clear();self.quantity_input.setValue(0.0);self.unit_price_input.setValue(0.0)
+        # Clear form for next entry
+        self.name_input.clear(); self.description_input.clear(); self.quantity_input.setValue(0.0); self.unit_price_input.setValue(0.0)
+        self.product_code_input.clear(); self.product_code_input.setReadOnly(False) # Clear and enable product code
         self.weight_input.setValue(0.0); self.dimensions_input.clear()
-        self.current_selected_global_product_id = None
+        self.current_selected_global_product_id = None # Reset selected global product ID
         self.view_detailed_dimensions_button.setEnabled(False)
         self.global_weight_display_label.setText(self.tr("N/A"))
         self.global_dimensions_display_label.setText(self.tr("N/A"))
@@ -211,6 +231,7 @@ class ProductDialog(QDialog):
             retrieved_weight = name_item.data(Qt.UserRole+2)
             retrieved_dimensions = name_item.data(Qt.UserRole+3)
             retrieved_global_product_id = name_item.data(Qt.UserRole+4)
+            retrieved_product_code = name_item.data(Qt.UserRole+5) # Retrieve product_code
 
             products_list.append({
                 "client_id":self.client_id, "name":name, "description":description,
@@ -218,7 +239,8 @@ class ProductDialog(QDialog):
                 "language_code":language_code,
                 "weight": float(retrieved_weight) if retrieved_weight is not None else 0.0,
                 "dimensions": str(retrieved_dimensions) if retrieved_dimensions is not None else "",
-                "product_id": retrieved_global_product_id,
+                "product_id": retrieved_global_product_id, # This can be None
+                "product_code": retrieved_product_code, # Add to returned data
                 "client_country_id": self.client_info.get('country_id') if self.client_info else None,
                 "client_city_id": self.client_info.get('city_id') if self.client_info else None
             })

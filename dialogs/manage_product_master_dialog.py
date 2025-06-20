@@ -55,6 +55,8 @@ class ManageProductMasterDialog(QDialog):
         form_layout = QFormLayout(self.product_form_group)
         self.name_input = QLineEdit()
         form_layout.addRow(self.tr("Nom:"), self.name_input)
+        self.product_code_input = QLineEdit() # Added QLineEdit for product_code
+        form_layout.addRow(self.tr("Code Produit:"), self.product_code_input) # Added to form_layout
         self.description_input = QTextEdit()
         self.description_input.setFixedHeight(80)
         form_layout.addRow(self.tr("Description:"), self.description_input)
@@ -113,6 +115,7 @@ class ManageProductMasterDialog(QDialog):
         self.name_input.clear()
         self.description_input.clear()
         self.category_input.clear()
+        self.product_code_input.clear() # Clear product_code_input
         self.language_code_combo.setCurrentIndex(0)
         self.base_unit_price_input.setValue(0.0)
         self.weight_input.setValue(0.0)
@@ -175,6 +178,7 @@ class ManageProductMasterDialog(QDialog):
             if product_data:
                 self.product_form_group.setDisabled(False)
                 self.name_input.setText(product_data.get('product_name', ''))
+                self.product_code_input.setText(product_data.get('product_code', '')) # Populate product_code_input
                 self.description_input.setPlainText(product_data.get('description', ''))
                 self.category_input.setText(product_data.get('category', ''))
                 lang_idx = self.language_code_combo.findText(product_data.get('language_code', 'fr'))
@@ -205,6 +209,7 @@ class ManageProductMasterDialog(QDialog):
 
     def on_save_product(self):
         name = self.name_input.text().strip()
+        product_code = self.product_code_input.text().strip() # Retrieve product_code
         description = self.description_input.toPlainText().strip()
         category = self.category_input.text().strip()
         language_code = self.language_code_combo.currentText()
@@ -214,13 +219,16 @@ class ManageProductMasterDialog(QDialog):
 
         if not name:
             QMessageBox.warning(self, self.tr("Validation"), self.tr("Le nom du produit est requis.")); self.name_input.setFocus(); return
+        if not product_code: # Validate product_code
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Le code produit est requis.")); self.product_code_input.setFocus(); return
         if not language_code:
             QMessageBox.warning(self, self.tr("Validation"), self.tr("Le code langue est requis.")); self.language_code_combo.setFocus(); return
 
         product_data_dict = {
-            'product_name': name, 'description': description, 'category': category,
-            'language_code': language_code, 'base_unit_price': base_unit_price,
-            'weight': weight, 'dimensions': dimensions, 'is_active': True
+            'product_name': name, 'product_code': product_code, 'description': description, # Add product_code to dict
+            'category': category, 'language_code': language_code,
+            'base_unit_price': base_unit_price, 'weight': weight,
+            'dimensions': dimensions, 'is_active': True
         }
         try:
             if self.selected_product_id is None:
