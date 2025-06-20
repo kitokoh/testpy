@@ -300,7 +300,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 10.00,
                 "unit_of_measure": "unit",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD001"
             },
             {
                 "product_name": "Industrial Widget",
@@ -309,7 +310,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 100.00,
                 "unit_of_measure": "piece",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD002"
             },
             {
                 "product_name": "Gadget Standard",
@@ -318,7 +320,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "fr",
                 "base_unit_price": 50.00,
                 "unit_of_measure": "unité",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD003"
             },
             {
                 "product_name": "Advanced Gizmo",
@@ -327,7 +330,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 250.00,
                 "unit_of_measure": "item",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD004"
             }
         ]
 
