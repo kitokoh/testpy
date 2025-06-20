@@ -493,6 +493,24 @@ class SettingsPage(QWidget):
         db_path_browse_btn = QPushButton(self.tr("Browse...")); db_path_browse_btn.clicked.connect(lambda: self._browse_db_file(self.db_path_input))
         db_path_layout = QHBoxLayout(); db_path_layout.addWidget(self.db_path_input); db_path_layout.addWidget(db_path_browse_btn)
         general_form_layout.addRow(self.tr("Database Path:"), db_path_layout)
+
+        # Database Type ComboBox - Allows selection of the database system.
+        # Currently, only SQLite is fully implemented. Other options are placeholders for future development.
+        self.db_type_combo = QComboBox()
+        self.db_type_combo.setToolTip(self.tr(
+            "Select the database system. Currently, only SQLite is fully supported. "
+            "Other options are for future expansion."
+        ))
+        self.db_type_combo.addItem("SQLite", "sqlite")
+        # Add future options as disabled
+        item_postgresql = self.db_type_combo.model().item(self.db_type_combo.count() -1) # Index will be 1 after adding SQLite
+        self.db_type_combo.addItem("PostgreSQL (future)", "postgresql")
+        self.db_type_combo.model().item(self.db_type_combo.count() - 1).setEnabled(False)
+        self.db_type_combo.addItem("MySQL (future)", "mysql")
+        self.db_type_combo.model().item(self.db_type_combo.count() - 1).setEnabled(False)
+
+        general_form_layout.addRow(self.tr("Database Type:"), self.db_type_combo)
+
         general_tab_widget.setLayout(general_form_layout)
         self.tabs_widget.addTab(general_tab_widget, self.tr("General"))
 
@@ -939,6 +957,17 @@ class SettingsPage(QWidget):
         self.show_setup_prompt_checkbox.setChecked(self.main_config.get("show_initial_setup_on_startup", False))
         self.db_path_input.setText(self.main_config.get("database_path", os.path.join(os.getcwd(), "app_data.db")))
 
+        # Load database type
+        current_db_type = self.main_config.get('database_type', 'sqlite')
+        db_type_index = self.db_type_combo.findData(current_db_type)
+        if db_type_index != -1:
+            self.db_type_combo.setCurrentIndex(db_type_index)
+        else:
+            # Fallback to SQLite if saved type is somehow invalid or not in combo
+            sqlite_index = self.db_type_combo.findData('sqlite')
+            if sqlite_index != -1:
+                self.db_type_combo.setCurrentIndex(sqlite_index)
+
 
     def _load_email_tab_data(self):
         self.smtp_server_input.setText(self.main_config.get("smtp_server", ""))
@@ -966,7 +995,20 @@ class SettingsPage(QWidget):
     def get_general_settings_data(self):
         selected_lang_display_text = self.interface_lang_combo.currentText()
         language_code = self.lang_display_to_code.get(selected_lang_display_text, "fr")
-        return {"templates_dir": self.templates_dir_input.text().strip(), "clients_dir": self.clients_dir_input.text().strip(), "language": language_code, "default_reminder_days": self.reminder_days_spinbox.value(), "session_timeout_minutes": self.session_timeout_spinbox.value(), "google_maps_review_url": self.google_maps_url_input.text().strip(), "show_initial_setup_on_startup": self.show_setup_prompt_checkbox.isChecked(), "database_path": self.db_path_input.text().strip()}
+        # Get selected database type
+        selected_db_type = self.db_type_combo.currentData() if self.db_type_combo.currentIndex() != -1 else "sqlite"
+
+        return {
+            "templates_dir": self.templates_dir_input.text().strip(),
+            "clients_dir": self.clients_dir_input.text().strip(),
+            "language": language_code,
+            "default_reminder_days": self.reminder_days_spinbox.value(),
+            "session_timeout_minutes": self.session_timeout_spinbox.value(),
+            "google_maps_review_url": self.google_maps_url_input.text().strip(),
+            "show_initial_setup_on_startup": self.show_setup_prompt_checkbox.isChecked(),
+            "database_path": self.db_path_input.text().strip(),
+            "database_type": selected_db_type
+        }
 
     def get_email_settings_data(self):
         return {"smtp_server": self.smtp_server_input.text().strip(), "smtp_port": self.smtp_port_spinbox.value(), "smtp_user": self.smtp_user_input.text().strip(), "smtp_password": self.smtp_pass_input.text()}
