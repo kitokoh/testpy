@@ -67,7 +67,7 @@ class CreateDocumentDialog(QDialog):
         combined_filter_layout.addWidget(self.extension_filter_label)
         self.extension_filter_combo = QComboBox()
         self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
-        self.extension_filter_combo.setCurrentText("HTML")
+        self.extension_filter_combo.setCurrentText(self.tr("All"))
         combined_filter_layout.addWidget(self.extension_filter_combo)
 
         # Search Bar
