@@ -3,6 +3,7 @@ import sys
 import os
 # import logging # logging is already imported
 import logging
+from PyQt5.QtCore import QStringListModel
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -12,7 +13,6 @@ from PyQt5.QtWidgets import (
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QTextEdit, QSplitter, QApplication, # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
-    QStringListModel # Added for search bar completer
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -154,6 +154,7 @@ class DocumentManager(QMainWindow):
             parent=self
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
+        self.searchable_actions_map = {}
 
         if self.module_states.get('botpress_integration', True):
             self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
@@ -188,7 +189,6 @@ class DocumentManager(QMainWindow):
         # self.update_integrated_map() # Method removed
         self.check_timer = QTimer(self); self.check_timer.timeout.connect(self.check_old_clients_routine_slot); self.check_timer.start(3600000)
         self.init_or_update_download_monitor() # Initialize or update based on config
-        self.searchable_actions_map = {}
 
     def _load_module_states(self):
         """Loads the enabled/disabled state of configurable modules from the database."""
