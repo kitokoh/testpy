@@ -216,13 +216,13 @@ class CreateDocumentDialog(QDialog):
                 # To be safe, if empty, we might not want to filter by category at all,
                 # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
                 # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
-
+            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=final_category_id_filter
+                category_id_filter=actual_category_id_filter
             )
             if templates_from_db is None: templates_from_db = []
             logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
