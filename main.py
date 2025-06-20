@@ -246,23 +246,28 @@ def main():
 
     if first_launch_detected:
         logging.info("Application detected first launch. Executing InitialSetupDialog.")
-        initial_setup_dialog = InitialSetupDialog()
-        result = initial_setup_dialog.exec_()
-        if result == QDialog.Accepted:
-            # Use CONFIG for directory paths in mark_initial_setup_complete
-            mark_initial_setup_complete(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
-            logging.info("Initial setup marked as complete.")
-            companies_exist = bool(db.get_all_companies()) # Re-check companies after setup
-        else:
-            logging.warning("InitialSetupDialog cancelled. Application may lack configurations.")
-            # Potentially exit or show critical error if setup is vital
+        # initial_setup_dialog = InitialSetupDialog()
+        # result = initial_setup_dialog.exec_()
+        # if result == QDialog.Accepted:
+        #     # Use CONFIG for directory paths in mark_initial_setup_complete
+        #     mark_initial_setup_complete(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
+        #     logging.info("Initial setup marked as complete.")
+        #     companies_exist = bool(db.get_all_companies()) # Re-check companies after setup
+        # else:
+        #     logging.warning("InitialSetupDialog cancelled. Application may lack configurations.")
+        #     # Potentially exit or show critical error if setup is vital
 
     # Now, handle the PromptCompanyInfoDialog based on company existence and the flag
     if not companies_exist:
         if first_launch_detected or show_setup_prompt_config_value: # Show if first launch OR if flag is true
             logging.info("No companies found or setup prompt explicitly enabled. Prompting for company information.")
-            prompt_dialog = PromptCompanyInfoDialog()
-            dialog_result_company = prompt_dialog.exec_()
+            # prompt_dialog = PromptCompanyInfoDialog()
+            # dialog_result_company = prompt_dialog.exec_()
+
+            # if dialog_result_company == QDialog.Accepted:
+            # Simulate dialog acceptance to proceed with default company creation if logic expects it
+            dialog_result_company = QDialog.Accepted # SIMULATED ACCEPTANCE
+            prompt_dialog = type('obj', (object,), {'use_default_company': True, 'get_company_data': lambda: None})() # SIMULATED DIALOG
 
             if dialog_result_company == QDialog.Accepted:
                 if prompt_dialog.use_default_company:
