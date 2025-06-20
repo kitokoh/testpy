@@ -3381,37 +3381,73 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def load_statuses(self):
+        current_client_status_id = self.client_info.get("status_id")
+        current_client_status_text = self.client_info.get("status") # Fallback if ID match fails
+
+        self.status_combo.blockSignals(True) # Block signals during repopulation
+        self.status_combo.clear()
+
         try:
-            # Assuming 'Client' is the status_type for this context
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
+            if client_statuses is None: client_statuses = [] # Ensure it's an iterable
 
-            self.status_combo.clear() # Clear before populating
-            if client_statuses: # Ensure client_statuses is not None and not empty
-                for status_dict in client_statuses:
-                    if not isinstance(status_dict, dict):
-                        logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
-                        continue
+            for status_dict in client_statuses:
+                if not isinstance(status_dict, dict):
+                    logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
+                    continue
+                status_name = status_dict.get('status_name')
+                status_id = status_dict.get('status_id')
+                if status_id is None:
+                    logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
+                    continue
+                if not status_name:
+                    status_name = self.tr("Unnamed Status ({0})").format(status_id)
+                self.status_combo.addItem(str(status_name), status_id)
 
-                    status_name = status_dict.get('status_name')
-                    status_id = status_dict.get('status_id')
+            # Attempt to restore previous selection
+            restored_idx = -1
+            if current_client_status_id is not None:
+                idx_by_id = self.status_combo.findData(current_client_status_id)
+                if idx_by_id != -1:
+                    self.status_combo.setCurrentIndex(idx_by_id)
+                    restored_idx = idx_by_id
+                    logging.info(f"Restored status to ID: {current_client_status_id} ('{self.status_combo.itemText(idx_by_id)}')")
 
-                    if status_id is None: # status_id is essential for functionality
-                        logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
-                        continue
+            if restored_idx == -1 and current_client_status_text: # If ID match failed, try by text
+                idx_by_text = self.status_combo.findText(current_client_status_text, Qt.MatchFixedString)
+                if idx_by_text != -1:
+                    self.status_combo.setCurrentIndex(idx_by_text)
+                    restored_idx = idx_by_text
+                    logging.info(f"Restored status by text: '{current_client_status_text}'")
+                else: # Text also not found (status might have been renamed or deleted)
+                    # Update client_info if current status is no longer valid
+                    if self.status_combo.count() > 0:
+                        self.status_combo.setCurrentIndex(0) # Default to first available
+                        new_status_id = self.status_combo.itemData(0)
+                        new_status_text = self.status_combo.itemText(0)
+                        logging.warning(f"Client's previous status (ID: {current_client_status_id}, Text: '{current_client_status_text}') not found. Defaulting to '{new_status_text}'.")
+                        # Potentially inform user or auto-update client's status in DB if desired
+                        # For now, client_info reflects the new default selection for display.
+                        # The actual DB update happens in update_client_status if user interacts or if called explicitly.
+                        self.client_info["status_id"] = new_status_id
+                        self.client_info["status"] = new_status_text
+                        # To trigger an immediate update in DB:
+                        # self.update_client_status(new_status_text) # This might be too aggressive
+                    else:
+                        logging.warning("No statuses available to set in combo box after client's status was not found.")
 
-                    if not status_name: # status_name is essential for display
-                        status_name = self.tr("Unnamed Status ({0})").format(status_id)
-                        logging.warning(f"Status name missing for status_id {status_id}, using default: '{status_name}'")
+            if self.status_combo.count() == 0: # No statuses loaded at all
+                 self.status_combo.addItem(self.tr("Aucun statut disponible"), None)
+                 logging.warning("Status combo box is empty after loading. Added default 'Aucun statut disponible'.")
 
-                    self.status_combo.addItem(str(status_name), status_id) # Ensure name is a string
-            # else: # Handle case where client_statuses is None or empty after fetching
-                # logging.info("No client statuses found or returned from DB to populate status_combo.")
-                # Optionally, add a default item or leave the combo box empty.
-                # If left empty, ensure currentTextChanged signal handling is robust.
 
-        except Exception as e: # Catch a more generic exception if db_manager might raise something other than sqlite3.Error
-            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True) # Log with more detail
+        except Exception as e:
+            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:\n{0}").format(str(e)))
+            if self.status_combo.count() == 0:
+                self.status_combo.addItem(self.tr("Erreur chargement statuts"), None) # Add placeholder on error
+        finally:
+            self.status_combo.blockSignals(False) # Unblock signals
 
     def update_client_status(self, status_text):
         # This method should now use currentData if status_id is reliably stored.

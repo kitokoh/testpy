@@ -53,6 +53,8 @@ from dialogs import (
 # from product_management.list_dialog import ProductListDialog # Removed
 from product_management.page import ProductManagementPage # Added
 
+from dialogs.status_management_dialog import StatusManagementDialog # Added for status management
+
 
 from client_widget import ClientWidget
 from project_management import MainDashboard as ProjectManagementDashboard
@@ -1068,7 +1070,97 @@ class DocumentManager(QMainWindow):
         logging.info("Settings saved from SettingsPage. Checked for module changes and re-initialized download monitor.")
 
     # def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_() # Method removed
-    def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
+    # def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter.")) # Old method, will be replaced by open_status_management_dialog_slot
+
+    def open_status_management_dialog_slot(self):
+        """Opens the Status Management dialog."""
+        logging.info("Opening Status Management Dialog.")
+        dialog = StatusManagementDialog(parent=self)
+        dialog.exec_() # Show modally
+        # After the dialog closes, refresh relevant UI parts
+        logging.info("Status Management Dialog closed. Refreshing client widgets and filters.")
+        self.refresh_client_widgets_and_filters()
+
+    def refresh_client_widgets_and_filters(self):
+        """
+        Refreshes client-related widgets and filter dropdowns after changes
+        (e.g., status updates).
+        Placeholder for now. Implementation in next subtask.
+        """
+        logging.info("refresh_client_widgets_and_filters called (placeholder).")
+        # Actual implementation will come in the next step.
+        # This will involve:
+        # 1. Reloading statuses in self.status_filter_combo
+        # 2. Refreshing any open ClientWidget tabs if their status might have changed.
+        logging.info("Refreshing main status filter combo box...")
+        self.load_statuses_into_filter_combo() # Part of the refresh
+        logging.info("Main status filter combo box refreshed.")
+
+        # Refresh open client tabs
+        logging.info("Refreshing open client tabs...")
+        for i in range(self.client_tabs_widget.count()):
+            client_widget_candidate = self.client_tabs_widget.widget(i)
+            # Check if the tab is indeed a ClientWidget instance
+            if isinstance(client_widget_candidate, ClientWidget):
+                client_widget = client_widget_candidate
+                client_id = client_widget.client_info.get("client_id")
+                logging.info(f"Processing ClientWidget for client ID: {client_id} at tab index {i}.")
+
+                # Call the ClientWidget's own load_statuses to refresh its status combo
+                if hasattr(client_widget, 'load_statuses'):
+                    logging.debug(f"Calling load_statuses() for ClientWidget of client ID: {client_id}")
+                    client_widget.load_statuses()
+
+                # Re-fetch client data to get the most up-to-date info (including potentially changed status_id or status name)
+                if client_id:
+                    logging.debug(f"Re-fetching data for client ID: {client_id}")
+                    fresh_client_data = clients_crud_instance.get_client_by_id(client_id, include_deleted=False) # Assuming active clients in tabs
+
+                    if fresh_client_data:
+                        # Augment data with related names (country, city, status text)
+                        # This ensures that if a status name was changed, it's reflected.
+                        if 'country' not in fresh_client_data and fresh_client_data.get('country_id'):
+                            country_obj = db_manager.get_country_by_id(fresh_client_data['country_id'])
+                            fresh_client_data['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
+
+                        if 'city' not in fresh_client_data and fresh_client_data.get('city_id'):
+                            city_obj = db_manager.get_city_by_id(fresh_client_data['city_id'])
+                            fresh_client_data['city'] = city_obj.get('city_name', "N/A") if city_obj else "N/A"
+
+                        if 'status' not in fresh_client_data and fresh_client_data.get('status_id'):
+                            status_obj = db_manager.get_status_setting_by_id(fresh_client_data['status_id'])
+                            fresh_client_data['status'] = status_obj.get('status_name', "N/A") if status_obj else "N/A"
+
+                        selected_languages_str = fresh_client_data.get('selected_languages')
+                        if isinstance(selected_languages_str, str) and selected_languages_str.strip():
+                            fresh_client_data['selected_languages'] = [lang.strip() for lang in selected_languages_str.split(',') if lang.strip()]
+                        elif not isinstance(fresh_client_data.get('selected_languages'), list):
+                            fresh_client_data['selected_languages'] = []
+
+                        # Call refresh_display on the ClientWidget with the fresh, augmented data
+                        if hasattr(client_widget, 'refresh_display'):
+                            logging.debug(f"Calling refresh_display() for ClientWidget of client ID: {client_id}")
+                            client_widget.refresh_display(fresh_client_data)
+                            logging.info(f"Refreshed client tab display for client ID: {client_id}")
+                        else:
+                            logging.warning(f"ClientWidget for client ID: {client_id} does not have refresh_display method.")
+                    else:
+                        logging.warning(f"Could not re-fetch data for client ID: {client_id} during refresh. Tab might be stale or client deleted.")
+                        # Optionally, consider closing the tab if client data is no longer found
+                        # self.client_tabs_widget.removeTab(i) # Be careful with loop indices if removing.
+                else:
+                    logging.warning(f"ClientWidget at tab index {i} has no client_id in its client_info.")
+            else:
+                logging.debug(f"Tab at index {i} is not a ClientWidget instance (it's a {type(client_widget_candidate).__name__}). Skipping.")
+        logging.info("Finished refreshing open client tabs.")
+
+        # Refresh the main client list display
+        logging.info("Refreshing main client list...")
+        self.load_clients_from_db_slot()
+        logging.info("Main client list refreshed.")
+        self.notify("Mise à jour", "Interface mise à jour suite aux changements de statuts.", "INFO")
+
+
     # def open_product_list_placeholder(self): ProductListDialog(self).exec_() # Removed
     def closeEvent(self, event):
         logging.info("Close event triggered. Stopping services and saving config.")
