@@ -193,16 +193,30 @@ class CreateDocumentDialog(QDialog):
 
             if all_categories:
                 for category in all_categories:
-                    if category.get('purpose') in desired_purposes:
+                    purpose = category.get('purpose')
+                    if purpose == 'client_document' or purpose == 'utility':
+
                         category_ids_to_filter.append(category['category_id'])
 
             logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
 
             if not category_ids_to_filter:
-                logging.warning(f"No categories found for purposes {desired_purposes}. Depending on DB query, this might mean no templates are shown if category filter is strict.")
+                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
+                # If category_ids_to_filter is empty and passed to get_all_templates,
+                # it should result in no templates if the IN clause becomes `IN ()`.
+                # Or, if get_all_templates handles empty list by not adding the category filter,
+                # then all templates (matching other criteria) would be shown.
+                # The current implementation of get_all_templates with an empty list for IN clause
+                # will likely result in an SQL error or no results for that clause.
+                # It's better if get_all_templates doesn't add the clause if the list is empty.
+                # For now, we pass the empty list. If it causes issues, get_all_templates needs adjustment
+                # or we explicitly pass None if category_ids_to_filter is empty.
+                # Let's assume get_all_templates handles an empty list for category_id_filter correctly
+                # by not filtering on categories if the list is empty (e.g. by not adding the IN clause).
+                # To be safe, if empty, we might not want to filter by category at all,
+                # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
+                # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
-            # If category_ids_to_filter is empty, pass None to avoid issues with empty IN () clause.
-            final_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
