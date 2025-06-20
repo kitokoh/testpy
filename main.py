@@ -7,7 +7,8 @@ import icons_rc # Import the compiled resource file
 # Core PyQt5 imports for application execution
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QLocale, QLibraryInfo, QTranslator, Qt
-from PyQt5.QtGui import QFont, QSplashScreen, QPixmap
+from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import QStringListModel
 
 # Imports from project structure
 from app_setup import (
@@ -34,6 +35,7 @@ from main_window import DocumentManager # The main application window
 from notifications import NotificationManager # Added for notifications
 from db.cruds.users_crud import users_crud_instance # Added for default operational user
 from PyQt5.QtWidgets import QMessageBox # Added for error dialog
+from PyQt5.QtWidgets import QSplashScreen
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
