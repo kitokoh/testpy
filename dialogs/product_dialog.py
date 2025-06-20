@@ -135,6 +135,12 @@ class ProductDialog(QDialog):
         quantity=self.quantity_input.value();unit_price=self.unit_price_input.value();current_quantity=quantity if isinstance(quantity,(int,float)) else 0.0;current_unit_price=unit_price if isinstance(unit_price,(int,float)) else 0.0;line_total=current_quantity*current_unit_price;self.current_line_total_label.setText(f"€ {line_total:.2f}")
 
     def _add_current_line_to_table(self):
+        # Check if a product is selected
+        if self.current_selected_global_product_id is None:
+            QMessageBox.warning(self, self.tr("Aucun Produit Sélectionné"),
+                                self.tr("Please select a product from the 'Rechercher Produit Existant' list first. You can then customize its quantity and price."))
+            return
+
         name=self.name_input.text().strip();description=self.description_input.toPlainText().strip();quantity=self.quantity_input.value();unit_price=self.unit_price_input.value()
         current_weight = self.weight_input.value()
         current_dimensions = self.dimensions_input.text().strip()
@@ -146,9 +152,13 @@ class ProductDialog(QDialog):
         name_item.setData(Qt.UserRole+1,current_lang_code)
         name_item.setData(Qt.UserRole+2, current_weight)
         name_item.setData(Qt.UserRole+3, current_dimensions)
+        # This check is now redundant here because we check at the beginning,
+        # but ensuring it's not None before setting data is still good practice.
         if self.current_selected_global_product_id is not None:
             name_item.setData(Qt.UserRole + 4, self.current_selected_global_product_id)
         else:
+            # This case should ideally not be reached if the initial check is in place.
+            # However, to be safe and prevent potential errors, we can set it to None.
             name_item.setData(Qt.UserRole + 4, None)
 
         self.products_table.setItem(row_position,0,name_item);self.products_table.setItem(row_position,1,QTableWidgetItem(description));qty_item=QTableWidgetItem(f"{quantity:.2f}");qty_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,2,qty_item);price_item=QTableWidgetItem(f"€ {unit_price:.2f}");price_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,3,price_item);total_item=QTableWidgetItem(f"€ {line_total:.2f}");total_item.setTextAlignment(Qt.AlignRight|Qt.AlignVCenter);self.products_table.setItem(row_position,4,total_item)

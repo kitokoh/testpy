@@ -334,6 +334,7 @@ class ClientWidget(QWidget):
             self._setup_products_tab()
             self._setup_document_notes_tab()
             self._setup_product_dimensions_tab()
+            self._setup_available_templates_tab()
 
             logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_sav_tab()")
             try:
@@ -350,6 +351,98 @@ class ClientWidget(QWidget):
         except Exception as e:
             logging.error(f"Error in _setup_main_tabs_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets principaux:\n{0}").format(str(e)))
+
+    def _setup_available_templates_tab(self):
+        try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Available Templates Tab Structure...")
+            self.available_templates_tab = QWidget()
+            available_templates_layout = QVBoxLayout(self.available_templates_tab)
+
+            self.available_templates_table = QTableWidget()
+            self.available_templates_table.setColumnCount(5) # Name, Description, Language, Type, Actions
+            self.available_templates_table.setHorizontalHeaderLabels([
+                self.tr("Name"), self.tr("Description"), self.tr("Language"),
+                self.tr("Type"), self.tr("Actions")
+            ])
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+            self.available_templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.available_templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+
+            available_templates_layout.addWidget(self.available_templates_table)
+
+            self.tab_widget.addTab(self.available_templates_tab, self.tr("Available Templates"))
+            self.load_available_templates() # Load data
+            logging.info("ClientWidget._setup_available_templates_tab: SUCCESSFULLY COMPLETED")
+        except Exception as e:
+            logging.error(f"Error in _setup_available_templates_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Modèles Disponibles:\n{0}").format(str(e)))
+
+    def load_available_templates(self):
+        self.available_templates_table.setRowCount(0)
+        try:
+            templates = db_manager.get_all_templates()
+            if templates is None:
+                templates = []
+
+            self.available_templates_table.setRowCount(len(templates))
+            for row_idx, template_data in enumerate(templates):
+                template_id = template_data.get('template_id')
+
+                name_item = QTableWidgetItem(template_data.get('template_name', self.tr("N/A")))
+                name_item.setData(Qt.UserRole, template_id) # Store template_id with the name item
+                self.available_templates_table.setItem(row_idx, 0, name_item)
+
+                self.available_templates_table.setItem(row_idx, 1, QTableWidgetItem(template_data.get('description', '')))
+                self.available_templates_table.setItem(row_idx, 2, QTableWidgetItem(template_data.get('language_code', '')))
+                self.available_templates_table.setItem(row_idx, 3, QTableWidgetItem(template_data.get('template_type', '')))
+
+                generate_button = QPushButton(self.tr("Generate"))
+                # Use a lambda to pass template_id to the handler
+                generate_button.clicked.connect(lambda checked, t_id=template_id: self.handle_generate_template_button_clicked(t_id))
+
+                action_widget = QWidget()
+                action_layout = QHBoxLayout(action_widget)
+                action_layout.addWidget(generate_button)
+                action_layout.setContentsMargins(5, 0, 5, 0)
+                action_layout.setAlignment(Qt.AlignCenter)
+                action_widget.setLayout(action_layout)
+                self.available_templates_table.setCellWidget(row_idx, 4, action_widget)
+
+        except Exception as e:
+            logging.error(f"Error loading available templates: {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Chargement Modèles"),
+                                 self.tr("Impossible de charger la liste des modèles disponibles:\n{0}").format(str(e)))
+
+    def handle_generate_template_button_clicked(self, template_id):
+        try:
+            template_data = db_manager.get_template_by_id(template_id)
+            if template_data:
+                # Ensure CreateDocumentDialog is available (it should be via _import_main_elements)
+                if not hasattr(self, 'CreateDocumentDialog') or self.CreateDocumentDialog is None:
+                    logging.error("CreateDocumentDialog is not available in ClientWidget.")
+                    QMessageBox.critical(self, self.tr("Erreur Composant"),
+                                         self.tr("Le composant de création de document n'est pas chargé."))
+                    return
+
+                dialog = self.CreateDocumentDialog(
+                    client_info=self.client_info,
+                    config=self.config,
+                    parent=self,
+                    template_data=template_data  # Pass the fetched template data
+                )
+                if dialog.exec_() == QDialog.Accepted:
+                    self.populate_doc_table()  # Refresh documents tab
+            else:
+                QMessageBox.warning(self, self.tr("Modèle Introuvable"),
+                                    self.tr("Le modèle avec l'ID {0} n'a pas été trouvé.").format(template_id))
+        except Exception as e:
+            logging.error(f"Error in handle_generate_template_button_clicked: {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur"),
+                                 self.tr("Une erreur est survenue lors de la tentative de génération du document à partir du modèle:\n{0}").format(str(e)))
 
     def _setup_documents_tab(self):
         try:
@@ -4084,77 +4177,67 @@ class ClientWidget(QWidget):
             processed_count = 0
             if products_list_data:
                 for product_entry in products_list_data:
-                    client_id_for_product = self.client_info.get('client_id')
-                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
-                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
-                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
+                    product_name_for_msg = product_entry.get('name', 'Unknown Product')
 
-                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
-                    client_id_for_product = self.client_info.get('client_id')
+                    # 1. Check for product_id
                     global_product_id = product_entry.get('product_id')
-                    quantity_raw = product_entry.get('quantity')
-                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
+                    if global_product_id is None:
+                        QMessageBox.warning(self, self.tr("Invalid Product ID"),
+                                            self.tr("Skipping product '{0}' as it does not have a valid global product ID. Please ensure products are selected from the existing list in the 'Add Products' dialog.").format(product_name_for_msg))
+                        continue
 
-                    quantity = None
+                    # 2. Validate quantity
+                    quantity_raw = product_entry.get('quantity')
+                    quantity = None # Initialize quantity
                     if quantity_raw is not None:
                         try:
                             quantity = float(quantity_raw)
                             if quantity <= 0:
-                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
-                                quantity = None # Treat as missing/invalid
+                                QMessageBox.warning(self, self.tr("Invalid Quantity"),
+                                                    self.tr("Skipping product '{0}' due to invalid quantity: {1}. Quantity must be a positive number.").format(product_name_for_msg, quantity_raw))
+                                continue
                         except ValueError:
-                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
-                            quantity = None # Treat as missing/invalid
+                            QMessageBox.warning(self, self.tr("Invalid Quantity"),
+                                                self.tr("Skipping product '{0}' due to invalid quantity: {1}. Quantity must be a valid number.").format(product_name_for_msg, quantity_raw))
+                            continue
+                    else: # quantity_raw is None
+                        QMessageBox.warning(self, self.tr("Missing Quantity"),
+                                            self.tr("Skipping product '{0}' as quantity is missing.").format(product_name_for_msg))
+                        continue
 
-                    unit_price_override = None # Initialize to None
-                    # unit_price_override should only be set if unit_price_override_raw is not None.
-                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
-                    # If unit_price_override_raw is provided, it must be a valid float.
+                    # At this point, quantity is a positive float. global_product_id is not None.
+
+                    client_id_for_product = self.client_info.get('client_id')
+                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
+                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
+
+                    unit_price_override = None
                     if unit_price_override_raw is not None:
                         try:
                             unit_price_override = float(unit_price_override_raw)
-                            if unit_price_override < 0: # Negative prices are not allowed for an override
+                            if unit_price_override < 0:
                                 logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
-                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
-                                unit_price_override = None # Mark as invalid for the 'all' check.
+                                unit_price_override = None
                         except ValueError:
                             logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
-                            unit_price_override = None # Mark as invalid for the 'all' check.
+                            unit_price_override = None
 
-                    # Determine project_id. It can be None.
-                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
                     project_id_for_db = self.client_info.get('project_id', None)
                     if project_id_for_db is None:
-                        # If 'project_id' is not directly in client_info,
-                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
-                        # For now, assume if 'project_id' is not there, it's None.
                         logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
 
-
-                    # Critical data for adding a link: client_id, product_id, quantity.
-                    # unit_price_override is optional in db_call_payload (None means use base price).
-                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
-                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
-                    # And quantity must always be valid.
-                    conditions_met = all([
-                        client_id_for_product,
-                        global_product_id,
-                        quantity is not None, # Quantity must be valid positive number
-                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
-                    ])
-
-                    if not conditions_met:
-                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
+                    # Simplified conditions_met check as product_id and quantity are validated prior.
+                    # We only need to ensure that if unit_price_override_raw was provided, its conversion (unit_price_override) is valid.
+                    if unit_price_override_raw is not None and unit_price_override is None:
+                        logging.error(f"Skipping product entry due to invalid unit price override (post-conversion): {product_entry} for client_id {client_id_for_product}.")
                         QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
-                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
+                                            self.tr("Impossible d'ajouter le produit '{0}' car le prix unitaire personnalisé est invalide.").format(product_entry.get('name', 'Nom inconnu')))
                         continue
 
-                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
-                    # The add_product_to_client_or_project function handles None override by using base price.
                     db_call_payload = {
                         'client_id': client_id_for_product,
-                        'product_id': global_product_id,
-                        'quantity': quantity, # Validated float
+                        'product_id': global_product_id, # Validated
+                        'quantity': quantity, # Validated positive float
                         'unit_price_override': unit_price_override, # Validated float or None
                         'project_id': project_id_for_db,
                     }
