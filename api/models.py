@@ -399,6 +399,21 @@ class DocumentGenerationResponse(BaseModel):
     file_name: Optional[str] = Field(None, description="Name of the generated file")
     download_url: Optional[str] = Field(None, description="URL to download the generated document")
 
+class TemplateVisibilityInfo(BaseModel):
+    template_id: int # Matches TemplateInfo.template_id and DB schema
+    template_name: Optional[str] = None
+    description: Optional[str] = None
+    template_type: Optional[str] = None
+    language_code: Optional[str] = None
+    is_visible: bool
+
+class UpdateTemplateVisibilityItem(BaseModel):
+    template_id: int # Matches TemplateInfo.template_id
+    is_visible: bool
+
+class UpdateTemplateVisibilityRequest(BaseModel):
+    preferences: List[UpdateTemplateVisibilityItem]
+
 class Token(BaseModel):
     access_token: str = Field(..., description="The JWT access token string.")
     token_type: str = Field("bearer", description="The type of token, typically 'bearer'.")
