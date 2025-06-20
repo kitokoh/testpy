@@ -28,6 +28,8 @@ def add_task(task_data: dict, conn: sqlite3.Connection = None) -> int | None:
     # For add_task, it's usually None unless specified.
     completed_at_val = task_data.get('completed_at')
 
+    logging.info(f"tasks_crud.add_task: Attempting to add task with data: {task_data}")
+
     sql = """
         INSERT INTO Tasks (
             project_id, task_name, description, status_id,
@@ -59,7 +61,7 @@ def add_task(task_data: dict, conn: sqlite3.Connection = None) -> int | None:
         logger.info(f"Task '{task_data['task_name']}' added with ID: {task_id} for project {task_data['project_id']}.")
         return task_id
     except sqlite3.Error as e:
-        logger.error(f"Database error in add_task for '{task_data.get('task_name')}': {e}", exc_info=True)
+        logger.error(f"tasks_crud.add_task: Failed to add task with data {task_data}. Error: {type(e).__name__} - {e}", exc_info=True)
         return None
 
 @_manage_conn
