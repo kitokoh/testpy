@@ -289,10 +289,27 @@ class TemplateDialog(QDialog):
             if ok_new_name and new_category_name_text.strip():
                 new_category_purpose_text, ok_new_purpose = QInputDialog.getText(self, self.tr("New Category Purpose"), self.tr("Enter purpose for new category (e.g., client_document, email):"))
                 if ok_new_purpose: # User might cancel purpose input, or leave it empty
+                    category_purpose_for_db = None
+                    if not new_category_purpose_text.strip():
+                        # Determine file_ext (logic already exists later, so we'll use a placeholder for now and refine if needed)
+                        # This part of the code is before file_ext is determined.
+                        # We will determine file_ext based on file_path earlier for this logic.
+                        # For now, let's assume we can get it or pass a general purpose.
+                        # Let's re-evaluate after seeing the full context of file_path.
+                        # For the purpose of this diff, we'll determine file_ext here from file_path
+                        # which is available at the beginning of the add_template method.
+                        _, temp_file_ext = os.path.splitext(file_path)
+                        temp_file_ext = temp_file_ext.lower()
+                        if temp_file_ext in ['.html', '.docx', '.xlsx', '.pdf']: # Common document types
+                            category_purpose_for_db = 'client_document'
+                        # else: category_purpose_for_db remains None or could be 'general'
+                    else:
+                        category_purpose_for_db = new_category_purpose_text.strip()
+
                     final_category_id = db_manager.add_template_category(
                         category_name=new_category_name_text.strip(),
                         description=f"{new_category_name_text.strip()} category", # Default description
-                        purpose=new_category_purpose_text.strip() if new_category_purpose_text.strip() else None
+                        purpose=category_purpose_for_db
                     )
                     if not final_category_id:
                         QMessageBox.warning(self, self.tr("Error"), self.tr("Could not create category: {0}").format(new_category_name_text.strip()))
