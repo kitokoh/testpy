@@ -200,7 +200,7 @@ class ClientWidget(QWidget):
 
             client_info_group_layout.addWidget(self.info_container_widget)
             self.client_info_group_box.setChecked(True)
-            main_layout.addWidget(self.client_info_group_box)
+            layout.addWidget(self.client_info_group_box)
         except Exception as e:
             logging.error(f"Error in _setup_client_info_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))

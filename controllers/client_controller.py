@@ -174,16 +174,16 @@ class ClientController:
             # Consider logging this error properly
             return {'success': False, 'error': str(e)}
 
-# Example usage (for testing purposes, would be removed or in a test file)
-if __name__ == '__main__':
-            else:
-                print("Error: Failed to create client in database.")
-                return None
+# # Example usage (for testing purposes, would be removed or in a test file)
+# if __name__ == '__main__':
+#             else:
+#                 print("Error: Failed to create client in database.")
+#                 return None
 
-        except Exception as e:
-            print(f"Error in ClientController.create_client: {e}")
-            # Consider logging this error properly
-            return None
+#         except Exception as e:
+#             print(f"Error in ClientController.create_client: {e}")
+#             # Consider logging this error properly
+#             return None
 
 # Example usage (for testing purposes, would be removed or in a test file)
 if __name__ == '__main__':
