@@ -192,11 +192,12 @@ class CreateDocumentDialog(QDialog):
 
             if all_categories:
                 for category in all_categories:
-                    if category.get('purpose') == 'client_document':
+                    purpose = category.get('purpose')
+                    if purpose == 'client_document' or purpose == 'utility':
                         category_ids_to_filter.append(category['category_id'])
 
             if not category_ids_to_filter:
-                logging.warning("No categories found with purpose 'client_document'. No templates will be shown based on this criterion if category filtering is applied.")
+                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
                 # If category_ids_to_filter is empty and passed to get_all_templates,
                 # it should result in no templates if the IN clause becomes `IN ()`.
                 # Or, if get_all_templates handles empty list by not adding the category filter,

@@ -243,6 +243,7 @@ def get_filtered_templates(
     template_type: str = None,
     client_id_filter: str = None,
     fetch_global_only: bool = False,
+    file_extension_filter: str = None, # New parameter
     conn: sqlite3.Connection = None
 ) -> list[dict]:
     cursor = conn.cursor(); sql = "SELECT * FROM Templates"; where_clauses = []; params = []
@@ -264,15 +265,25 @@ def get_filtered_templates(
         params.append(client_id_filter)
     # If neither fetch_global_only is True nor client_id_filter is set, all templates (client-specific and global) are fetched.
 
+    if file_extension_filter:
+        where_clauses.append("LOWER(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) = ?")
+        params.append(file_extension_filter.lower())
+
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
-    sql += " ORDER BY client_id, category_id, template_name"
+    sql += " ORDER BY client_id, category_id, template_name" # Consider adding file extension to sort order if relevant
 
     try:
         cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get filtered templates: {e}")
+        # Updated logging to include the new filter parameter
+        logging.error(
+            f"Failed to get filtered templates with category_id='{category_id}', "
+            f"language_code='{language_code}', template_type='{template_type}', "
+            f"client_id_filter='{client_id_filter}', fetch_global_only='{fetch_global_only}', "
+            f"file_extension_filter='{file_extension_filter}': {e}"
+        )
         return []
 
 @_manage_conn
@@ -485,9 +496,36 @@ __all__ = [
     "get_distinct_languages_for_template_type",
     "get_all_file_based_templates",
     "get_templates_by_category_id",
+    "get_distinct_template_extensions", # Added new function
     "add_utility_document_template",
     "get_utility_documents",
 ]
+
+# --- Function to get distinct template extensions ---
+@_manage_conn
+def get_distinct_template_extensions(conn: sqlite3.Connection = None) -> list[str]:
+    """
+    Retrieves a list of distinct, lowercase file extensions from templates that have a base_file_name.
+    Extensions are returned without the leading dot.
+    e.g., ['pdf', 'docx', 'html']
+    """
+    cursor = conn.cursor()
+    sql = """
+        SELECT DISTINCT LOWER(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) AS extension
+        FROM Templates
+        WHERE base_file_name IS NOT NULL
+          AND INSTR(base_file_name, '.') > 0
+          AND LENGTH(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) > 0
+        ORDER BY extension
+    """
+    try:
+        cursor.execute(sql)
+        # Fetchall returns a list of tuples (or dicts if row_factory is set, which it is by _manage_conn)
+        # Assuming it returns dicts like {'extension': 'pdf'}
+        return [row['extension'] for row in cursor.fetchall() if row['extension']]
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get distinct template extensions: {e}")
+        return []
 
 UTILITY_DOCUMENT_CATEGORY_NAME = "Document Utilitaires"
 

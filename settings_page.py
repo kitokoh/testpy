@@ -5,6 +5,9 @@ import types # For creating mock module objects
 
 # --- Conditional mocking for __main__ START ---
 # This MUST be before any problematic imports like 'db'
+
+from dialogs.template_dialog import TemplateDialog # Added import
+
 if __name__ == '__main__':
     print("MAIN_TOP: Pre-patching sys.modules for 'db' with a mock package structure.")
 
@@ -221,9 +224,11 @@ if __name__ == '__main__':
     def mock_get_distinct_template_languages(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_languages called"); return []
     def mock_get_distinct_template_types(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_types called"); return []
     def mock_get_filtered_templates(*args, **kwargs): print("MOCK templates_crud.get_filtered_templates called"); return []
+    def mock_get_distinct_template_extensions(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_extensions called"); return [] # Added mock
     mock_db_cruds_templates_crud_module.get_distinct_template_languages = mock_get_distinct_template_languages
     mock_db_cruds_templates_crud_module.get_distinct_template_types = mock_get_distinct_template_types
     mock_db_cruds_templates_crud_module.get_filtered_templates = mock_get_filtered_templates
+    mock_db_cruds_templates_crud_module.get_distinct_template_extensions = mock_get_distinct_template_extensions # Added mock
     setattr(mock_db_cruds_module, 'templates_crud', mock_db_cruds_templates_crud_module)
     sys.modules['db.cruds.templates_crud'] = mock_db_cruds_templates_crud_module
 
@@ -429,6 +434,7 @@ class SettingsPage(QWidget):
         self._setup_transporters_tab() # New
         self._setup_freight_forwarders_tab() # New
         self._setup_template_visibility_tab() # New Tab for Template Visibility
+        self._setup_global_template_management_tab() # New Tab for Global Template Management
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -1094,6 +1100,34 @@ class SettingsPage(QWidget):
             else:
                 print(f"Warning: Radio buttons for module key '{key}' not found during save.")
         print("Module settings saved to DB.")
+
+    def _setup_global_template_management_tab(self):
+        template_management_tab = QWidget()
+        tab_layout = QVBoxLayout(template_management_tab)
+        tab_layout.setContentsMargins(10, 10, 10, 10)
+        tab_layout.setSpacing(10)
+
+        description_label = QLabel(self.tr("Manage global and client-specific document templates, including categories, languages, and extensions."))
+        description_label.setWordWrap(True)
+        tab_layout.addWidget(description_label)
+
+        manage_templates_btn = QPushButton(self.tr("Open Template Manager"))
+        manage_templates_btn.setObjectName("manageTemplatesButton") # For styling
+        manage_templates_btn.setIcon(QIcon(":/icons/settings-gear.svg"))  # Assuming a gear or similar icon
+        manage_templates_btn.clicked.connect(self._open_template_manager_dialog)
+
+        button_hbox = QHBoxLayout()
+        button_hbox.addWidget(manage_templates_btn)
+
+        tab_layout.addLayout(button_hbox)
+        tab_layout.addStretch(1) # Add stretch to push content to the top
+
+        self.tabs_widget.addTab(template_management_tab, self.tr("Template Management"))
+
+    def _open_template_manager_dialog(self):
+        # TemplateDialog expects config and parent
+        dialog = TemplateDialog(config=self.main_config, parent=self)
+        dialog.exec_()
 
     def _setup_template_visibility_tab(self):
         self.template_visibility_tab = QWidget()
