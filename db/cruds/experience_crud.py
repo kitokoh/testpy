@@ -69,7 +69,21 @@ def get_all_experiences(filters: dict = None, limit: int = None, offset: int = 0
         conditions = []
         for key, value in filters.items():
             if value is not None:
-                conditions.append(f"{key} = ?")
+                if key == "date_from":
+                    conditions.append("experience_date >= ?")
+                elif key == "date_to":
+                    conditions.append("experience_date <= ?")
+                # Add other specific filter key mappings here if necessary
+                # For example, if you had a 'title_like' filter:
+                # elif key == "title_like":
+                #    conditions.append("title LIKE ?")
+                #    value = f"%{value}%" # Adjust value for LIKE
+                else:
+                    # Default case for exact matches, ensure key is a valid column name
+                    # For safety, you might want to validate 'key' against a list of allowed column names
+                    # to prevent SQL injection if filter keys can come from untrusted sources.
+                    # However, based on current usage in ExperienceModuleWidget, keys are controlled.
+                    conditions.append(f"{key} = ?")
                 params.append(value)
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
