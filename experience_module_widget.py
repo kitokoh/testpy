@@ -77,6 +77,25 @@ class ExperienceModuleWidget(QWidget):
         main_layout.addWidget(self.experiences_table)
         self.setLayout(main_layout)
 
+    def _show_table_placeholder(self, message: str):
+        """Clears the table and shows a message spanning all columns."""
+        column_count = self.experiences_table.columnCount()
+        if column_count == 0:  # Default if table not fully initialized
+            column_count = 4 # As per _init_ui, headers are ["Title", "Date", "Type", "Description (Snippet)"]
+
+        self.experiences_table.setRowCount(0)  # Clear previous items / placeholder
+
+        if message:
+            self.experiences_table.setRowCount(1)
+            placeholder_item = QTableWidgetItem(message)
+            placeholder_item.setTextAlignment(Qt.AlignCenter)
+            # Make it non-editable and selectable (Qt.ItemIsEnabled)
+            # Use Qt.NoItemFlags for non-selectable, non-editable
+            placeholder_item.setFlags(Qt.ItemIsEnabled)
+            self.experiences_table.setItem(0, 0, placeholder_item)
+            self.experiences_table.setSpan(0, 0, 1, column_count)
+        # If message is empty, table remains cleared (0 rows)
+
     def _load_experiences(self, passed_filters=None):
         self.experiences_table.setRowCount(0); self.experiences_table.clearSelection()
 
@@ -92,10 +111,10 @@ class ExperienceModuleWidget(QWidget):
                 if tags_str: filters_dict["tags"] = [t.strip() for t in tags_str.split(',') if t.strip()]
             else: filters_dict = passed_filters
 
-            self.experiences_table.setEnabled(False); self.experiences_table.setPlaceholderText("Loading experiences...")
+            self.experiences_table.setEnabled(False); self._show_table_placeholder("Loading experiences...")
             experiences_data = experience_crud.get_all_experiences(filters=filters_dict)
-            if not experiences_data: self.experiences_table.setPlaceholderText("No experiences found.")
-            else: self.experiences_table.setPlaceholderText("")
+            if not experiences_data: self._show_table_placeholder("No experiences found.")
+            else: self._show_table_placeholder("") # Clear placeholder before populating
             for r, exp in enumerate(experiences_data):
                 self.experiences_table.insertRow(r)
                 self.experiences_table.setItem(r,0,QTableWidgetItem(exp.get("title","")))
@@ -105,7 +124,7 @@ class ExperienceModuleWidget(QWidget):
                 self.experiences_table.item(r,0).setData(Qt.UserRole, exp.get("experience_id"))
         except Exception as e:
             logging.error(f"Error loading experiences: {e}", exc_info=True); QMessageBox.critical(self, "Load Error", f"Could not load: {e}")
-            self.experiences_table.setPlaceholderText("Error loading experiences.")
+            self._show_table_placeholder("Error loading experiences.")
         finally: self.experiences_table.setEnabled(True); self._on_experience_selection_changed()
 
     def _handle_tags(self, experience_id, tags_str):
