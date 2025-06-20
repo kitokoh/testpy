@@ -412,15 +412,35 @@ def initialize_database():
         created_by_user_id TEXT,
         is_deleted INTEGER DEFAULT 0,
         deleted_at TEXT,
+        applied_workflow_id TEXT, -- FK to Workflows.workflow_id, NULLABLE
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+        FOREIGN KEY (applied_workflow_id) REFERENCES Workflows(workflow_id) ON DELETE SET NULL
+        created_by_user_id TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TEXT,
+        applied_workflow_id TEXT, -- FK to Workflows.workflow_id, NULLABLE
+        FOREIGN KEY (country_id) REFERENCES Countries (country_id),
+        FOREIGN KEY (city_id) REFERENCES Cities (city_id),
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+        FOREIGN KEY (applied_workflow_id) REFERENCES Workflows(workflow_id) ON DELETE SET NULL
     )
     """)
     cursor.execute("PRAGMA table_info(Clients)")
     columns_info = cursor.fetchall()
     column_names = [info['name'] for info in columns_info]
+
+    # Check and add 'applied_workflow_id' column if it doesn't exist (for existing databases)
+    if 'applied_workflow_id' not in column_names:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN applied_workflow_id TEXT")
+            print("Added 'applied_workflow_id' column to Clients table. Note: Foreign key constraint might not be applied by ALTER TABLE in older SQLite versions.")
+        except sqlite3.Error as e_alter_applied_workflow_id:
+            print(f"Error adding 'applied_workflow_id' column to Clients table: {e_alter_applied_workflow_id}")
+
     if 'distributor_specific_info' not in column_names:
         try:
             cursor.execute("ALTER TABLE Clients ADD COLUMN distributor_specific_info TEXT")
@@ -1619,6 +1639,47 @@ CREATE TABLE IF NOT EXISTS Templates (
     )
     """)
 
+    # --- Workflow Management Tables ---
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Workflows (
+        workflow_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS WorkflowStates (
+        workflow_state_id TEXT PRIMARY KEY,
+        workflow_id TEXT NOT NULL,
+        status_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        order_in_workflow INTEGER,
+        is_start_state INTEGER DEFAULT 0,
+        is_end_state INTEGER DEFAULT 0,
+        FOREIGN KEY (workflow_id) REFERENCES Workflows (workflow_id) ON DELETE CASCADE,
+        FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id) ON DELETE RESTRICT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS WorkflowTransitions (
+        transition_id TEXT PRIMARY KEY,
+        workflow_id TEXT NOT NULL,
+        from_workflow_state_id TEXT NOT NULL,
+        to_workflow_state_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        FOREIGN KEY (workflow_id) REFERENCES Workflows (workflow_id) ON DELETE CASCADE,
+        FOREIGN KEY (from_workflow_state_id) REFERENCES WorkflowStates (workflow_state_id) ON DELETE CASCADE,
+        FOREIGN KEY (to_workflow_state_id) REFERENCES WorkflowStates (workflow_state_id) ON DELETE CASCADE
+    )
+    """)
+    # --- End Workflow Management Tables ---
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients
@@ -1629,6 +1690,7 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_company_name ON Clients(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_category ON Clients(category)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_created_by_user_id ON Clients(created_by_user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_applied_workflow_id ON Clients(applied_workflow_id)") # Index for new column
 
     # ReportConfigurations Indexes
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_reportconfigurations_report_name ON ReportConfigurations(report_name)")
@@ -1820,6 +1882,16 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_user_google_account_id ON ContactSyncLog(user_google_account_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_local_contact ON ContactSyncLog(local_contact_id, local_contact_type)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_contactsynclog_google_contact_id ON ContactSyncLog(google_contact_id)")
+
+    # Workflow Management Indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflows_name ON Workflows(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflows_is_default ON Workflows(is_default)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowstates_workflow_id ON WorkflowStates(workflow_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowstates_status_id ON WorkflowStates(status_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowstates_name ON WorkflowStates(name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowtransitions_workflow_id ON WorkflowTransitions(workflow_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowtransitions_from_state ON WorkflowTransitions(from_workflow_state_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_workflowtransitions_to_state ON WorkflowTransitions(to_workflow_state_id)")
 
     # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
     try:

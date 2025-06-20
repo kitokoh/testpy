@@ -15,296 +15,379 @@ if __name__ == '__main__':
     mock_db_utils_module = types.ModuleType('db.utils')
     def mock_get_document_context_data(*args, **kwargs):
         print(f"MOCK db.utils.get_document_context_data called with args: {args}, kwargs: {kwargs}")
-        return {} # Return an empty dict or whatever is appropriate
+        return {}
     mock_db_utils_module.get_document_context_data = mock_get_document_context_data
-
-    # Assign mock_db_utils_module as an attribute of mock_db_module
     setattr(mock_db_module, 'utils', mock_db_utils_module)
 
-    # Add get_user_google_account_by_google_account_id to the main mock_db_module
-    def mock_get_user_google_account_by_google_account_id(*args, **kwargs):
-        print(f"MOCK db.get_user_google_account_by_google_account_id called")
-        return None
-    def mock_update_user_google_account(*args, **kwargs):
-        print(f"MOCK db.update_user_google_account called")
-        return None
-    def mock_add_user_google_account(*args, **kwargs): # Added this
-        print(f"MOCK db.add_user_google_account called")
-        return None
-    def mock_get_user_google_account_by_user_id(*args, **kwargs): # Added this
-        print(f"MOCK db.get_user_google_account_by_user_id called")
-        return None
-    def mock_get_user_google_account_by_id(*args, **kwargs): # Added this
-        print(f"MOCK db.get_user_google_account_by_id called")
-        return None
-    def mock_delete_user_google_account(*args, **kwargs):
-        print(f"MOCK db.delete_user_google_account called")
-        return None
-    def mock_add_contact_sync_log(*args, **kwargs): # Added this
-        print(f"MOCK db.add_contact_sync_log called")
-        return None
-    def mock_get_contact_sync_log_by_local_contact(*args, **kwargs): # Added this
-        print(f"MOCK db.get_contact_sync_log_by_local_contact called")
-        return None
-    def mock_get_contact_sync_log_by_google_contact_id(*args, **kwargs): # Added this
-        print(f"MOCK db.get_contact_sync_log_by_google_contact_id called")
-        return None
-    def mock_update_contact_sync_log(*args, **kwargs): # Added this
-        print(f"MOCK db.update_contact_sync_log called")
-        return None
-    def mock_delete_contact_sync_log(*args, **kwargs):
-        print(f"MOCK db.delete_contact_sync_log called")
-        return None
-    def mock_db_initialize_database(*args, **kwargs): # Added this
-        print(f"MOCK db.initialize_database called")
-        pass
-    def mock_db_add_company_personnel(*args, **kwargs): # Added this
-        print(f"MOCK db.add_company_personnel called")
-        return "mock_global_personnel_id"
-
-    mock_db_module.get_user_google_account_by_google_account_id = mock_get_user_google_account_by_google_account_id
-    mock_db_module.update_user_google_account = mock_update_user_google_account
-    mock_db_module.add_user_google_account = mock_add_user_google_account
-    mock_db_module.get_user_google_account_by_user_id = mock_get_user_google_account_by_user_id
-    mock_db_module.get_user_google_account_by_id = mock_get_user_google_account_by_id
-    mock_db_module.delete_user_google_account = mock_delete_user_google_account
-    mock_db_module.add_contact_sync_log = mock_add_contact_sync_log
-    mock_db_module.get_contact_sync_log_by_local_contact = mock_get_contact_sync_log_by_local_contact
-    mock_db_module.get_contact_sync_log_by_google_contact_id = mock_get_contact_sync_log_by_google_contact_id
-    mock_db_module.update_contact_sync_log = mock_update_contact_sync_log
-    mock_db_module.delete_contact_sync_log = mock_delete_contact_sync_log
-    mock_db_module.initialize_database = mock_db_initialize_database
-    mock_db_module.add_company_personnel = mock_db_add_company_personnel
-
-    def mock_db_get_personnel_for_company(*args, **kwargs): # Added this for the non-fatal error
-        print(f"MOCK db.get_personnel_for_company called")
-        return []
-    mock_db_module.get_personnel_for_company = mock_db_get_personnel_for_company
-
-    def mock_db_update_company_personnel(*args, **kwargs): # Added this for non-fatal error
-        print(f"MOCK db.update_company_personnel called")
-        return True
-    mock_db_module.update_company_personnel = mock_db_update_company_personnel
-
-    def mock_db_delete_company_personnel(*args, **kwargs): # Added this for non-fatal error
-        print(f"MOCK db.delete_company_personnel called")
-        return True
-    mock_db_module.delete_company_personnel = mock_db_delete_company_personnel # Added this
-
-
-    # Create a mock 'db.cruds' module
-    mock_db_cruds_module = types.ModuleType('db.cruds')
-
-    # Create a mock 'db.cruds.companies_crud' module
-    mock_db_cruds_companies_crud_module = types.ModuleType('db.cruds.companies_crud')
-    def mock_get_default_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.get_default_company called")
-        return None
-    def mock_get_all_companies(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.get_all_companies called")
-        return []
-    def mock_add_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.add_company called")
-        return "mock_company_id"
-    def mock_update_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.update_company called")
-        return True
-    def mock_delete_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.delete_company called")
-        return True
-    def mock_get_company_details_by_id(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.get_company_details_by_id called")
-        return {}
-    def mock_set_default_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.set_default_company called")
-        pass
-    def mock_add_personnel_to_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.add_personnel_to_company called")
-        return "mock_personnel_id"
-    def mock_update_personnel_in_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.update_personnel_in_company called")
-        return True
-    def mock_delete_personnel_from_company(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.delete_personnel_from_company called")
-        return True
-    def mock_get_personnel_by_company_id(*args, **kwargs):
-        print(f"MOCK db.cruds.companies_crud.get_personnel_by_company_id called")
-        return []
-    def mock_get_company_by_id(*args, **kwargs): # Added this missing function
-        print(f"MOCK db.cruds.companies_crud.get_company_by_id called")
+    def mock_generic_db_function(func_name, *args, **kwargs):
+        print(f"MOCK db.{func_name} called");
         return None
 
-    mock_db_cruds_companies_crud_module.get_default_company = mock_get_default_company
-    mock_db_cruds_companies_crud_module.get_all_companies = mock_get_all_companies
-    mock_db_cruds_companies_crud_module.get_company_by_id = mock_get_company_by_id # Added this
-    mock_db_cruds_companies_crud_module.add_company = mock_add_company
-    mock_db_cruds_companies_crud_module.update_company = mock_update_company
-    mock_db_cruds_companies_crud_module.delete_company = mock_delete_company
-    mock_db_cruds_companies_crud_module.get_company_details_by_id = mock_get_company_details_by_id
-    mock_db_cruds_companies_crud_module.set_default_company = mock_set_default_company
-    mock_db_cruds_companies_crud_module.add_personnel_to_company = mock_add_personnel_to_company
-    mock_db_cruds_companies_crud_module.update_personnel_in_company = mock_update_personnel_in_company
-    mock_db_cruds_companies_crud_module.delete_personnel_from_company = mock_delete_personnel_from_company
-    mock_db_cruds_companies_crud_module.get_personnel_by_company_id = mock_get_personnel_by_company_id
+    # Generic factory for mock db functions
+    def db_func_factory(name):
+        return lambda *a, **kw: mock_generic_db_function(name, *a, **kw)
 
-    # Assign companies_crud to cruds
-    setattr(mock_db_cruds_module, 'companies_crud', mock_db_cruds_companies_crud_module)
-
-    # Assign cruds to db
-    setattr(mock_db_module, 'cruds', mock_db_cruds_module)
-
-    # Create a mock 'db.cruds.company_personnel_crud' module
-    mock_db_cruds_company_personnel_crud_module = types.ModuleType('db.cruds.company_personnel_crud')
-    def mock_cp_get_personnel_by_id(*args, **kwargs): print("MOCK cp_crud.get_personnel_by_id"); return None
-    def mock_cp_get_all_personnel_with_company_info(*args, **kwargs): print("MOCK cp_crud.get_all_personnel_with_company_info"); return []
-    def mock_cp_get_contacts_for_personnel(*args, **kwargs):
-        print("MOCK cp_crud.get_contacts_for_personnel called")
-        return []
-    def mock_cp_add_company_personnel(*args, **kwargs):
-        print("MOCK cp_crud.add_company_personnel called")
-        return "mock_personnel_id"
-    def mock_cp_get_personnel_for_company(*args, **kwargs):
-        print("MOCK cp_crud.get_personnel_for_company called")
-        return []
-    def mock_cp_update_company_personnel(*args, **kwargs):
-        print("MOCK cp_crud.update_company_personnel called")
-        return True
-    def mock_cp_delete_company_personnel(*args, **kwargs):
-        print("MOCK cp_crud.delete_company_personnel called")
-        return True
-    def mock_cp_add_personnel_contact(*args, **kwargs):
-        print("MOCK cp_crud.add_personnel_contact called")
-        return "mock_contact_id"
-    def mock_cp_update_personnel_contact_link(*args, **kwargs):
-        print("MOCK cp_crud.update_personnel_contact_link called")
-        return True
-    def mock_cp_unlink_contact_from_personnel(*args, **kwargs):
-        print("MOCK cp_crud.unlink_contact_from_personnel called")
-        return True
-    def mock_cp_delete_all_contact_links_for_personnel(*args, **kwargs): # Added this
-        print("MOCK cp_crud.delete_all_contact_links_for_personnel called")
-        return True
-
-    mock_db_cruds_company_personnel_crud_module.get_personnel_by_id = mock_cp_get_personnel_by_id
-    mock_db_cruds_company_personnel_crud_module.get_all_personnel_with_company_info = mock_cp_get_all_personnel_with_company_info
-    mock_db_cruds_company_personnel_crud_module.get_contacts_for_personnel = mock_cp_get_contacts_for_personnel
-    mock_db_cruds_company_personnel_crud_module.add_company_personnel = mock_cp_add_company_personnel
-    mock_db_cruds_company_personnel_crud_module.get_personnel_for_company = mock_cp_get_personnel_for_company
-    mock_db_cruds_company_personnel_crud_module.update_company_personnel = mock_cp_update_company_personnel
-    mock_db_cruds_company_personnel_crud_module.delete_company_personnel = mock_cp_delete_company_personnel
-    mock_db_cruds_company_personnel_crud_module.add_personnel_contact = mock_cp_add_personnel_contact
-    mock_db_cruds_company_personnel_crud_module.update_personnel_contact_link = mock_cp_update_personnel_contact_link
-    mock_db_cruds_company_personnel_crud_module.unlink_contact_from_personnel = mock_cp_unlink_contact_from_personnel
-    mock_db_cruds_company_personnel_crud_module.delete_all_contact_links_for_personnel = mock_cp_delete_all_contact_links_for_personnel # Added this
-
-    # Assign company_personnel_crud to cruds
-    setattr(mock_db_cruds_module, 'company_personnel_crud', mock_db_cruds_company_personnel_crud_module)
-
-    # Put the mock modules into sys.modules
+    mock_db_module.get_user_google_account_by_google_account_id = db_func_factory('get_user_google_account_by_google_account_id')
+    mock_db_module.update_user_google_account = db_func_factory('update_user_google_account')
+    mock_db_module.add_user_google_account = db_func_factory('add_user_google_account')
+    mock_db_module.get_user_google_account_by_user_id = db_func_factory('get_user_google_account_by_user_id')
+    mock_db_module.get_user_google_account_by_id = db_func_factory('get_user_google_account_by_id')
+    mock_db_module.delete_user_google_account = db_func_factory('delete_user_google_account')
+    mock_db_module.add_contact_sync_log = db_func_factory('add_contact_sync_log')
+    mock_db_module.get_contact_sync_log_by_local_contact = db_func_factory('get_contact_sync_log_by_local_contact')
+    mock_db_module.get_contact_sync_log_by_google_contact_id = db_func_factory('get_contact_sync_log_by_google_contact_id')
+    mock_db_module.update_contact_sync_log = db_func_factory('update_contact_sync_log')
+    mock_db_module.delete_contact_sync_log = db_func_factory('delete_contact_sync_log')
+    mock_db_module.initialize_database = lambda: print("MOCK db.initialize_database called")
+    mock_db_module.add_company_personnel = lambda *a, **kw: "mock_global_personnel_id"
+    mock_db_module.get_personnel_for_company = lambda *a, **kw: []
+    mock_db_module.update_company_personnel = lambda *a, **kw: True
+    mock_db_module.delete_company_personnel = lambda *a, **kw: True
     sys.modules['db'] = mock_db_module
-    sys.modules['db.utils'] = mock_db_utils_module
+
+    mock_db_cruds_module = types.ModuleType('db.cruds')
     sys.modules['db.cruds'] = mock_db_cruds_module
-    sys.modules['db.cruds.companies_crud'] = mock_db_cruds_companies_crud_module
-    sys.modules['db.cruds.company_personnel_crud'] = mock_db_cruds_company_personnel_crud_module
 
-    # Create a mock 'db.cruds.template_categories_crud' module
-    mock_db_cruds_template_categories_crud_module = types.ModuleType('db.cruds.template_categories_crud')
-    def mock_get_all_template_categories(*args, **kwargs):
-        print("MOCK template_categories_crud.get_all_template_categories called")
-        return []
-    mock_db_cruds_template_categories_crud_module.get_all_template_categories = mock_get_all_template_categories
-    setattr(mock_db_cruds_module, 'template_categories_crud', mock_db_cruds_template_categories_crud_module)
-    sys.modules['db.cruds.template_categories_crud'] = mock_db_cruds_template_categories_crud_module
+    # Generic CRUD Mocking Factory
+    def create_mock_crud_class(class_name_str, module_name_str):
+        methods = [
+            'get_by_id', 'get_all', 'add', 'update', 'delete', # Common ones
+            'get_default_company', 'get_all_companies', 'add_company', 'update_company', 'delete_company',
+            'get_company_details_by_id', 'set_default_company', 'add_personnel_to_company',
+            'update_personnel_in_company', 'delete_personnel_from_company', 'get_personnel_by_company_id', 'get_company_by_id',
+            'get_personnel_by_id', 'get_all_personnel_with_company_info',
+            'get_all_template_categories',
+            'get_distinct_template_languages', 'get_distinct_template_types', 'get_filtered_templates',
+            'get_all_clients', 'get_all_products',
+            'get_all_workflows', 'get_workflow_by_id', 'add_workflow', 'update_workflow', 'delete_workflow', 'set_default_workflow',
+            'get_workflow_states_for_workflow', 'get_workflow_state_by_id', 'add_workflow_state', 'update_workflow_state', 'delete_workflow_state',
+            'get_transitions_for_workflow', 'get_workflow_transition_by_id', 'add_workflow_transition', 'update_workflow_transition', 'delete_workflow_transition',
+            'get_all_status_settings', 'get_status_setting_by_id'
+        ]
 
-    # Create a mock 'db.cruds.templates_crud' module
-    mock_db_cruds_templates_crud_module = types.ModuleType('db.cruds.templates_crud')
-    def mock_get_distinct_template_languages(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_languages called"); return []
-    def mock_get_distinct_template_types(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_types called"); return []
-    def mock_get_filtered_templates(*args, **kwargs): print("MOCK templates_crud.get_filtered_templates called"); return []
-    mock_db_cruds_templates_crud_module.get_distinct_template_languages = mock_get_distinct_template_languages
-    mock_db_cruds_templates_crud_module.get_distinct_template_types = mock_get_distinct_template_types
-    mock_db_cruds_templates_crud_module.get_filtered_templates = mock_get_filtered_templates
-    setattr(mock_db_cruds_module, 'templates_crud', mock_db_cruds_templates_crud_module)
-    sys.modules['db.cruds.templates_crud'] = mock_db_cruds_templates_crud_module
+        attrs = {}
+        for method_name in methods:
+            def make_method(name): # Closure to capture method_name
+                return lambda self, *args, **kwargs: print(f"MOCK {class_name_str}.{name} called") or ([] if "all" in name or "get_workflow_states" in name or "get_transitions" in name else ({'success':True, 'id':'mock_id'} if "add" in name or "update" in name or "delete" in name or "set_default" in name else None) )
+            attrs[method_name] = make_method(method_name)
 
-    # Create a mock 'db.cruds.clients_crud' module
-    mock_db_cruds_clients_crud_module = types.ModuleType('db.cruds.clients_crud')
-    # Create a mock instance for clients_crud_instance
-    class MockClientsCrudInstance:
-        def get_all_clients(self, *args, **kwargs): print("MOCK clients_crud_instance.get_all_clients called"); return []
-        # Add other methods that might be called on clients_crud_instance if new errors appear
-    mock_db_cruds_clients_crud_module.clients_crud_instance = MockClientsCrudInstance()
-    setattr(mock_db_cruds_module, 'clients_crud', mock_db_cruds_clients_crud_module)
-    sys.modules['db.cruds.clients_crud'] = mock_db_cruds_clients_crud_module
+        mock_class = type(class_name_str, (object,), attrs)
 
-    # Create a mock 'db.cruds.products_crud' module
-    mock_db_cruds_products_crud_module = types.ModuleType('db.cruds.products_crud')
-    class MockProductsCrudInstance:
-        # Add mock methods here if product_dimension_ui_dialog calls any on products_crud_instance
-        def get_all_products(self, *args, **kwargs): print("MOCK products_crud_instance.get_all_products called"); return []
-    mock_db_cruds_products_crud_module.products_crud_instance = MockProductsCrudInstance()
-    setattr(mock_db_cruds_module, 'products_crud', mock_db_cruds_products_crud_module)
-    sys.modules['db.cruds.products_crud'] = mock_db_cruds_products_crud_module
+        mock_module = types.ModuleType(module_name_str)
+        instance_name = module_name_str.split('.')[-1].replace("_crud", "") + "_crud" # e.g. companies_crud
+        if "templates_crud" in module_name_str or "clients_crud" in module_name_str or "products_crud" in module_name_str:
+             instance_name += "_instance" # Match existing naming
 
-    # Mock icons_rc to prevent SyntaxError during __main__ execution
-    print("MAIN_TOP: Pre-patching sys.modules for 'icons_rc'")
+        setattr(mock_module, instance_name, mock_class())
+        setattr(mock_db_cruds_module, module_name_str.split('.')[-1], mock_module) # e.g. db.cruds.companies_crud = mock_module
+        sys.modules[module_name_str] = mock_module
+        return getattr(mock_module, instance_name)
+
+
+    # Apply generic mocking
+    mock_companies_crud_instance = create_mock_crud_class('MockCompaniesCRUD', 'db.cruds.companies_crud')
+    mock_company_personnel_crud = create_mock_crud_class('MockCompanyPersonnelCRUD', 'db.cruds.company_personnel_crud')
+    mock_template_categories_crud = create_mock_crud_class('MockTemplateCategoriesCRUD', 'db.cruds.template_categories_crud')
+    mock_templates_crud_instance = create_mock_crud_class('MockTemplatesCRUD', 'db.cruds.templates_crud')
+    mock_clients_crud_instance = create_mock_crud_class('MockClientsCrud', 'db.cruds.clients_crud')
+    mock_products_crud_instance = create_mock_crud_class('MockProductsCrud', 'db.cruds.products_crud')
+
+    # Specific mocks for workflow and status settings as they have more complex data
+    mock_wf_crud_module = types.ModuleType('db.cruds.workflow_cruds')
+    class MockWorkflowsCrud:
+        _workflows_data = [{'workflow_id': 'wf1', 'name': 'WF1', 'description': 'D1', 'is_default': 1}]
+        _states_data = {'wf1': [{'workflow_state_id': 's1_1', 'status_id': 'stat1', 'name': 'State1', 'order_in_workflow':0}]}
+        _transitions_data = {'wf1': [{'transition_id': 't1', 'from_workflow_state_id': 's1_1', 'to_workflow_state_id': 's1_1', 'name': 'SelfLoop'}]}
+        def get_all_workflows(self, *a, **k): print("MOCK get_all_workflows"); return self._workflows_data
+        def get_workflow_by_id(self, wf_id, *a, **k): print(f"MOCK get_workflow_by_id {wf_id}"); return next((w for w in self._workflows_data if w['workflow_id'] == wf_id), None)
+        def add_workflow(self, data, *a, **k): print(f"MOCK add_workflow {data}"); new_id = f"wf{len(self._workflows_data)+1}"; d = {'workflow_id':new_id, **data}; self._workflows_data.append(d); return {'success':True, 'id':new_id, 'data':d}
+        def update_workflow(self, wf_id, data, *a, **k): print(f"MOCK update_workflow {wf_id}"); wf=self.get_workflow_by_id(wf_id); wf.update(data); return {'success':True, 'data':wf}
+        def get_workflow_states_for_workflow(self, wf_id, *a, **k): print(f"MOCK get_workflow_states_for_workflow {wf_id}"); return self._states_data.get(wf_id, [])
+        def get_workflow_state_by_id(self, ws_id, *a, **k): print(f"MOCK get_workflow_state_by_id {ws_id}"); return next((s for states in self._states_data.values() for s in states if s['workflow_state_id'] == ws_id),None)
+        def add_workflow_state(self, data, *a, **k): print(f"MOCK add_workflow_state {data}"); wf_id=data['workflow_id']; new_id=f"s{wf_id}_{len(self._states_data.get(wf_id,[]))+1}"; d={'workflow_state_id':new_id, **data}; self._states_data.setdefault(wf_id,[]).append(d); return {'success':True, 'id':new_id,'data':d}
+        def update_workflow_state(self, ws_id, data, *a, **k): print(f"MOCK update_workflow_state {ws_id}"); s=self.get_workflow_state_by_id(ws_id); s.update(data); return {'success':True,'data':s}
+        def delete_workflow_state(self, ws_id, *a, **k): print(f"MOCK delete_workflow_state {ws_id}"); for wf_id in self._states_data: self._states_data[wf_id]=[s for s in self._states_data[wf_id] if s['workflow_state_id']!=ws_id]; return {'success':True}
+        def get_transitions_for_workflow(self, wf_id, *a, **k): print(f"MOCK get_transitions_for_workflow {wf_id}"); return self._transitions_data.get(wf_id, [])
+        def get_workflow_transition_by_id(self, t_id, *a, **k): print(f"MOCK get_workflow_transition_by_id {t_id}"); return next((t for trans in self._transitions_data.values() for t in trans if t['transition_id'] == t_id),None)
+        def add_workflow_transition(self, data, *a, **k): print(f"MOCK add_workflow_transition {data}"); wf_id=data['workflow_id']; new_id=f"t{wf_id}_{len(self._transitions_data.get(wf_id,[]))+1}"; d={'transition_id':new_id, **data}; self._transitions_data.setdefault(wf_id,[]).append(d); return {'success':True, 'id':new_id,'data':d}
+        def update_workflow_transition(self, t_id, data, *a, **k): print(f"MOCK update_workflow_transition {t_id}"); t=self.get_workflow_transition_by_id(t_id); t.update(data); return {'success':True,'data':t}
+        def delete_workflow_transition(self, t_id, *a, **k): print(f"MOCK delete_workflow_transition {t_id}"); for wf_id in self._transitions_data: self._transitions_data[wf_id]=[t for t in self._transitions_data[wf_id] if t['transition_id']!=t_id]; return {'success':True}
+
+    mock_wf_crud_module.workflows_crud = MockWorkflowsCrud()
+    setattr(mock_db_cruds_module, 'workflow_cruds', mock_wf_crud_module)
+    sys.modules['db.cruds.workflow_cruds'] = mock_wf_crud_module
+
+    mock_ss_crud_module = types.ModuleType('db.cruds.status_settings_crud')
+    class MockStatusSettingsCrud:
+        _statuses = [{'status_id': 'stat1', 'status_name': 'Open', 'status_type': 'Client'}, {'status_id': 'stat2', 'status_name': 'Closed', 'status_type': 'Client'}]
+        def get_all_status_settings(self, *a, **k): print("MOCK get_all_status_settings"); return self._statuses
+        def get_status_setting_by_id(self, s_id, *a, **k): print(f"MOCK get_status_setting_by_id {s_id}"); return next((s for s in self._statuses if s['status_id'] == s_id),None)
+    mock_ss_crud_module.status_settings_crud = MockStatusSettingsCrud()
+    setattr(mock_db_cruds_module, 'status_settings_crud', mock_ss_crud_module)
+    sys.modules['db.cruds.status_settings_crud'] = mock_ss_crud_module
+
     sys.modules['icons_rc'] = types.ModuleType('icons_rc_mock')
-
 # --- Conditional mocking for __main__ END ---
 
 import csv
-
-# Adjust sys.path to allow finding modules in the current directory structure
-# This needs to be done before other local package imports if running standalone
-current_dir_for_standalone = os.path.dirname(os.path.abspath(__file__))
-print(f"Executing from: {current_dir_for_standalone}") # Debug print
-if current_dir_for_standalone not in sys.path:
-    sys.path.insert(0, current_dir_for_standalone)
-    print(f"Inserted into sys.path: {current_dir_for_standalone}") # Debug print
-# If 'dialogs', 'company_management' etc. are in a parent or specific source directory:
-# parent_dir_for_standalone = os.path.abspath(os.path.join(current_dir_for_standalone, '..'))
-# if parent_dir_for_standalone not in sys.path:
-#     sys.path.insert(0, parent_dir_for_standalone)
-
-print(f"Initial sys.path: {sys.path}") # Debug print
-
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel,
     QFormLayout, QLineEdit, QComboBox, QSpinBox, QFileDialog, QCheckBox,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit,
-    QGroupBox, QRadioButton, QHeaderView # Added QHeaderView
+    QGroupBox, QRadioButton, QHeaderView, QDialogButtonBox
 )
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 
-# Assuming db_manager provides the necessary functions directly or via submodules
-# This import will be problematic if 'db' is not in sys.path or structured as expected.
-# For the __main__ block, we'll mock it.
 try:
-    import db as db_manager # If __name__ == '__main__', this should import MockDBForGlobalImport
-    if __name__ == '__main__':
-        print(f"MAIN_POST_DB_IMPORT: db_manager is {db_manager}")
+    import db as db_manager
 except ImportError:
-    print("ERROR: Failed to import 'db' module globally.") # Changed message for clarity
-    db_manager = None # Will be replaced by mock in __main__ if None
+    print("ERROR: Failed to import 'db' module globally.")
+    db_manager = None
 
 try:
     from db.cruds.products_crud import products_crud_instance
 except ImportError:
-    print("ERROR: Failed to import 'products_crud_instance' from 'db.cruds.products_crud'. Export functionality will be affected.")
-    products_crud_instance = None # Ensure it exists, even if None
+    print("ERROR: Failed to import 'products_crud_instance'.")
+    products_crud_instance = None
+
+try:
+    from db.cruds.workflow_cruds import workflows_crud
+    from db.cruds.status_settings_crud import status_settings_crud
+except ImportError as e:
+    print(f"ERROR: Failed to import CRUD instances: {e}.")
+    if __name__ == '__main__':
+        workflows_crud = sys.modules.get('db.cruds.workflow_cruds', {}).get('workflows_crud')
+        status_settings_crud = sys.modules.get('db.cruds.status_settings_crud', {}).get('status_settings_crud')
+        if not workflows_crud: print("Critical: Mock for workflows_crud not found in __main__ (after import error).")
+        if not status_settings_crud: print("Critical: Mock for status_settings_crud not found in __main__ (after import error).")
+    else:
+        workflows_crud = None
+        status_settings_crud = None
 
 from dialogs.transporter_dialog import TransporterDialog
 from dialogs.freight_forwarder_dialog import FreightForwarderDialog
 from company_management import CompanyTabWidget
 
+# --- Workflow State Dialog ---
+class WorkflowStateDialog(QDialog):
+    def __init__(self, workflow_id, available_statuses, workflow_state_data=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Workflow State Details"))
+        self.setMinimumWidth(450)
+
+        self.workflow_id = workflow_id
+        self.available_statuses = available_statuses if available_statuses else []
+        self.workflow_state_data = workflow_state_data
+        self._name_was_derived = False
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.status_combo = QComboBox()
+        self.status_combo.addItem(self.tr("-- Select Base Status --"), None)
+        for status in self.available_statuses:
+            self.status_combo.addItem(f"{status.get('status_name', 'Unnamed')} ({status.get('status_type', 'N/A')})", status.get('status_id'))
+        form_layout.addRow(self.tr("Base Status (from StatusSettings):"), self.status_combo)
+
+        self.state_name_input = QLineEdit()
+        self.state_name_input.setPlaceholderText(self.tr("Optional: Defaults to selected status name"))
+        form_layout.addRow(self.tr("Custom State Name in Workflow:"), self.state_name_input)
+
+        self.status_combo.currentIndexChanged.connect(self._update_default_state_name)
+
+        self.state_description_input = QTextEdit()
+        self.state_description_input.setPlaceholderText(self.tr("Optional: Describe this state's purpose or criteria"))
+        self.state_description_input.setFixedHeight(80)
+        form_layout.addRow(self.tr("Description:"), self.state_description_input)
+
+        self.order_spinbox = QSpinBox()
+        self.order_spinbox.setRange(0, 100)
+        self.order_spinbox.setToolTip(self.tr("Determines the sequence of states in the workflow."))
+        form_layout.addRow(self.tr("Order in Workflow:"), self.order_spinbox)
+
+        flags_layout = QHBoxLayout()
+        self.is_start_state_checkbox = QCheckBox(self.tr("Is Start State"))
+        self.is_start_state_checkbox.setToolTip(self.tr("Marks this state as an initial state for the workflow."))
+        flags_layout.addWidget(self.is_start_state_checkbox)
+
+        self.is_end_state_checkbox = QCheckBox(self.tr("Is End State"))
+        self.is_end_state_checkbox.setToolTip(self.tr("Marks this state as a terminal state for the workflow."))
+        flags_layout.addWidget(self.is_end_state_checkbox)
+        flags_layout.addStretch()
+        form_layout.addRow(self.tr("Flags:"), flags_layout)
+
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        if self.workflow_state_data:
+            self._populate_fields()
+        else:
+            self._update_default_state_name()
+
+    def _update_default_state_name(self):
+        current_name = self.state_name_input.text().strip()
+        selected_status_text = self.status_combo.currentText()
+        selected_status_name_only = selected_status_text.split(' (')[0] if '(' in selected_status_text else selected_status_text
+
+        if self.status_combo.currentIndex() > 0:
+            if not self.workflow_state_data or not current_name or self._name_was_derived:
+                self.state_name_input.setText(selected_status_name_only)
+                self._name_was_derived = True
+        elif not current_name :
+             self.state_name_input.clear()
+             self._name_was_derived = False
+
+    def _populate_fields(self):
+        if not self.workflow_state_data:
+            return
+
+        status_id_to_select = self.workflow_state_data.get('status_id')
+        selected_status_name_for_default = ""
+        for i in range(self.status_combo.count()):
+            if self.status_combo.itemData(i) == status_id_to_select:
+                self.status_combo.setCurrentIndex(i)
+                selected_status_name_for_default = self.status_combo.currentText().split(' (')[0]
+                break
+
+        current_custom_name = self.workflow_state_data.get('name', '')
+        if not current_custom_name or current_custom_name == selected_status_name_for_default:
+            self.state_name_input.setText(selected_status_name_for_default)
+            self._name_was_derived = True
+        else:
+             self.state_name_input.setText(current_custom_name)
+             self._name_was_derived = False
+
+        self.state_description_input.setPlainText(self.workflow_state_data.get('description', ''))
+        self.order_spinbox.setValue(self.workflow_state_data.get('order_in_workflow', 0))
+        self.is_start_state_checkbox.setChecked(bool(self.workflow_state_data.get('is_start_state', 0)))
+        self.is_end_state_checkbox.setChecked(bool(self.workflow_state_data.get('is_end_state', 0)))
+
+    def get_data(self):
+        name = self.state_name_input.text().strip()
+        status_id = self.status_combo.currentData()
+
+        if status_id is None:
+             QMessageBox.warning(self, self.tr("Validation Error"), self.tr("A base status must be selected."))
+             return None
+
+        if not name:
+            name = self.status_combo.currentText().split(' (')[0]
+            if name == self.tr("-- Select Base Status --").split(' (')[0]:
+                QMessageBox.warning(self, self.tr("Validation Error"), self.tr("State name cannot be empty and a base status must be selected."))
+                return None
+        return {
+            "workflow_id": self.workflow_id, "status_id": status_id, "name": name,
+            "description": self.state_description_input.toPlainText().strip(),
+            "order_in_workflow": self.order_spinbox.value(),
+            "is_start_state": 1 if self.is_start_state_checkbox.isChecked() else 0,
+            "is_end_state": 1 if self.is_end_state_checkbox.isChecked() else 0,
+        }
+# --- End Workflow State Dialog ---
+
+# --- Workflow Transition Dialog ---
+class WorkflowTransitionDialog(QDialog):
+    def __init__(self, workflow_id, current_workflow_states, transition_data=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(self.tr("Workflow Transition Details"))
+        self.setMinimumWidth(450)
+
+        self.workflow_id = workflow_id
+        self.current_workflow_states = current_workflow_states if current_workflow_states else []
+        self.transition_data = transition_data
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+
+        self.from_state_combo = QComboBox()
+        self.from_state_combo.addItem(self.tr("-- Select From State --"), None)
+        for state in self.current_workflow_states:
+            self.from_state_combo.addItem(state.get('name', 'Unnamed State'), state.get('workflow_state_id'))
+        form_layout.addRow(self.tr("From State:"), self.from_state_combo)
+
+        self.to_state_combo = QComboBox()
+        self.to_state_combo.addItem(self.tr("-- Select To State --"), None)
+        for state in self.current_workflow_states:
+            self.to_state_combo.addItem(state.get('name', 'Unnamed State'), state.get('workflow_state_id'))
+        form_layout.addRow(self.tr("To State:"), self.to_state_combo)
+
+        self.transition_name_input = QLineEdit()
+        self.transition_name_input.setPlaceholderText(self.tr("e.g., 'Qualify Lead', 'Resolve Issue'"))
+        form_layout.addRow(self.tr("Transition Name:"), self.transition_name_input)
+
+        self.transition_description_input = QTextEdit()
+        self.transition_description_input.setPlaceholderText(self.tr("Optional: Describe when this transition occurs"))
+        self.transition_description_input.setFixedHeight(80)
+        form_layout.addRow(self.tr("Description:"), self.transition_description_input)
+
+        layout.addLayout(form_layout)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+        if self.transition_data:
+            self._populate_fields()
+
+    def _populate_fields(self):
+        if not self.transition_data:
+            return
+
+        from_id = self.transition_data.get('from_workflow_state_id')
+        for i in range(self.from_state_combo.count()):
+            if self.from_state_combo.itemData(i) == from_id:
+                self.from_state_combo.setCurrentIndex(i)
+                break
+
+        to_id = self.transition_data.get('to_workflow_state_id')
+        for i in range(self.to_state_combo.count()):
+            if self.to_state_combo.itemData(i) == to_id:
+                self.to_state_combo.setCurrentIndex(i)
+                break
+
+        self.transition_name_input.setText(self.transition_data.get('name', ''))
+        self.transition_description_input.setPlainText(self.transition_data.get('description', ''))
+
+    def get_data(self):
+        from_state_id = self.from_state_combo.currentData()
+        to_state_id = self.to_state_combo.currentData()
+        name = self.transition_name_input.text().strip()
+
+        if not from_state_id or not to_state_id:
+            QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Both 'From State' and 'To State' must be selected."))
+            return None
+        if not name:
+            QMessageBox.warning(self, self.tr("Validation Error"), self.tr("Transition Name cannot be empty."))
+            return None
+
+        # Optional: Prevent self-loops if not desired, though often useful
+        # if from_state_id == to_state_id:
+        #     QMessageBox.warning(self, self.tr("Validation Error"), self.tr("From and To states cannot be the same for this transition type."))
+        #     return None
+
+        return {
+            "workflow_id": self.workflow_id,
+            "from_workflow_state_id": from_state_id,
+            "to_workflow_state_id": to_state_id,
+            "name": name,
+            "description": self.transition_description_input.toPlainText().strip(),
+        }
+# --- End Workflow Transition Dialog ---
+
+
 class ImportInstructionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Product Import Instructions"))
-        self.setMinimumWidth(600) # Set a minimum width for better readability
-        self.setMinimumHeight(400) # Set a minimum height
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
 
         layout = QVBoxLayout(self)
 
@@ -313,10 +396,8 @@ class ImportInstructionsDialog(QDialog):
         instructions_html = """
         <h3>Product CSV Import Guide</h3>
         <p>Please ensure your CSV file adheres to the following format and conventions.</p>
-
         <h4>Expected CSV Header:</h4>
         <p><code>product_id,product_name,product_code,description,category,language_code,base_unit_price,unit_of_measure,weight,dimensions,is_active,is_deleted</code></p>
-
         <h4>Field Definitions:</h4>
         <ul>
             <li><b>product_id</b>: Ignored during import (new IDs are auto-generated).</li>
@@ -332,18 +413,15 @@ class ImportInstructionsDialog(QDialog):
             <li><b>is_active</b>: Boolean, 'True' or 'False' (Optional, defaults to 'True' if empty or invalid).</li>
             <li><b>is_deleted</b>: Boolean, 'True' or 'False' (Optional, defaults to 'False' if empty or invalid).</li>
         </ul>
-
         <h4>Sample ChatGPT Prompt for Generating Data:</h4>
         <pre><code>Generate a CSV list of 10 sample products for an e-commerce store. The CSV should have the following columns: product_name,product_code,description,category,language_code,base_unit_price,unit_of_measure,weight,dimensions,is_active,is_deleted
 Ensure `base_unit_price` is a number. `language_code` should be 'en' or 'fr'. `is_active` and `is_deleted` should be 'True' or 'False'.
-
 Example Row:
 My Awesome Product,PROD001,This is a great product.,Electronics,en,29.99,pcs,0.5,10x5x2 cm,True,False</code></pre>
         """
         instructions_text_edit.setHtml(instructions_html)
         layout.addWidget(instructions_text_edit)
 
-        # Dialog buttons
         buttons_layout = QHBoxLayout()
         ok_button = QPushButton(self.tr("OK"))
         ok_button.clicked.connect(self.accept)
@@ -352,7 +430,6 @@ My Awesome Product,PROD001,This is a great product.,Electronics,en,29.99,pcs,0.5
         buttons_layout.addStretch(1)
         buttons_layout.addWidget(ok_button)
         buttons_layout.addWidget(cancel_button)
-
         layout.addLayout(buttons_layout)
         self.setLayout(layout)
 
@@ -363,6 +440,7 @@ class SettingsPage(QWidget):
         self.main_config = main_config
         self.app_root_dir = app_root_dir
         self.current_user_id = current_user_id
+        self.selected_workflow_id = None
 
         self.module_config = [
             {"key": "module_project_management_enabled", "label_text": self.tr("Project Management")},
@@ -372,37 +450,18 @@ class SettingsPage(QWidget):
             {"key": "module_inventory_management_enabled", "label_text": self.tr("Inventory Management")},
             {"key": "module_botpress_integration_enabled", "label_text": self.tr("Botpress Integration")},
             {"key": "module_carrier_map_enabled", "label_text": self.tr("Carrier Map")},
-            {"key": "module_camera_management_enabled", "label_text": self.tr("Camera Management")}, # New module
+            {"key": "module_camera_management_enabled", "label_text": self.tr("Camera Management")},
         ]
-        self.module_radio_buttons = {} # To store radio buttons for easy access
-
-        # This is important if db_manager was not imported successfully above
-        # And we are not running the __main__ block (e.g. in actual app)
-        # It relies on the global db_manager being set by the main application
-
-        # In __main__ mode, db_manager might be MockDBForGlobalImport initially.
-        # It will be replaced by the more complete MockDBManager instance from the __main__ block
-        # before SettingsPage is fully used.
-        # The critical part is that the *global symbol* 'db_manager' needs to be the correct mock
-        # by the time methods using it are called, or it's passed to other objects.
-
-        # For non-__main__ mode, the original logic applies.
-        # For __main__ mode, the global 'db_manager' is what SettingsPage's __init__ will see.
-        # This global 'db_manager' is explicitly set to a full MockDBManager instance
-        # at the beginning of the 'if __name__ == "__main__":' block.
-        global db_manager # Ensure we are referring to the global one
-
-        if __name__ != '__main__': # Original logic for non-test mode
+        self.module_radio_buttons = {}
+        global db_manager
+        if __name__ != '__main__':
             if db_manager is None and 'db_manager' in globals() and globals()['db_manager'] is not None:
                 pass
             elif db_manager is None :
                 print("WARNING: db_manager is None in SettingsPage init and not running __main__")
-        else: # In __main__ mode, db_manager should already be the MockDBManager instance.
-            if db_manager is None: # Should not happen if __main__ block sets it
+        else:
+            if db_manager is None:
                  print("WARNING: db_manager is None in SettingsPage init even when running __main__!")
-            # else:
-            #    print(f"DEBUG SETTINGSPAGE __init__: db_manager is {type(db_manager)}")
-
 
         main_layout = QVBoxLayout(self)
         title_label = QLabel(self.tr("Application Settings"))
@@ -415,9 +474,9 @@ class SettingsPage(QWidget):
 
         self._setup_general_tab()
         self._setup_email_tab()
-        self._setup_download_monitor_tab() # New Download Monitor Tab
-        self._setup_modules_tab() # New Modules Tab
-        self._setup_data_management_tab() # New Data Management Tab
+        self._setup_download_monitor_tab()
+        self._setup_modules_tab()
+        self._setup_data_management_tab()
 
         self.company_tab = CompanyTabWidget(
             parent=self,
@@ -426,9 +485,10 @@ class SettingsPage(QWidget):
         )
         self.tabs_widget.addTab(self.company_tab, self.tr("Company & Personnel"))
 
-        self._setup_transporters_tab() # New
-        self._setup_freight_forwarders_tab() # New
-        self._setup_template_visibility_tab() # New Tab for Template Visibility
+        self._setup_transporters_tab()
+        self._setup_freight_forwarders_tab()
+        self._setup_template_visibility_tab()
+        self._setup_workflows_tab()
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -440,10 +500,9 @@ class SettingsPage(QWidget):
         self.reload_settings_button.clicked.connect(self._load_all_settings_from_config)
         self.restore_defaults_button = QPushButton(self.tr("Restore Defaults"))
         self.restore_defaults_button.setObjectName("secondaryButton")
-        # TODO: Connect restore_defaults_button to a method that also restores module defaults
         self.save_settings_button = QPushButton(self.tr("Save All Settings"))
         self.save_settings_button.setObjectName("primaryButton")
-        self.save_settings_button.clicked.connect(self._save_all_settings) # Modified to call central save
+        self.save_settings_button.clicked.connect(self._save_all_settings)
         buttons_layout.addStretch(1)
         buttons_layout.addWidget(self.reload_settings_button)
         buttons_layout.addWidget(self.restore_defaults_button)
@@ -452,9 +511,9 @@ class SettingsPage(QWidget):
         self.setLayout(main_layout)
 
         self._load_all_settings_from_config()
-        if db_manager: # Only load if db_manager is available (real or mocked)
-            self._load_transporters_table() # Initial load
-            self._load_forwarders_table() # Initial load
+        if db_manager:
+            self._load_transporters_table()
+            self._load_forwarders_table()
         else:
             print("WARNING: db_manager not available. Transporter and Forwarder tables will not be loaded.")
 
@@ -510,49 +569,37 @@ class SettingsPage(QWidget):
         download_monitor_form_layout = QFormLayout(download_monitor_tab_widget)
         download_monitor_form_layout.setContentsMargins(10, 10, 10, 10)
         download_monitor_form_layout.setSpacing(10)
-
         self.download_monitor_enabled_checkbox = QCheckBox(self.tr("Enable download monitoring"))
         download_monitor_form_layout.addRow(self.download_monitor_enabled_checkbox)
-
         self.download_monitor_path_input = QLineEdit()
         self.download_monitor_path_input.setPlaceholderText(self.tr("Select folder to monitor for new downloads"))
         browse_button = QPushButton(self.tr("Browse..."))
         browse_button.clicked.connect(self._browse_download_monitor_path)
-
         path_layout = QHBoxLayout()
         path_layout.addWidget(self.download_monitor_path_input)
         path_layout.addWidget(browse_button)
         download_monitor_form_layout.addRow(self.tr("Monitored Folder:"), path_layout)
-
         download_monitor_tab_widget.setLayout(download_monitor_form_layout)
         self.tabs_widget.addTab(download_monitor_tab_widget, self.tr("Download Monitoring"))
 
     def _browse_download_monitor_path(self):
         start_dir = self.download_monitor_path_input.text()
-        if not os.path.isdir(start_dir):
-            start_dir = os.path.expanduser('~') # Default to home or a sensible default
-
-        dir_path = QFileDialog.getExistingDirectory(
-            self,
-            self.tr("Select Monitored Folder"),
-            start_dir
-        )
-        if dir_path:
-            self.download_monitor_path_input.setText(dir_path)
+        if not os.path.isdir(start_dir): start_dir = os.path.expanduser('~')
+        dir_path = QFileDialog.getExistingDirectory(self, self.tr("Select Monitored Folder"), start_dir)
+        if dir_path: self.download_monitor_path_input.setText(dir_path)
 
     def _setup_transporters_tab(self):
         transporters_tab = QWidget()
         transporters_layout = QVBoxLayout(transporters_tab)
         self.transporters_table = QTableWidget()
-        self.transporters_table.setColumnCount(6) # ID, Name, Contact, Phone, Email, Service Area
+        self.transporters_table.setColumnCount(6)
         self.transporters_table.setHorizontalHeaderLabels([self.tr("ID"), self.tr("Name"), self.tr("Contact Person"), self.tr("Phone"), self.tr("Email"), self.tr("Service Area")])
         self.transporters_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.transporters_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.transporters_table.horizontalHeader().setStretchLastSection(True)
-        self.transporters_table.hideColumn(0) # Hide ID column
+        self.transporters_table.hideColumn(0)
         self.transporters_table.itemSelectionChanged.connect(self._update_transporter_button_states)
         transporters_layout.addWidget(self.transporters_table)
-
         btns_layout = QHBoxLayout()
         self.add_transporter_btn = QPushButton(self.tr("Add Transporter")); self.add_transporter_btn.setIcon(QIcon(":/icons/plus.svg"))
         self.add_transporter_btn.clicked.connect(self._handle_add_transporter)
@@ -588,9 +635,8 @@ class SettingsPage(QWidget):
 
     def _handle_add_transporter(self):
         if not db_manager: return
-        dialog = TransporterDialog(parent=self) # db_manager is used inside the dialog
-        if dialog.exec_() == QDialog.Accepted:
-            self._load_transporters_table()
+        dialog = TransporterDialog(parent=self)
+        if dialog.exec_() == QDialog.Accepted: self._load_transporters_table()
 
     def _handle_edit_transporter(self):
         if not db_manager: return
@@ -600,10 +646,8 @@ class SettingsPage(QWidget):
         transporter_data = db_manager.get_transporter_by_id(transporter_id)
         if transporter_data:
             dialog = TransporterDialog(transporter_data=transporter_data, parent=self)
-            if dialog.exec_() == QDialog.Accepted:
-                self._load_transporters_table()
-        else:
-            QMessageBox.warning(self, self.tr("Error"), self.tr("Transporter not found."))
+            if dialog.exec_() == QDialog.Accepted: self._load_transporters_table()
+        else: QMessageBox.warning(self, self.tr("Error"), self.tr("Transporter not found."))
 
     def _handle_delete_transporter(self):
         if not db_manager: return
@@ -611,16 +655,12 @@ class SettingsPage(QWidget):
         if not selected_items: return
         transporter_id = self.transporters_table.item(selected_items[0].row(), 0).text()
         transporter_name = self.transporters_table.item(selected_items[0].row(), 1).text()
-
-        reply = QMessageBox.question(self, self.tr("Confirm Delete"),
-                                     self.tr("Are you sure you want to delete transporter '{0}'?").format(transporter_name),
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, self.tr("Confirm Delete"), self.tr("Are you sure you want to delete transporter '{0}'?").format(transporter_name), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             if db_manager.delete_transporter(transporter_id):
                 QMessageBox.information(self, self.tr("Success"), self.tr("Transporter deleted."))
                 self._load_transporters_table()
-            else:
-                QMessageBox.warning(self, self.tr("DB Error"), self.tr("Could not delete transporter."))
+            else: QMessageBox.warning(self, self.tr("DB Error"), self.tr("Could not delete transporter."))
 
     def _update_transporter_button_states(self):
         has_selection = bool(self.transporters_table.selectedItems())
@@ -631,15 +671,14 @@ class SettingsPage(QWidget):
         forwarders_tab = QWidget()
         forwarders_layout = QVBoxLayout(forwarders_tab)
         self.forwarders_table = QTableWidget()
-        self.forwarders_table.setColumnCount(6) # ID, Name, Contact, Phone, Email, Services Offered
+        self.forwarders_table.setColumnCount(6)
         self.forwarders_table.setHorizontalHeaderLabels([self.tr("ID"), self.tr("Name"), self.tr("Contact Person"), self.tr("Phone"), self.tr("Email"), self.tr("Services Offered")])
         self.forwarders_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.forwarders_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.forwarders_table.horizontalHeader().setStretchLastSection(True)
-        self.forwarders_table.hideColumn(0) # Hide ID column
+        self.forwarders_table.hideColumn(0)
         self.forwarders_table.itemSelectionChanged.connect(self._update_forwarder_button_states)
         forwarders_layout.addWidget(self.forwarders_table)
-
         btns_layout = QHBoxLayout()
         self.add_forwarder_btn = QPushButton(self.tr("Add Freight Forwarder")); self.add_forwarder_btn.setIcon(QIcon(":/icons/plus.svg"))
         self.add_forwarder_btn.clicked.connect(self._handle_add_forwarder)
@@ -676,8 +715,7 @@ class SettingsPage(QWidget):
     def _handle_add_forwarder(self):
         if not db_manager: return
         dialog = FreightForwarderDialog(parent=self)
-        if dialog.exec_() == QDialog.Accepted:
-            self._load_forwarders_table()
+        if dialog.exec_() == QDialog.Accepted: self._load_forwarders_table()
 
     def _handle_edit_forwarder(self):
         if not db_manager: return
@@ -687,10 +725,8 @@ class SettingsPage(QWidget):
         forwarder_data = db_manager.get_freight_forwarder_by_id(forwarder_id)
         if forwarder_data:
             dialog = FreightForwarderDialog(forwarder_data=forwarder_data, parent=self)
-            if dialog.exec_() == QDialog.Accepted:
-                self._load_forwarders_table()
-        else:
-            QMessageBox.warning(self, self.tr("Error"), self.tr("Freight Forwarder not found."))
+            if dialog.exec_() == QDialog.Accepted: self._load_forwarders_table()
+        else: QMessageBox.warning(self, self.tr("Error"), self.tr("Freight Forwarder not found."))
 
     def _handle_delete_forwarder(self):
         if not db_manager: return
@@ -698,16 +734,12 @@ class SettingsPage(QWidget):
         if not selected_items: return
         forwarder_id = self.forwarders_table.item(selected_items[0].row(), 0).text()
         forwarder_name = self.forwarders_table.item(selected_items[0].row(), 1).text()
-
-        reply = QMessageBox.question(self, self.tr("Confirm Delete"),
-                                     self.tr("Are you sure you want to delete freight forwarder '{0}'?").format(forwarder_name),
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, self.tr("Confirm Delete"), self.tr("Are you sure you want to delete freight forwarder '{0}'?").format(forwarder_name), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             if db_manager.delete_freight_forwarder(forwarder_id):
                 QMessageBox.information(self, self.tr("Success"), self.tr("Freight Forwarder deleted."))
                 self._load_forwarders_table()
-            else:
-                QMessageBox.warning(self, self.tr("DB Error"), self.tr("Could not delete freight forwarder."))
+            else: QMessageBox.warning(self, self.tr("DB Error"), self.tr("Could not delete freight forwarder."))
 
     def _update_forwarder_button_states(self):
         has_selection = bool(self.forwarders_table.selectedItems())
@@ -717,209 +749,92 @@ class SettingsPage(QWidget):
     def _setup_data_management_tab(self):
         data_management_tab_widget = QWidget()
         layout = QVBoxLayout(data_management_tab_widget)
-
         self.import_products_btn = QPushButton(self.tr("Import Products"))
         self.import_products_btn.clicked.connect(self._handle_import_products)
         layout.addWidget(self.import_products_btn)
-
         self.export_products_btn = QPushButton(self.tr("Export Products"))
         self.export_products_btn.clicked.connect(self._handle_export_products)
         layout.addWidget(self.export_products_btn)
-
         instructions_label = QLabel(self.tr("Instructions for import/export format and ChatGPT prompt will be displayed here."))
         instructions_label.setWordWrap(True)
         instructions_label.setStyleSheet("font-style: italic; color: grey;")
         layout.addWidget(instructions_label)
-
-        layout.addStretch(1) # Add stretch to push elements to the top
+        layout.addStretch(1)
         data_management_tab_widget.setLayout(layout)
         self.tabs_widget.addTab(data_management_tab_widget, self.tr("Data Management"))
 
     def _handle_export_products(self):
-        if not products_crud_instance:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot export products."))
-            return
-
-        try:
-            products = products_crud_instance.get_all_products(include_deleted=True, limit=None, offset=0)
-        except Exception as e:
-            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Failed to retrieve products from the database: {0}").format(str(e)))
-            return
-
-        if not products:
-            QMessageBox.information(self, self.tr("No Products"), self.tr("There are no products to export."))
-            return
-
-        # Define default filename and path
+        if not products_crud_instance: QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot export products.")); return
+        try: products = products_crud_instance.get_all_products(include_deleted=True, limit=None, offset=0)
+        except Exception as e: QMessageBox.critical(self, self.tr("Database Error"), self.tr("Failed to retrieve products from the database: {0}").format(str(e))); return
+        if not products: QMessageBox.information(self, self.tr("No Products"), self.tr("There are no products to export.")); return
         default_filename = "products_export.csv"
-        # Suggest user's Documents directory or home directory as a default
         default_dir = os.path.join(os.path.expanduser('~'), 'Documents')
-        if not os.path.exists(default_dir):
-            default_dir = os.path.expanduser('~')
+        if not os.path.exists(default_dir): default_dir = os.path.expanduser('~')
         suggested_filepath = os.path.join(default_dir, default_filename)
-
-        # Open QFileDialog
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog # Optional: use Qt's dialog instead of native
-        filePath, _ = QFileDialog.getSaveFileName(self,
-                                                  self.tr("Save Product Export"),
-                                                  suggested_filepath, # Default path and filename
-                                                  self.tr("CSV Files (*.csv);;All Files (*)"),
-                                                  options=options)
-
+        options = QFileDialog.Options(); options |= QFileDialog.DontUseNativeDialog
+        filePath, _ = QFileDialog.getSaveFileName(self, self.tr("Save Product Export"), suggested_filepath, self.tr("CSV Files (*.csv);;All Files (*)"), options=options)
         if filePath:
-            # Ensure the filename ends with .csv if the user didn't specify
-            if not filePath.lower().endswith(".csv"):
-                filePath += ".csv"
-
-            header = ["product_id", "product_name", "product_code", "description", "category",
-                      "language_code", "base_unit_price", "unit_of_measure", "weight",
-                      "dimensions", "is_active", "is_deleted"]
+            if not filePath.lower().endswith(".csv"): filePath += ".csv"
+            header = ["product_id", "product_name", "product_code", "description", "category", "language_code", "base_unit_price", "unit_of_measure", "weight", "dimensions", "is_active", "is_deleted"]
             try:
                 with open(filePath, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.DictWriter(csvfile, fieldnames=header, extrasaction='ignore')
                     writer.writeheader()
                     for product in products:
-                        # Ensure all fields are present, defaulting to empty string or appropriate representation
                         row_data = {field: getattr(product, field, '') for field in header}
-
-                        # Handle complex types like 'dimensions' if it's an object/dict
-                        if isinstance(row_data['dimensions'], (dict, list)):
-                             row_data['dimensions'] = str(row_data['dimensions']) # Simple string representation
-
-                        # Convert boolean values to string explicitly if needed by some CSV readers
+                        if isinstance(row_data['dimensions'], (dict, list)): row_data['dimensions'] = str(row_data['dimensions'])
                         row_data['is_active'] = str(row_data['is_active'])
                         row_data['is_deleted'] = str(row_data['is_deleted'])
-
                         writer.writerow(row_data)
-                QMessageBox.information(self, self.tr("Export Successful"),
-                                        self.tr("Products exported successfully to: {0}").format(filePath))
-            except IOError as e:
-                QMessageBox.critical(self, self.tr("Export Error"),
-                                     self.tr("Failed to write to file: {0}\nError: {1}").format(filePath, str(e)))
-            except Exception as e:
-                QMessageBox.critical(self, self.tr("Export Error"),
-                                     self.tr("An unexpected error occurred during export: {0}").format(str(e)))
+                QMessageBox.information(self, self.tr("Export Successful"), self.tr("Products exported successfully to: {0}").format(filePath))
+            except IOError as e: QMessageBox.critical(self, self.tr("Export Error"), self.tr("Failed to write to file: {0}\nError: {1}").format(filePath, str(e)))
+            except Exception as e: QMessageBox.critical(self, self.tr("Export Error"), self.tr("An unexpected error occurred during export: {0}").format(str(e)))
 
     def _handle_import_products(self):
-        if not products_crud_instance:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot import products."))
-            return
-
-        # Show instructions dialog first
+        if not products_crud_instance: QMessageBox.critical(self, self.tr("Error"), self.tr("Product data module is not available. Cannot import products.")); return
         instructions_dialog = ImportInstructionsDialog(self)
-        if not instructions_dialog.exec_() == QDialog.Accepted:
-            return # User cancelled the instructions dialog
-
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        filePath, _ = QFileDialog.getOpenFileName(self,
-                                                  self.tr("Open Product CSV File"),
-                                                  os.path.expanduser('~'), # Default to home directory
-                                                  self.tr("CSV Files (*.csv);;All Files (*)"),
-                                                  options=options)
-
-        if not filePath:
-            return # User cancelled
-
-        expected_headers = ["product_id", "product_name", "product_code", "description", "category",
-                            "language_code", "base_unit_price", "unit_of_measure", "weight",
-                            "dimensions", "is_active", "is_deleted"]
-
-        successful_imports = 0
-        failed_imports = 0
-        error_details = []
-
+        if not instructions_dialog.exec_() == QDialog.Accepted: return
+        options = QFileDialog.Options(); options |= QFileDialog.DontUseNativeDialog
+        filePath, _ = QFileDialog.getOpenFileName(self, self.tr("Open Product CSV File"), os.path.expanduser('~'), self.tr("CSV Files (*.csv);;All Files (*)"), options=options)
+        if not filePath: return
+        successful_imports = 0; failed_imports = 0; error_details = []
         try:
             with open(filePath, 'r', newline='', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
-
-                # Validate header
-                if not reader.fieldnames or not all(header in reader.fieldnames for header in ["product_name", "product_code", "base_unit_price"]): # Check for essential headers
-                    QMessageBox.critical(self, self.tr("Invalid CSV Format"), self.tr("The CSV file is missing one or more required headers (product_name, product_code, base_unit_price) or is not a valid CSV."))
-                    return
-
+                if not reader.fieldnames or not all(header in reader.fieldnames for header in ["product_name", "product_code", "base_unit_price"]):
+                    QMessageBox.critical(self, self.tr("Invalid CSV Format"), self.tr("The CSV file is missing one or more required headers (product_name, product_code, base_unit_price) or is not a valid CSV.")); return
                 for i, row in enumerate(reader):
-                    line_num = i + 2 # Account for header and 0-based index
-                    product_data = {}
-
-                    # Required fields
-                    product_name = row.get("product_name", "").strip()
-                    product_code = row.get("product_code", "").strip()
-                    base_unit_price_str = row.get("base_unit_price", "").strip()
-
-                    if not product_name:
-                        error_details.append(self.tr("Line {0}: Missing required field 'product_name'.").format(line_num))
-                        failed_imports += 1
-                        continue
-                    if not product_code:
-                        error_details.append(self.tr("Line {0}: Missing required field 'product_code' for product '{1}'.").format(line_num, product_name))
-                        failed_imports += 1
-                        continue
-                    if not base_unit_price_str:
-                        error_details.append(self.tr("Line {0}: Missing required field 'base_unit_price' for product '{1}'.").format(line_num, product_name))
-                        failed_imports += 1
-                        continue
-
-                    try:
-                        product_data["base_unit_price"] = float(base_unit_price_str)
-                    except ValueError:
-                        error_details.append(self.tr("Line {0}: Invalid format for 'base_unit_price' (must be a number) for product '{1}'.").format(line_num, product_name))
-                        failed_imports += 1
-                        continue
-
-                    product_data["product_name"] = product_name
-                    product_data["product_code"] = product_code
-
-                    # Optional fields
-                    product_data["description"] = row.get("description", "").strip()
-                    product_data["category"] = row.get("category", "").strip()
-                    product_data["language_code"] = row.get("language_code", "fr").strip() or "fr" # Default to 'fr'
-                    product_data["unit_of_measure"] = row.get("unit_of_measure", "").strip()
-                    product_data["weight"] = row.get("weight", "").strip() # Assuming weight is stored as string or number, CRUD should handle
-                    product_data["dimensions"] = row.get("dimensions", "").strip() # Assuming dimensions stored as string, CRUD should handle
-
-                    is_active_str = row.get("is_active", "True").strip().lower()
-                    product_data["is_active"] = is_active_str in ['true', '1', 'yes']
-
-                    is_deleted_str = row.get("is_deleted", "False").strip().lower()
-                    product_data["is_deleted"] = is_deleted_str in ['true', '1', 'yes'] # Interpreting 'is_deleted' from CSV
-
-                    try:
-                        products_crud_instance.add_product(product_data)
-                        successful_imports += 1
-                    except Exception as e:
-                        error_details.append(self.tr("Line {0}: Error importing product '{1}': {2}").format(line_num, product_name, str(e)))
-                        failed_imports += 1
-
-        except FileNotFoundError:
-            QMessageBox.critical(self, self.tr("Error"), self.tr("The selected file was not found: {0}").format(filePath))
-            return
-        except Exception as e: # Catch other CSV parsing errors or unexpected issues
-            QMessageBox.critical(self, self.tr("Import Error"), self.tr("An unexpected error occurred during import: {0}").format(str(e)))
-            return
-
-        # Show summary
+                    line_num = i + 2; product_data = {}
+                    product_name = row.get("product_name", "").strip(); product_code = row.get("product_code", "").strip(); base_unit_price_str = row.get("base_unit_price", "").strip()
+                    if not product_name: error_details.append(self.tr("Line {0}: Missing required field 'product_name'.").format(line_num)); failed_imports += 1; continue
+                    if not product_code: error_details.append(self.tr("Line {0}: Missing required field 'product_code' for product '{1}'.").format(line_num, product_name)); failed_imports += 1; continue
+                    if not base_unit_price_str: error_details.append(self.tr("Line {0}: Missing required field 'base_unit_price' for product '{1}'.").format(line_num, product_name)); failed_imports += 1; continue
+                    try: product_data["base_unit_price"] = float(base_unit_price_str)
+                    except ValueError: error_details.append(self.tr("Line {0}: Invalid format for 'base_unit_price' (must be a number) for product '{1}'.").format(line_num, product_name)); failed_imports += 1; continue
+                    product_data["product_name"] = product_name; product_data["product_code"] = product_code
+                    product_data["description"] = row.get("description", "").strip(); product_data["category"] = row.get("category", "").strip()
+                    product_data["language_code"] = row.get("language_code", "fr").strip() or "fr"
+                    product_data["unit_of_measure"] = row.get("unit_of_measure", "").strip(); product_data["weight"] = row.get("weight", "").strip()
+                    product_data["dimensions"] = row.get("dimensions", "").strip()
+                    is_active_str = row.get("is_active", "True").strip().lower(); product_data["is_active"] = is_active_str in ['true', '1', 'yes']
+                    is_deleted_str = row.get("is_deleted", "False").strip().lower(); product_data["is_deleted"] = is_deleted_str in ['true', '1', 'yes']
+                    try: products_crud_instance.add_product(product_data); successful_imports += 1
+                    except Exception as e: error_details.append(self.tr("Line {0}: Error importing product '{1}': {2}").format(line_num, product_name, str(e))); failed_imports += 1
+        except FileNotFoundError: QMessageBox.critical(self, self.tr("Error"), self.tr("The selected file was not found: {0}").format(filePath)); return
+        except Exception as e: QMessageBox.critical(self, self.tr("Import Error"), self.tr("An unexpected error occurred during import: {0}").format(str(e))); return
         summary_message = self.tr("Import complete.\nSuccessfully imported: {0} products.\nFailed to import: {1} products.").format(successful_imports, failed_imports)
         if error_details:
             detailed_errors = "\n\n" + self.tr("Error Details (first 5 shown):") + "\n" + "\n".join(error_details[:5])
-            if len(error_details) > 5:
-                detailed_errors += "\n" + self.tr("...and {0} more errors.").format(len(error_details) - 5)
-            # For very long error lists, consider writing to a log file instead of stuffing into QMessageBox
-            if len(summary_message + detailed_errors) > 1000: # Rough limit for readability
-                 detailed_errors = "\n\n" + self.tr("Numerous errors occurred. Please check data integrity. First few errors:\n") + "\n".join(error_details[:3])
+            if len(error_details) > 5: detailed_errors += "\n" + self.tr("...and {0} more errors.").format(len(error_details) - 5)
+            if len(summary_message + detailed_errors) > 1000: detailed_errors = "\n\n" + self.tr("Numerous errors occurred. Please check data integrity. First few errors:\n") + "\n".join(error_details[:3])
             summary_message += detailed_errors
-
-        if failed_imports > 0:
-            QMessageBox.warning(self, self.tr("Import Partially Successful"), summary_message)
-        else:
-            QMessageBox.information(self, self.tr("Import Successful"), summary_message)
-
+        if failed_imports > 0: QMessageBox.warning(self, self.tr("Import Partially Successful"), summary_message)
+        else: QMessageBox.information(self, self.tr("Import Successful"), summary_message)
 
     def _load_general_tab_data(self):
         self.templates_dir_input.setText(self.main_config.get("templates_dir", ""))
         self.clients_dir_input.setText(self.main_config.get("clients_dir", ""))
-        # Ensure new keys are present with defaults if missing from config
         self.main_config.setdefault("download_monitor_enabled", False)
         self.main_config.setdefault("download_monitor_path", os.path.join(os.path.expanduser('~'), 'Downloads'))
         current_lang_code = self.main_config.get("language", "fr")
@@ -932,7 +847,6 @@ class SettingsPage(QWidget):
         self.google_maps_url_input.setText(self.main_config.get("google_maps_review_url", "https://maps.google.com/?cid=YOUR_CID_HERE"))
         self.show_setup_prompt_checkbox.setChecked(self.main_config.get("show_initial_setup_on_startup", False))
         self.db_path_input.setText(self.main_config.get("database_path", os.path.join(os.getcwd(), "app_data.db")))
-
 
     def _load_email_tab_data(self):
         self.smtp_server_input.setText(self.main_config.get("smtp_server", ""))
@@ -966,228 +880,102 @@ class SettingsPage(QWidget):
         return {"smtp_server": self.smtp_server_input.text().strip(), "smtp_port": self.smtp_port_spinbox.value(), "smtp_user": self.smtp_user_input.text().strip(), "smtp_password": self.smtp_pass_input.text()}
 
     def get_download_monitor_settings_data(self):
-        return {
-            "download_monitor_enabled": self.download_monitor_enabled_checkbox.isChecked(),
-            "download_monitor_path": self.download_monitor_path_input.text().strip()
-        }
+        return { "download_monitor_enabled": self.download_monitor_enabled_checkbox.isChecked(), "download_monitor_path": self.download_monitor_path_input.text().strip()}
 
     def _load_all_settings_from_config(self):
-        self._load_general_tab_data()
-        self._load_email_tab_data()
-        self._load_download_monitor_tab_data()
-        self._load_modules_tab_data() # Load data for the new modules tab
-        # Transporter and Forwarder data are loaded from DB directly.
+        self._load_general_tab_data(); self._load_email_tab_data(); self._load_download_monitor_tab_data(); self._load_modules_tab_data()
         print("SettingsPage: All settings reloaded.")
 
     def _save_all_settings(self):
-        # General Settings
-        general_settings = self.get_general_settings_data()
-        for key, value in general_settings.items():
-            self.main_config[key] = value
-
-        # Email Settings
-        email_settings = self.get_email_settings_data()
-        for key, value in email_settings.items():
-            self.main_config[key] = value
-
-        # Download Monitor Settings
-        download_monitor_settings = self.get_download_monitor_settings_data()
-        for key, value in download_monitor_settings.items():
-            self.main_config[key] = value
-
-        # Save to the actual config file (e.g., JSON)
-        # This part depends on how main_config is persisted in the actual application
-        # For now, we just update the dictionary.
-        # Example: config_manager.save_config(self.main_config)
-
-        # Save module settings
+        general_settings = self.get_general_settings_data(); email_settings = self.get_email_settings_data(); download_monitor_settings = self.get_download_monitor_settings_data()
+        for d in [general_settings, email_settings, download_monitor_settings]:
+            for key, value in d.items(): self.main_config[key] = value
         self._save_modules_tab_data()
-
-        # Company Tab has its own save mechanism internally if needed, or could be called here.
-        # self.company_tab.save_settings()
-
-        # Transporter and Forwarder data are saved via their respective dialogs, not here.
-
         QMessageBox.information(self, self.tr("Settings Saved"), self.tr("All settings have been updated. Some changes may require an application restart to take full effect."))
         print("All settings saved (main_config updated, modules saved to DB).")
-
 
     def _setup_modules_tab(self):
         modules_tab_widget = QWidget()
         modules_form_layout = QFormLayout(modules_tab_widget)
-        modules_form_layout.setContentsMargins(10, 10, 10, 10)
-        modules_form_layout.setSpacing(10)
-
+        modules_form_layout.setContentsMargins(10, 10, 10, 10); modules_form_layout.setSpacing(10)
         for module_info in self.module_config:
-            key = module_info["key"]
-            label_text = module_info["label_text"]
-
-            module_label = QLabel(label_text)
-
-            radio_group_box = QGroupBox() # Optional, for visual grouping
-            radio_layout = QHBoxLayout()
-
-            radio_enabled = QRadioButton(self.tr("Activé"))
-            radio_disabled = QRadioButton(self.tr("Désactivé"))
-
-            radio_layout.addWidget(radio_enabled)
-            radio_layout.addWidget(radio_disabled)
-            radio_group_box.setLayout(radio_layout)
-
+            key = module_info["key"]; label_text = module_info["label_text"]
+            module_label = QLabel(label_text); radio_group_box = QGroupBox(); radio_layout = QHBoxLayout()
+            radio_enabled = QRadioButton(self.tr("Activé")); radio_disabled = QRadioButton(self.tr("Désactivé"))
+            radio_layout.addWidget(radio_enabled); radio_layout.addWidget(radio_disabled); radio_group_box.setLayout(radio_layout)
             self.module_radio_buttons[key] = {"enabled": radio_enabled, "disabled": radio_disabled}
-
             modules_form_layout.addRow(module_label, radio_group_box)
-
         restart_notice_label = QLabel(self.tr("Un redémarrage de l'application est nécessaire pour que les modifications des modules prennent pleinement effet."))
-        restart_notice_label.setWordWrap(True)
-        restart_notice_label.setStyleSheet("font-style: italic; color: grey;")
+        restart_notice_label.setWordWrap(True); restart_notice_label.setStyleSheet("font-style: italic; color: grey;")
         modules_form_layout.addRow(restart_notice_label)
-
         modules_tab_widget.setLayout(modules_form_layout)
         self.tabs_widget.addTab(modules_tab_widget, self.tr("Gestion des Modules"))
 
     def _load_modules_tab_data(self):
-        if not db_manager:
-            print("WARNING: db_manager not available. Cannot load module settings.")
-            return
-
+        if not db_manager: print("WARNING: db_manager not available. Cannot load module settings."); return
         for module_info in self.module_config:
             key = module_info["key"]
-            # Default to True (enabled) if the setting is not found
             is_enabled_str = db_manager.get_setting(key, default='True')
-
-            # Handle boolean True/False or string 'True'/'False'
-            if isinstance(is_enabled_str, bool):
-                is_enabled = is_enabled_str
-            else:
-                is_enabled = is_enabled_str.lower() == 'true'
-
+            is_enabled = isinstance(is_enabled_str, bool) and is_enabled_str or is_enabled_str.lower() == 'true'
             if key in self.module_radio_buttons:
                 radios = self.module_radio_buttons[key]
-                if is_enabled:
-                    radios["enabled"].setChecked(True)
-                else:
-                    radios["disabled"].setChecked(True)
-            else:
-                print(f"Warning: Radio buttons for module key '{key}' not found.")
+                if is_enabled: radios["enabled"].setChecked(True)
+                else: radios["disabled"].setChecked(True)
+            else: print(f"Warning: Radio buttons for module key '{key}' not found.")
         print("Module settings loaded from DB.")
 
     def _save_modules_tab_data(self):
-        if not db_manager:
-            print("WARNING: db_manager not available. Cannot save module settings.")
-            # Optionally, inform the user with a QMessageBox
-            QMessageBox.warning(self, self.tr("Database Error"),
-                                self.tr("Database connection is not available. Module settings cannot be saved."))
-            return
-
+        if not db_manager: QMessageBox.warning(self, self.tr("Database Error"), self.tr("Database connection is not available. Module settings cannot be saved.")); return
         for module_info in self.module_config:
             key = module_info["key"]
             if key in self.module_radio_buttons:
-                radios = self.module_radio_buttons[key]
-                value_to_save = 'True' if radios["enabled"].isChecked() else 'False'
-                try:
-                    db_manager.set_setting(key, value_to_save)
-                except Exception as e:
-                    print(f"Error saving module setting {key}: {e}")
-                    QMessageBox.critical(self, self.tr("Error Saving Module"),
-                                         self.tr("Could not save setting for {0}: {1}").format(module_info["label_text"], str(e)))
-            else:
-                print(f"Warning: Radio buttons for module key '{key}' not found during save.")
+                value_to_save = 'True' if self.module_radio_buttons[key]["enabled"].isChecked() else 'False'
+                try: db_manager.set_setting(key, value_to_save)
+                except Exception as e: print(f"Error saving module setting {key}: {e}"); QMessageBox.critical(self, self.tr("Error Saving Module"), self.tr("Could not save setting for {0}: {1}").format(module_info["label_text"], str(e)))
+            else: print(f"Warning: Radio buttons for module key '{key}' not found during save.")
         print("Module settings saved to DB.")
 
     def _setup_template_visibility_tab(self):
         self.template_visibility_tab = QWidget()
         layout = QVBoxLayout(self.template_visibility_tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-
-        # Table for template visibility
+        layout.setContentsMargins(10, 10, 10, 10); layout.setSpacing(10)
         self.template_visibility_table = QTableWidget()
         self.template_visibility_table.setColumnCount(5)
-        self.template_visibility_table.setHorizontalHeaderLabels([
-            self.tr("Template Name"), self.tr("Description"), self.tr("Type"),
-            self.tr("Language"), self.tr("Visible")
-        ])
+        self.template_visibility_table.setHorizontalHeaderLabels([self.tr("Template Name"), self.tr("Description"), self.tr("Type"), self.tr("Language"), self.tr("Visible")])
         self.template_visibility_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.template_visibility_table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Non-editable text
+        self.template_visibility_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.template_visibility_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.template_visibility_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.template_visibility_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Checkbox column
-
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         layout.addWidget(self.template_visibility_table)
-
-        # Buttons layout
         buttons_layout = QHBoxLayout()
-        self.refresh_template_visibility_btn = QPushButton(self.tr("Refresh List"))
-        self.refresh_template_visibility_btn.setIcon(QIcon(":/icons/refresh.svg")) # Assuming icon exists
+        self.refresh_template_visibility_btn = QPushButton(self.tr("Refresh List")); self.refresh_template_visibility_btn.setIcon(QIcon(":/icons/refresh.svg"))
         self.refresh_template_visibility_btn.clicked.connect(self._load_template_visibility_data)
         buttons_layout.addWidget(self.refresh_template_visibility_btn)
-
         buttons_layout.addStretch(1)
-
-        self.save_template_visibility_btn = QPushButton(self.tr("Save Visibility Settings"))
-        self.save_template_visibility_btn.setIcon(QIcon(":/icons/save.svg")) # Assuming icon exists
+        self.save_template_visibility_btn = QPushButton(self.tr("Save Visibility Settings")); self.save_template_visibility_btn.setIcon(QIcon(":/icons/save.svg"))
         self.save_template_visibility_btn.clicked.connect(self._save_template_visibility_data)
         buttons_layout.addWidget(self.save_template_visibility_btn)
-
         layout.addLayout(buttons_layout)
         self.tabs_widget.addTab(self.template_visibility_tab, self.tr("Template Visibility"))
-
-        self._load_template_visibility_data() # Initial load
+        self._load_template_visibility_data()
 
     def _load_template_visibility_data(self):
         print("SettingsPage: _load_template_visibility_data called (mocked).")
-        # Mocked API call to GET /api/templates/visibility_settings
-        # In a real scenario, this would use self._call_api or similar
-        sample_data = [
-            {"template_id": 101, "template_name": "Proforma Invoice (Basic)", "description": "Standard proforma template.", "template_type": "proforma_invoice_html", "language_code": "fr", "is_visible": True},
-            {"template_id": 102, "template_name": "Cover Page (Modern)", "description": "Modern style cover page.", "template_type": "html_cover_page", "language_code": "fr", "is_visible": True},
-            {"template_id": 103, "template_name": "Sales Quote (EN)", "description": "Standard sales quote in English.", "template_type": "document_word", "language_code": "en", "is_visible": False},
-            {"template_id": 104, "template_name": "Product Catalog (Compact)", "description": "Compact product catalog.", "template_type": "document_pdf", "language_code": "fr", "is_visible": True},
-            {"template_id": 105, "template_name": self.tr("Affichage Images Produit FR"), "description": self.tr("Affiche les images des produits, leur nom et leur code."), "template_type": "document_html", "language_code": "fr", "is_visible": True},
-        ]
-        # If using a real API call:
-        # try:
-        #     response = self._call_api(method="GET", endpoint="/api/templates/visibility_settings")
-        #     if response and isinstance(response, list):
-        #         sample_data = response
-        #     else:
-        #         QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to load template visibility data from server.") + (f"\n{response.get('detail')}" if response else ""))
-        #         sample_data = [] # Fallback to empty
-        # except Exception as e:
-        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API for template visibility: {0}").format(str(e)))
-        #     sample_data = []
-
-        self.template_visibility_table.setRowCount(0) # Clear table
-        self.template_visibility_table.setSortingEnabled(False)
-
+        sample_data = [{"template_id": 101, "template_name": "Proforma Invoice (Basic)", "description": "Standard proforma template.", "template_type": "proforma_invoice_html", "language_code": "fr", "is_visible": True}, {"template_id": 102, "template_name": "Cover Page (Modern)", "description": "Modern style cover page.", "template_type": "html_cover_page", "language_code": "fr", "is_visible": True}, {"template_id": 103, "template_name": "Sales Quote (EN)", "description": "Standard sales quote in English.", "template_type": "document_word", "language_code": "en", "is_visible": False}, {"template_id": 104, "template_name": "Product Catalog (Compact)", "description": "Compact product catalog.", "template_type": "document_pdf", "language_code": "fr", "is_visible": True}, {"template_id": 105, "template_name": self.tr("Affichage Images Produit FR"), "description": self.tr("Affiche les images des produits, leur nom et leur code."), "template_type": "document_html", "language_code": "fr", "is_visible": True}]
+        self.template_visibility_table.setRowCount(0); self.template_visibility_table.setSortingEnabled(False)
         for row_idx, t_data in enumerate(sample_data):
             self.template_visibility_table.insertRow(row_idx)
-
-            name_item = QTableWidgetItem(t_data.get("template_name", "N/A"))
-            # Store template_id in the first item's UserRole for easy retrieval
-            name_item.setData(Qt.UserRole, t_data.get("template_id"))
+            name_item = QTableWidgetItem(t_data.get("template_name", "N/A")); name_item.setData(Qt.UserRole, t_data.get("template_id"))
             self.template_visibility_table.setItem(row_idx, 0, name_item)
-
             self.template_visibility_table.setItem(row_idx, 1, QTableWidgetItem(t_data.get("description", "")))
             self.template_visibility_table.setItem(row_idx, 2, QTableWidgetItem(t_data.get("template_type", "")))
             self.template_visibility_table.setItem(row_idx, 3, QTableWidgetItem(t_data.get("language_code", "")))
-
-            # Checkbox for visibility
-            checkbox_widget = QWidget() # Container for centering checkbox
-            checkbox_layout = QHBoxLayout(checkbox_widget)
-            checkbox_layout.setContentsMargins(0,0,0,0)
-            checkbox_layout.setAlignment(Qt.AlignCenter)
-            visibility_checkbox = QCheckBox()
-            visibility_checkbox.setChecked(t_data.get("is_visible", True))
-            # Store template_id directly on checkbox too for convenience if needed, though UserRole on row is common
-            visibility_checkbox.setProperty("template_id", t_data.get("template_id"))
-            checkbox_layout.addWidget(visibility_checkbox)
-            self.template_visibility_table.setCellWidget(row_idx, 4, checkbox_widget)
-
+            checkbox_widget = QWidget(); checkbox_layout = QHBoxLayout(checkbox_widget); checkbox_layout.setContentsMargins(0,0,0,0); checkbox_layout.setAlignment(Qt.AlignCenter)
+            visibility_checkbox = QCheckBox(); visibility_checkbox.setChecked(t_data.get("is_visible", True)); visibility_checkbox.setProperty("template_id", t_data.get("template_id"))
+            checkbox_layout.addWidget(visibility_checkbox); self.template_visibility_table.setCellWidget(row_idx, 4, checkbox_widget)
         self.template_visibility_table.setSortingEnabled(True)
         print(f"SettingsPage: Template visibility table populated with {len(sample_data)} items (mocked).")
-
 
     def _save_template_visibility_data(self):
         print("SettingsPage: _save_template_visibility_data called (mocked).")
@@ -1195,39 +983,15 @@ class SettingsPage(QWidget):
         for row_idx in range(self.template_visibility_table.rowCount()):
             template_id_item = self.template_visibility_table.item(row_idx, 0)
             template_id = template_id_item.data(Qt.UserRole) if template_id_item else None
-
             visibility_cell_widget = self.template_visibility_table.cellWidget(row_idx, 4)
-            if not (template_id and visibility_cell_widget):
-                print(f"Warning: Missing data for row {row_idx}. Skipping.")
-                continue
-
-            # Assuming the cell widget is the QWidget container, find the QCheckBox
+            if not (template_id and visibility_cell_widget): print(f"Warning: Missing data for row {row_idx}. Skipping."); continue
             visibility_checkbox = visibility_cell_widget.findChild(QCheckBox)
-            if not visibility_checkbox:
-                print(f"Warning: QCheckBox not found in cell for row {row_idx}, template_id {template_id}. Skipping.")
-                continue
-
+            if not visibility_checkbox: print(f"Warning: QCheckBox not found in cell for row {row_idx}, template_id {template_id}. Skipping."); continue
             is_visible = visibility_checkbox.isChecked()
             payload_items.append({"template_id": template_id, "is_visible": is_visible})
-
         payload = {"preferences": payload_items}
         print(f"SettingsPage: Payload for POST /api/templates/visibility_settings (mocked): {payload}")
-
-        # Mocked API call
-        # try:
-        #     response = self._call_api(method="POST", endpoint="/api/templates/visibility_settings", data=payload)
-        #     if response and response.get("message"):
-        #         QMessageBox.information(self, self.tr("Success"), self.tr("Template visibility settings saved successfully."))
-        #         self._load_template_visibility_data() # Refresh data
-        #     else:
-        #         QMessageBox.warning(self, self.tr("Save Error"), self.tr("Failed to save template visibility settings.") + (f"\nDetail: {response.get('detail')}" if response else ""))
-        # except Exception as e:
-        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API to save template visibility: {0}").format(str(e)))
-
-        # For mocked version:
         QMessageBox.information(self, self.tr("Mock Save"), self.tr("Template visibility data (mocked) prepared. Check console for payload."))
-        # self._load_template_visibility_data() # Optionally refresh after mock save too
-
 
 if __name__ == '__main__':
     print(f"Running in __main__ block. Current sys.path: {sys.path}") # Debug print
