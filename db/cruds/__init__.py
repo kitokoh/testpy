@@ -31,6 +31,7 @@ from . import product_media_links_crud
 from . import products_crud
 from . import projects_crud
 from . import status_settings_crud
+from . import tags_crud
 from . import tasks_crud
 from . import team_members_crud
 from . import template_categories_crud
