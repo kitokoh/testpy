@@ -272,10 +272,10 @@ print(f"Initial sys.path: {sys.path}") # Debug print
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel,
     QFormLayout, QLineEdit, QComboBox, QSpinBox, QFileDialog, QCheckBox,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit, # Added QDialog, QTextEdit
-    QGroupBox, QRadioButton
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit,
+    QGroupBox, QRadioButton, QHeaderView # Added QHeaderView
 )
-from PyQt5.QtGui import QIcon # Added for icons on buttons
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 
 # Assuming db_manager provides the necessary functions directly or via submodules
@@ -428,6 +428,7 @@ class SettingsPage(QWidget):
 
         self._setup_transporters_tab() # New
         self._setup_freight_forwarders_tab() # New
+        self._setup_template_visibility_tab() # New Tab for Template Visibility
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -1093,6 +1094,139 @@ class SettingsPage(QWidget):
             else:
                 print(f"Warning: Radio buttons for module key '{key}' not found during save.")
         print("Module settings saved to DB.")
+
+    def _setup_template_visibility_tab(self):
+        self.template_visibility_tab = QWidget()
+        layout = QVBoxLayout(self.template_visibility_tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Table for template visibility
+        self.template_visibility_table = QTableWidget()
+        self.template_visibility_table.setColumnCount(5)
+        self.template_visibility_table.setHorizontalHeaderLabels([
+            self.tr("Template Name"), self.tr("Description"), self.tr("Type"),
+            self.tr("Language"), self.tr("Visible")
+        ])
+        self.template_visibility_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.template_visibility_table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Non-editable text
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Checkbox column
+
+        layout.addWidget(self.template_visibility_table)
+
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+        self.refresh_template_visibility_btn = QPushButton(self.tr("Refresh List"))
+        self.refresh_template_visibility_btn.setIcon(QIcon(":/icons/refresh.svg")) # Assuming icon exists
+        self.refresh_template_visibility_btn.clicked.connect(self._load_template_visibility_data)
+        buttons_layout.addWidget(self.refresh_template_visibility_btn)
+
+        buttons_layout.addStretch(1)
+
+        self.save_template_visibility_btn = QPushButton(self.tr("Save Visibility Settings"))
+        self.save_template_visibility_btn.setIcon(QIcon(":/icons/save.svg")) # Assuming icon exists
+        self.save_template_visibility_btn.clicked.connect(self._save_template_visibility_data)
+        buttons_layout.addWidget(self.save_template_visibility_btn)
+
+        layout.addLayout(buttons_layout)
+        self.tabs_widget.addTab(self.template_visibility_tab, self.tr("Template Visibility"))
+
+        self._load_template_visibility_data() # Initial load
+
+    def _load_template_visibility_data(self):
+        print("SettingsPage: _load_template_visibility_data called (mocked).")
+        # Mocked API call to GET /api/templates/visibility_settings
+        # In a real scenario, this would use self._call_api or similar
+        sample_data = [
+            {"template_id": 101, "template_name": "Proforma Invoice (Basic)", "description": "Standard proforma template.", "template_type": "proforma_invoice_html", "language_code": "fr", "is_visible": True},
+            {"template_id": 102, "template_name": "Cover Page (Modern)", "description": "Modern style cover page.", "template_type": "html_cover_page", "language_code": "fr", "is_visible": True},
+            {"template_id": 103, "template_name": "Sales Quote (EN)", "description": "Standard sales quote in English.", "template_type": "document_word", "language_code": "en", "is_visible": False},
+            {"template_id": 104, "template_name": "Product Catalog (Compact)", "description": "Compact product catalog.", "template_type": "document_pdf", "language_code": "fr", "is_visible": True},
+            {"template_id": 105, "template_name": self.tr("Affichage Images Produit FR"), "description": self.tr("Affiche les images des produits, leur nom et leur code."), "template_type": "document_html", "language_code": "fr", "is_visible": True},
+        ]
+        # If using a real API call:
+        # try:
+        #     response = self._call_api(method="GET", endpoint="/api/templates/visibility_settings")
+        #     if response and isinstance(response, list):
+        #         sample_data = response
+        #     else:
+        #         QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to load template visibility data from server.") + (f"\n{response.get('detail')}" if response else ""))
+        #         sample_data = [] # Fallback to empty
+        # except Exception as e:
+        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API for template visibility: {0}").format(str(e)))
+        #     sample_data = []
+
+        self.template_visibility_table.setRowCount(0) # Clear table
+        self.template_visibility_table.setSortingEnabled(False)
+
+        for row_idx, t_data in enumerate(sample_data):
+            self.template_visibility_table.insertRow(row_idx)
+
+            name_item = QTableWidgetItem(t_data.get("template_name", "N/A"))
+            # Store template_id in the first item's UserRole for easy retrieval
+            name_item.setData(Qt.UserRole, t_data.get("template_id"))
+            self.template_visibility_table.setItem(row_idx, 0, name_item)
+
+            self.template_visibility_table.setItem(row_idx, 1, QTableWidgetItem(t_data.get("description", "")))
+            self.template_visibility_table.setItem(row_idx, 2, QTableWidgetItem(t_data.get("template_type", "")))
+            self.template_visibility_table.setItem(row_idx, 3, QTableWidgetItem(t_data.get("language_code", "")))
+
+            # Checkbox for visibility
+            checkbox_widget = QWidget() # Container for centering checkbox
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.setContentsMargins(0,0,0,0)
+            checkbox_layout.setAlignment(Qt.AlignCenter)
+            visibility_checkbox = QCheckBox()
+            visibility_checkbox.setChecked(t_data.get("is_visible", True))
+            # Store template_id directly on checkbox too for convenience if needed, though UserRole on row is common
+            visibility_checkbox.setProperty("template_id", t_data.get("template_id"))
+            checkbox_layout.addWidget(visibility_checkbox)
+            self.template_visibility_table.setCellWidget(row_idx, 4, checkbox_widget)
+
+        self.template_visibility_table.setSortingEnabled(True)
+        print(f"SettingsPage: Template visibility table populated with {len(sample_data)} items (mocked).")
+
+
+    def _save_template_visibility_data(self):
+        print("SettingsPage: _save_template_visibility_data called (mocked).")
+        payload_items = []
+        for row_idx in range(self.template_visibility_table.rowCount()):
+            template_id_item = self.template_visibility_table.item(row_idx, 0)
+            template_id = template_id_item.data(Qt.UserRole) if template_id_item else None
+
+            visibility_cell_widget = self.template_visibility_table.cellWidget(row_idx, 4)
+            if not (template_id and visibility_cell_widget):
+                print(f"Warning: Missing data for row {row_idx}. Skipping.")
+                continue
+
+            # Assuming the cell widget is the QWidget container, find the QCheckBox
+            visibility_checkbox = visibility_cell_widget.findChild(QCheckBox)
+            if not visibility_checkbox:
+                print(f"Warning: QCheckBox not found in cell for row {row_idx}, template_id {template_id}. Skipping.")
+                continue
+
+            is_visible = visibility_checkbox.isChecked()
+            payload_items.append({"template_id": template_id, "is_visible": is_visible})
+
+        payload = {"preferences": payload_items}
+        print(f"SettingsPage: Payload for POST /api/templates/visibility_settings (mocked): {payload}")
+
+        # Mocked API call
+        # try:
+        #     response = self._call_api(method="POST", endpoint="/api/templates/visibility_settings", data=payload)
+        #     if response and response.get("message"):
+        #         QMessageBox.information(self, self.tr("Success"), self.tr("Template visibility settings saved successfully."))
+        #         self._load_template_visibility_data() # Refresh data
+        #     else:
+        #         QMessageBox.warning(self, self.tr("Save Error"), self.tr("Failed to save template visibility settings.") + (f"\nDetail: {response.get('detail')}" if response else ""))
+        # except Exception as e:
+        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API to save template visibility: {0}").format(str(e)))
+
+        # For mocked version:
+        QMessageBox.information(self, self.tr("Mock Save"), self.tr("Template visibility data (mocked) prepared. Check console for payload."))
+        # self._load_template_visibility_data() # Optionally refresh after mock save too
 
 
 if __name__ == '__main__':

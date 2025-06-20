@@ -22,6 +22,7 @@ except ImportError:
 
 from .generic_crud import _manage_conn, get_db_connection # db_config removed from this import
 from .template_categories_crud import add_template_category, get_template_category_by_name
+from .application_settings_crud import get_setting # Added for visibility check
 
 # --- Templates CRUD ---
 @_manage_conn
@@ -362,6 +363,7 @@ def get_all_templates(
     client_id_filter: str = None,
     category_id_filter: Optional[Union[int, List[int]]] = None, # Modified type hint
     template_type_filter_list: list[str] = None,  # New parameter for list of types
+    apply_visibility_filter: bool = True, # New parameter
     conn: sqlite3.Connection = None
 ) -> list[dict]:
     cursor = conn.cursor()
@@ -402,16 +404,36 @@ def get_all_templates(
 
     sql += " ORDER BY client_id, category_id, template_name, language_code" # Added category_id to order for consistency
 
+    fetched_templates = []
     try:
         cursor.execute(sql, tuple(params))
-        return [dict(row) for row in cursor.fetchall()]
+        fetched_templates = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
         logging.error(
             f"Failed to get all templates with filters type='{template_type_filter if not template_type_filter_list else template_type_filter_list}', "
             f"lang='{language_code_filter}', client='{client_id_filter}', "
             f"category_id='{category_id_filter}': {e}"
         )
-        return []
+        return [] # Return empty list on DB error
+
+    if not apply_visibility_filter:
+        return fetched_templates # Return all fetched templates without visibility filtering
+
+    # Filter for visibility (this block is now conditional)
+    visible_templates = []
+    if fetched_templates:
+        for t_dict in fetched_templates:
+            template_id = t_dict.get('template_id') # template_id is int
+            if not template_id: # Should not happen with clean data
+                continue
+
+            # Use the imported get_setting, passing the connection
+            visibility_key = f"template_visibility_{template_id}_enabled"
+            is_visible_str = get_setting(visibility_key, default='True', conn=conn) # Pass conn
+            if is_visible_str.lower() == 'true':
+                visible_templates.append(t_dict)
+
+    return visible_templates
 
 @_manage_conn
 def get_distinct_languages_for_template_type(template_type: str, conn: sqlite3.Connection = None) -> list[str]:
