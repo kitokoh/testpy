@@ -1,6 +1,5 @@
 import os
 import sys
-import importlib.util
 import sqlite3
 import uuid
 import hashlib
@@ -41,6 +40,7 @@ except FileNotFoundError:
 except Exception as e:
     logging.error(f"An unexpected error occurred while loading app_config.py with importlib: {e}", exc_info=True)
     raise
+
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
