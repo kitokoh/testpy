@@ -88,8 +88,8 @@ class AddNewClientDialog(QDialog):
         self.language_select_combo.addItems(list(self.language_options_map.keys()))
         self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
 
-        self.default_template_combo = QComboBox()
-        self.form_layout.addRow(self.tr("Default Template:"), self.default_template_combo)
+        # self.default_template_combo = QComboBox() # Removed
+        # self.form_layout.addRow(self.tr("Default Template:"), self.default_template_combo) # Removed
 
         layout.addLayout(self.form_layout)
 
@@ -101,19 +101,19 @@ class AddNewClientDialog(QDialog):
         layout.addWidget(self.buttons)
 
         self.load_countries_into_combo()
-        self.populate_template_combo() # Added call
+        # self.populate_template_combo() # Removed call
         self._handle_initial_country()
 
-    def populate_template_combo(self):
-        self.default_template_combo.clear()
-        self.default_template_combo.addItem(self.tr("-- No Default --"), None)
-        try:
-            templates = get_all_templates(conn=None) # Assuming get_all_templates can handle None conn or uses its own
-            if templates:
-                for template in templates:
-                    self.default_template_combo.addItem(template['template_name'], template['template_id'])
-        except Exception as e:
-            QMessageBox.warning(self, self.tr("Template Loading Error"), self.tr("Could not load templates: {0}").format(str(e)))
+    # def populate_template_combo(self): # Removed
+    #     self.default_template_combo.clear() # Removed
+    #     self.default_template_combo.addItem(self.tr("-- No Default --"), None) # Removed
+    #     try: # Removed
+    #         templates = get_all_templates(conn=None) # Assuming get_all_templates can handle None conn or uses its own # Removed
+    #         if templates: # Removed
+    #             for template in templates: # Removed
+    #                 self.default_template_combo.addItem(template['template_name'], template['template_id']) # Removed
+    #     except Exception as e: # Removed
+    #         QMessageBox.warning(self, self.tr("Template Loading Error"), self.tr("Could not load templates: {0}").format(str(e))) # Removed
 
 
     def populate_from_voice_data(self, data: dict):

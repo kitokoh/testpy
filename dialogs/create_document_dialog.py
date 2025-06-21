@@ -200,41 +200,34 @@ class CreateDocumentDialog(QDialog):
 
             logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
 
-            if not category_ids_to_filter:
-                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
-                # If category_ids_to_filter is empty and passed to get_all_templates,
-                # it should result in no templates if the IN clause becomes `IN ()`.
-                # Or, if get_all_templates handles empty list by not adding the category filter,
-                # then all templates (matching other criteria) would be shown.
-                # The current implementation of get_all_templates with an empty list for IN clause
-                # will likely result in an SQL error or no results for that clause.
-                # It's better if get_all_templates doesn't add the clause if the list is empty.
-                # For now, we pass the empty list. If it causes issues, get_all_templates needs adjustment
-                # or we explicitly pass None if category_ids_to_filter is empty.
-                # Let's assume get_all_templates handles an empty list for category_id_filter correctly
-                # by not filtering on categories if the list is empty (e.g. by not adding the IN clause).
-                # To be safe, if empty, we might not want to filter by category at all,
-                # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
-                # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
-            if not category_ids_to_filter:
-                logging.warning(f"No categories found for desired purposes {desired_purposes}. Expanding filter to include templates from any category (or those with NULL purpose if DB handles it implicitly).")
-                actual_category_id_filter = None # This will cause get_all_templates to not filter by category
-            else:
-                actual_category_id_filter = category_ids_to_filter
+            # If no specific categories are found for the desired purposes,
+            # we should probably not filter by category at all, or ensure get_all_templates handles an empty list gracefully.
+            # For now, we'll pass None if category_ids_to_filter is empty, assuming get_all_templates
+            # interprets None as "do not filter by category".
+            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
+            if not actual_category_id_filter:
+                logging.warning(f"No categories found for desired purposes {desired_purposes}. No category filter will be applied to db_manager.get_all_templates.")
 
-            document_template_types = ['document_html', 'document_excel', 'document_word', 'document_pdf', 'document_other']
+            # Define the list of template types that are considered "documents"
+            # These should match the 'template_type' values in the Templates table for document templates.
+            document_template_types = [
+                'document_html', 'document_excel', 'document_word', 'document_pdf',
+                'document_other', 'PACKING_LIST', 'PROFORMA_INVOICE_HTML', 'SALES_CONTRACT_HTML',
+                'TECHNICAL_SPECIFICATIONS_HTML', 'WARRANTY_DOCUMENT_HTML', 'COVER_PAGE_HTML',
+                'EXCEL_PROFORMA_INVOICE', 'EXCEL_SALES_CONTRACT', 'EXCEL_PACKING_LIST',
+                'EXCEL_TECHNICAL_SPECIFICATIONS', 'EXCEL_CONTACT_PAGE'
+            ] # Expanded list based on typical document types observed in such systems.
             logging.info(f"DB query will use template_type_filter_list: {document_template_types}")
 
-
             templates_from_db = db_manager.get_all_templates(
-                template_type_filter_list=document_template_types, # Use list for broad doc types
-                template_type_filter=None, # Set single type filter to None for DB query
+                template_type_filter_list=document_template_types,
                 language_code_filter=effective_lang_filter,
-                client_id_filter=current_client_id,
-                category_id_filter=None  # Fetch all categories
+                client_id_filter=current_client_id, # Fetches client-specific and global templates
+                category_id_filter=actual_category_id_filter, # Use the determined category filter
+                apply_visibility_filter=True # Ensure visibility is checked
             )
-            if templates_from_db is None: templates_from_db = []
-            logging.info(f"Fetched {len(templates_from_db)} document-type templates from DB.")
+            if templates_from_db is None: templates_from_db = [] # Ensure it's a list
+            logging.info(f"Fetched {len(templates_from_db)} templates from DB after initial filters (type, lang, client, category, visibility).")
 
             # Apply UI's extension filter locally
             if selected_ext_display != self.tr("All"):
