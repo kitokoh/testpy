@@ -407,6 +407,7 @@ def initialize_database():
         notes TEXT,
         category TEXT,
         distributor_specific_info TEXT, -- Added in ca.py
+        default_template_id INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_by_user_id TEXT,
@@ -415,7 +416,8 @@ def initialize_database():
         FOREIGN KEY (country_id) REFERENCES Countries (country_id),
         FOREIGN KEY (city_id) REFERENCES Cities (city_id),
         FOREIGN KEY (status_id) REFERENCES StatusSettings (status_id),
-        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id)
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id),
+        FOREIGN KEY (default_template_id) REFERENCES Templates (template_id)
     )
     """)
     cursor.execute("PRAGMA table_info(Clients)")
@@ -1671,6 +1673,7 @@ CREATE TABLE IF NOT EXISTS Templates (
     """)
     # --- End Experience Module Tables ---
 
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_default_template_id ON Clients(default_template_id)")
 
     # --- Indexes (Consolidated from ca.py and schema.py) ---
     # Clients

@@ -67,7 +67,7 @@ class CreateDocumentDialog(QDialog):
         combined_filter_layout.addWidget(self.extension_filter_label)
         self.extension_filter_combo = QComboBox()
         self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
-        self.extension_filter_combo.setCurrentText("HTML")
+        self.extension_filter_combo.setCurrentText(self.tr("All"))
         combined_filter_layout.addWidget(self.extension_filter_combo)
 
         # Search Bar
@@ -204,6 +204,7 @@ class CreateDocumentDialog(QDialog):
             #     logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
             # actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
+
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
@@ -216,6 +217,7 @@ class CreateDocumentDialog(QDialog):
             # Consider renaming or removing if it causes confusion. For now, keeping it as is.
             logging.info(f"Fetched {len(templates_from_db)} templates from DB initially (before search/default processing).")
             # Add new log here - this one is more accurate for "after get_all_templates"
+
             logging.info(f"Templates received from get_all_templates (before search/default processing): {len(templates_from_db)}")
 
             # Apply search text filter locally first
@@ -352,8 +354,8 @@ class CreateDocumentDialog(QDialog):
             # Path construction modification: include template_type as a subdirectory
             template_type_folder = template_type if template_type and template_type.strip() else "unknown_type"
 
-            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], template_type_folder, db_template_lang, actual_template_filename)
-            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Type: {template_type_folder}, Lang: {db_template_lang}, File: {actual_template_filename})")
+            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Lang: {db_template_lang}, File: {actual_template_filename})")
 
             if not os.path.exists(template_file_on_disk_abs):
                 logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'. Skipping this template.")
