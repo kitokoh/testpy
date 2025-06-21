@@ -9,37 +9,7 @@ import logging
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
-
-# Explicitly load app_config.py using importlib
-APP_ROOT_DIR_SEED = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-APP_CONFIG_PY_PATH = os.path.join(APP_ROOT_DIR_SEED, "app_config.py")
-
-logging.info(f"Attempting to load app_config.py from: {APP_CONFIG_PY_PATH}") # Add logging
-
-try:
-    config_spec = importlib.util.spec_from_file_location("app_config_module", APP_CONFIG_PY_PATH)
-    if config_spec is None:
-        logging.error(f"Could not load spec for app_config.py from {APP_CONFIG_PY_PATH}. File might not exist or is not accessible.")
-        raise ImportError(f"Could not load spec for app_config.py from {APP_CONFIG_PY_PATH}")
-
-    app_config_module = importlib.util.module_from_spec(config_spec)
-    # Add module to sys.modules to allow it to be "imported" by other modules if necessary,
-    # though for CONFIG, direct assignment is used here.
-    sys.modules['app_config_module_loaded_by_db_seed'] = app_config_module
-
-    if config_spec.loader is None:
-        logging.error(f"Spec loader for app_config.py is None for path {APP_CONFIG_PY_PATH}.")
-        raise ImportError(f"Spec loader for app_config.py is None.")
-
-    config_spec.loader.exec_module(app_config_module)
-    CONFIG = app_config_module.CONFIG
-    logging.info(f"Successfully loaded CONFIG from app_config.py using importlib from {APP_CONFIG_PY_PATH}")
-except FileNotFoundError:
-    logging.error(f"FileNotFoundError: app_config.py not found at {APP_CONFIG_PY_PATH} during importlib load.")
-    raise
-except Exception as e:
-    logging.error(f"An unexpected error occurred while loading app_config.py with importlib: {e}", exc_info=True)
-    raise
+from app_setup import CONFIG
 
 
 # Import necessary functions directly from their new CRUD module locations
