@@ -1,0 +1,40 @@
+**Data Handling & API Interaction (`mobile/data_handler.py`):**
+
+1.  **Real API Client Implementation:** Replace mock API calls with actual HTTP requests (e.g., using `requests` or `httpx` if Kivy is used asynchronously) to the backend, including authentication and error handling.
+2.  **Offline Data Caching:** Implement local caching (SQLite via Kivy storage or file cache) for products, templates, languages, countries, with cache invalidation/sync strategies.
+3.  **Mobile Configuration Management:** Introduce a settings system for API URLs, default language, etc., within the mobile app.
+
+**Document Handling (`mobile/document_handler.py`):**
+
+4.  **Robust PDF Generation and Storage:**
+    *   Provide options for persistent PDF storage on the device (e.g., "My Documents" folder).
+    *   Allow users to name output files.
+    *   Improve error handling for PDF saving.
+5.  **Native PDF Viewing/Sharing:** Use `plyer.sharing.share_file` or platform-native APIs to open/share PDFs.
+6.  **Native Email Client Integration:** Ensure robust attachment handling with `plyer.email`; allow users to edit email body/subject before sending.
+7.  **Template Content Caching:** Cache frequently used or large templates locally.
+
+**NLU Capabilities (`mobile/nlu_handler.py`, `mobile/nlu_controller.py`):**
+
+8.  **More Sophisticated NLU Parsing:** Consider integrating a lightweight on-device NLU library or a more robust cloud NLU service for better understanding and context carry-over.
+9.  **Expand NLU Intents and Entities:** Add more intents like `REMOVE_PRODUCT`, `CLEAR_SELECTION`, `CHANGE_QUANTITY`, and navigation/settings commands.
+10. **NLU Feedback and Correction:** Implement confirmation steps for NLU actions with low confidence or critical impact.
+11. **Voice-to-Text Input for NLU:** Integrate voice-to-text (e.g., `plyer.stt`) for command input.
+
+**UI/UX (`mobile/ui.py`, `mobile/mobile.kv`):**
+
+12. **Improved UI Layout and Styling (`mobile.kv`):** Develop a polished UI using Kivy layouts, styling, and custom widgets (e.g., Material Design).
+13. **Dynamic Product List Filtering:** Add a search bar to "Available Products" to filter products by name via API.
+14. **Enhanced Visual Feedback:** Ensure clear visual feedback for all selections (language, country, template, products).
+15. **Improved Error/Information Popups:** Use Kivy's `Popup` with better formatting for user messages.
+16. **Clear "No Data" Indicators:** Display user-friendly messages when lists or spinners are empty.
+17. **Robust Temporary File Management:** Implement strategies for clearing temporary files (on exit, timed).
+18. **Dedicated UI for NLU Interaction:** Add a microphone button and a text area for NLU input/output.
+19. **Mobile Settings Screen:** Create a screen for API details, default preferences, etc.
+20. **Offline Indicator:** Visually indicate to the user if the app is offline and using cached data.
+
+**Overall Mobile App (`mobile/main.py`):**
+
+21. **Advanced State Management:** For multi-screen apps, consider a dedicated state management solution.
+22. **Clear Navigation:** Implement intuitive navigation (ScreenManager transitions, side drawer, bottom navigation) if more screens are added.
+23. **Consistent Loading Indicators:** Use the `busy_indicator` (ModalView) for all potentially long operations.

@@ -1,0 +1,35 @@
+**Base Connector (`ecommerce_integrations/base_connector.py`):**
+
+1.  **Standardized Error Handling & Exceptions:** Define custom exceptions (`AuthenticationError`, `ConnectionError`, `ProductNotFoundError`, `RateLimitError`, `PlatformAPIError`) for consistent error management.
+2.  **Configuration Validation:** Add basic validation for `store_url`, `api_key`, `api_secret` in the base `__init__`.
+3.  **Support for More E-commerce Entities:** Define abstract methods and base data models for Orders, Customers, Categories/Collections, and Inventory.
+4.  **Webhook Registration/Handling Interface (Advanced):** Define an abstract interface for managing webhooks on e-commerce platforms.
+5.  **Batch Operations Interface:** Define abstract methods for batch product/order operations (create, update).
+6.  **Platform Capabilities Metadata:** Add an abstract method `get_platform_capabilities()` for connectors to declare supported features.
+7.  **Enhanced `BaseProductData` Model:**
+    *   Add support for product variants (size, color) with their own SKUs, prices, stock.
+    *   Include fields for custom attributes/metafields.
+    *   Formalize `images` and `categories` structure (e.g., `BaseImageData`, `BaseCategoryData` nested models).
+    *   Add more pricing details (e.g., `sale_price`, `tax_status`, `tax_class`).
+8.  **Connection Pooling/Management:** Allow `connect`/`disconnect` to manage persistent client instances with connection pooling if beneficial.
+
+**WooCommerce Connector (`ecommerce_integrations/woocommerce_connector.py`):**
+
+9.  **Full Implementation of Abstract Methods:** Fully implement all inherited abstract methods using the WooCommerce REST API (products, orders, customers, etc.). This includes completing:
+    *   `_transform_wc_product_to_base_product_data`
+    *   `_transform_base_product_data_to_wc_format`
+10. **Proper WooCommerce Pagination Handling:** Implement correct offset-to-page conversion and use `per_page` for limits in `get_platform_products` and other listing methods.
+11. **Specific WooCommerce Error Handling:** Translate WooCommerce API errors into the standard exceptions defined in `base_connector.py`.
+12. **Support for WooCommerce Product Variations:** Implement logic to fetch, create, and update product variations.
+13. **Full Image Handling for WooCommerce:** Implement image uploading and association during product creation/update.
+14. **Category and Tag Handling for WooCommerce:** Implement fetching/creating category/tag IDs by name during product sync.
+15. **Robust Authentication for WooCommerce:** Ensure support for all necessary WooCommerce authentication methods.
+16. **WooCommerce Webhook Support:** Implement methods to create, list, and delete webhooks in WooCommerce.
+
+**General Module Enhancements:**
+
+17. **Consistent Asynchronous Operations:** Ensure all connector implementations correctly use `async`/`await` with asynchronous HTTP clients (e.g., `httpx.AsyncClient`).
+18. **Secure Configuration Management:** Integrate with a central application configuration system for API keys and secrets.
+19. **Structured Logging:** Implement consistent structured logging using the `logging` module across all connectors.
+20. **Comprehensive Testing Suite:** Develop a testing suite with mock API responses for each connector.
+21. **New Connectors for Other Platforms:** Plan and create new connector classes for other platforms (e.g., Shopify, Magento).

@@ -1,0 +1,32 @@
+**Core Contact Management & UI (`contact_manager/contact_list_widget.py`):**
+
+1.  **Unified Contact Details View/Edit Dialog:** Create a comprehensive dialog for viewing/editing contacts from all sources (Platform Client, Partner, Personnel, Google).
+2.  **Improved UI Contact Filtering:**
+    *   Add filters for company, sync status, tags.
+    *   Allow multi-select for "Type" filter.
+3.  **General "Add New Contact" Workflow:** Implement a button and dialog in `ContactListWidget` to add new contacts of various types (Client, Partner, Personnel, general Google contact).
+4.  **Full "Assign Role" Functionality:** Implement the dialog for linking Google contacts to existing platform entities or creating new platform entities from Google contact data.
+5.  **Contact Merging Utility:** Develop a feature to find and merge duplicate contacts (platform-platform and platform-Google).
+6.  **Custom Fields for Contacts:** Allow defining and using custom fields for platform contacts, with potential mapping to Google custom fields.
+7.  **Contact Groups/Lists:** Enable users to create custom contact groups for organization and bulk actions.
+
+**Google Integration (`google_auth.py`, `google_people_api.py`, `google_settings_dialog.py`, `sync_service.py`):**
+
+8.  **Full OAuth 2.0 Flow Implementation:** Complete the OAuth 2.0 flow in `google_auth.py` and `GoogleSettingsDialog` (local server or custom URL scheme for callback, token exchange, secure storage, transparent refresh).
+9.  **Robust Google People API Client:** Replace placeholder logic in `google_people_api.py` with actual HTTP calls (using `requests` or `google-api-python-client`), including error handling and rate limit considerations.
+10. **Comprehensive Two-Way Synchronization Logic (`sync_service.py`):**
+    *   Implement fetching of recently changed contacts (ETags, timestamps).
+    *   Define clear data mapping and transformation rules (platform fields <-> Google Person resource).
+    *   Implement conflict resolution strategies.
+    *   Utilize `ContactSyncLog` effectively.
+11. **Background Sync Service:** Develop a background service (QThread or process) for periodic contact synchronization.
+12. **Selective Sync Configuration:** Allow users to choose Google Contact groups to sync or use platform-side tags/categories to control sync scope.
+13. **Field Mapping Configuration UI:** Provide a UI for users to configure mappings between platform and Google contact fields, especially custom fields.
+14. **Enhanced Google Sync Settings UI (`google_settings_dialog.py`):** Add options for sync direction, frequency, conflict resolution, and viewing sync logs.
+15. **Google Contact Photo Synchronization:** Implement syncing of contact photos.
+16. **Multiple Google Accounts (Optional):** Consider allowing a user to link and manage multiple Google accounts for contact sync.
+
+**General Module Enhancements:**
+
+17. **Structured Logging:** Implement consistent structured logging using the `logging` module throughout the package.
+18. **Comprehensive Testing:** Develop unit and integration tests with mocks for Google API interactions and sync logic.
