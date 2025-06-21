@@ -2,131 +2,278 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liste de Colisage</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; font-size: 12px; }
-        .container { width: 90%; margin: 20px auto; border: 1px solid #ccc; padding: 20px; }
-        .header, .footer { text-align: center; margin-bottom: 20px; }
-        .logo { max-width: 150px; max-height: 75px; margin-bottom: 10px; }
-        .company-details, .client-details, .shipment-info { margin-bottom: 20px; }
-        .company-details div, .client-details div, .shipment-info div { margin-bottom: 5px; }
-        .details-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .details-table th, .details-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .details-table th { background-color: #f2f2f2; }
-        .totals-summary { margin-top: 20px; }
-        .totals-summary table { width: 50%; border-collapse: collapse; margin-left: auto; /* Align to right */ }
-        .totals-summary td { padding: 5px; border: 1px solid #ddd;}
-        .totals-summary .label { font-weight: bold; }
-        .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
-        .signature-block { width: 45%; text-align: center; }
-        .signature-block p { margin-top: 50px; border-top: 1px solid #000; padding-top: 5px; }
+        /* === General Page Styling === */
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            font-size: 11pt;
+            background-color: #f4f7fc;
+            color: #333333;
+            line-height: 1.5;
+        }
+        .container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 10mm auto;
+            padding: 15mm;
+            background-color: #ffffff;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+            border: none;
+        }
+
+        /* === Header === */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .logo {
+            max-width: 150px;
+            max-height: 70px;
+            margin-bottom: 15px;
+            object-fit: contain;
+        }
+        .header h1 { /* Changed from h1 to .header h1 for specificity */
+            font-size: 2em;
+            color: #3A539B;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        /* === Top Details Table (Exporter/Consignee) === */
+        .party-details-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            gap: 20px;
+        }
+        .party-column {
+            width: 48%;
+            padding: 15px;
+            background-color: #f8fafc;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        .party-column h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: #4A5568;
+            font-weight: 600;
+            border-bottom: 1px solid #d0d0d0;
+            padding-bottom: 5px;
+        }
+        .party-column p {
+            margin: 3px 0;
+            font-size: 0.9em;
+        }
+
+        /* === Shipment Info Table === */
+        .shipment-info table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+        .shipment-info td {
+            border: 1px solid #dfe6f0;
+            padding: 9px 12px;
+        }
+        .shipment-info td strong {
+            color: #4A5568;
+            font-weight: 600;
+        }
+
+        /* === Main Details Table === */
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 9.5pt;
+        }
+        .details-table th,
+        .details-table td {
+            border: 1px solid #dfe6f0;
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .details-table th {
+            background-color: #4A5568;
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .details-table tbody tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        /* === Totals Summary === */
+        .totals-summary {
+            margin-top: 25px;
+            margin-bottom: 30px;
+        }
+        .totals-summary table {
+            width: 55%;
+            border-collapse: collapse;
+            margin-left: auto;
+            font-size: 0.95em;
+        }
+        .totals-summary td {
+            padding: 9px 12px;
+            border: 1px solid #dfe6f0;
+        }
+        .totals-summary .label {
+            font-weight: 600;
+            text-align: right;
+            color: #4A5568;
+        }
+        .totals-summary td:last-child {
+            text-align: right;
+            font-weight: 500;
+        }
+
+        /* === Signatures === */
+        .signatures {
+            margin-top: 40px;
+            display: flex;
+            justify-content: space-between;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            gap: 20px;
+        }
+        .signature-block {
+            width: 45%;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        .signature-block .line {
+            display: block;
+            width: 90%;
+            height: 1px;
+            background-color: #555555;
+            margin-top: 35px;
+            margin-bottom: 8px;
+        }
+        .signature-block p {
+            margin: 5px 0;
+        }
+
+        /* === Footer === */
+        .footer {
+            /* General footer styles can go here if needed */
+        }
+        .footer-copyright-line { /* Specific class for the copyright line */
+            text-align: center;
+            font-size: 0.85em;
+            color: #777777;
+            margin-top: 40px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             {% if seller.company_logo_path %}
-                <img src="{{ seller.company_logo_path }}" alt="Logo de l'Entreprise" class="logo" />
+                <img src="{{ seller.company_logo_path }}" alt="Logo" class="logo">
             {% else %}
-                <p>(Logo de l'Entreprise)</p>
+                <h1>{{ seller.company_name | default:"N/A" }}</h1>
             {% endif %}
-            <h1>Liste de Colisage</h1>
         </div>
 
-        <table style="width:100%; margin-bottom: 20px;">
-            <tr>
-                <td style="width:50%; vertical-align:top;">
-                    <div class="company-details">
-                        <strong>Exportateur :</strong><br>
-                        {{ seller.company_name | default:"N/A" }}<br>
-                        {{ seller.full_address | default:"N/A" }}<br>
-                        Tél : {{ seller.phone | default:"N/A" }}<br>
-                        Email : {{ seller.email | default:"N/A" }}
-                    </div>
-                </td>
-                <td style="width:50%; vertical-align:top;">
-                    <div class="client-details">
-                        <strong>Destinataire :</strong><br>
-                        {{ client.company_name | default:"N/A" }}<br>
-                        {{ client.full_address | default:"N/A" }}<br>
-                        Attn : {{ primary_contact_name | default:"N/A" }}
-                    </div>
-                </td>
-            </tr>
-        </table>
+        <div class="party-details-container">
+            <div class="party-column exporter-details">
+                <h4>Exportateur :</h4>
+                <p><strong>{{ seller.company_name | default:"N/A" }}</strong></p>
+                <p>{{ seller.full_address | default:"N/A" }}</p>
+                <p>Tel: {{ seller.phone | default:"N/A" }}</p>
+                <p>Email: {{ seller.email | default:"N/A" }}</p>
+            </div>
+            <div class="party-column consignee-details">
+                <h4>Destinataire :</h4>
+                <p><strong>{{ client.company_name | default:"N/A" }}</strong></p>
+                <p>{{ client.full_address | default:"N/A" }}</p>
+                <p>Contact: {{ primary_contact_name | default:"N/A" }}</p>
+            </div>
+        </div>
 
         <div class="shipment-info">
-            <table style="width:100%; border-collapse: collapse;">
+            <table border="0" cellpadding="5" cellspacing="0">
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>N° Liste de Colisage :</strong> {{ packing_list_id | default:"N/A" }}</td>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Date :</strong> {{ date | default:"N/A" }}</td>
+                    <td><strong>N° de liste de colisage :</strong></td>
+                    <td>{{ packing_list_id | default:"N/A" }}</td>
+                    <td><strong>Date :</strong></td>
+                    <td>{{ date | default:"N/A" }}</td>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>N° Facture :</strong> {{ invoice_id | default:"N/A" }}</td>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>ID Projet :</strong> {{ project_id | default:"N/A" }}</td>
+                    <td><strong>N° de facture :</strong></td>
+                    <td>{{ invoice_id | default:"N/A" }}</td>
+                    <td><strong>N° de projet :</strong></td>
+                    <td>{{ project_id | default:"N/A" }}</td>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>N° Navire/Vol :</strong> {{ vessel_flight_no | default:"N/A" }}</td>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Port de Chargement :</strong> {{ port_of_loading | default:"N/A" }}</td>
+                    <td><strong>Navire/Vol N° :</strong></td>
+                    <td>{{ vessel_flight_no | default:"N/A" }}</td>
+                    <td><strong>Port de chargement :</strong></td>
+                    <td>{{ port_of_loading | default:"N/A" }}</td>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Port de Déchargement :</strong> {{ port_of_discharge | default:"N/A" }}</td>
-                    <td style="border: 1px solid #ddd; padding: 5px;"><strong>Pays de Destination Finale :</strong> {{ final_destination_country | default:"N/A" }}</td>
+                    <td><strong>Port de déchargement :</strong></td>
+                    <td>{{ port_of_discharge | default:"N/A" }}</td>
+                    <td><strong>Pays de destination finale :</strong></td>
+                    <td>{{ final_destination_country | default:"N/A" }}</td>
                 </tr>
             </table>
         </div>
 
-        <table class="details-table">
-            <thead>
-                <tr>
-                    <th>Marques & Nos.</th>
-                    <th>Description des Marchandises</th>
-                    <th>Nbr. Colis</th>
-                    <th>Type Colis</th>
-                    <th>Poids Net (kg)</th>
-                    <th>Poids Brut (kg)</th>
-                    <th>Dimensions (LxLxH cm)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{ doc.packing_list_items | safe }}
-            </tbody>
-        </table>
+        <div class="details-table">
+            {{ doc.packing_list_items | safe }}
+        </div>
 
         <div class="totals-summary">
             <table>
                 <tr>
-                    <td class="label">Nombre Total de Colis :</td>
+                    <td class="label">Nombre total de colis :</td>
                     <td>{{ total_packages | default:"N/A" }}</td>
                 </tr>
                 <tr>
-                    <td class="label">Poids Net Total (kg) :</td>
-                    <td>{{ total_net_weight | default:"N/A" }}</td>
+                    <td class="label">Poids net total :</td>
+                    <td>{{ total_net_weight | default:"N/A" }} KGS</td>
                 </tr>
                 <tr>
-                    <td class="label">Poids Brut Total (kg) :</td>
-                    <td>{{ total_gross_weight | default:"N/A" }}</td>
+                    <td class="label">Poids brut total :</td>
+                    <td>{{ total_gross_weight | default:"N/A" }} KGS</td>
                 </tr>
                 <tr>
-                    <td class="label">Volume Total (CBM) :</td>
-                    <td>{{ total_volume_cbm | default:"N/A" }}</td>
+                    <td class="label">Volume total :</td>
+                    <td>{{ total_volume_cbm | default:"N/A" }} CBM</td>
                 </tr>
             </table>
         </div>
 
-        <div class="footer">
-            <div class="signatures">
-                <div class="signature-block">
-                    <p>Signature de l'Exportateur</p>
-                    <p>Date : {{ date }}</p>
-                </div>
-                <div class="signature-block">
-                    <p>Signature du Destinataire (Optionnel)</p>
-                    <p>Date : </p>
-                </div>
+        <div class="signatures">
+            <div class="signature-block">
+                <span class="line"></span>
+                <p>Signature de l'expéditeur</p>
+                <p>{{ seller.company_name | default:"N/A" }}</p>
+                <p>Date: {{ date | default:"N/A" }}</p>
             </div>
-            <p>&copy; {{ seller.company_name }} {{ doc.current_year }}</p>
+            <div class="signature-block">
+                <span class="line"></span>
+                <p>Signature du destinataire</p>
+                <p>{{ client.company_name | default:"N/A" }}</p>
+                <p>Date: </p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p class="footer-copyright-line">&copy; {{ doc.current_year }} {{ seller.company_name }}. Tous droits réservés.</p>
         </div>
     </div>
 </body>
