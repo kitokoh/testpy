@@ -1,0 +1,41 @@
+**Invoice Creation & Data Management (`invoicing/final_invoice_data_dialog.py`, `invoicing/manual_invoice_dialog.py`):**
+
+1.  **Automated Invoice Number Generation:** Implement a customizable automated invoice numbering system (sequential, date-based prefix).
+2.  **Line Item Management Enhancements:**
+    *   **`FinalInvoiceDataDialog`**:
+        *   Allow direct editing of quantity/price in the line items table.
+        *   Option to add custom line items (not linked to `product_id`) for services/miscellaneous charges.
+        *   Enable reordering of line items.
+    *   **`ManualInvoiceDialog`**: Should allow adding structured line items similar to `FinalInvoiceDataDialog` instead of just a single `total_amount`.
+3.  **Advanced Tax Configuration:** Support multiple tax rates, item-specific taxes, and saving default tax configurations.
+4.  **Currency Formatting and Symbols:** Ensure correct currency symbol display and number formatting in UI and PDFs, linking to currency selection.
+5.  **Template Selection for Invoice PDF:** Allow users to select a specific invoice PDF template during creation or from settings.
+6.  **Discount Handling:** Provide UI options for applying discounts (percentage/fixed amount) at line item or subtotal level.
+7.  **Shipping Charges Field:** Add a dedicated field for shipping charges in invoice creation dialogs.
+
+**Invoice Listing & Management (`invoicing/invoice_management_widget.py`):**
+
+8.  **Advanced Invoice Filtering:** Add UI filters for due date range, client, project, currency, and amount range.
+9.  **Customizable Columns in Invoice List:** Allow users to show/hide or reorder columns in the `invoices_table`.
+10. **Bulk Invoice Actions:**
+    *   Enable multi-select for actions like marking as paid/unpaid, sending reminders, exporting summaries, or batch PDF downloads.
+11. **Invoice PDF Regeneration:** Option to regenerate an invoice PDF (e.g., if template changed or minor non-financial corrections needed).
+12. **Recurring Invoices:** Functionality to set up and manage recurring invoices.
+
+**Payment Tracking (`invoicing/record_payment_dialog.py`):**
+
+13. **Enhanced Partial Payment Tracking:** Allow recording multiple partial payments, tracking remaining balance, and reflecting "Amount Paid" / "Balance Due" in tables.
+14. **Payment History for Invoice:** Display a history of payments for an invoice in `InvoiceDetailsDialog`.
+15. **Automated Overdue Invoice Handling:** Automatically flag overdue invoices and implement options for sending automated reminders.
+
+**Reporting & Analytics:**
+
+16. **Sales/Revenue Reports:** Generate reports on sales, revenue, outstanding amounts, sales by client/product, with filters.
+17. **Tax Reports:** Generate reports summarizing taxes collected for specified periods.
+
+**General & Integration:**
+
+18. **Streamlined Proforma to Invoice Workflow:** Improve the process of converting an "Accepted" Proforma Invoice to a Final Invoice, pre-filling data.
+19. **Emailing Invoices:** Add "Send by Email" option from `InvoiceManagementWidget` or `InvoiceDetailsDialog`, using email templates and configuration.
+20. **Audit Trail for Invoices:** Log changes to invoice status, payments, and sending history.
+21. **User-Friendly Invoice Template Customization:** Provide easier ways to customize invoice PDF appearance beyond selecting pre-made templates.

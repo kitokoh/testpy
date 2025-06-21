@@ -1,0 +1,41 @@
+**Job Openings (`recruitment/job_openings_widget.py`, `recruitment/dialogs/job_opening_dialog.py`):**
+
+1.  **Advanced Filtering for Job Openings:** Add UI filters (status, department) to `JobOpeningsWidget`.
+2.  **Job Opening Templates:** Allow creating job openings from predefined templates.
+3.  **Clone Job Openings:** Add a "Clone" button to duplicate existing job openings.
+4.  **Track & Display Applicant Count:** Show the number of candidates per job opening in `JobOpeningsWidget`. API should provide this.
+5.  **Rich Text for Job Description:** Support rich text formatting in `JobOpeningDialog.description_edit` and store/render HTML or Markdown.
+
+**Candidates (`recruitment/candidates_widget.py`, `recruitment/dialogs/candidate_dialog.py`):**
+
+6.  **Direct File Uploads for Resume/Cover Letter:** Implement file browse/upload in `CandidateDialog` and corresponding API handling.
+7.  **Candidate Search & Advanced Filtering:** Add more UI filters (status, application date, keywords) and a search bar to `CandidatesWidget`.
+8.  **Candidate Tagging/Skills Management:** Allow adding tags or skills to candidates for better filtering.
+9.  **Structured Application Source:** Use a QComboBox with predefined sources for `CandidateBase.application_source` in `CandidateDialog`.
+10. **Link to Full Contact Profile:** Provide a UI link from a candidate to their general contact profile if `linked_contact_id` exists.
+11. **Bulk Actions for Candidates:** Enable multi-select in `CandidatesWidget` for bulk status changes, shortlisting, or emailing.
+
+**Interviews (`recruitment/interviews_widget.py`, `recruitment/dialogs/interview_dialog.py`):**
+
+12. **Interviewer Management/Selection:** Populate `InterviewDialog.interviewer_combo` from a list of actual team members/users (requires API for users with "interviewer" role).
+13. **Calendar Integration/Availability Check (Advanced):** Integrate with calendar systems to check interviewer availability.
+14. **Structured Interview Feedback Forms/Templates:** Allow creating and using structured feedback templates instead of just a plain `QTextEdit` for `feedback_edit`.
+15. **Interview Status Workflow:** Define and manage a clear workflow for interview statuses (e.g., Scheduled, Confirmed, Completed, Feedback Submitted, Rescheduled, Cancelled).
+16. **Automated Notifications for Interviews:** Send email/platform notifications for interview scheduling and changes.
+
+**Recruitment Steps & Candidate Progress (API exists, UI needs expansion):**
+
+17. **UI for Managing Recruitment Steps per Job Opening:** Add UI (in `JobOpeningDialog` or `JobOpeningsWidget`) to define and order recruitment steps for each job opening.
+18. **UI for Tracking Candidate Progress:** Visually display candidate progress through defined steps in `CandidatesWidget` or a detail view, allowing status updates at each step.
+
+**Recruitment Dashboard (`recruitment/recruitment_dashboard.py`):**
+
+19. **Key Metrics and Visualizations:** Add dashboard widgets for open positions, candidates per stage (funnel), time-to-hire, source effectiveness, upcoming interviews.
+20. **Recruitment Reporting Features:** Implement generation of reports (candidates per job, interview feedback summaries).
+
+**General & Integration:**
+
+21. **Role-Based Access Control:** Define specific roles (Recruiter, Hiring Manager, Interviewer) for the recruitment module.
+22. **Email Integration for Candidate Communication:** Allow sending templated emails (invitations, rejections, offers) from the system.
+23. **Dynamic Status Configuration:** Fetch job opening, candidate, and interview statuses from the `StatusSettings` table via API instead of using hardcoded maps in dialogs.
+24. **Formalized File Storage Strategy:** Define and implement a clear strategy for storing uploaded resumes and cover letters, possibly using a configurable base directory or cloud storage.
