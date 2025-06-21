@@ -2,40 +2,69 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FACTURE {{doc.invoice_number}}</title>
+    <title>Facture {{doc.invoice_number}}</title>
     <style>
+        /* === General Page Styling === */
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #333333;
             margin: 0;
             padding: 0;
-            font-size: 10pt;
+            font-size: 11pt;
+            background-color: #f4f7fc;
         }
         .container {
-            width: 90%;
-            margin: 20px auto;
-            padding: 20px;
-            border: 1px solid #eee;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 210mm;
+            min-height: 297mm;
+            margin: 10mm auto;
+            padding: 15mm;
+            border: none;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            background-color: #ffffff;
+            box-sizing: border-box;
         }
-        .header, .footer {
-            text-align: center;
-            margin-bottom: 20px;
+
+        /* === Header === */
+        .header {
+            text-align: left;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
         }
         .header img {
-            max-width: 200px;
-            max-height: 100px;
-            margin-bottom: 10px;
+            max-width: 160px;
+            max-height: 70px;
+            margin-bottom: 0;
+            margin-right: 20px;
         }
+        .header .company-address-details { /* Class for seller details */
+            text-align: right;
+        }
+        .header h2 {
+            margin: 0 0 5px 0;
+            font-size: 1.5em;
+            color: #3A539B;
+        }
+        .header p {
+            margin: 2px 0;
+            font-size: 0.9em;
+            color: #555555;
+        }
+
+        /* === Invoice Title === */
         .invoice-title {
             text-align: right;
-            font-size: 2.5em;
+            font-size: 2.8em;
             font-weight: bold;
-            color: #555;
-            margin-bottom: 20px;
+            color: #3A539B;
+            margin-bottom: 30px;
         }
+
+        /* === Info Section === */
         .info-section {
             display: flex;
             justify-content: space-between;
@@ -43,164 +72,229 @@
         }
         .info-section div {
             width: 48%;
+            font-size: 0.95em;
         }
         .info-section h4 {
             margin-top: 0;
-            margin-bottom: 5px;
-            color: #444;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
+            margin-bottom: 10px;
+            color: #3A539B;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
         }
-        .info-section p, .payment-details p, .notes-section p {
-            margin: 2px 0;
-            font-size: 0.9em;
+        .info-section p {
+            margin: 4px 0;
         }
+
+        /* === Tables (General) === */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #dfe6f0;
+            padding: 10px 12px;
             text-align: left;
+            font-size: 0.95em;
         }
         th {
-            background-color: #f8f8f8;
-            font-weight: bold;
+            background-color: #4A5568;
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        tbody tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        /* === Products Table Specifics === */
+        .products-table td.description small { /* More specific selector */
+            font-size: 0.85em;
+            color: #666666;
+            display: block;
+            margin-top: 3px;
+        }
+        .products-table .text-right, table .text-right { /* Ensure right alignment for utility class in table */
+             text-align: right;
+        }
+
+
+        /* === Totals Table === */
+        .totals-table {
+            width: 50%;
+            margin-left: auto;
+            margin-bottom: 30px;
         }
         .totals-table td {
             text-align: right;
-            font-weight: bold;
+            font-weight: 500; /* Bolder than normal text */
         }
-        .totals-table td:first-child {
-            text-align: right;
+        .totals-table td:first-child { /* Label column */
+            text-align: right; /* Keep right for consistency, or left if preferred */
+            font-weight: 500;
         }
+        .totals-table .grand-total td { /* Applied to the <td> elements in that row */
+            font-size: 1.3em !important;
+            font-weight: bold !important;
+            color: #3A539B;
+            border-top: 2px solid #3A539B;
+            border-bottom: 2px solid #3A539B;
+        }
+
+        /* === Payment Details & Notes Section === */
         .payment-details, .notes-section {
-            margin-top: 30px;
+            margin-top: 25px;
             padding: 15px;
-            background-color: #f9f9f9;
-            border: 1px solid #eee;
+            background-color: #f8fafc;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 0.9em;
         }
         .payment-details h4, .notes-section h4 {
-             margin-top: 0;
-             margin-bottom: 10px;
-             color: #444;
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #4A5568;
+            font-size: 1em;
+            font-weight: 600;
         }
-        hr {
-            border: 0;
-            border-top: 1px solid #eee;
-            margin: 20px 0;
+
+        /* === Footer === */
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 0.9em;
+            color: #777777;
         }
+
+        /* === Utility Classes === */
         .text-right { text-align: right; }
         .text-bold { font-weight: bold; }
-        small { font-size: 0.8em; color: #777; }
+
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            {{#if seller.logo_path}}
-                <img src="{{seller.logo_path}}" alt="Logo de l'entreprise">
-            {{/if}}
-            <h2>{{seller.company_name}}</h2>
-            <p>{{seller.address_line1}}</p>
-            <p>{{seller.city_zip_country}}</p>
-            <p>Tél: {{seller.phone}} | Email: {{seller.email}}</p>
-            <p>Site Web: {{seller.website}}</p>
-            {{#if seller.vat_id}}<p>N° TVA: {{seller.vat_id}}</p>{{/if}}
+            <div>
+                {{#if seller.logo_path}}
+                    <img src="{{seller.logo_path}}" alt="Logo">
+                {{/if}}
+                <h2>{{seller.company_name}}</h2>
+            </div>
+            <div class="company-address-details">
+                <p>{{seller.address_line1}}</p>
+                <p>{{seller.city_zip_country}}</p>
+                <p>{{seller.phone}}</p>
+                <p>{{seller.email}}</p>
+                <p>{{seller.website}}</p>
+                {{#if seller.vat_id}}
+                    <p>No. TVA: {{seller.vat_id}}</p>
+                {{/if}}
+            </div>
         </div>
 
         <div class="invoice-title">FACTURE</div>
 
         <div class="info-section">
             <div>
-                <h4>Client (Facturer à):</h4>
-                <p class="text-bold">{{client.company_name}}</p>
-                {{#if client.representative_name}}<p>{{client.representative_name}}</p>{{/if}}
+                <h4>Facturé à :</h4>
+                <p><strong>{{client.company_name}}</strong></p>
+                {{#if client.representative_name}}
+                    <p>{{client.representative_name}}</p>
+                {{/if}}
                 <p>{{client.address_line1}}</p>
                 <p>{{client.city_zip_country}}</p>
-                {{#if client.vat_id}}<p>N° TVA: {{client.vat_id}}</p>{{/if}}
+                {{#if client.vat_id}}
+                    <p>No. TVA: {{client.vat_id}}</p>
+                {{/if}}
             </div>
             <div>
-                <h4>Détails de la Facture:</h4>
-                <p><span class="text-bold">Numéro de Facture:</span> {{doc.invoice_number}}</p>
-                <p><span class="text-bold">Date d'Émission:</span> {{doc.issue_date}}</p>
-                <p><span class="text-bold">Date d'Échéance:</span> {{doc.due_date}}</p>
+                <h4>Informations de la facture :</h4>
+                <p><strong>Numéro de facture :</strong> {{doc.invoice_number}}</p>
+                <p><strong>Date d'émission :</strong> {{doc.issue_date}}</p>
+                <p><strong>Date d'échéance :</strong> {{doc.due_date}}</p>
             </div>
         </div>
 
-        <table>
+        <table class="products-table">
             <thead>
                 <tr>
-                    <th>Description</th>
-                    <th style="text-align:center;">Quantité</th>
-                    <th style="text-align:right;">Prix Unitaire</th>
-                    <th style="text-align:right;">Total</th>
+                    <th>Produit / Service</th>
+                    <th class="text-right">Quantité</th>
+                    <th class="text-right">Prix Unitaire</th>
+                    <th class="text-right">Total</th>
                 </tr>
             </thead>
             <tbody>
                 {{#each products}}
                 <tr>
-                    <td>
-                        <span class="text-bold">{{this.name}}</span><br>
-                        <small>{{this.description}}</small>
+                    <td class="description">
+                        <strong>{{this.name}}</strong>
+                        {{#if this.description}}
+                            <small>{{this.description}}</small>
+                        {{/if}}
                     </td>
-                    <td style="text-align:center;">{{this.quantity}}</td>
-                    <td style="text-align:right;">{{this.unit_price_formatted}}</td>
-                    <td style="text-align:right;">{{this.total_price_formatted}}</td>
+                    <td class="text-right">{{this.quantity}}</td>
+                    <td class="text-right">{{this.unit_price_formatted}}</td>
+                    <td class="text-right">{{this.total_price_formatted}}</td>
                 </tr>
                 {{/each}}
             </tbody>
         </table>
 
-        <table class="totals-table" style="width: 50%; margin-left: auto;">
-            <tr>
-                <td>Sous-total:</td>
-                <td>{{doc.subtotal_amount_formatted}}</td>
-            </tr>
-            {{#if doc.discount_amount_raw}}
-            <tr>
-                <td>Remise ({{doc.discount_rate_percentage}}%):</td>
-                <td>-{{doc.discount_amount_formatted}}</td>
-            </tr>
-            {{/if}}
-            <tr>
-                <td>{{doc.tax_label}} ({{doc.tax_rate_percentage}}%):</td>
-                <td>{{doc.tax_amount_formatted}}</td>
-            </tr>
-            <tr>
-                <td class="text-bold" style="font-size: 1.2em;">TOTAL GÉNÉRAL:</td>
-                <td class="text-bold" style="font-size: 1.2em;">{{doc.grand_total_amount_formatted}}</td>
-            </tr>
+        <table class="totals-table">
+            <tbody>
+                <tr>
+                    <td>Sous-total :</td>
+                    <td class="text-right">{{doc.subtotal_amount_formatted}}</td>
+                </tr>
+                {{#if doc.discount_amount_raw}}
+                <tr>
+                    <td>Remise ({{doc.discount_rate_percentage}}%) :</td>
+                    <td class="text-right">-{{doc.discount_amount_formatted}}</td>
+                </tr>
+                {{/if}}
+                <tr>
+                    <td>{{doc.tax_label}} ({{doc.tax_rate_percentage}}%) :</td>
+                    <td class="text-right">{{doc.tax_amount_formatted}}</td>
+                </tr>
+                <tr class="grand-total">
+                    <td class="text-bold">TOTAL GÉNÉRAL :</td>
+                    <td class="text-right text-bold">{{doc.grand_total_amount_formatted}}</td>
+                </tr>
+            </tbody>
         </table>
 
         {{#if doc.payment_terms}}
         <div class="payment-details">
-            <h4>Conditions de Paiement:</h4>
+            <h4>Conditions de paiement :</h4>
             <p>{{doc.payment_terms}}</p>
         </div>
         {{/if}}
 
         <div class="payment-details">
-            <h4>Coordonnées Bancaires:</h4>
-            <p><strong>Nom de la Banque:</strong> {{seller.bank_name}}</p>
-            <p><strong>Titulaire du Compte:</strong> {{seller.bank_account_holder_name}}</p>
-            <p><strong>IBAN:</strong> {{seller.bank_iban}}</p>
-            <p><strong>SWIFT/BIC:</strong> {{seller.bank_swift_bic}}</p>
+            <h4>Coordonnées bancaires :</h4>
+            <p><strong>Banque :</strong> {{seller.bank_name}}</p>
+            <p><strong>Titulaire du compte :</strong> {{seller.bank_account_holder_name}}</p>
+            <p><strong>IBAN :</strong> {{seller.bank_iban}}</p>
+            <p><strong>SWIFT/BIC :</strong> {{seller.bank_swift_bic}}</p>
         </div>
 
         {{#if doc.notes}}
         <div class="notes-section">
-            <h4>Remarques:</h4>
+            <h4>Notes :</h4>
             <p>{{doc.notes}}</p>
         </div>
         {{/if}}
 
         <div class="footer">
-            <p>Merci de votre confiance!</p>
+            <p>Merci pour votre confiance !</p>
         </div>
     </div>
 </body>
 </html>
-```
