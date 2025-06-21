@@ -64,9 +64,10 @@
     <file alias="modern/settings.svg">icons/settings.svg</file>
     <file alias="search.svg">icons/search.svg</file>
     <file alias="arrow-left-circle.svg">icons/arrow-left-circle.svg</file>
-    <file alias="mic.svg">icons/mic.svg</file>
+    <file alias="mic.svg">icons/placeholder_icon.svg</file>
     <file alias="edit.svg">icons/edit-2.svg</file>
-    <file alias="video.svg">icons/video.svg</file>
+    <file alias="video.svg">icons/placeholder_icon.svg</file>
+    <file alias="save.svg">icons/placeholder_icon.svg</file>
     <file alias="refresh.svg">icons/refresh-cw.svg</file>
     <file alias="settings-gear.svg">icons/settings.svg</file>
 </qresource>
