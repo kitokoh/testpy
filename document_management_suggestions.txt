@@ -1,0 +1,53 @@
+**Document Generation & Templating:**
+
+1.  **Unified Template Management:**
+    *   Create a unified system for managing HTML, DOCX, and potentially other template types (e.g., XLSX).
+    *   Integrate DOCX template management with the existing `templates_crud.py`.
+2.  **DOCX Template Placeholders in DB/Dynamic Fetching:**
+    *   Allow dynamic fetching or management of available `{{KEY}}` placeholders for DOCX templates, possibly linking them to `context_builder.py` output.
+3.  **Enhanced Context for Templates (`context_builder.py`):**
+    *   Support more complex data structures (lists of transactions, detailed contact lists).
+    *   Include user-defined custom fields from client/project entities.
+    *   Add computed fields or simple logic (e.g., "days_until_deadline").
+4.  **Live Preview for HTML/DOCX Templates:**
+    *   Implement a live preview feature for template editing, showing changes with sample data.
+5.  **Cover Page Customization UI (`cover_page_generator.py`, `cover_pages_crud.py`):**
+    *   Develop a UI for easier customization of cover page elements (fonts, colors, layout) beyond direct JSON editing.
+    *   Allow associating cover page designs with document types or clients/projects.
+6.  **Conditional Sections in Templates:**
+    *   Introduce logic for conditional content display in HTML and DOCX templates (e.g., based on client category).
+7.  **Looping/Iteration in DOCX Templates:**
+    *   Enable repeating table rows or content blocks in DOCX for line items or lists, likely requiring advanced DOCX manipulation.
+
+**Document Storage & Management (`client_documents_crud.py`, `document_manager_logic.py`):**
+
+8.  **Full Document Version History:**
+    *   Expand `version_tag` in `client_documents_crud.py` to support full version control (view/revert previous versions).
+9.  **Document Metadata Enhancement:**
+    *   Add fields to `ClientDocuments` like keywords/tags, expiration dates, and document status (Draft, Reviewed, Approved, Sent).
+10. **Advanced Document Search:**
+    *   Implement search by name, type, date range, content (if indexed), or custom metadata.
+11. **Document Relationships/Linking:**
+    *   Allow users to link related documents (e.g., quote to contract) via a dedicated `DocumentLinks` table.
+12. **Bulk Document Operations:**
+    *   Support bulk actions (download as ZIP, delete, status update) for selected documents.
+13. **Document Access Control/Permissions:**
+    *   (Advanced) Implement role-based permissions for document actions.
+14. **Audit Trail for Documents:**
+    *   Expand logging to track who created, viewed, modified, or deleted documents and when.
+
+**Workflow & Integration:**
+
+15. **Automated Document Generation Triggers:**
+    *   Allow setting rules for automatic document generation based on application events.
+16. **Document Review and Approval Workflow:**
+    *   Implement a simple workflow for document review and approval with comments.
+17. **E-signature Integration:**
+    *   Integrate with e-signature services for sending documents.
+18. **Final Invoice Document Flow (`document_manager_logic.py`):**
+    *   Ensure robust linking and easy access to "FINAL_INVOICE" type documents from both client views and dedicated invoice management areas.
+
+**Error Handling & Logging:**
+
+19. **Granular Error Reporting in Generators:**
+    *   Provide more specific error messages or codes from document generators (`html_generator.py`, `docx_generator.py`, `cover_page_generator.py`) to improve UI feedback.

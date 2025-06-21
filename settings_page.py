@@ -303,6 +303,7 @@ except ImportError:
 from dialogs.transporter_dialog import TransporterDialog
 from dialogs.freight_forwarder_dialog import FreightForwarderDialog
 from company_management import CompanyTabWidget
+from security_settings_page import SecuritySettingsPage # Import de la nouvelle page
 
 class ImportInstructionsDialog(QDialog):
     def __init__(self, parent=None):
@@ -436,6 +437,7 @@ class SettingsPage(QWidget):
         self._setup_template_visibility_tab() # New Tab for Template Visibility
         self._setup_global_template_management_tab() # New Tab for Global Template Management
         self._setup_backup_tab() # New Backup Tab
+        self._setup_security_tab() # Ajout de l'onglet Sécurité
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -1386,6 +1388,16 @@ class SettingsPage(QWidget):
         )
         # Actual backup logic would be implemented here or called from here.
         print(f"Backup Details: Address='{server_address}', Port='{port}', User='{username}', Password_Length='{len(password)}'")
+
+    def _setup_security_tab(self):
+        """
+        Sets up the Security tab with the Biometric Authentication Test page.
+        """
+        # SecuritySettingsPage is already a QWidget, so it can be added directly as a tab.
+        # It doesn't require self.main_config or other specific parameters from SettingsPage itself
+        # for its current functionality (testing biometric simulations).
+        self.security_test_page = SecuritySettingsPage()
+        self.tabs_widget.addTab(self.security_test_page, self.tr("Security (Biometric Test)"))
 
 
 if __name__ == '__main__':
