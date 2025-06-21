@@ -10,6 +10,7 @@ import logging
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
 
+
 from app_config import CONFIG
 
 # Import necessary functions directly from their new CRUD module locations
