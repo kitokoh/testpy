@@ -1,6 +1,5 @@
 import os
 import sys
-import importlib.util
 import sqlite3
 import uuid
 import hashlib
@@ -10,38 +9,7 @@ import logging
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
-
-# Determine project root and app_config.py path
-APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-APP_CONFIG_PATH = os.path.join(APP_ROOT_DIR, "app_config.py")
-
-# Dynamically load app_config using importlib
-try:
-    spec = importlib.util.spec_from_file_location("app_config", APP_CONFIG_PATH)
-    if spec is None:
-        raise ImportError(f"Could not load spec for module app_config from {APP_CONFIG_PATH}")
-    app_config_module = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Spec loader for app_config is None.")
-    spec.loader.exec_module(app_config_module)
-    CONFIG = app_config_module.CONFIG
-    # Optional: Add to sys.modules if other modules imported by db_seed might also need it directly
-    # sys.modules['app_config'] = app_config_module
-except FileNotFoundError:
-    logging.error(f"app_config.py not found at {APP_CONFIG_PATH}")
-    raise
-except ImportError as e:
-    logging.error(f"Error importing app_config dynamically: {e}")
-    raise
-except AttributeError:
-    logging.error(f"CONFIG variable not found in the loaded app_config_module from {APP_CONFIG_PATH}")
-    raise
-# Add the project root to sys.path to allow importing app_config
-APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if APP_ROOT_DIR not in sys.path:
-    sys.path.insert(0, APP_ROOT_DIR)
-
-from app_config import CONFIG
+from app_setup import CONFIG
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
