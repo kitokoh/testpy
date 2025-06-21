@@ -41,6 +41,7 @@ from . import templates_crud
 from . import transporters_crud # Added
 from . import money_transfer_agents_crud # Added
 from . import users_crud
+from . import company_expenses_crud # Added for new expense module
 
 try:
     from . import media_items_crud
