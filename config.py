@@ -25,6 +25,9 @@ MEDIA_FILES_BASE_PATH = os.path.join(APP_ROOT_DIR, MEDIA_FILES_SUBDIR)
 DEFAULT_DOWNLOAD_SUBDIR = "downloaded_media" # Changed from DEFAULT_DOWNLOAD_DIR_NAME
 DEFAULT_DOWNLOAD_PATH = os.path.join(APP_ROOT_DIR, DEFAULT_DOWNLOAD_SUBDIR)
 
+COMPANY_FACTURES_SUBDIR = "company_factures"
+COMPANY_FACTURES_DIR_PATH = os.path.join(APP_ROOT_DIR, COMPANY_FACTURES_SUBDIR)
+
 # Note: The os.makedirs(LOGO_DIR_PATH, exist_ok=True) line previously in db_config.py
 # has been removed. This directory creation logic should be handled in app_setup.py
 # or a similar application initialization script.
