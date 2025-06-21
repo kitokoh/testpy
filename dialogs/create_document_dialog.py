@@ -185,52 +185,39 @@ class CreateDocumentDialog(QDialog):
         logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
 
         try:
-            # Fetch client-specific and global templates based on filters
-            category_ids_to_filter = []
-            # Define desired purposes
-            desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
-            all_categories = get_all_template_categories()
+            # Category filtering logic removed from here.
+            # # Fetch client-specific and global templates based on filters
+            # category_ids_to_filter = []
+            # # Define desired purposes
+            # desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
+            # all_categories = get_all_template_categories()
 
-            if all_categories:
-                for category in all_categories:
-                    purpose = category.get('purpose')
-                    if purpose in ['client_document', 'utility', 'document_global']:
+            # if all_categories:
+            #     for category in all_categories:
+            #         purpose = category.get('purpose')
+            #         if purpose in ['client_document', 'utility', 'document_global']:
+            #             category_ids_to_filter.append(category['category_id'])
 
-                        category_ids_to_filter.append(category['category_id'])
+            # logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
 
-            logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
+            # if not category_ids_to_filter:
+            #     logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
+            # actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
-            if not category_ids_to_filter:
-                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
-                # If category_ids_to_filter is empty and passed to get_all_templates,
-                # it should result in no templates if the IN clause becomes `IN ()`.
-                # Or, if get_all_templates handles empty list by not adding the category filter,
-                # then all templates (matching other criteria) would be shown.
-                # The current implementation of get_all_templates with an empty list for IN clause
-                # will likely result in an SQL error or no results for that clause.
-                # It's better if get_all_templates doesn't add the clause if the list is empty.
-                # For now, we pass the empty list. If it causes issues, get_all_templates needs adjustment
-                # or we explicitly pass None if category_ids_to_filter is empty.
-                # Let's assume get_all_templates handles an empty list for category_id_filter correctly
-                # by not filtering on categories if the list is empty (e.g. by not adding the IN clause).
-                # To be safe, if empty, we might not want to filter by category at all,
-                # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
-                # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
-            if not category_ids_to_filter:
-                logging.warning(f"No categories found for desired purposes {desired_purposes}. Expanding filter to include templates from any category (or those with NULL purpose if DB handles it implicitly).")
-                actual_category_id_filter = None # This will cause get_all_templates to not filter by category
-            else:
-                actual_category_id_filter = category_ids_to_filter
 
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=actual_category_id_filter
+                category_id_filter=None  # Fetch all categories
             )
             if templates_from_db is None: templates_from_db = []
-            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
-            # Add new log here
+            # The log below "Fetched ... templates from DB initially after category filtering." might be slightly misleading now,
+            # as category filtering at the DB query level is removed. It now reflects fetching after other filters (type, lang, client).
+            # Consider renaming or removing if it causes confusion. For now, keeping it as is.
+            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially (before search/default processing).")
+            # Add new log here - this one is more accurate for "after get_all_templates"
+
             logging.info(f"Templates received from get_all_templates (before search/default processing): {len(templates_from_db)}")
 
             # Apply search text filter locally first
