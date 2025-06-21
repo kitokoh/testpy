@@ -450,6 +450,75 @@ class ProductImageLinkResponse(ProductImageLinkBase):
     class Config:
         from_attributes = True
 
+# --- Company Facture Models (Added for Expense Management) ---
+
+class CompanyFactureBasePydantic(BaseModel): # Renamed to avoid conflict if a SQLAlchemy model with same name exists
+    original_file_name: str = Field(..., example="facture_proveedor_XYZ_2023-10-28.pdf")
+    stored_file_path: str = Field(..., example="/secure_storage/factures/facture_proveedor_XYZ_2023-10-28_uuid.pdf")
+    file_mime_type: Optional[str] = Field(None, example="application/pdf")
+    extraction_status: str = Field(default='pending_review', example="pending_review")
+    extracted_data_json: Optional[str] = Field(None, example='{"amount": "120.50", "date": "2023-10-25", "vendor": "Proveedor XYZ"}')
+
+class CompanyFactureCreatePydantic(CompanyFactureBasePydantic):
+    pass
+
+class CompanyFactureReadPydantic(CompanyFactureBasePydantic):
+    facture_id: int
+    upload_date: datetime
+    created_at: datetime
+    updated_at: datetime
+    is_deleted: bool = False # Include soft delete status
+
+    class Config:
+        from_attributes = True # Changed from orm_mode for Pydantic v2 compatibility if needed, but from_attributes is better.
+
+class CompanyFactureUpdatePydantic(BaseModel):
+    original_file_name: Optional[str] = None
+    stored_file_path: Optional[str] = None
+    file_mime_type: Optional[str] = None
+    extraction_status: Optional[str] = None
+    extracted_data_json: Optional[str] = None
+
+
+# --- Company Expense Models (Added for Expense Management) ---
+
+class CompanyExpenseBasePydantic(BaseModel): # Renamed
+    expense_date: date = Field(..., example="2023-10-28")
+    amount: float = Field(..., gt=0, example=120.50)
+    currency: str = Field(..., min_length=3, max_length=3, example="USD")
+    recipient_name: str = Field(..., example="Proveedor XYZ S.A.")
+    description: Optional[str] = Field(None, example="Monthly subscription for accounting software")
+
+class CompanyExpenseCreatePydantic(CompanyExpenseBasePydantic):
+    facture_id: Optional[int] = None # Can be created without a facture initially
+
+class CompanyExpenseReadPydantic(CompanyExpenseBasePydantic):
+    expense_id: int
+    facture_id: Optional[int] = None
+    created_by_user_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    is_deleted: bool = False # Include soft delete status
+    facture: Optional[CompanyFactureReadPydantic] = None # To hold linked facture details
+
+    class Config:
+        from_attributes = True
+
+class CompanyExpenseUpdatePydantic(BaseModel):
+    expense_date: Optional[date] = None
+    amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    recipient_name: Optional[str] = None
+    description: Optional[str] = None
+    # To update/link a facture, use a dedicated endpoint or ensure this field is handled carefully.
+    # Explicitly allowing facture_id to be set to None to unlink.
+    facture_id: Optional[int] = Field(None, allow_none=True)
+
+
+# For linking a facture to an expense via an existing expense
+class LinkFactureToExpenseRequestPydantic(BaseModel): # Renamed
+    facture_id: int
+
 
 # Pydantic Models for HR Reporting Responses
 

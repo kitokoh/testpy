@@ -1,0 +1,68 @@
+**General API Enhancements:**
+
+1.  **API Versioning:** Standardize API versioning in paths for all routers (e.g., `/api/v1/...`).
+2.  **Comprehensive API Documentation (OpenAPI/Swagger):**
+    *   Add detailed `Field` descriptions for all Pydantic models in `api/models.py`.
+    *   Include `description` parameters for all `Query`, `Path`, `Body` in endpoint definitions.
+    *   Provide example requests/responses in OpenAPI documentation.
+3.  **Standardized Error Response Model:** Define a consistent JSON structure for error responses (e.g., `{"detail": "message", "error_code": "CODE"}`).
+4.  **Rate Limiting:** Implement rate limiting for critical or resource-intensive endpoints.
+5.  **Request/Response Logging Middleware:** Add middleware for detailed logging of requests and responses (excluding sensitive data).
+6.  **Background Tasks:** Utilize FastAPI's `BackgroundTasks` for long-running operations (e.g., complex report generation).
+
+**Authentication & Authorization (`api/auth.py`, `api/dependencies.py`):**
+
+7.  **Token Refresh Endpoints:** Add an endpoint to refresh access tokens using refresh tokens.
+8.  **Granular Permissions/Scopes:** Expand the permission system beyond simple roles (e.g., "read_own_documents", "edit_all_documents", OAuth2 scopes).
+9.  **User Management API Endpoints:** Add CRUD endpoints for user management and role assignments (requires `users_crud.py`).
+10. **Audit Log for Auth Events:** Log significant authentication events (login success/failure, token refresh).
+
+**`api/assets.py` (Assets Management):**
+
+11. **Direct Media Upload with Asset Creation/Update:** Allow direct media file uploads when creating or updating an asset.
+12. **Bulk Asset Operations:** Endpoints for bulk creation, update, or deletion of assets.
+13. **Asset History/Log:** Endpoint to retrieve an audit trail of changes to an asset's status or assignments.
+14. **Filter Assets by Purchase Date Range:** Add `purchase_date_start` and `purchase_date_end` filters to the asset listing endpoint.
+
+**`api/documents.py` (Document Generation):**
+
+15. **Support for Multiple Template Engines/Types:** Extend `/generate` to handle different template types (DOCX, etc.) by dispatching to appropriate generators.
+16. **Asynchronous Document Generation:** Make `/generate` asynchronous for complex documents, returning a task ID for status polling.
+17. **Get Document Metadata Endpoint:** Add `/documents/{document_id}/metadata` to fetch metadata without downloading the file.
+18. **List Generated Documents with Filtering:** Implement `/documents/` to list documents with filters (client, project, date, type).
+
+**`api/employee_documents.py`:**
+
+19. **Chunked/Resumable Uploads:** Support for large employee document uploads.
+20. **Document Versioning:** Allow uploading new versions of existing employee documents.
+21. **Search Employee Documents:** Add search capabilities (name, description, content if indexed).
+
+**HR Modules (`api/employees.py`, `api/leave.py`, `api/performance.py`, `api/hr_reports.py`):**
+
+22. **Managerial Access Control:** Introduce logic for managers to access/manage data for their direct reports.
+23. **Leave Balance Calculation Endpoint:** An endpoint to return the current *available* leave balance for an employee/leave type.
+24. **Bulk Leave Balance Adjustments:** Endpoint for HR to perform bulk adjustments to leave balances.
+25. **Performance Review Cycle Automation:** Endpoints to automate parts of the review cycle (e.g., bulk-create draft reviews, send notifications).
+26. **Export HR Reports:** Add options to export HR reports in CSV or PDF format, not just JSON.
+
+**`api/products.py`:**
+
+27. **Product Variant Support:** Model and manage product variants (size, color, etc.) via API.
+28. **Inventory/Stock Management for Products:** Add endpoints to manage stock levels for physical products.
+29. **Product Pricing Tiers/Rules:** Support for different pricing for various customer groups or quantities.
+
+**`api/payments.py` (Invoice Payments):**
+
+30. **Record Partial Payments:** Allow recording multiple partial payments against an invoice.
+31. **Payment Gateway Integration (Advanced):** Integrate with payment gateways.
+32. **Refunds/Credit Notes:** Endpoints to manage refunds or issue credit notes related to invoices.
+
+**`api/templates.py`:**
+
+33. **Full CRUD for Document Templates:** Implement CRUD endpoints for general document templates (HTML, DOCX), including template file uploads and management, similar to how `TemplateDialog` implies interaction with `db_manager.add_template`.
+
+**`api/models.py`:**
+
+34. **SQLAlchemy Model Consistency:** Review `ProductResponse.product_id` type (int in Pydantic, String in SQLAlchemy `Product.id`). Ensure consistency or handle type conversion.
+35. **SQLAlchemy Relationships:** Ensure all `relationship()` definitions in SQLAlchemy models have `back_populates` where appropriate to maintain bidirectional relationships correctly and avoid warnings/issues. For example, `ProformaInvoiceItem.product` relationship to `Product` does not have a `back_populates` on `Product`.
+36. **Enum Usage in SQLAlchemy:** Ensure all enums used in Pydantic models (like `ProformaInvoiceStatusEnum`, `GoalStatusEnum`, etc.) are consistently applied in SQLAlchemy models using `SQLAlchemyEnum(YourEnumPythonClass)` for proper type handling and validation at the DB level. `LeaveRequest.status` and `Goal.status` correctly use this. `PerformanceReview.status` also.

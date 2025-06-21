@@ -1,0 +1,55 @@
+**Core Editing & Data Handling:**
+
+1.  **Formula Support:**
+    *   Implement a formula bar and the ability to input, evaluate, and recalculate Excel-like formulas within the `QTableWidget`.
+2.  **Cell Formatting Toolbar/Dialog:**
+    *   Add UI controls (toolbar/context menu) for users to apply cell formatting (font, size, color, alignment, number format, borders) directly, reflecting changes in the `openpyxl` model.
+3.  **Insert/Delete Rows/Columns at Specific Positions:**
+    *   Allow inserting/deleting rows or columns at the current selection, not just at the end.
+4.  **Copy/Paste with Styles:**
+    *   Implement copy/paste that preserves cell styles within the table and potentially with external Excel.
+5.  **Find and Replace:**
+    *   Add a find and replace dialog for searching and replacing text/values within the current sheet.
+6.  **Sheet Management UI:**
+    *   Provide UI options to rename, add, delete, or reorder sheets.
+7.  **Handling More Excel Features (Advanced):**
+    *   **Charts:** Basic viewing or editing of charts.
+    *   **Conditional Formatting:** Visualize or apply existing conditional formatting.
+    *   **Data Validation:** Respect data validation rules during cell editing.
+8.  **Improved `load_workbook` Error Reporting:**
+    *   Consolidate and provide clearer, user-friendly messages for different file load failures.
+9.  **Undo/Redo Functionality:**
+    *   Implement an undo/redo stack for edits, formatting, and structural changes.
+
+**PDF Export (`PDFGenerator`):**
+
+10. **UI for PDF Export Options:**
+    *   Create a dialog for users to customize `PDFExportSettings` (orientation, page size, margins, header/footer, grid lines, watermark) before export.
+11. **Fit to Page / Scale to Page for PDF:**
+    *   Add options to scale sheet content to fit PDF pages.
+12. **Selective Cell Range Export to PDF:**
+    *   Allow exporting only a selected range of cells to PDF.
+13. **Improved PDF Header/Footer Rendering:**
+    *   More robustly parse and render Excel header/footer codes (e.g., `&G` for images, `&P` for page number).
+    *   Allow custom header/footer text/images in PDF export settings.
+14. **Image Rendering Fidelity in PDF:**
+    *   Improve image quality, scaling, and positioning in PDFs to match Excel more closely.
+15. **Better Font Mapping/Embedding for PDF:**
+    *   Use fonts from Excel styles more accurately in PDFs and embed fonts for consistency.
+
+**Client Data Panel:**
+
+16. **Robust Load/Save Client Data with Excel:**
+    *   Make `extract_client_data` more configurable or allow user mapping of cells to client data fields.
+    *   Offer to write client data back to designated cells on save.
+17. **Logo Handling for Client Data:**
+    *   Better integrate logo management, potentially embedding it in the Excel file or linking to a central client profile.
+
+**UI & UX:**
+
+18. **Context Menus in Table:**
+    *   Add right-click context menus for common table actions (cut, copy, paste, insert/delete, format).
+19. **Clearer Read-Only Mode Indication:**
+    *   Visually indicate when a file is loaded in read-only mode and disable editing controls.
+20. **Consistent Progress Bar Usage:**
+    *   Ensure `set_progress` is used for all potentially long operations.

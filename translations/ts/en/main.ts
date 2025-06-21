@@ -1,30 +1,31 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
 <TS version="2.1" language="en_US">
 <context>
     <name>Application</name>
     <message>
         <source>1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.</source>
-        <translation>1. Les offres seront présentées en livres turques (prioritairement) ou en devises étrangères, TVA comprise.</translation>
+        <translation>1. Offers will be presented in Turkish Lira (primarily) or foreign currencies, VAT included.</translation>
     </message>
     <message>
         <source>2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.</source>
-        <translation>2. Le délai de livraison de la presse est de dix jours calendaires à compter de la signature du contrat.</translation>
+        <translation>2. The delivery time for the press is ten calendar days from the signing of the contract.</translation>
     </message>
     <message>
         <source>3. Lieu de livraison du matériel : Hidroguç Konya Türkiye</source>
-        <translation>3. Lieu de livraison du matériel : Hidroguç Konya Türkiye</translation>
+        <translation>3. Place of delivery of the equipment: Hidroguç Konya Türkiye</translation>
     </message>
     <message>
         <source>4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.</source>
-        <translation>4. Le paiement sera effectué conformément au plan de paiement de Hidroguç, après la production du matériel.</translation>
+        <translation>4. Payment will be made according to Hidroguç&apos;s payment plan, after the production of the equipment.</translation>
     </message>
     <message>
         <source>5. L’offre est valable pendant 30 jours calendaires.</source>
-        <translation>5. L’offre est valable pendant 30 jours calendaires.</translation>
+        <translation>5. The offer is valid for 30 calendar days.</translation>
     </message>
     <message>
         <source>6. Ce produit est exonéré de TVA.</source>
-        <translation>6. Ce produit est exonéré de TVA.</translation>
+        <translation>6. This product is VAT exempt.</translation>
     </message>
     <message>
         <source>Actions</source>
@@ -36,7 +37,7 @@
     </message>
     <message>
         <source>Adresse email du destinataire:</source>
-        <translation>Recipient's email address:</translation>
+        <translation>Recipient&apos;s email address:</translation>
     </message>
     <message>
         <source>Afficher la ligne horizontale</source>
@@ -87,7 +88,7 @@
         <translation>Cancel</translation>
     </message>
     <message>
-        <source>Aucun document n'a pu être créé.</source>
+        <source>Aucun document n&apos;a pu être créé.</source>
         <translation>No document could be created.</translation>
     </message>
     <message>
@@ -120,7 +121,7 @@
     </message>
     <message>
         <source>Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</source>
-        <translation>Bonjour,\n\nVeuillez trouver ci-joint les documents compilés pour le projet {0}.\n\nCordialement,\nVotre équipe</translation>
+        <translation>Hello,\n\nPlease find attached the compiled documents for project {0}.\n\nSincerely,\nYour Team</translation>
     </message>
     <message>
         <source>Ce pays existe déjà.</source>
@@ -155,7 +156,7 @@
         <translation>Folder Path:</translation>
     </message>
     <message>
-        <source>Chemin vers l'image du logo</source>
+        <source>Chemin vers l&apos;image du logo</source>
         <translation>Path to logo image</translation>
     </message>
     <message>
@@ -275,7 +276,7 @@
         <translation>Creation Date:</translation>
     </message>
     <message>
-        <source>Date d'émission:</source>
+        <source>Date d&apos;émission:</source>
         <translation>Issue Date:</translation>
     </message>
     <message>
@@ -400,19 +401,19 @@
     </message>
     <message>
         <source>Erreur lors de la compilation du PDF:\n{0}</source>
-        <translation>Erreur lors de la compilation du PDF:\n{0}</translation>
+        <translation>Error compiling PDF:\n{0}</translation>
     </message>
     <message>
         <source>Erreur lors de la génération de la page de garde via pagedegrde: {0}</source>
         <translation>Error generating cover page via pagedegrde: {0}</translation>
     </message>
     <message>
-        <source>Erreur lors de l'ajout de {0}:\n{1}</source>
-        <translation>Erreur lors de l'ajout de {0}:\n{1}</translation>
+        <source>Erreur lors de l&apos;ajout de {0}:\n{1}</source>
+        <translation>Error adding {0}:\n{1}</translation>
     </message>
     <message>
-        <source>Erreur lors de l'envoi de l'email:\n{0}</source>
-        <translation>Erreur lors de l'envoi de l'email:\n{0}</translation>
+        <source>Erreur lors de l&apos;envoi de l&apos;email:\n{0}</source>
+        <translation>Error sending email:\n{0}</translation>
     </message>
     <message>
         <source>Erreur</source>
@@ -436,27 +437,27 @@
     </message>
     <message>
         <source>Erreur de chargement des contacts:\n{0}</source>
-        <translation>Erreur de chargement des contacts:\n{0}</translation>
+        <translation>Error loading contacts:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des modèles:\n{str(e)}</source>
-        <translation>Erreur de chargement des modèles:\n{str(e)}</translation>
+        <translation>Error loading templates:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de chargement des modèles:\n{0}</source>
-        <translation>Erreur de chargement des modèles:\n{0}</translation>
+        <translation>Error loading templates:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des pays:\n{0}</source>
-        <translation>Erreur de chargement des pays:\n{0}</translation>
+        <translation>Error loading countries:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des produits:\n{0}</source>
-        <translation>Erreur de chargement des produits:\n{0}</translation>
+        <translation>Error loading products:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement des statuts:\n{0}</source>
-        <translation>Erreur de chargement des statuts:\n{0}</translation>
+        <translation>Error loading statuses:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de chargement de la feuille</source>
@@ -468,70 +469,70 @@
     </message>
     <message>
         <source>Erreur de mise à jour du modèle:\n{str(e)}</source>
-        <translation>Erreur de mise à jour du modèle:\n{str(e)}</translation>
+        <translation>Error updating template:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de mise à jour du statut:\n{0}</source>
-        <translation>Erreur de mise à jour du statut:\n{0}</translation>
+        <translation>Error updating status:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de sauvegarde des notes:\n{0}</source>
-        <translation>Erreur de sauvegarde des notes:\n{0}</translation>
+        <translation>Error saving notes:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de suppression du contact:\n{0}</source>
-        <translation>Erreur de suppression du contact:\n{0}</translation>
+        <translation>Error deleting contact:\n{0}</translation>
     </message>
     <message>
         <source>Erreur de suppression du modèle:\n{str(e)}</source>
-        <translation>Erreur de suppression du modèle:\n{str(e)}</translation>
+        <translation>Error deleting template:\n{str(e)}</translation>
     </message>
     <message>
         <source>Erreur de suppression du produit:\n{0}</source>
-        <translation>Erreur de suppression du produit:\n{0}</translation>
+        <translation>Error deleting product:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'Ouverture Fichier</source>
+        <source>Erreur d&apos;Ouverture Fichier</source>
         <translation>File Open Error</translation>
     </message>
     <message>
-        <source>Erreur d'accès au modèle:\n{str(e)}</source>
-        <translation>Erreur d'accès au modèle:\n{str(e)}</translation>
+        <source>Erreur d&apos;accès au modèle:\n{str(e)}</source>
+        <translation>Error accessing template:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout de la ville:\n{0}</source>
-        <translation>Erreur d'ajout de la ville:\n{0}</translation>
+        <source>Erreur d&apos;ajout de la ville:\n{0}</source>
+        <translation>Error adding city:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du contact:\n{0}</source>
-        <translation>Erreur d'ajout du contact:\n{0}</translation>
+        <source>Erreur d&apos;ajout du contact:\n{0}</source>
+        <translation>Error adding contact:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du modèle:\n{str(e)}</source>
-        <translation>Erreur d'ajout du modèle:\n{str(e)}</translation>
+        <source>Erreur d&apos;ajout du modèle:\n{str(e)}</source>
+        <translation>Error adding template:\n{str(e)}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du pays:\n{0}</source>
-        <translation>Erreur d'ajout du pays:\n{0}</translation>
+        <source>Erreur d&apos;ajout du pays:\n{0}</source>
+        <translation>Error adding country:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'ajout du produit:\n{0}</source>
-        <translation>Erreur d'ajout du produit:\n{0}</translation>
+        <source>Erreur d&apos;ajout du produit:\n{0}</source>
+        <translation>Error adding product:\n{0}</translation>
     </message>
     <message>
-        <source>Erreur d'export PDF</source>
+        <source>Erreur d&apos;export PDF</source>
         <translation>PDF Export Error</translation>
     </message>
     <message>
-        <source>Erreur d'export PDF: {0}</source>
+        <source>Erreur d&apos;export PDF: {0}</source>
         <translation>PDF Export Error: {0}</translation>
     </message>
     <message>
-        <source>Erreur d'envoi</source>
+        <source>Erreur d&apos;envoi</source>
         <translation>Send Error</translation>
     </message>
     <message>
-        <source>Erreur d'ouverture du PDF: {0}</source>
+        <source>Erreur d&apos;ouverture du PDF: {0}</source>
         <translation>Error opening PDF: {0}</translation>
     </message>
     <message>
@@ -571,8 +572,8 @@
         <translation>File not found.</translation>
     </message>
     <message>
-        <source>Fichier modèle '{0}' introuvable pour '{1}'.</source>
-        <translation>Template file '{0}' not found for '{1}'.</translation>
+        <source>Fichier modèle &apos;{0}&apos; introuvable pour &apos;{1}&apos;.</source>
+        <translation>Template file &apos;{0}&apos; not found for &apos;{1}&apos;.</translation>
     </message>
     <message>
         <source>Fichier non trouvé</source>
@@ -591,7 +592,7 @@
         <translation>Filter by status:</translation>
     </message>
     <message>
-        <source>Formulaire d'Offre</source>
+        <source>Formulaire d&apos;Offre</source>
         <translation>Offer Form</translation>
     </message>
     <message>
@@ -651,40 +652,40 @@
         <translation>Unique project identifier</translation>
     </message>
     <message>
-        <source>Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</source>
-        <translation>Impossible d'initialiser la base de données: {0}\nL'application pourrait ne pas fonctionner correctement.</translation>
+        <source>Impossible d&apos;initialiser la base de données: {0}\nL&apos;application pourrait ne pas fonctionner correctement.</source>
+        <translation>Could not initialize database: {0}\nThe application may not function correctly.</translation>
     </message>
     <message>
-        <source>Impossible d'enregistrer la configuration: {0}</source>
+        <source>Impossible d&apos;enregistrer la configuration: {0}</source>
         <translation>Could not save configuration: {0}</translation>
     </message>
     <message>
-        <source>Impossible d'ouvrir le fichier:\n{0}</source>
-        <translation>Impossible d'ouvrir le fichier:\n{0}</translation>
+        <source>Impossible d&apos;ouvrir le fichier:\n{0}</source>
+        <translation>Could not open file:\n{0}</translation>
     </message>
     <message>
-        <source>Impossible de charger la feuille '{0}':\n{1}</source>
-        <translation>Impossible de charger la feuille '{0}':\n{1}</translation>
+        <source>Impossible de charger la feuille &apos;{0}&apos;:\n{1}</source>
+        <translation>Could not load sheet &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
         <source>Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</source>
-        <translation>Impossible de charger le fichier Excel:\n{0}\n\nUn tableau vide sera créé.</translation>
+        <translation>Could not load Excel file:\n{0}\n\nAn empty table will be created.</translation>
     </message>
     <message>
         <source>Impossible de générer la page de garde personnalisée: {0}</source>
         <translation>Could not generate custom cover page: {0}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle HTML '{0}':\n{1}</source>
-        <translation>Impossible de populer le modèle HTML '{0}':\n{1}</translation>
+        <source>Impossible de populer le modèle HTML &apos;{0}&apos;:\n{1}</source>
+        <translation>Could not populate HTML template &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
-        <source>Impossible de populer le modèle Word '{0}':\n{1}</source>
-        <translation>Impossible de populer le modèle Word '{0}':\n{1}</translation>
+        <source>Impossible de populer le modèle Word &apos;{0}&apos;:\n{1}</source>
+        <translation>Could not populate Word template &apos;{0}&apos;:\n{1}</translation>
     </message>
     <message>
         <source>Impossible de supprimer le fichier:\n{0}</source>
-        <translation>Impossible de supprimer le fichier:\n{0}</translation>
+        <translation>Could not delete file:\n{0}</translation>
     </message>
     <message>
         <source>Informations Client</source>
@@ -703,8 +704,8 @@
         <translation>Days before old client reminder:</translation>
     </message>
     <message>
-        <source>L'ID Projet '{0}' est déjà utilisé.</source>
-        <translation>Project ID '{0}' is already in use.</translation>
+        <source>L&apos;ID Projet &apos;{0}&apos; est déjà utilisé.</source>
+        <translation>Project ID &apos;{0}&apos; is already in use.</translation>
     </message>
     <message>
         <source>Langue Interface (redémarrage requis):</source>
@@ -724,7 +725,7 @@
     </message>
     <message>
         <source>Le PDF compilé a été sauvegardé dans:\n{0}</source>
-        <translation>Le PDF compilé a été sauvegardé dans:\n{0}</translation>
+        <translation>The compiled PDF has been saved to:\n{0}</translation>
     </message>
     <message>
         <source>Le client {0} a été créé, mais la création du projet correspondant a échoué : {1}</source>
@@ -735,23 +736,23 @@
         <translation>The document was sent successfully.</translation>
     </message>
     <message>
-        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</source>
-        <translation>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l'ouvrir ?</translation>
+        <source>Le fichier PDF a été créé avec succès:\n{0}\n\nVoulez-vous l&apos;ouvrir ?</source>
+        <translation>The PDF file was created successfully:\n{0}\n\nDo you want to open it?</translation>
     </message>
     <message>
-        <source>Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</source>
-        <translation>Le fichier {0} n'existe pas.\nUn nouveau fichier sera créé.</translation>
+        <source>Le fichier {0} n&apos;existe pas.\nUn nouveau fichier sera créé.</source>
+        <translation>File {0} does not exist.\nA new file will be created.</translation>
     </message>
     <message>
         <source>Le fichier a été sauvegardé avec succès:\n{0}</source>
-        <translation>Le fichier a été sauvegardé avec succès:\n{0}</translation>
+        <translation>The file was saved successfully:\n{0}</translation>
     </message>
     <message>
-        <source>Le fichier n'existe plus.</source>
+        <source>Le fichier n&apos;existe plus.</source>
         <translation>The file no longer exists.</translation>
     </message>
     <message>
-        <source>Le tableau est vide. Impossible d'exporter en PDF.</source>
+        <source>Le tableau est vide. Impossible d&apos;exporter en PDF.</source>
         <translation>The table is empty. Cannot export to PDF.</translation>
     </message>
     <message>
@@ -855,8 +856,8 @@
         <translation>Product Name</translation>
     </message>
     <message>
-        <source>Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.</source>
-        <translation>Missing filename for template '{0}'. Cannot create.</translation>
+        <source>Nom de fichier manquant pour le modèle &apos;{0}&apos;. Impossible de créer.</source>
+        <translation>Missing filename for template &apos;{0}&apos;. Cannot create.</translation>
     </message>
     <message>
         <source>Nom du Modèle</source>
@@ -931,7 +932,7 @@
         <translation>PDF</translation>
     </message>
     <message>
-        <source>Paramètres de l'Application</source>
+        <source>Paramètres de l&apos;Application</source>
         <translation>Application Settings</translation>
     </message>
     <message>
@@ -1191,8 +1192,8 @@
         <translation>A corresponding project for {0} has been automatically created in the project management system.</translation>
     </message>
     <message>
-        <source>Une erreur inattendue s'est produite:\n{0}</source>
-        <translation>Une erreur inattendue s'est produite:\n{0}</translation>
+        <source>Une erreur inattendue s&apos;est produite:\n{0}</source>
+        <translation>An unexpected error occurred:\n{0}</translation>
     </message>
     <message>
         <source>Urgent</source>
@@ -1211,11 +1212,11 @@
         <translation>Version:</translation>
     </message>
     <message>
-        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l'application.</source>
+        <source>Veuillez configurer les paramètres SMTP dans les paramètres de l&apos;application.</source>
         <translation>Please configure SMTP settings in the application settings.</translation>
     </message>
     <message>
-        <source>Veuillez d'abord sélectionner un pays.</source>
+        <source>Veuillez d&apos;abord sélectionner un pays.</source>
         <translation>Please select a country first.</translation>
     </message>
     <message>
@@ -1244,15 +1245,15 @@
     </message>
     <message>
         <source>Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</source>
-        <translation>Vous avez des modifications non sauvegardées.\nÊtes-vous sûr de vouloir annuler ?</translation>
+        <translation>You have unsaved changes.\nAre you sure you want to cancel?</translation>
     </message>
     <message>
         <source>Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</source>
-        <translation>Vous avez des modifications non sauvegardées.\nVoulez-vous sauvegarder avant de fermer ?</translation>
+        <translation>You have unsaved changes.\nDo you want to save before closing?</translation>
     </message>
     <message>
-        <source>Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
-        <translation>Vous avez des modifications non sauvegardées dans '{0}'.\nVoulez-vous sauvegarder avant de changer de feuille ?</translation>
+        <source>Vous avez des modifications non sauvegardées dans &apos;{0}&apos;.\nVoulez-vous sauvegarder avant de changer de feuille ?</source>
+        <translation>You have unsaved changes in &apos;{0}&apos;.\nDo you want to save before switching sheets?</translation>
     </message>
     <message>
         <source>Word</source>
@@ -1275,7 +1276,7 @@
         <translation>&lt;b&gt;Contact person:&lt;/b&gt; Ramazan Demirci    &lt;b&gt;Tel:&lt;/b&gt; +90 533 548 27 29    &lt;b&gt;Email:&lt;/b&gt; bilgi@hidrogucpres.com</translation>
     </message>
     <message>
-        <source>&lt;b&gt;Conditions d'achat:&lt;/b&gt;</source>
+        <source>&lt;b&gt;Conditions d&apos;achat:&lt;/b&gt;</source>
         <translation>&lt;b&gt;Purchase Conditions:&lt;/b&gt;</translation>
     </message>
     <message>
@@ -1303,8 +1304,8 @@
         <translation>Are you sure you want to delete file {0}?</translation>
     </message>
     <message>
-        <source>Êtes-vous sûr de vouloir supprimer le produit '{0}'?</source>
-        <translation>Are you sure you want to delete product '{0}'?</translation>
+        <source>Êtes-vous sûr de vouloir supprimer le produit &apos;{0}&apos;?</source>
+        <translation>Are you sure you want to delete product &apos;{0}&apos;?</translation>
     </message>
     <message>
         <source>&amp;Fichier</source>
