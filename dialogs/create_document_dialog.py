@@ -225,12 +225,13 @@ class CreateDocumentDialog(QDialog):
             document_template_types = ['document_html', 'document_excel', 'document_word', 'document_pdf', 'document_other']
             logging.info(f"DB query will use template_type_filter_list: {document_template_types}")
 
+
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter_list=document_template_types, # Use list for broad doc types
                 template_type_filter=None, # Set single type filter to None for DB query
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=actual_category_id_filter
+                category_id_filter=None  # Fetch all categories
             )
             if templates_from_db is None: templates_from_db = []
             logging.info(f"Fetched {len(templates_from_db)} document-type templates from DB.")
@@ -244,6 +245,7 @@ class CreateDocumentDialog(QDialog):
                         if t.get('template_type') == target_template_type_for_gui_filter
                     ]
             logging.info(f"Templates after local extension filter '{selected_ext_display}': {len(templates_from_db)}")
+
 
             # Apply search text filter locally first
             if search_text:
