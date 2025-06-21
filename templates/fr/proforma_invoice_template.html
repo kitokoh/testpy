@@ -2,191 +2,27 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FACTURE PROFORMA</title>
+    <title>FACTURE PROFORMA - {{ placeholders.PROFORMA_ID }}</title>
     <style>
+        /* === General Page Styling === */
         body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            font-size: 10pt;
-            color: #333;
-            background-color: #fff; /* Ensure background is white for printing */
+            font-size: 11pt;
+            color: #333333;
+            background-color: #f4f7fc;
+            line-height: 1.6;
         }
         .container {
-            width: 95%; /* More responsive for different screen sizes */
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        .header-section {
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            overflow: hidden; /* To contain floats, equivalent to clearfix */
-        }
-        .header-section .logo {
-            max-width: 200px;
-            max-height: 80px;
-            float: left;
-            margin-right: 20px;
-            margin-bottom: 10px; /* Space below logo */
-        }
-        .header-section .company-info {
-            float: left;
-            max-width: calc(100% - 220px); /* Adjust based on logo width and margin */
-            line-height: 1.4;
-        }
-        .header-section .invoice-title-container {
-            float: right;
-            text-align: right;
-        }
-        .header-section .invoice-title {
-            font-size: 22pt; /* Adjusted for balance */
-            font-weight: bold;
-            color: #4A90E2; /* Primary color example */
-            margin-top: 0; /* Remove default margin */
-            margin-bottom: 5px;
-        }
-        .header-section .invoice-subtitle {
-            font-size: 10pt;
-            color: #555;
-        }
-
-        .parties-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            flex-wrap: wrap; /* Allow wrapping on smaller screens if necessary */
-        }
-        .party-details {
-            width: 48%;
-            line-height: 1.5; /* Slightly more line height */
-            padding: 10px;
-            border: 1px solid #f0f0f0; /* Light border for each party */
-            border-radius: 4px;
-            box-sizing: border-box; /* Include padding and border in width */
-        }
-        .party-details h3 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #4A90E2; /* Use primary color */
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-            font-size: 12pt;
-        }
-        .party-details p {
-            margin: 0 0 5px 0;
-        }
-
-        .invoice-meta-section {
-            margin-bottom: 30px;
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 4px;
-            border: 1px solid #eee;
-        }
-        .invoice-meta-section table {
-            width: 100%; /* Take full width of its container */
-            border-collapse: collapse;
-        }
-        .invoice-meta-section td {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 10mm auto;
+            padding: 15mm;
+            background-color: #ffffff;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            box-sizing: border-box;
             border: none;
-            padding: 5px 10px 5px 0;
-            vertical-align: top;
-        }
-        .invoice-meta-section td:first-child {
-            font-weight: bold;
-            white-space: nowrap; /* Prevent label from wrapping */
-        }
-
-        .products-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-        .products-table th, .products-table td {
-            border: 1px solid #ccc;
-            padding: 10px; /* Increased padding */
-            text-align: left;
-            vertical-align: top; /* Align content to top */
-        }
-        .products-table th {
-            background-color: #4A90E2; /* Primary color for table header */
-            color: #fff; /* White text for table header */
-            font-weight: bold;
-        }
-        .products-table td.number, .products-table th.number {
-            text-align: right;
-        }
-        .products-table tbody tr:nth-child(even) {
-            background-color: #f9f9f9; /* Zebra striping for rows */
-        }
-        .products-table td small {
-            font-size: 9pt;
-            color: #555;
-        }
-
-        .totals-section {
-            margin-top: 30px;
-            float: right;
-            width: 45%; /* Adjusted width */
-            clear: both; /* Ensure it doesn't overlap floated elements if any */
-        }
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse; /* Remove space between borders */
-        }
-        .totals-table td {
-            padding: 8px; /* Uniform padding */
-            border: 1px solid #eee; /* Light borders for totals items */
-        }
-        .totals-table td:first-child {
-            text-align: right;
-            font-weight: bold;
-            width: 60%; /* Allocate more space for labels */
-        }
-        .totals-table td:last-child {
-            text-align: right;
-        }
-        .grand-total td {
-            font-size: 1.3em; /* Slightly larger grand total */
-            font-weight: bold;
-            color: #4A90E2; /* Primary color for grand total */
-            border-top: 2px solid #4A90E2;
-            border-bottom: 2px solid #4A90E2;
-        }
-
-        .footer-section {
-            margin-top: 40px; /* More space before footer */
-            padding-top: 20px;
-            border-top: 1px solid #4A90E2; /* Primary color border */
-            line-height: 1.5;
-        }
-        .footer-section p {
-            font-size: 9pt;
-            color: #666;
-            margin: 5px 0;
-        }
-        .bank-details {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-        .bank-details h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #555;
-            font-size: 11pt;
-        }
-        .notes {
-            margin-top: 20px;
-            font-size: 9pt;
-            background-color: #f9f9f9;
-            padding: 10px;
-            border-radius: 4px;
         }
         .clearfix::after {
             content: "";
@@ -194,166 +30,417 @@
             display: table;
         }
 
-        /* Responsive adjustments (optional, mainly for screen viewing) */
-        @media screen and (max-width: 768px) {
-            .container {
-                width: 98%;
-                margin: 10px auto;
-                padding: 10px;
-            }
-            .header-section .logo, .header-section .company-info, .header-section .invoice-title-container {
-                float: none;
-                width: 100%;
-                text-align: center;
-                margin-right: 0;
-            }
-            .header-section .company-info {
-                margin-top:10px;
-            }
-            .header-section .invoice-title { text-align: center; }
-            .parties-section { flex-direction: column; }
-            .party-details { width: 100%; margin-bottom: 15px; }
-            .totals-section { width: 100%; float: none; }
+        /* === Header Section === */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid #e0e0e0;
         }
-        @media print {
-            body { font-size: 9pt; } /* Slightly smaller for print if needed */
-            .container { border: none; box-shadow: none; margin: 0; padding: 0; width: 100%; max-width: 100%;}
-            .invoice-meta-section { background-color: #fff; border: 1px solid #ccc; } /* Ensure visibility on print */
-            .notes { background-color: #fff; border: 1px solid #ccc; }
-            .products-table th { background-color: #f0f0f0 !important; color: #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* Ensure header bg prints */
-            .totals-table td { border: 1px solid #ccc; }
-            .grand-total td { color: #333 !important; border-top: 2px solid #333 !important; border-bottom: 2px solid #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;}
-             .no-print, .no-print * { display: none !important; } /* Class to hide elements on print */
+        .logo {
+            max-width: 180px;
+            max-height: 75px;
+            object-fit: contain;
+            margin-right: 30px;
+        }
+        .company-info {
+            font-size: 0.9em;
+            color: #555555;
+            line-height: 1.5;
+            flex-grow: 1; /* Allow company info to take available space */
+        }
+        .company-info strong {
+            color: #333333;
+        }
+        .invoice-title-container {
+            text-align: right;
+        }
+        .invoice-title {
+            font-size: 2.4em;
+            font-weight: 600;
+            color: #3A539B;
+            margin: 0 0 5px 0;
+        }
+        .invoice-subtitle {
+            font-size: 1em;
+            color: #4A5568;
         }
 
+        /* === Parties Section === */
+        .parties-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            gap: 20px;
+        }
+        .party-details {
+            width: 48%;
+            padding: 15px;
+            background-color: #f8fafc;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.9em;
+        }
+        .party-details h3 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: #3A539B;
+            border-bottom: 1px solid #cccccc;
+            padding-bottom: 8px;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        .party-details p {
+            margin: 4px 0;
+        }
+
+        /* === Invoice Meta Section === */
+        .invoice-meta-section {
+            margin-bottom: 25px;
+            background-color: #f8fafc;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            font-size: 0.9em;
+        }
+        .invoice-meta-section table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .invoice-meta-section td {
+            border: none;
+            padding: 6px 10px 6px 0;
+            vertical-align: top;
+        }
+        .invoice-meta-section td:first-child {
+            font-weight: 600;
+            color: #4A5568;
+            white-space: nowrap;
+            padding-right: 15px;
+        }
+
+        /* === Products Table === */
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 0.95em;
+        }
+        .products-table th,
+        .products-table td {
+            border: 1px solid #dfe6f0;
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .products-table th {
+            background-color: #4A5568;
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .products-table tbody tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+        .products-table td.number,
+        .products-table th.number {
+            text-align: right;
+        }
+        .products-table td small {
+            font-size: 0.9em;
+            color: #666666;
+            display: block;
+            margin-top: 2px;
+        }
+
+        /* === Totals Section === */
+        .totals-section {
+            margin-top: 0; /* Adjusted as it's no longer directly after products table in all cases */
+            float: right;
+            width: 48%;
+            clear: both;
+            margin-bottom: 15px;
+        }
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 9px 12px;
+            border: 1px solid #e0e0e0;
+            font-size: 0.95em;
+        }
+        .totals-table td:first-child {
+            text-align: right;
+            font-weight: 600;
+            color: #4A5568;
+            width: auto; /* Let width be auto or specify percentage */
+        }
+        .totals-table td:last-child {
+            text-align: right;
+            font-weight: 500;
+        }
+        .totals-table .grand-total td {
+            font-size: 1.2em !important;
+            font-weight: bold !important;
+            color: #3A539B;
+            border-top: 2px solid #3A539B;
+            border-bottom: 2px solid #3A539B;
+        }
+        .total-in-letters { /* Class for "En lettres" paragraph */
+            font-size: 0.9em;
+            text-align: right;
+            margin-top: 5px; /* Added some margin */
+            clear: both; /* Ensure it clears the floated table */
+        }
+
+
+        /* === Footer Section === */
+        .footer-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #cccccc;
+            line-height: 1.5;
+            clear: both; /* Added clear:both due to floated totals */
+        }
+        .bank-details,
+        .notes,
+        .payment-instructions { /* Added new class */
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8fafc;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .footer-section h4 { /* Target h4 within footer sections */
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #4A5568;
+            font-size: 1.05em;
+            font-weight: 600;
+        }
+        .final-remarks p { /* Target paragraphs in final-remarks div */
+            font-size: 0.9em;
+            color: #555555;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        /* === Print Styles === */
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                font-size: 10pt !important; /* Adjust base font for print if needed */
+            }
+            .container {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 5mm !important; /* Reduce padding for print */
+                width: 100% !important;
+                min-height: auto !important;
+            }
+            .products-table th {
+                background-color: #eaeaea !important;
+                color: #333333 !important;
+                -webkit-print-color-adjust: exact; /* Ensure background prints in Chrome/Safari */
+                print-color-adjust: exact; /* Standard */
+            }
+            .totals-table .grand-total td {
+                color: #000000 !important;
+                 -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .party-details, .invoice-meta-section, .bank-details, .notes, .payment-instructions {
+                background-color: #ffffff !important; /* Remove background for these sections on print */
+                border: 1px solid #cccccc !important; /* Keep a light border for structure */
+                 -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .header-section, .footer-section {
+                border-color: #cccccc !important;
+            }
+             /* Hide elements not needed for print if any */
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header-section clearfix">
-            {% if placeholders.SELLER_COMPANY_LOGO_PATH and placeholders.SELLER_COMPANY_LOGO_PATH != 'N/A' %}
-            <img src="{{ placeholders.SELLER_COMPANY_LOGO_PATH }}" alt="Logo {{ placeholders.SELLER_COMPANY_NAME }}" class="logo">
-            {% endif %}
+            <div class="company-info">
+                {% if placeholders.SELLER_COMPANY_LOGO_PATH and placeholders.SELLER_COMPANY_LOGO_PATH != 'N/A' %}
+                    <img src="{{ placeholders.SELLER_COMPANY_LOGO_PATH }}" alt="Logo" class="logo">
+                {% endif %}
+                <strong>{{ placeholders.SELLER_COMPANY_NAME | default:"N/A" }}</strong><br>
+                {{ placeholders.SELLER_ADDRESS_LINE1 | default:"N/A" }}<br>
+                {{ placeholders.SELLER_CITY_ZIP_COUNTRY | default:"N/A" }}<br>
+                Tel: {{ placeholders.SELLER_PHONE | default:"N/A" }}<br>
+                Email: {{ placeholders.SELLER_EMAIL | default:"N/A" }}
+            </div>
             <div class="invoice-title-container">
                 <h1 class="invoice-title">FACTURE PROFORMA</h1>
-                <p class="invoice-subtitle">Proforma N°: {{ placeholders.PROFORMA_ID }}</p>
-            </div>
-            <div class="company-info">
-                <strong>{{ placeholders.SELLER_COMPANY_NAME }}</strong><br>
-                {{ placeholders.SELLER_ADDRESS_LINE1 }}<br>
-                {% if placeholders.SELLER_CITY %}{{ placeholders.SELLER_CITY }} {% endif %}{% if placeholders.SELLER_POSTAL_CODE %}{{ placeholders.SELLER_POSTAL_CODE }}{% endif %}<br>
-                {% if placeholders.SELLER_COUNTRY %}{{ placeholders.SELLER_COUNTRY }}{% endif %}<br>
-                Tél: {{ placeholders.SELLER_COMPANY_PHONE }}<br>
-                Email: {{ placeholders.SELLER_COMPANY_EMAIL }}<br>
-                N° TVA: {{ placeholders.SELLER_VAT_ID }}<br>
-                N° Reg.: {{ placeholders.SELLER_REGISTRATION_NUMBER }}
+                <p class="invoice-subtitle">Numéro de Proforma : {{ placeholders.PROFORMA_ID | default:"N/A" }}</p>
             </div>
         </div>
 
-        <div class="parties-section">
+        <div class="parties-section clearfix">
             <div class="party-details">
-                <h3>Vendeur</h3>
-                <p><strong>{{ placeholders.SELLER_COMPANY_NAME }}</strong></p>
-                <p>{{ placeholders.SELLER_ADDRESS_LINE1 }}</p>
-                <p>{% if placeholders.SELLER_CITY %}{{ placeholders.SELLER_CITY }} {% endif %}{% if placeholders.SELLER_POSTAL_CODE %}{{ placeholders.SELLER_POSTAL_CODE }}{% endif %}</p>
-                <p>{% if placeholders.SELLER_COUNTRY %}{{ placeholders.SELLER_COUNTRY }}{% endif %}</p>
-                <p>Tél: {{ placeholders.SELLER_COMPANY_PHONE }}</p>
-                <p>Email: {{ placeholders.SELLER_COMPANY_EMAIL }}</p>
-                <p>N° TVA: {{ placeholders.SELLER_VAT_ID }}</p>
-                <p>N° Reg.: {{ placeholders.SELLER_REGISTRATION_NUMBER }}</p>
+                <h3>Client :</h3>
+                <p><strong>{{ placeholders.CLIENT_COMPANY_NAME | default:"N/A" }}</strong></p>
+                <p>{{ placeholders.CLIENT_ADDRESS_LINE1 | default:"N/A" }}</p>
+                <p>{{ placeholders.CLIENT_CITY_ZIP_COUNTRY | default:"N/A" }}</p>
+                {% if placeholders.CLIENT_CONTACT_NAME and placeholders.CLIENT_CONTACT_NAME != 'N/A' %}
+                    <p>Attn: {{ placeholders.CLIENT_CONTACT_NAME }}</p>
+                {% endif %}
+                {% if placeholders.CLIENT_VAT_ID and placeholders.CLIENT_VAT_ID != 'N/A' %}
+                    <p>No. TVA: {{ placeholders.CLIENT_VAT_ID }}</p>
+                {% endif %}
             </div>
             <div class="party-details">
-                <h3>Client</h3>
-                <p><strong>{{ placeholders.BUYER_COMPANY_NAME }}</strong></p>
-                {% if placeholders.BUYER_REPRESENTATIVE_NAME and placeholders.BUYER_REPRESENTATIVE_NAME != "N/A" %}
-                <p>À l'attention de: {{ placeholders.BUYER_REPRESENTATIVE_NAME }}</p>
+                <h3>Fournisseur :</h3>
+                <p><strong>{{ placeholders.SELLER_COMPANY_NAME | default:"N/A" }}</strong></p>
+                <p>{{ placeholders.SELLER_ADDRESS_LINE1 | default:"N/A" }}</p>
+                <p>{{ placeholders.SELLER_CITY_ZIP_COUNTRY | default:"N/A" }}</p>
+                {% if placeholders.SELLER_VAT_ID and placeholders.SELLER_VAT_ID != 'N/A' %}
+                    <p>No. TVA: {{ placeholders.SELLER_VAT_ID }}</p>
                 {% endif %}
-                <p>{{ placeholders.BUYER_ADDRESS_LINE1 }}</p>
-                <p>{% if placeholders.BUYER_CITY %}{{ placeholders.BUYER_CITY }} {% endif %}{% if placeholders.BUYER_POSTAL_CODE %}{{ placeholders.BUYER_POSTAL_CODE }}{% endif %}</p>
-                <p>{% if placeholders.BUYER_COUNTRY %}{{ placeholders.BUYER_COUNTRY }}{% endif %}</p>
-                <p>Tél: {{ placeholders.BUYER_PHONE }}</p>
-                <p>Email: {{ placeholders.BUYER_EMAIL }}</p>
-                <p>N° TVA: {{ placeholders.BUYER_VAT_NUMBER }}</p>
-                <p>N° Reg.: {{ placeholders.BUYER_COMPANY_REGISTRATION_NUMBER }}</p>
             </div>
         </div>
 
         <div class="invoice-meta-section">
             <table>
-                <tr><td>Numéro Proforma:</td><td>{{ placeholders.PROFORMA_ID }}</td></tr>
-                <tr><td>Date d'Émission:</td><td>{{ placeholders.DATE }}</td></tr>
-                <tr><td>Identifiant Projet:</td><td>{{ placeholders.PROJECT_ID }}</td></tr>
-                <tr><td>Modalités de Paiement:</td><td>{{ placeholders.PAYMENT_TERMS }}</td></tr>
-                <tr><td>Conditions de Livraison:</td><td>{{ placeholders.DELIVERY_TERMS }}</td></tr>
-                <tr><td>Incoterms®:</td><td>{{ placeholders.INCOTERMS }} {{ placeholders.NAMED_PLACE_OF_DELIVERY }}</td></tr>
+                <tr>
+                    <td>Date d'émission :</td>
+                    <td>{{ placeholders.ISSUE_DATE | default:"N/A" }}</td>
+                    <td>Date de validité :</td>
+                    <td>{{ placeholders.EXPIRY_DATE | default:"N/A" }}</td>
+                </tr>
+                <tr>
+                    <td>Conditions de paiement :</td>
+                    <td>{{ placeholders.PAYMENT_TERMS | default:"N/A" }}</td>
+                    <td>Incoterms :</td>
+                    <td>{{ placeholders.INCOTERMS | default:"N/A" }}</td>
+                </tr>
+                {% if placeholders.REFERENCE_NUMBER and placeholders.REFERENCE_NUMBER != 'N/A' %}
+                <tr>
+                    <td>Référence :</td>
+                    <td colspan="3">{{ placeholders.REFERENCE_NUMBER }}</td>
+                </tr>
+                {% endif %}
             </table>
         </div>
 
-        <table class="products-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Description Article</th>
-                    <th class="number">Quantité</th>
-                    <th class="number">Prix Unitaire HT</th>
-                    <th class="number">Prix Total HT</th>
-                </tr>
-            </thead>
-            <tbody>
-                {# Check if doc.products_table_rows is available and contains data #}
-                {% if doc.products_table_rows and doc.products_table_rows|trim != "" %}
-                    {{ doc.products_table_rows | safe }} {# Assuming this is pre-rendered HTML #}
-                {% else %}
-                    {# Fallback to iterating over the products list #}
+        {% if doc.products_table_rows and doc.products_table_rows|trim != "" %}
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th style="width:5%;">No.</th>
+                        <th style="width:40%;">Description</th>
+                        <th style="width:10%;" class="number">Quantité</th>
+                        <th style="width:15%;" class="number">Prix Unitaire</th>
+                        <th style="width:15%;" class="number">Montant Total</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {% for item in products %}
                     <tr>
                         <td>{{ loop.index }}</td>
-                        <td><strong>{{ item.name }}</strong><br><small>{{ item.description }}</small></td>
+                        <td>
+                            {{ item.name }}
+                            {% if item.description and item.description|trim != "" %}
+                                <small>{{ item.description }}</small>
+                            {% endif %}
+                        </td>
                         <td class="number">{{ item.quantity }}</td>
-                        <td class="number">{{ item.unit_price_formatted }}</td> {# Currency symbol already in formatted string #}
-                        <td class="number">{{ item.total_price_formatted }}</td> {# Currency symbol already in formatted string #}
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" style="text-align:center;">Aucun produit à afficher.</td>
+                        <td class="number">{{ item.unit_price_formatted }}</td>
+                        <td class="number">{{ item.total_price_formatted }}</td>
                     </tr>
                     {% endfor %}
-                {% endif %}
-            </tbody>
-        </table>
-
-        <div class="totals-section">
-            <table class="totals-table">
-                <tr><td>Sous-Total HT:</td><td>{{ placeholders.SUBTOTAL_AMOUNT }}</td></tr>
-                <tr><td>Remise ({{ placeholders.DISCOUNT_RATE }}%):</td><td>{{ placeholders.DISCOUNT_AMOUNT }}</td></tr>
-                <tr><td>Montant TVA ({{ placeholders.VAT_RATE }}%):</td><td>{{ placeholders.VAT_AMOUNT }}</td></tr>
-                <tr class="grand-total"><td>MONTANT TOTAL TTC:</td><td>{{ placeholders.GRAND_TOTAL_AMOUNT }}</td></tr>
+                </tbody>
             </table>
-            {% if placeholders.GRAND_TOTAL_AMOUNT_WORDS and placeholders.GRAND_TOTAL_AMOUNT_WORDS != "N/A" %}
-            <p style="text-align: right; margin-top: 10px;"><strong>En lettres:</strong> {{ placeholders.GRAND_TOTAL_AMOUNT_WORDS }}</p>
-            {% endif %}
+        {% else %}
+            {{ doc.products_table_rows | safe }}
+        {% endif %}
+
+        <div class="totals-section clearfix">
+            <table class="totals-table">
+                <tbody>
+                    <tr>
+                        <td>Sous-Total HT :</td>
+                        <td>{{ placeholders.SUBTOTAL_AMOUNT_FORMATTED | default:"0.00" }} {{ placeholders.CURRENCY_SYMBOL | default:"EUR" }}</td>
+                    </tr>
+                    {% if placeholders.DISCOUNT_AMOUNT_RAW and placeholders.DISCOUNT_AMOUNT_RAW > 0 %}
+                    <tr>
+                        <td>Remise ({{ placeholders.DISCOUNT_RATE_PERCENTAGE | default:"0" }}%) :</td>
+                        <td>-{{ placeholders.DISCOUNT_AMOUNT_FORMATTED | default:"0.00" }} {{ placeholders.CURRENCY_SYMBOL | default:"EUR" }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if placeholders.SHIPPING_COST_RAW and placeholders.SHIPPING_COST_RAW > 0 %}
+                    <tr>
+                        <td>Frais de port :</td>
+                        <td>{{ placeholders.SHIPPING_COST_FORMATTED | default:"0.00" }} {{ placeholders.CURRENCY_SYMBOL | default:"EUR" }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td>{{ placeholders.TAX_LABEL | default:"TVA" }} ({{ placeholders.TAX_RATE_PERCENTAGE | default:"0" }}%) :</td>
+                        <td>{{ placeholders.TAX_AMOUNT_FORMATTED | default:"0.00" }} {{ placeholders.CURRENCY_SYMBOL | default:"EUR" }}</td>
+                    </tr>
+                    <tr class="grand-total">
+                        <td>TOTAL TTC :</td>
+                        <td>{{ placeholders.GRAND_TOTAL_AMOUNT_FORMATTED | default:"0.00" }} {{ placeholders.CURRENCY_SYMBOL | default:"EUR" }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-        <div class="clearfix"></div>
+        {% if placeholders.GRAND_TOTAL_IN_WORDS and placeholders.GRAND_TOTAL_IN_WORDS != 'N/A' %}
+            <p class="total-in-letters">En lettres : {{ placeholders.GRAND_TOTAL_IN_WORDS }}</p>
+        {% endif %}
+
 
         <div class="footer-section">
+            {% if placeholders.BANK_NAME and placeholders.BANK_NAME != 'N/A' %}
             <div class="bank-details">
-                <h4>Coordonnées Bancaires:</h4>
-                <p>Nom de la Banque: {{ placeholders.SELLER_BANK_NAME }}</p>
-                <p>Titulaire du Compte: {{ placeholders.SELLER_BANK_ACCOUNT_HOLDER_NAME }}</p>
-                <p>Numéro de Compte (IBAN): {{ placeholders.SELLER_BANK_IBAN }}</p>
-                <p>SWIFT/BIC: {{ placeholders.SELLER_BANK_SWIFT_BIC }}</p>
-                <p>Adresse Banque: {{ placeholders.SELLER_BANK_ADDRESS }}</p>
-            </div>
-
-            {% if doc.client_specific_footer_notes and doc.client_specific_footer_notes != "N/A" %}
-            <div class="notes">
-                <h4>Notes:</h4>
-                <p>{{ doc.client_specific_footer_notes | safe }}</p> {# Assuming notes might contain <br> #}
+                <h4>Coordonnées bancaires :</h4>
+                <p><strong>Banque :</strong> {{ placeholders.BANK_NAME }}</p>
+                <p><strong>Titulaire :</strong> {{ placeholders.BANK_ACCOUNT_HOLDER_NAME | default:"N/A" }}</p>
+                <p><strong>IBAN :</strong> {{ placeholders.BANK_IBAN | default:"N/A" }}</p>
+                <p><strong>SWIFT/BIC :</strong> {{ placeholders.BANK_SWIFT_BIC | default:"N/A" }}</p>
             </div>
             {% endif %}
 
-            <p style="margin-top: 20px; text-align: center;">Ceci est une facture proforma et ne constitue pas une demande de paiement.</p>
-            <p style="text-align: center;">Nous vous remercions de votre confiance.</p>
+            {% if placeholders.PAYMENT_INSTRUCTIONS and placeholders.PAYMENT_INSTRUCTIONS|trim != "" %}
+            <div class="payment-instructions">
+                <h4>Instructions de paiement :</h4>
+                <p>{{ placeholders.PAYMENT_INSTRUCTIONS }}</p>
+            </div>
+            {% endif %}
+
+            {% if placeholders.NOTES and placeholders.NOTES|trim != "" %}
+            <div class="notes">
+                <h4>Notes :</h4>
+                <p>{{ placeholders.NOTES }}</p>
+            </div>
+            {% endif %}
+
+            {% if doc.client_specific_footer_notes and doc.client_specific_footer_notes|trim != "" %}
+                <div class="notes">
+                    {{ doc.client_specific_footer_notes | safe }}
+                </div>
+            {% endif %}
+
+            <div class="final-remarks">
+                 <p>Pour toute question concernant cette facture proforma, veuillez nous contacter.</p>
+                 <p>Merci de votre confiance.</p>
+                 <p style="font-size: 0.8em; margin-top: 20px;">{{ placeholders.SELLER_COMPANY_NAME }} - {{ placeholders.SELLER_ADDRESS_LINE1 }}, {{ placeholders.SELLER_CITY_ZIP_COUNTRY }}</p>
+            </div>
         </div>
     </div>
 </body>
