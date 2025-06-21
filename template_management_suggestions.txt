@@ -1,0 +1,48 @@
+**General Template Management (`dialogs/template_dialog.py`, `db/cruds/templates_crud.py` - inferred):**
+
+1.  **Template Versioning:**
+    *   Allow saving versions of templates, with options to revert or preview older versions. Requires schema changes (version number, parent_template_id, version_created_at).
+2.  **Template Preview Enhancements (`TemplateDialog.show_template_preview`):**
+    *   Improve DOCX/XLSX previews by rendering to an image or more faithful HTML.
+    *   Ensure HTML previews correctly render relative CSS/images.
+3.  **Advanced Template Categorization/Tagging:**
+    *   Support multi-level categories or tags beyond the current system in `template_categories_crud.py`.
+    *   Make better use of the "Purpose" field for filtering and display.
+4.  **Client-Specific Template Management (`TemplateDialog.add_template`):**
+    *   Clearly differentiate global vs. client-specific templates in the UI.
+    *   Prioritize client-specific templates during document generation.
+5.  **Template Usage Statistics:**
+    *   Track template usage (frequency, by client, last used) to identify popular/outdated templates.
+6.  **Bulk Template Operations:**
+    *   Enable multi-select for actions like delete, export, or batch metadata updates.
+7.  **Template Import/Export Feature:**
+    *   Allow exporting templates (file + metadata) and importing them into other application instances.
+8.  **Enhanced Template Search in `TemplateDialog`:**
+    *   Implement search by name, description, or custom keywords/tags.
+9.  **Refined Default Template Logic:**
+    *   Clarify and make more robust the `is_default_for_type_lang` logic, allowing global defaults possibly overridden at client/project levels.
+
+**Cover Page Template Management (`db/cruds/cover_page_templates_crud.py`, `pagedegrde.py`):**
+
+10. **Visual Editor Integration/Creation for Cover Pages:**
+    *   If `pagedegrde.py` is the editor, ensure seamless launch and save-back for `style_config_json` from `CoverPageTemplates`.
+    *   If `pagedegrde.py` is only a generator, a new UI is needed for visual configuration of `style_config_json`.
+11. **Live Preview for Cover Page Templates:**
+    *   Provide a real-time preview of the cover page as `style_config_json` is modified.
+12. **Granular Style Configuration for Cover Pages:**
+    *   Expand `style_config_json` or structure it for finer control over elements (fonts for different text parts, precise positioning, color schemes) if `pagedegrde.py` supports these.
+
+**Scripted Template Creation (`create_tech_spec_template.py`, `create_template.py`):**
+
+13. **Integrate Script-Generated Templates into UI Management:**
+    *   Provide a UI action or utility to run `create_tech_spec_template.py` and `create_template.py`, then register their output DOCX files as new templates in the `Templates` database table via `db_manager.add_template`.
+    *   Alternatively, modify the scripts to self-register their output.
+14. **Parameterization for Scripted Templates:**
+    *   Make these scripts more flexible by allowing parameters (e.g., output language, structural variations) if they are intended as general template creation tools.
+
+**General Enhancements:**
+
+15. **User Permissions for Template Management:**
+    *   (Advanced) Introduce role-based access control for creating, editing, deleting, or setting default templates.
+16. **Placeholder Documentation/Helper:**
+    *   Provide users with accessible documentation or a helper UI listing available placeholders (e.g., `{{CLIENT_NAME}}`) for use in DOCX/XLSX templates.
