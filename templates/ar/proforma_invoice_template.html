@@ -1,358 +1,98 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>فاتورة أولية</title>
+    <title>Proforma Invoice</title>
     <style>
-        body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; /* Consider an Arabic-friendly font stack if available e.g., 'Tahoma', 'Arial' */
-            margin: 0;
-            padding: 0;
-            font-size: 10pt;
-            color: #333;
-            background-color: #fff;
-            text-align: right; /* Default text alignment for RTL */
-        }
-        .container {
-            width: 95%;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        .header-section {
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-            overflow: hidden;
-        }
-        .header-section .logo {
-            max-width: 200px;
-            max-height: 80px;
-            float: right; /* RTL */
-            margin-left: 20px; /* RTL */
-            margin-right: 0;   /* RTL */
-            margin-bottom: 10px;
-        }
-        .header-section .company-info {
-            float: right; /* RTL */
-            max-width: calc(100% - 220px);
-            line-height: 1.4;
-            text-align: right; /* RTL */
-        }
-        .header-section .invoice-title-container {
-            float: left; /* RTL */
-            text-align: left; /* RTL */
-        }
-        .header-section .invoice-title {
-            font-size: 22pt;
-            font-weight: bold;
-            color: #4A90E2;
-            margin-top: 0;
-            margin-bottom: 5px;
-        }
-        .header-section .invoice-subtitle {
-            font-size: 10pt;
-            color: #555;
-        }
-
-        .parties-section {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-            /* flex-direction: row-reverse; /* Optional: if element order needs to be visually swapped */
-        }
-        .party-details {
-            width: 48%;
-            line-height: 1.5;
-            padding: 10px;
-            border: 1px solid #f0f0f0;
-            border-radius: 4px;
-            box-sizing: border-box;
-            text-align: right; /* RTL */
-        }
-        .party-details h3 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #4A90E2;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-            font-size: 12pt;
-        }
-        .party-details p {
-            margin: 0 0 5px 0;
-        }
-
-        .invoice-meta-section {
-            margin-bottom: 30px;
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 4px;
-            border: 1px solid #eee;
-            text-align: right; /* RTL */
-        }
-        .invoice-meta-section table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .invoice-meta-section td {
-            border: none;
-            padding: 5px 0 5px 10px; /* RTL: padding on the left */
-            vertical-align: top;
-        }
-        .invoice-meta-section td:first-child {
-            font-weight: bold;
-            white-space: nowrap;
-        }
-
-        .products-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-        .products-table th, .products-table td {
-            border: 1px solid #ccc;
-            padding: 10px;
-            text-align: right; /* RTL */
-            vertical-align: top;
-        }
-        .products-table th {
-            background-color: #4A90E2;
-            color: #fff;
-            font-weight: bold;
-        }
-        /* For numeric columns, you might want to keep them LTR or specify alignment */
-        .products-table td.number, .products-table th.number {
-            text-align: left; /* Or center, depending on preference for numbers */
-            direction: ltr; /* Ensure numbers are LTR */
-        }
-        .products-table tbody tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .products-table td small {
-            font-size: 9pt;
-            color: #555;
-        }
-
-        .totals-section {
-            margin-top: 30px;
-            float: left; /* RTL */
-            width: 45%;
-            clear: both;
-        }
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .totals-table td {
-            padding: 8px;
-            border: 1px solid #eee;
-            text-align: right; /* RTL default for cells */
-        }
-        .totals-table td:first-child { /* Labels like "Subtotal" */
-            font-weight: bold;
-            width: 60%;
-             /* text-align: right; /* Already default for td by now */
-        }
-        .totals-table td:last-child { /* Values */
-            text-align: left; /* RTL: Values on the left */
-            direction: ltr; /* Ensure numbers are LTR */
-        }
-        .grand-total td {
-            font-size: 1.3em;
-            font-weight: bold;
-            color: #4A90E2;
-            border-top: 2px solid #4A90E2;
-            border-bottom: 2px solid #4A90E2;
-        }
-        /* Grand total label and value alignment will follow the general .totals-table td rules */
-
-
-        .footer-section {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #4A90E2;
-            line-height: 1.5;
-            text-align: right; /* RTL */
-        }
-        .footer-section p {
-            font-size: 9pt;
-            color: #666;
-            margin: 5px 0;
-        }
-        .bank-details {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-        .bank-details h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #555;
-            font-size: 11pt;
-        }
-        .notes {
-            margin-top: 20px;
-            font-size: 9pt;
-            background-color: #f9f9f9;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        .clearfix::after {
-            content: "";
-            clear: both;
-            display: table;
-        }
-
-        @media screen and (max-width: 768px) {
-            .header-section .logo, .header-section .company-info, .header-section .invoice-title-container {
-                float: none; /* Stack elements in mobile for RTL too */
-                width: 100%;
-                text-align: center; /* Center them for mobile */
-                margin-left: 0; margin-right: 0;
-            }
-        }
-        @media print {
-            body { font-size: 9pt; text-align: right;}
-            .container { border: none; box-shadow: none; margin: 0; padding: 0; width: 100%; max-width: 100%;}
-            .invoice-meta-section { background-color: #fff; border: 1px solid #ccc; }
-            .notes { background-color: #fff; border: 1px solid #ccc; }
-            .products-table th { background-color: #f0f0f0 !important; color: #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .totals-table td { border: 1px solid #ccc; }
-            .grand-total td { color: #333 !important; border-top: 2px solid #333 !important; border-bottom: 2px solid #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;}
-            .no-print, .no-print * { display: none !important; }
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header, .footer { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .company-details, .client-details { width: 48%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .invoice-meta { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee; }
+        .invoice-meta p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .total-section { text-align: right; margin-top: 20px; padding-right:10px;}
+        .total-section h3 { color: #555; }
+        .footer p { font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header-section clearfix">
-            {% if placeholders.SELLER_COMPANY_LOGO_PATH and placeholders.SELLER_COMPANY_LOGO_PATH != 'N/A' %}
-            <img src="{{ placeholders.SELLER_COMPANY_LOGO_PATH }}" alt="شعار {{ placeholders.SELLER_COMPANY_NAME }}" class="logo">
-            {% endif %}
-            <div class="invoice-title-container">
-                <h1 class="invoice-title">فاتورة أولية</h1>
-                <p class="invoice-subtitle">رقم الفاتورة الأولية: {{ placeholders.PROFORMA_ID }}</p>
+        <div class="header">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PROFORMA INVOICE</h1>
+        </div>
+
+        <div class="details-section">
+            <div class="company-details">
+                <h3>From:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
+                <p>Email: {{SELLER_EMAIL}}</p>
+                <p>VAT ID: {{SELLER_VAT_ID}}</p>
             </div>
-            <div class="company-info">
-                <strong>{{ placeholders.SELLER_COMPANY_NAME }}</strong><br>
-                {{ placeholders.SELLER_ADDRESS_LINE1 }}<br>
-                {% if placeholders.SELLER_CITY %}{{ placeholders.SELLER_CITY }} {% endif %}{% if placeholders.SELLER_POSTAL_CODE %}{{ placeholders.SELLER_POSTAL_CODE }}{% endif %}<br>
-                {% if placeholders.SELLER_COUNTRY %}{{ placeholders.SELLER_COUNTRY }}{% endif %}<br>
-                هاتف: {{ placeholders.SELLER_COMPANY_PHONE }}<br>
-                Email: {{ placeholders.SELLER_COMPANY_EMAIL }}<br>
-                الرقم الضريبي: {{ placeholders.SELLER_VAT_ID }}<br>
-                رقم السجل التجاري: {{ placeholders.SELLER_REGISTRATION_NUMBER }}
+
+            <div class="client-details">
+                <h3>To:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+                <p>Email: {{PRIMARY_CONTACT_EMAIL}}</p>
+                <p>VAT ID: {{CLIENT_VAT_ID}}</p>
             </div>
         </div>
 
-        <div class="parties-section">
-            <div class="party-details">
-                <h3>البائع</h3>
-                <p><strong>{{ placeholders.SELLER_COMPANY_NAME }}</strong></p>
-                <p>{{ placeholders.SELLER_ADDRESS_LINE1 }}</p>
-                <p>{% if placeholders.SELLER_CITY %}{{ placeholders.SELLER_CITY }} {% endif %}{% if placeholders.SELLER_POSTAL_CODE %}{{ placeholders.SELLER_POSTAL_CODE }}{% endif %}</p>
-                <p>{% if placeholders.SELLER_COUNTRY %}{{ placeholders.SELLER_COUNTRY }}{% endif %}</p>
-                <p>هاتف: {{ placeholders.SELLER_COMPANY_PHONE }}</p>
-                <p>Email: {{ placeholders.SELLER_COMPANY_EMAIL }}</p>
-                <p>الرقم الضريبي: {{ placeholders.SELLER_VAT_ID }}</p>
-                <p>رقم السجل التجاري: {{ placeholders.SELLER_REGISTRATION_NUMBER }}</p>
-            </div>
-            <div class="party-details">
-                <h3>العميل</h3>
-                <p><strong>{{ placeholders.BUYER_COMPANY_NAME }}</strong></p>
-                {% if placeholders.BUYER_REPRESENTATIVE_NAME and placeholders.BUYER_REPRESENTATIVE_NAME != "N/A" %}
-                <p>عناية: {{ placeholders.BUYER_REPRESENTATIVE_NAME }}</p>
-                {% endif %}
-                <p>{{ placeholders.BUYER_ADDRESS_LINE1 }}</p>
-                <p>{% if placeholders.BUYER_CITY %}{{ placeholders.BUYER_CITY }} {% endif %}{% if placeholders.BUYER_POSTAL_CODE %}{{ placeholders.BUYER_POSTAL_CODE }}{% endif %}</p>
-                <p>{% if placeholders.BUYER_COUNTRY %}{{ placeholders.BUYER_COUNTRY }}{% endif %}</p>
-                <p>هاتف: {{ placeholders.BUYER_PHONE }}</p>
-                <p>Email: {{ placeholders.BUYER_EMAIL }}</p>
-                <p>الرقم الضريبي: {{ placeholders.BUYER_VAT_NUMBER }}</p>
-                <p>رقم السجل التجاري: {{ placeholders.BUYER_COMPANY_REGISTRATION_NUMBER }}</p>
-            </div>
+        <div class="invoice-meta">
+            <p><strong>Proforma Invoice No:</strong> {{PROFORMA_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
+            <p><strong>Delivery Terms:</strong> {{DELIVERY_TERMS}}</p>
         </div>
 
-        <div class="invoice-meta-section">
-            <table>
-                <tr><td>رقم الفاتورة الأولية:</td><td>{{ placeholders.PROFORMA_ID }}</td></tr>
-                <tr><td>تاريخ الإصدار:</td><td>{{ placeholders.DATE }}</td></tr>
-                <tr><td>معرف المشروع:</td><td>{{ placeholders.PROJECT_ID }}</td></tr>
-                <tr><td>شروط الدفع:</td><td>{{ placeholders.PAYMENT_TERMS }}</td></tr>
-                <tr><td>شروط التسليم:</td><td>{{ placeholders.DELIVERY_TERMS }}</td></tr>
-                <tr><td>إنكوترمز®:</td><td>{{ placeholders.INCOTERMS }} {{ placeholders.NAMED_PLACE_OF_DELIVERY }}</td></tr>
-            </table>
-        </div>
-
-        <table class="products-table">
+        <table>
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>وصف الصنف</th>
-                    <th class="number">الكمية</th>
-                    <th class="number">سعر الوحدة (صافي)</th>
-                    <th class="number">السعر الإجمالي (صافي)</th>
+                    <th>Item Description</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total Price</th>
                 </tr>
             </thead>
             <tbody>
-                {# Check if doc.products_table_rows is available and contains data #}
-                {% if doc.products_table_rows and doc.products_table_rows|trim != "" %}
-                    {{ doc.products_table_rows | safe }} {# Assuming this is pre-rendered HTML #}
-                {% else %}
-                    {# Fallback to iterating over the products list #}
-                    {% for item in products %}
-                    <tr>
-                        <td>{{ loop.index }}</td>
-                        <td><strong>{{ item.name }}</strong><br><small>{{ item.description }}</small></td>
-                        <td class="number">{{ item.quantity }}</td>
-                        <td class="number">{{ item.unit_price_formatted }}</td> {# Currency symbol already in formatted string #}
-                        <td class="number">{{ item.total_price_formatted }}</td> {# Currency symbol already in formatted string #}
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" style="text-align:center;">لا توجد منتجات لعرضها.</td>
-                    </tr>
-                    {% endfor %}
-                {% endif %}
+                {{doc.products_table_rows}} <!-- Populated by db.py -->
+                <!-- Example Row (to be replaced by HtmlEditor):
+                <tr>
+                    <td>1</td>
+                    <td>Product A</td>
+                    <td>2</td>
+                    <td>€100.00</td>
+                    <td>€200.00</td>
+                </tr>
+                -->
             </tbody>
         </table>
 
-        <div class="totals-section">
-            <table class="totals-table">
-                <tr><td>المجموع الفرعي (صافي):</td><td>{{ placeholders.SUBTOTAL_AMOUNT }}</td></tr>
-                <tr><td>خصم ({{ placeholders.DISCOUNT_RATE }}%):</td><td>{{ placeholders.DISCOUNT_AMOUNT }}</td></tr>
-                <tr><td>مبلغ ضريبة القيمة المضافة ({{ placeholders.VAT_RATE }}%):</td><td>{{ placeholders.VAT_AMOUNT }}</td></tr>
-                <tr class="grand-total"><td>المبلغ الإجمالي (شامل ضريبة القيمة المضافة):</td><td>{{ placeholders.GRAND_TOTAL_AMOUNT }}</td></tr>
-            </table>
-            {% if placeholders.GRAND_TOTAL_AMOUNT_WORDS and placeholders.GRAND_TOTAL_AMOUNT_WORDS != "N/A" %}
-            <p style="text-align: left; margin-top: 10px;"><strong>المبلغ كتابة:</strong> {{ placeholders.GRAND_TOTAL_AMOUNT_WORDS }}</p>
-            {% endif %}
+        <div class="total-section">
+            <p>Subtotal: {{SUBTOTAL_AMOUNT}}</p>
+            <p>Discount ({{DISCOUNT_RATE}}%): {{DISCOUNT_AMOUNT}}</p>
+            <p>VAT ({{VAT_RATE}}%): {{VAT_AMOUNT}}</p>
+            <h3><strong>Total Amount Due: {{GRAND_TOTAL_AMOUNT}}</strong></h3>
         </div>
-        <div class="clearfix"></div>
 
-        <div class="footer-section">
-            <div class="bank-details">
-                <h4>البيانات المصرفية:</h4>
-                <p>اسم البنك: {{ placeholders.SELLER_BANK_NAME }}</p>
-                <p>صاحب الحساب: {{ placeholders.SELLER_BANK_ACCOUNT_HOLDER_NAME }}</p>
-                <p>رقم الحساب (IBAN): {{ placeholders.SELLER_BANK_IBAN }}</p>
-                <p>SWIFT/BIC: {{ placeholders.SELLER_BANK_SWIFT_BIC }}</p>
-                <p>عنوان البنك: {{ placeholders.SELLER_BANK_ADDRESS }}</p>
-            </div>
-
-            {% if doc.client_specific_footer_notes and doc.client_specific_footer_notes != "N/A" %}
-            <div class="notes">
-                <h4>ملاحظات:</h4>
-                <p>{{ doc.client_specific_footer_notes | safe }}</p> {# Assuming notes might contain <br> #}
-            </div>
-            {% endif %}
-
-            <p style="margin-top: 20px; text-align: center;">هذه فاتورة أولية ولا تعتبر مطالبة بالدفع.</p>
-            <p style="text-align: center;">نشكركم على ثقتكم.</p>
+        <div class="footer">
+            <p>Bank Details: {{BANK_NAME}}, Account: {{BANK_ACCOUNT_NUMBER}}, Swift/BIC: {{BANK_SWIFT_BIC}}</p>
+            <p>This is a proforma invoice and is not a demand for payment.</p>
+            <p>Thank you for your business!</p>
         </div>
     </div>
 </body>

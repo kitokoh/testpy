@@ -274,27 +274,67 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
                         if global_product:
                             global_product_id = global_product['product_id']; current_base_unit_price = global_product.get('base_unit_price')
                         else:
-                            new_global_product_data = {
-                                'product_name': product_item_data['name'], 'description': product_item_data['description'],
-                                'base_unit_price': product_item_data['unit_price'], 'language_code': product_item_data.get('language_code', 'fr')
-                            }
-                            logging.info(f"Global product '{product_item_data.get('name')}' not found. Attempting to add new global product with data: {new_global_product_data}")
-                            new_global_product_id = add_product(new_global_product_data)
-                            if new_global_product_id:
-                                global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
-                            else:
-                                logging.error(f"Failed to add global product '{product_item_data.get('name')}' with data {new_global_product_data}. Skipping linking for this item.")
-                                QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr')));
+                            # New global product: product_code is now expected from product_item_data
+                            product_code_from_dialog = product_item_data.get('product_code')
+                            if not product_code_from_dialog:
+                                logging.error(f"Product code (SKU) missing for new global product '{product_item_data.get('name')}'. Skipping.")
+                                QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Données Produit"), 
+                                                     doc_manager.tr("Le code produit (SKU) est manquant pour le nouveau produit '{0}'. Ce produit n'a pas été ajouté.").format(product_item_data['name']))
                                 continue
 
-                        if global_product_id:
+                            new_global_product_data = {
+                                'product_name': product_item_data['name'],
+                                'product_code': product_code_from_dialog, # Use product_code from dialog
+                                'description': product_item_data['description'],
+                                'base_unit_price': product_item_data['unit_price'],
+                                'language_code': product_item_data.get('language_code', 'fr'),
+                                'category': product_item_data.get('category', ''), # Assuming ProductDialog might provide category
+                                'unit_of_measure': product_item_data.get('unit_of_measure', 'unit'), # Assuming
+                                'weight': product_item_data.get('weight'), # Assuming
+                                'dimensions': product_item_data.get('dimensions'), # Assuming
+                                'is_active': True
+                            }
+                            logging.info(f"Global product '{product_item_data.get('name')}' not found. Attempting to add new global product with data: {new_global_product_data}")
+                            
+                            # Assuming products_crud_instance is available (e.g., imported or passed to this context)
+                            # from db.cruds.products_crud import products_crud_instance # Ensure this is imported
+                            add_result = products_crud_instance.add_product(new_global_product_data)
+
+                            if add_result and add_result.get('success'):
+                                new_global_product_id = add_result.get('id')
+                                if new_global_product_id:
+                                    global_product_id = new_global_product_id
+                                    current_base_unit_price = product_item_data['unit_price']
+                                else: # Should not happen if success is True and id is part of success payload
+                                    logging.error(f"Failed to get ID for newly added global product '{product_item_data.get('name')}' despite success response. Skipping linking.")
+                                    QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Erreur lors de la récupération de l'ID du nouveau produit global '{0}'.").format(product_item_data['name']))
+                                    continue
+                            else:
+                                error_detail = add_result.get('error', 'Unknown error') if add_result else 'Unknown error'
+                                logging.error(f"Failed to add global product '{product_item_data.get('name')}' with data {new_global_product_data}. Error: {error_detail}. Skipping linking for this item.")
+                                QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}). Erreur: {2}").format(product_item_data['name'], product_item_data.get('language_code', 'fr'), error_detail))
+                                continue
+
+                        if global_product_id and isinstance(global_product_id, (str, int)): # Ensure global_product_id is a valid ID type
                             unit_price_override_val = product_item_data['unit_price'] if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price else None
-                            link_data = {'client_id': actual_new_client_id, 'project_id': None, 'product_id': global_product_id, 'quantity': product_item_data['quantity'], 'unit_price_override': unit_price_override_val}
+                            link_data = {
+                                'client_id': actual_new_client_id, 
+                                'project_id': None, 
+                                'product_id': global_product_id, 
+                                'quantity': product_item_data['quantity'], 
+                                'unit_price_override': unit_price_override_val,
+                                'weight_override': product_item_data.get('weight'), # Pass from dialog
+                                'dimensions_override': product_item_data.get('dimensions') # Pass from dialog
+                            }
                             logging.info(f"Attempting to link product_id {global_product_id} to client {actual_new_client_id} (project: None) with link data: {link_data}")
                             cpp_id = add_product_to_client_or_project(link_data)
                             if not cpp_id:
                                 logging.error(f"Failed to link product_id {global_product_id} to client {actual_new_client_id} with link data {link_data}.")
                                 QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
+                        else:
+                            logging.error(f"Invalid global_product_id '{global_product_id}' for product '{product_item_data.get('name')}'. Cannot link to client.")
+                            QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Produit"), doc_manager.tr("ID de produit global invalide pour '{0}'. Liaison annulée.").format(product_item_data.get('name')))
+                            
                     except Exception as e_product_save:
                         logging.error(f"Unexpected error processing product '{product_item_data.get('name', 'Inconnu')}': {type(e_product_save).__name__} - {e_product_save}", exc_info=True)
                         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Produit"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))

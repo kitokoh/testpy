@@ -43,10 +43,10 @@ LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup
 from db.cruds.templates_crud import add_template, get_filtered_templates, add_default_template_if_not_exists
 # Ensure set_setting is imported if used by seed_initial_data directly
 # (It is used, so ensure it's available from db.cruds.application_settings_crud)
-from db.cruds.application_settings_crud import set_setting
+from db.cruds.application_settings_crud import get_setting, set_setting
 
 
-def _seed_default_partner_categories(cursor: sqlite3.Cursor, logger_passed: logging.Logger):
+def _seed_default_partner_categories(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):
     """Seeds default partner categories into the database."""
     logger = logger_passed
     logger.info("Attempting to seed default partner categories...")
@@ -59,398 +59,182 @@ def _seed_default_partner_categories(cursor: sqlite3.Cursor, logger_passed: logg
     ]
 
     for category_def in default_categories:
-        # Using the get_or_add_partner_category from partners_crud which handles connection management
-        # and checks if category already exists. We pass the cursor to ensure it's part of the same transaction.
-        # Note: get_or_add_partner_category expects 'conn_or_cursor' to be a Connection object
-        # if it's going to manage the transaction itself. If a cursor is passed, it assumes
-        # the transaction is managed externally (which is the case here in db_seed.py).
-        # The @_manage_conn decorator in partners_crud.py needs to be aware of this.
-        # For simplicity, let's assume `get_or_add_partner_category` is adapted or correctly
-        # handles a passed cursor without trying to call .commit() or .rollback() on it.
-        # A direct call to add_partner_category after a check might be cleaner if get_or_add isn't flexible.
+        existing_category_row = partners_crud.get_partner_category_by_name(category_def['category_name'], conn=conn)
 
-        # Check if category exists using the cursor directly
-        # Ensure partners_crud.get_partner_category_by_name can accept a cursor
-        existing_category_row = partners_crud.get_partner_category_by_name(category_def['category_name'], conn=cursor.connection)
-
-        if existing_category_row: # Check if it's not None
+        if existing_category_row: 
             logger.info(f"Partner Category '{category_def['category_name']}' already exists with ID: {existing_category_row['partner_category_id']}. Skipping.")
         else:
-            # Add category using the cursor directly
-            # Ensure partners_crud.add_partner_category can accept a cursor
-            category_id = partners_crud.add_partner_category(category_def, conn=cursor.connection)
+            category_id = partners_crud.add_partner_category(category_def, conn=conn)
             if category_id:
                 logger.info(f"Partner Category '{category_def['category_name']}' added with ID: {category_id}")
             else:
                 logger.warning(f"Could not add partner category '{category_def['category_name']}'. Check logs from partners_crud.")
     logger.info("Default partner categories seeding attempt finished.")
 
-def seed_initial_data(cursor: sqlite3.Cursor):
-    """
-    Seeds the database with initial data using the provided cursor.
-    All database operations within this function and any helper functions it calls
-    must use this provided cursor.
-    """
-    logger = logging.getLogger(__name__)
-    conn = cursor.connection # Get connection from cursor for instance methods
-
+def _original_seed_initial_data_func_placeholder(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):
+    logger = logger_passed
     try:
         # 1. Users
-        # Admin user is expected to be created by init_schema.py.
-        # We fetch the admin_user_id for associating other seeded data.
         logger.info(f"Attempting to retrieve admin user ID for '{DEFAULT_ADMIN_USERNAME}' for seeding purposes.")
         admin_user_dict = users_crud_instance.get_user_by_username(DEFAULT_ADMIN_USERNAME, conn=conn)
         admin_user_id = admin_user_dict['user_id'] if admin_user_dict else None
 
         if admin_user_id:
-            logger.info(f"Found admin user '{DEFAULT_ADMIN_USERNAME}' with ID: {admin_user_id}. This user will be used for associating seeded data.")
+            logger.info(f"Found admin user '{DEFAULT_ADMIN_USERNAME}' with ID: {admin_user_id}.")
         else:
-            logger.warning(f"Admin user '{DEFAULT_ADMIN_USERNAME}' not found. Some seeded data may not be associated with an admin user. This might indicate an issue with initial schema setup from init_schema.py.")
-            # Depending on requirements, one might choose to raise an error here if admin_user_id is critical.
-            # For now, proceeding but logging a warning.
+            logger.warning(f"Admin user '{DEFAULT_ADMIN_USERNAME}' not found.")
 
         # 2. Companies
         default_company_id = None
         cursor.execute("SELECT COUNT(*) FROM Companies")
         if cursor.fetchone()[0] == 0:
             default_company_id = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default)
-                VALUES (?, ?, ?, ?)
-            """, (default_company_id, "Default Company Inc.", "123 Default Street", True))
+            cursor.execute("INSERT OR IGNORE INTO Companies (company_id, company_name, address, is_default) VALUES (?, ?, ?, ?)",
+                           (default_company_id, "Default Company Inc.", "123 Default Street", True))
             logger.info("Seeded default company.")
         else:
             cursor.execute("SELECT company_id FROM Companies WHERE is_default = TRUE")
             row = cursor.fetchone()
-            if row:
-                default_company_id = row[0]
+            if row: default_company_id = row[0]
 
         # 3. CompanyPersonnel
         if default_company_id:
             cursor.execute("SELECT COUNT(*) FROM CompanyPersonnel WHERE company_id = ?", (default_company_id,))
             if cursor.fetchone()[0] == 0:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
+                cursor.execute("INSERT OR IGNORE INTO CompanyPersonnel (company_id, name, role, email, phone) VALUES (?, ?, ?, ?, ?)",
+                               (default_company_id, "Admin Contact", "Administrator", "contact@defaultcomp.com", "123-456-7890"))
                 logger.info("Seeded default company personnel.")
 
         # 4. TeamMembers
-        # admin_user_id obtained from user seeding step above (retrieval attempt)
-        if admin_user_id: # Check if admin_user_id was successfully obtained
-            admin_user_for_tm_dict = users_crud_instance.get_user_by_id(admin_user_id, conn=conn) # Fetch details if needed
+        if admin_user_id:
+            admin_user_for_tm_dict = users_crud_instance.get_user_by_id(admin_user_id, conn=conn)
             if admin_user_for_tm_dict:
-                 # Check using cursor if team member already exists for this user_id
                 cursor.execute("SELECT COUNT(*) FROM TeamMembers WHERE user_id = ?", (admin_user_id,))
                 if cursor.fetchone()[0] == 0:
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title)
-                        VALUES (?, ?, ?, ?)
-                    """, (admin_user_id, admin_user_for_tm_dict['full_name'], admin_user_for_tm_dict['email'], admin_user_for_tm_dict['role']))
-                    logger.info("Seeded admin team member linked to user.")
+                    cursor.execute("INSERT OR IGNORE INTO TeamMembers (user_id, full_name, email, role_or_title) VALUES (?, ?, ?, ?)",
+                                   (admin_user_id, admin_user_for_tm_dict['full_name'], admin_user_for_tm_dict['email'], admin_user_for_tm_dict['role']))
+                    logger.info("Seeded admin team member.")
             else:
-                logger.warning(f"Could not retrieve admin user details for ID {admin_user_id}, cannot seed admin team member accurately.")
+                logger.warning(f"Could not retrieve admin user details for ID {admin_user_id}.")
         else:
-            logger.warning("Admin user ID not available, cannot seed admin team member.")
+            logger.warning("Admin user ID not available for TeamMember seeding.")
 
-        # Seed Default Operational User
+        # Default Operational User
         DEFAULT_OPERATIONAL_USERNAME = "default_operational_user"
-        DEFAULT_OPERATIONAL_USER_ROLE = "User" # Assuming 'User' is a valid, less-privileged role
-
+        DEFAULT_OPERATIONAL_USER_ROLE = "User"
         logger.info(f"Checking for default operational user '{DEFAULT_OPERATIONAL_USERNAME}'...")
         existing_operational_user = users_crud_instance.get_user_by_username(DEFAULT_OPERATIONAL_USERNAME, conn=conn)
-
         if existing_operational_user is None:
-            logger.info(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' not found. Creating...")
-            operational_user_data = {
-                'username': DEFAULT_OPERATIONAL_USERNAME,
-                'password': uuid.uuid4().hex, # Secure random password
-                'email': f"{DEFAULT_OPERATIONAL_USERNAME}@example.local", # Unique placeholder email
-                'role': DEFAULT_OPERATIONAL_USER_ROLE,
-                'full_name': "Default Operational User",
-                'is_active': True
-            }
-            try:
-                op_user_result = users_crud_instance.add_user(operational_user_data, conn=conn)
-                if op_user_result['success']:
-                    logger.info(f"Successfully created default operational user '{DEFAULT_OPERATIONAL_USERNAME}' with ID: {op_user_result['id']}.")
-                else:
-                    logger.error(f"Failed to create default operational user '{DEFAULT_OPERATIONAL_USERNAME}'. Error: {op_user_result.get('error', 'Unknown error')}")
-            except Exception as e_op_user:
-                logger.error(f"Exception during creation of default operational user '{DEFAULT_OPERATIONAL_USERNAME}': {e_op_user}", exc_info=True)
+            logger.info(f"Creating default operational user '{DEFAULT_OPERATIONAL_USERNAME}'...")
+            op_user_data = {'username': DEFAULT_OPERATIONAL_USERNAME, 'password': uuid.uuid4().hex, 
+                            'email': f"{DEFAULT_OPERATIONAL_USERNAME}@example.local", 'role': DEFAULT_OPERATIONAL_USER_ROLE,
+                            'full_name': "Default Operational User", 'is_active': True}
+            op_user_result = users_crud_instance.add_user(op_user_data, conn=conn)
+            if op_user_result['success']: logger.info(f"Created default operational user ID: {op_user_result['id']}.")
+            else: logger.error(f"Failed to create default operational user: {op_user_result.get('error')}")
         else:
-            logger.info(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' already exists with ID: {existing_operational_user['user_id']}. Skipping creation.")
+            logger.info(f"Default operational user '{DEFAULT_OPERATIONAL_USERNAME}' already exists.")
 
-        # 5. Countries
-        logger.info("Seeding default countries...")
-        default_countries = [
-            {'country_name': 'France'}, {'country_name': 'USA'}, {'country_name': 'Algeria'}
-        ]
-        for country_data in default_countries:
-            get_or_add_country(country_data['country_name']) # Use imported function
-        logger.info(f"Seeded {len(default_countries)} countries.")
-
-
-        # 6. Cities
-        logger.info("Seeding default cities...")
-        default_cities_map = {
-            'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'
-        }
-        for country_name, city_name in default_cities_map.items():
-            country_row_dict = get_country_by_name(country_name) # Use imported function
-            if country_row_dict:
-                country_id = country_row_dict['country_id']
-                get_or_add_city(city_name, country_id) # Use imported function
-        logger.info(f"Seeded {len(default_cities_map)} cities.")
-
-        # 7. Clients
-        logger.info("Seeding sample client...")
-        # Using clients_crud_instance for client seeding
+        # 5. Countries & 6. Cities
+        logger.info("Seeding default countries and cities...")
+        countries_cities = {'France': 'Paris', 'USA': 'New York', 'Algeria': 'Algiers'}
+        for country_name, city_name in countries_cities.items():
+            country_id = get_or_add_country(country_name, conn=conn) 
+            if country_id: get_or_add_city(city_name, country_id, conn=conn) 
+        logger.info(f"Seeded {len(countries_cities)} countries/cities.")
+        
+        # 7. Clients & 8. Projects (Simplified)
+        logger.info("Seeding sample client and project...")
         cursor.execute("SELECT COUNT(*) FROM Clients")
         if cursor.fetchone()[0] == 0:
-            # admin_user_id obtained from user seeding step
-            default_country_for_client_dict = get_country_by_name('France') # location_crud
-            default_country_id_for_client = default_country_for_client_dict['country_id'] if default_country_for_client_dict else None
+            france_id_dict = get_country_by_name("France", conn=conn)
+            paris_id_dict = get_city_by_name_and_country_id("Paris", france_id_dict['country_id'] if france_id_dict else None, conn=conn) if france_id_dict else None
+            actif_status_dict = get_status_setting_by_name("Actif", "Client", conn=conn)
 
-            default_city_id_for_client = None
-            if default_country_id_for_client:
-                city_client_dict = get_city_by_name_and_country_id('Paris', default_country_id_for_client) # location_crud
-                if city_client_dict: default_city_id_for_client = city_client_dict['city_id']
+            france_id = france_id_dict['country_id'] if france_id_dict else None
+            paris_id = paris_id_dict['city_id'] if paris_id_dict else None
+            actif_status_id = actif_status_dict['status_id'] if actif_status_dict else None
 
-            active_client_status_dict = get_status_setting_by_name('Actif', 'Client') # status_settings_crud
-            active_client_status_id = active_client_status_dict['status_id'] if active_client_status_dict else None
-
-            if admin_user_id and default_country_id_for_client and default_city_id_for_client and active_client_status_id:
-                client_data_seed = {
-                    'client_name': "Sample Client SARL",
-                    'company_name': "Sample Client Company",
-                    'project_identifier': "SC-PROJ-001", # Ensure this is handled or schema allows nullable
-                    'country_id': default_country_id_for_client,
-                    'city_id': default_city_id_for_client,
-                    'status_id': active_client_status_id,
-                    'created_by_user_id': admin_user_id,
-                    'default_base_folder_path': f"clients/{str(uuid.uuid4())}", # Ensure unique path
-                    'primary_need_description': "General business services",
-                    'selected_languages': "en,fr"
-                }
-                add_client_result = clients_crud_instance.add_client(client_data_seed, conn=conn)
-                if add_client_result['success']:
-                    sample_client_id_for_proj = add_client_result['client_id']
-                    logger.info(f"Seeded sample client with ID: {sample_client_id_for_proj}")
-                else:
-                    logger.error(f"Failed to seed sample client: {add_client_result.get('error')}")
-                    sample_client_id_for_proj = None
-            else:
-                logger.warning("Could not seed sample client due to missing prerequisite data (admin user, country, city, or status).")
-                sample_client_id_for_proj = None
+            if admin_user_id and france_id and paris_id and actif_status_id:
+                client_data = {'client_name': "Sample Client SARL", 'country_id': france_id, 'city_id': paris_id, 'status_id': actif_status_id, 'created_by_user_id': admin_user_id, 'default_base_folder_path': f"clients/{uuid.uuid4()}", 'project_identifier': "SC-PROJ-001"}
+                add_client_res = clients_crud_instance.add_client(client_data, conn=conn)
+                if add_client_res['success']:
+                    logger.info(f"Seeded sample client ID: {add_client_res['client_id']}")
+                    planning_status_dict = get_status_setting_by_name("Planning", "Project", conn=conn)
+                    planning_status_id = planning_status_dict['status_id'] if planning_status_dict else None
+                    if planning_status_id:
+                        project_data = {'project_id': str(uuid.uuid4()), 'client_id': add_client_res['client_id'], 'project_name': "Initial Project", 'status_id': planning_status_id, 'manager_team_member_id': admin_user_id}
+                        cursor.execute("INSERT INTO Projects (project_id, client_id, project_name, status_id, manager_team_member_id) VALUES (?,?,?,?,?)",
+                                       (project_data['project_id'], project_data['client_id'], project_data['project_name'], project_data['status_id'], project_data['manager_team_member_id']))
+                        logger.info("Seeded sample project.")
         else:
-            # If client exists, try to get its ID for project seeding
-            # This assumes only one "Sample Client SARL" for simplicity in seeding
-            existing_clients = clients_crud_instance.get_all_clients(filters={'client_name': "Sample Client SARL"}, conn=conn)
-            if existing_clients:
-                sample_client_id_for_proj = existing_clients[0]['client_id']
-                logger.info(f"Found existing sample client with ID: {sample_client_id_for_proj}")
-            else:
-                sample_client_id_for_proj = None
-                logger.info("No existing sample client found by name 'Sample Client SARL'.")
+            logger.info("Clients table not empty, skipping sample client/project seeding.")
 
-
-        # 8. Projects
-        logger.info("Seeding sample project...")
-        cursor.execute("SELECT COUNT(*) FROM Projects")
-        if cursor.fetchone()[0] == 0:
-            planning_project_status_dict = get_status_setting_by_name('Planning', 'Project') # status_settings_crud
-            planning_project_status_id = planning_project_status_dict['status_id'] if planning_project_status_dict else None
-
-            # admin_user_id from user seeding
-            # sample_client_id_for_proj from client seeding
-
-            if sample_client_id_for_proj and planning_project_status_id and admin_user_id:
-                project_uuid = str(uuid.uuid4()) # Projects table uses TEXT project_id
-                # Assuming add_project is not yet refactored to a class instance
-                # If it were, it would be projects_crud_instance.add_project(...)
-                # For now, direct insert if no add_project function is available from imports
-                cursor.execute("""
-                    INSERT OR IGNORE INTO Projects (project_id, client_id, project_name, description, status_id, manager_team_member_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (project_uuid, sample_client_id_for_proj, "Initial Project for Sample Client", "First project description.", planning_project_status_id, admin_user_id))
-                logger.info("Seeded sample project.")
-            else:
-                logger.warning("Could not seed sample project due to missing prerequisite data (client, status, or manager).")
-
-        # 9. Contacts (direct cursor - assuming contacts_crud not yet refactored or no add_contact available)
+        # 9. Contacts
         logger.info("Seeding generic contact...")
         cursor.execute("SELECT COUNT(*) FROM Contacts WHERE email = 'contact@example.com'")
         if cursor.fetchone()[0] == 0:
-                cursor.execute("""
-                INSERT OR IGNORE INTO Contacts (name, email, phone, position, company_name)
-                VALUES (?, ?, ?, ?, ?)
-            """, ("Placeholder Contact", "contact@example.com", "555-1234", "General Contact", "VariousCompanies Inc."))
-                logger.info("Seeded generic contact.")
+            cursor.execute("INSERT OR IGNORE INTO Contacts (name, email) VALUES (?,?)", ("Placeholder Contact", "contact@example.com"))
+            logger.info("Seeded generic contact.")
 
         # 10. Products
         logger.info("Seeding default and sample products...")
-        # Using products_crud_instance for product seeding
-
-        sample_products = [
-            {
-                "product_name": "Default Product",
-                "description": "This is a default product for testing and demonstration.",
-                "category": "General",
-                "language_code": "en",
-                "base_unit_price": 10.00,
-                "unit_of_measure": "unit",
-                "is_active": True,
-                "product_code": "PROD001"
-            },
-            {
-                "product_name": "Industrial Widget",
-                "description": "A robust widget for industrial applications.",
-                "category": "Widgets",
-                "language_code": "en",
-                "base_unit_price": 100.00,
-                "unit_of_measure": "piece",
-                "is_active": True,
-                "product_code": "PROD002"
-            },
-            {
-                "product_name": "Gadget Standard",
-                "description": "Un gadget standard pour diverses utilisations.",
-                "category": "Gadgets",
-                "language_code": "fr",
-                "base_unit_price": 50.00,
-                "unit_of_measure": "unité",
-                "is_active": True,
-                "product_code": "PROD003"
-            },
-            {
-                "product_name": "Advanced Gizmo",
-                "description": "High-performance gizmo with advanced features.",
-                "category": "Gizmos",
-                "language_code": "en",
-                "base_unit_price": 250.00,
-                "unit_of_measure": "item",
-                "is_active": True,
-                "product_code": "PROD004"
-            }
+        sample_prods_data = [
+            {'product_name': "Default Product", 'language_code': "en", 'base_unit_price': 10.0, 'product_code': "PROD001"},
+            {'product_name': "Industrial Widget", 'language_code': "en", 'base_unit_price': 100.0, 'product_code': "PROD002"},
+            {'product_name': "Gadget Standard", 'language_code': "fr", 'base_unit_price': 50.0, 'product_code': "PROD003"},
+            {'product_name': "Advanced Gizmo", 'language_code': "en", 'base_unit_price': 250.0, 'product_code': "PROD004"}
         ]
-
-        for product_data_seed in sample_products:
-            # Check if product already exists (by name and language_code to be more specific)
-            # products_crud_instance.get_product_by_name expects name and optional language_code
-            # Assuming get_products (plural) or a more specific getter might be better,
-            # but let's use what's likely available and simple.
-            # For now, we'll rely on a simple name check as per the original code for "Default Product".
-            # A more robust check would be:
-            # existing_product = products_crud_instance.get_product_by_name_and_lang(
-            #    product_data_seed["product_name"], product_data_seed["language_code"], conn=conn
-            # )
-            # if existing_product:
-            #    logger.info(f"Product '{product_data_seed['product_name']}' ({product_data_seed['language_code']}) already exists. Skipping.")
-            #    continue
-
-            # Simpler check based on original pattern:
-            cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = ? AND language_code = ?",
-                           (product_data_seed["product_name"], product_data_seed["language_code"]))
+        for prod_data in sample_prods_data:
+            cursor.execute("SELECT COUNT(*) FROM Products WHERE product_name = ? AND language_code = ?", (prod_data["product_name"], prod_data["language_code"]))
             if cursor.fetchone()[0] == 0:
-                add_product_result = products_crud_instance.add_product(product_data_seed, conn=conn)
-                if add_product_result['success']:
-                    logger.info(f"Seeded product '{product_data_seed['product_name']}' with ID: {add_product_result['id']}")
-                else:
-                    logger.error(f"Failed to seed product '{product_data_seed['product_name']}': {add_product_result.get('error')}")
-            else:
-                logger.info(f"Product '{product_data_seed['product_name']}' ({product_data_seed['language_code']}) already exists. Skipping.")
-
-        # 11. SmtpConfigs (direct cursor - assuming smtp_configs_crud not yet refactored)
+                products_crud_instance.add_product(prod_data, conn=conn)
+        logger.info("Finished seeding products.")
+        
+        # 11. SmtpConfigs
         logger.info("Seeding placeholder SMTP config...")
         cursor.execute("SELECT COUNT(*) FROM SmtpConfigs")
         if cursor.fetchone()[0] == 0:
-            cursor.execute("""
-                INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
+            cursor.execute("INSERT OR IGNORE INTO SmtpConfigs (config_name, smtp_server, smtp_port, username, password_encrypted, use_tls, is_default, sender_email_address, sender_display_name) VALUES (?,?,?,?,?,?,?,?,?)",
+                           ("Placeholder - Configure Me", "smtp.example.com", 587, "user", "placeholder_password", True, True, "noreply@example.com", "Placeholder Email"))
             logger.info("Seeded placeholder SMTP config.")
 
         # 12. ApplicationSettings
-        # 'initial_data_seeded_version' and 'default_app_language' are now set by init_schema.py
         logger.info("Seeding additional application settings...")
-        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', cursor=cursor)
+        set_setting('google_maps_review_url', 'https://maps.google.com/?cid=YOUR_CID_HERE', conn=conn) 
         logger.info("Seeded additional application settings.")
 
-        # 13. Email Templates (using imported add_default_template_if_not_exists, passing cursor)
+        # 13. Email Templates
         logger.info("Seeding email templates...")
-        # Ensure add_template_category is correctly imported and used within add_default_template_if_not_exists
-        # (add_default_template_if_not_exists itself is now imported from cruds)
-        add_default_template_if_not_exists({
-            'template_name': 'SAV Ticket Ouvert (FR)', 'template_type': 'email_sav_ticket_opened', 'language_code': 'fr',
-            'base_file_name': 'sav_ticket_opened_fr.html', 'description': 'Email envoyé quand un ticket SAV est ouvert.',
-            'category_name': 'Modèles Email SAV',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        add_default_template_if_not_exists({
-            'template_name': 'SAV Ticket Résolu (FR)', 'template_type': 'email_sav_ticket_resolved', 'language_code': 'fr',
-            'base_file_name': 'sav_ticket_resolved_fr.html', 'description': 'Email envoyé quand un ticket SAV est résolu.',
-            'category_name': 'Modèles Email SAV',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        add_default_template_if_not_exists({
-            'template_name': 'Suivi Prospect Proforma (FR)', 'template_type': 'email_follow_up_prospect', 'language_code': 'fr',
-            'base_file_name': 'follow_up_prospect_fr.html', 'description': 'Email de suivi pour un prospect ayant reçu une proforma.',
-            'category_name': 'Modèles Email Marketing/Suivi',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        add_default_template_if_not_exists({
-            'template_name': 'Vœux Noël (FR)', 'template_type': 'email_greeting_christmas', 'language_code': 'fr',
-            'base_file_name': 'greeting_holiday_christmas_fr.html', 'description': 'Email de vœux pour Noël.',
-            'category_name': 'Modèles Email Vœux',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        add_default_template_if_not_exists({
-            'template_name': 'Vœux Nouvelle Année (FR)', 'template_type': 'email_greeting_newyear', 'language_code': 'fr',
-            'base_file_name': 'greeting_holiday_newyear_fr.html', 'description': 'Email de vœux pour la nouvelle année.',
-            'category_name': 'Modèles Email Vœux',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        add_default_template_if_not_exists({
-            'template_name': 'Message Générique (FR)', 'template_type': 'email_generic_message', 'language_code': 'fr',
-            'base_file_name': 'generic_message_fr.html', 'description': 'Modèle générique pour communication spontanée.',
-            'category_name': 'Modèles Email Généraux',
-            'category_purpose': 'email', # Added purpose
-            'email_subject_template': 'Un message de {{seller.company_name}}',
-            'is_default_for_type_lang': True
-        }, cursor=cursor)
-        logger.info("Seeded new email templates with category_purpose.")
+        email_templates_defs = [
+            {'template_name': 'SAV Ticket Ouvert (FR)', 'template_type': 'email_sav_ticket_opened', 'language_code': 'fr', 'base_file_name': 'sav_ticket_opened_fr.html', 'category_name': 'Modèles Email SAV', 'category_purpose': 'email', 'email_subject_template': 'Ticket SAV #{{ticket.id}} Ouvert - {{project.name | default: "Référence Client"}}', 'is_default_for_type_lang': True},
+            {'template_name': 'SAV Ticket Résolu (FR)', 'template_type': 'email_sav_ticket_resolved', 'language_code': 'fr', 'base_file_name': 'sav_ticket_resolved_fr.html', 'category_name': 'Modèles Email SAV', 'category_purpose': 'email', 'email_subject_template': 'Ticket SAV #{{ticket.id}} Résolu - {{project.name | default: "Référence Client"}}', 'is_default_for_type_lang': True},
+            {'template_name': 'Suivi Prospect Proforma (FR)', 'template_type': 'email_follow_up_prospect', 'language_code': 'fr', 'base_file_name': 'follow_up_prospect_fr.html', 'category_name': 'Modèles Email Marketing/Suivi', 'category_purpose': 'email', 'email_subject_template': 'Suite à votre demande de proforma : {{project.name | default: client.primary_need}}', 'is_default_for_type_lang': True},
+            {'template_name': 'Vœux Noël (FR)', 'template_type': 'email_greeting_christmas', 'language_code': 'fr', 'base_file_name': 'greeting_holiday_christmas_fr.html', 'category_name': 'Modèles Email Vœux', 'category_purpose': 'email', 'email_subject_template': 'Joyeux Noël de la part de {{seller.company_name}}!', 'is_default_for_type_lang': True},
+            {'template_name': 'Vœux Nouvelle Année (FR)', 'template_type': 'email_greeting_newyear', 'language_code': 'fr', 'base_file_name': 'greeting_holiday_newyear_fr.html', 'category_name': 'Modèles Email Vœux', 'category_purpose': 'email', 'email_subject_template': 'Bonne Année {{doc.current_year}} ! - {{seller.company_name}}', 'is_default_for_type_lang': True},
+            {'template_name': 'Message Générique (FR)', 'template_type': 'email_generic_message', 'language_code': 'fr', 'base_file_name': 'generic_message_fr.html', 'category_name': 'Modèles Email Généraux', 'category_purpose': 'email', 'email_subject_template': 'Un message de {{seller.company_name}}', 'is_default_for_type_lang': True},
+        ]
+        for et_data in email_templates_defs:
+            add_default_template_if_not_exists(et_data, conn=conn) 
+        logger.info("Seeded email templates.")
 
-        # 14. CoverPageTemplates: This is now handled by initialize_database from init_schema.py
+        # 14. CoverPageTemplates (handled by init_schema.py)
         logger.info("Cover page templates are expected to be populated by initialize_database from init_schema.py.")
 
         # 15. Partner Categories
-        _seed_default_partner_categories(cursor, logger_passed=logger) # Pass logger
-        logger.info("Called _seed_default_partner_categories for seeding.")
-
-  
-        logger.info("Data seeding operations completed within seed_initial_data.")
+        _seed_default_partner_categories(cursor, conn, logger_passed=logger) 
+        logger.info("Data seeding operations completed within _original_seed_initial_data_func_placeholder.")
 
     except sqlite3.Error as e:
-        logger.error(f"An SQLite error occurred during data seeding within seed_initial_data: {e}", exc_info=True)
-        raise
+        logger.error(f"An SQLite error occurred during data seeding (original part): {e}", exc_info=True)
+        raise 
     except Exception as e_gen:
-        logger.error(f"A general error occurred during data seeding within seed_initial_data: {e_gen}", exc_info=True)
+        logger.error(f"A general error occurred during data seeding (original part): {e_gen}", exc_info=True)
         raise
-
 
 DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME = "Document Utilitaires"
 DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC = "Modèles de documents utilitaires généraux"
+DEFAULT_UTILITY_TEMPLATES_PURPOSE = 'utility'
 
 DEFAULT_UTILITY_DOCUMENTS = [
     {'template_name': 'Contact Page EN', 'base_file_name': 'contact_page_template.html', 'language_code': 'en', 'description': 'Standard contact page template in English.'},
@@ -465,24 +249,21 @@ DEFAULT_UTILITY_DOCUMENTS = [
         'base_file_name': 'product_images_template.html',
         'language_code': 'fr',
         'description': 'Affiche les images des produits, leur nom et leur code.'
-        # template_type will be derived dynamically by the script, resulting in 'document_html'
-        # category_id will be derived from DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME
     }
 ]
 
 def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):
-    """Seeds default utility document templates into the database."""
     logger = logger_passed
     logger.info("Attempting to seed default utility document templates...")
 
     category_obj = get_template_category_by_name(DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME, conn=conn)
+    utility_category_id = None
     if not category_obj:
         logger.info(f"Utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' not found, creating it.")
-        # add_template_category now takes name, description, purpose
         utility_category_id = add_template_category(
             category_name=DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME,
             description=DEFAULT_UTILITY_TEMPLATES_CATEGORY_DESC,
-            purpose='utility', # Added purpose
+            purpose=DEFAULT_UTILITY_TEMPLATES_PURPOSE,
             conn=conn
         )
         if not utility_category_id:
@@ -493,113 +274,93 @@ def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connec
         utility_category_id = category_obj['category_id']
         logger.info(f"Found utility category '{DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME}' with ID: {utility_category_id}.")
 
-
     for doc_def in DEFAULT_UTILITY_DOCUMENTS:
-        template_name = doc_def['template_name']
-        language_code = doc_def['language_code']
-        base_file_name = doc_def['base_file_name']
-        description = doc_def['description']
+        ext = os.path.splitext(doc_def['base_file_name'])[1].lower()
+        template_type_map = {'.pdf': 'document_pdf', '.html': 'document_html', '.docx': 'document_word', '.xlsx': 'document_excel'}
+        template_type = template_type_map.get(ext, 'document_other')
 
-        # Determine template_type from base_file_name extension
-        ext = os.path.splitext(base_file_name)[1].lower()
-        if ext == '.pdf':
-            template_type = 'document_pdf'
-        elif ext == '.html':
-            template_type = 'document_html'
-        elif ext == '.docx':
-            template_type = 'document_word'
-        elif ext == '.xlsx':
-            template_type = 'document_excel'
-        else:
-            template_type = 'document_other'
-
-        # Check if template already exists
-        existing_templates = get_filtered_templates(
-            template_name=template_name,
-            language_code=language_code,
-            category_id=utility_category_id,
-            conn=conn
-        )
-
-        if existing_templates:
-            logger.info(f"Utility template '{template_name}' ({language_code}) already exists. Skipping.")
-            continue
-
-        # Verify the actual template file exists (optional, as raw_template_file_data is not being set here)
-        # This path check assumes a certain structure for global utility templates,
-        # e.g., templates_dir / language_code / base_file_name
-        # Adjust if your global utility templates are stored differently (e.g., in a 'utility' subfolder).
-        # For now, let's assume they might be in templates_dir/utility/language_code/base_file_name or similar.
-        # The save_general_document_file function uses CONFIG.get("templates_dir", "templates") / document_type_subfolder / language_code
-        # Let's assume 'utility_documents' as the document_type_subfolder for these.
-
-        # Path for utility files is typically <templates_dir>/<document_type_subfolder>/<language_code>/<base_file_name>
-        # Let's assume 'utility_docs' as the subfolder for these specific templates.
-        # This requires that the files are actually placed there during deployment/setup.
-        # The `CONFIG.get("templates_dir", "templates")` should resolve to the root 'templates' folder.
-        # We'll use a subfolder like 'utility_documents' for these global ones.
-
-        # Corrected path construction:
-        # The path should be relative to where `save_general_document_file` would save them,
-        # or where they are expected to be found for seeding.
-        # If `save_general_document_file` uses `CONFIG.get("templates_dir")` (e.g. /app/templates),
-        # then `document_type_subfolder` (e.g. 'utility_documents'), `language_code`, `base_file_name`.
-
-        # For seeding, we check if the source files exist in a predefined location
-        # relative to the project structure, typically NOT in the dynamic templates_dir
-        # which might be empty or managed by the app.
-        # Let's assume seed files are in a 'seed_template_files/utility_documents/<lang>/<filename>' structure
-        # relative to the project root for clarity during seeding.
-
-        # For simplicity, the problem description implies `base_file_name` is enough,
-        # and `raw_template_file_data` is not set. This means the existence of the file
-        # at runtime will depend on `generate_document_from_template` resolving it correctly
-        # using `CONFIG.get("templates_dir")`, `document_type_subfolder` (which is part of the saved template record via category or type),
-        # `language_code`, and `base_file_name`.
-        # The `add_utility_document_template` function saves the `base_file_name` but not the content.
-        # The file itself should be placed in the correct `templates_dir/document_type_subfolder/language_code/` path.
-        # For seeding, we just record the metadata. The actual files must be deployed to the expected runtime path.
-
-        # The problem states: "Log a warning if not found but proceed to add DB record (as raw_template_file_data is not being set)."
-        # This implies we should check a *runtime* path, not a seed-specific source path.
-        # The runtime path would be `templates_dir / <category_name_as_folder> / language_code / base_file_name`
-        # or `templates_dir / <template_type_as_folder> / language_code / base_file_name`.
-        # Given utility_category_id, let's assume a folder structure based on the category name for consistency.
-        # However, `save_general_document_file` uses `document_type_subfolder`.
-        # Let's assume the `template_type` (e.g., 'document_html') is used as the subfolder for organization within templates_dir.
-
-        expected_runtime_template_path = os.path.join(
-            CONFIG.get("default_templates_dir", "templates"), # e.g., /app/templates
-            template_type, # e.g., document_html (derived from extension)
-            language_code, # e.g., en
-            base_file_name # e.g., contact_page_template.html
-        )
-
-        if not os.path.exists(expected_runtime_template_path):
-            logger.warning(
-                f"Utility template file not found at expected runtime path: '{expected_runtime_template_path}'. "
-                f"DB record will be added, but the file must exist at this path for the template to be usable."
-            )
-
-        template_data = {
-            'template_name': template_name,
-            'template_type': template_type, # Determined from extension
-            'language_code': language_code,
-            'base_file_name': base_file_name,
-            'description': description,
-            'category_id': utility_category_id,
-            'client_id': None,  # Utility documents are global
-            'is_default_for_type_lang': False, # Typically not default unless specified
-            # 'raw_template_file_data' is not set here, as per instructions
+        template_data_for_db = {
+            'template_name': doc_def['template_name'], 'template_type': template_type,
+            'language_code': doc_def['language_code'], 'base_file_name': doc_def['base_file_name'],
+            'description': doc_def['description'], 'category_id': utility_category_id,
+            'client_id': None, 'is_default_for_type_lang': False,
         }
-
-        template_id = add_template(template_data, conn=conn)
+        template_id = add_default_template_if_not_exists(template_data_for_db, conn=conn) 
         if template_id:
-            logger.info(f"Successfully seeded utility template '{template_name}' ({language_code}) with ID: {template_id}")
+            logger.info(f"Ensured utility template '{doc_def['template_name']}' exists with ID: {template_id}")
+            visibility_key = f"template_visibility_{template_id}_enabled"
+            if get_setting(visibility_key, conn=conn) is None:
+                set_setting(visibility_key, 'True', conn=conn) 
+                logger.info(f"Visibility for utility template ID {template_id} set to True.")
         else:
-            logger.error(f"Failed to seed utility template '{template_name}' ({language_code}).")
-
+            logger.error(f"Failed to ensure utility template '{doc_def['template_name']}'.")
     logger.info("Default utility document templates seeding attempt finished.")
+
+def _seed_main_document_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):
+    logger = logger_passed
+    logger.info("Attempting to seed main document templates (Excel, specific HTML)...")
+
+    client_doc_category_name = "Documents Client"
+    client_doc_category_desc = "Templates de documents principaux pour les clients (contrats, proformas, etc.)"
+    client_doc_purpose = 'client_document'
+
+    category_obj = get_template_category_by_name(client_doc_category_name, conn=conn)
+    category_id = None
+    if not category_obj:
+        logger.info(f"Category '{client_doc_category_name}' not found, creating it with purpose '{client_doc_purpose}'.")
+        category_id = add_template_category(
+            category_name=client_doc_category_name, description=client_doc_category_desc,
+            purpose=client_doc_purpose, conn=conn
+        )
+        if not category_id:
+            logger.error(f"Failed to create category '{client_doc_category_name}'. Aborting.")
+            return
+        logger.info(f"Category '{client_doc_category_name}' created with ID: {category_id}.")
+    else:
+        category_id = category_obj['category_id']
+        logger.info(f"Found category '{client_doc_category_name}' with ID: {category_id}.")
+
+    main_document_templates_definitions = [
+        {'template_name': 'Spécification Technique (Excel)', 'base_file_name': 'specification_technique_template.xlsx', 'template_type': 'EXCEL_TECHNICAL_SPECIFICATIONS', 'description': 'Modèle Excel pour les spécifications techniques.'},
+        {'template_name': 'Facture Proforma (Excel)', 'base_file_name': 'proforma_template.xlsx', 'template_type': 'EXCEL_PROFORMA_INVOICE', 'description': 'Modèle Excel pour les factures proforma.'},
+        {'template_name': 'Contrat de Vente (Excel)', 'base_file_name': 'contrat_vente_template.xlsx', 'template_type': 'EXCEL_SALES_CONTRACT', 'description': 'Modèle Excel pour les contrats de vente.'},
+        {'template_name': 'Liste de Colisage (Excel)', 'base_file_name': 'packing_liste_template.xlsx', 'template_type': 'EXCEL_PACKING_LIST', 'description': 'Modèle Excel pour les listes de colisage.'},
+        {'template_name': 'Facture Proforma (HTML)', 'base_file_name': 'proforma_invoice_template.html', 'template_type': 'PROFORMA_INVOICE_HTML', 'description': 'Modèle HTML pour les factures proforma.'},
+        {'template_name': 'Liste de Colisage (HTML)', 'base_file_name': 'packing_list_template.html', 'template_type': 'PACKING_LIST_HTML', 'description': 'Modèle HTML pour les listes de colisage.'},
+        {'template_name': 'Contrat de Vente (HTML)', 'base_file_name': 'sales_contract_template.html', 'template_type': 'SALES_CONTRACT_HTML', 'description': 'Modèle HTML pour les contrats de vente.'},
+    ]
+    all_supported_template_langs = ["fr", "en", "ar", "tr", "pt"]
+
+    for lang_code in all_supported_template_langs:
+        for doc_def in main_document_templates_definitions:
+            full_template_name = f"{doc_def['template_name']} ({lang_code.upper()})"
+            template_data_for_db = {
+                'template_name': full_template_name, 'template_type': doc_def['template_type'],
+                'language_code': lang_code, 'base_file_name': doc_def['base_file_name'],
+                'description': doc_def['description'], 'category_id': category_id,
+                'client_id': None, 'is_default_for_type_lang': False,
+            }
+            template_id = add_default_template_if_not_exists(template_data_for_db, conn=conn) 
+            
+            if template_id:
+                logger.info(f"Ensured main document template '{full_template_name}' exists with ID: {template_id}")
+                visibility_key = f"template_visibility_{template_id}_enabled"
+                current_visibility = get_setting(visibility_key, conn=conn)
+                if current_visibility is None: 
+                    set_setting(visibility_key, 'True', conn=conn) 
+                    logger.info(f"Visibility setting '{visibility_key}' created and set to True for template ID {template_id}.")
+            else:
+                logger.error(f"Failed to ensure main document template '{full_template_name}'.")
+    logger.info("Main document templates seeding attempt finished.")
+
+def seed_initial_data_master(cursor: sqlite3.Cursor):
+    """Master seeding function that calls all individual seeding parts."""
+    logger = logging.getLogger(__name__)
+    conn = cursor.connection
+    
+    _original_seed_initial_data_func_placeholder(cursor, conn, logger_passed=logger) 
+    _seed_main_document_templates(cursor, conn, logger_passed=logger)
+    _seed_default_utility_templates(cursor, conn, logger_passed=logger)
 
 
 def run_seed():
@@ -607,40 +368,35 @@ def run_seed():
     logger.info(f"Attempting to seed database: {DATABASE_PATH}")
     conn = None
     try:
-        # Use the imported get_db_connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        seed_initial_data(cursor) # Call the local seed_initial_data
+        seed_initial_data_master(cursor) 
         conn.commit()
         logger.info("Seeding process completed and committed.")
     except Exception as e:
-        if conn:
-            conn.rollback()
-            logger.error(f"Error during seeding process, transaction rolled back: {e}", exc_info=True)
-        else:
-            logger.error(f"Error during seeding process (connection might not have been established): {e}", exc_info=True)
-        # Optionally re-raise e or handle more gracefully
+        if conn: conn.rollback()
+        logger.error(f"Error during seeding process: {e}", exc_info=True)
     finally:
-        if conn:
-            conn.close()
-            logger.info("Database connection closed after seeding attempt.")
+        if conn: conn.close()
+        logger.info("Database connection closed after seeding attempt.")
 
 if __name__ == '__main__':
-    # Basic logging configuration for direct script execution
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-    main_logger = logging.getLogger(__name__) # Get a logger for the __main__ scope
-
-    # This allows running the seed script directly for testing or initial setup
-    # Note: db_main_manager.initialize_database() should typically be called before seeding
-    # if the database schema itself might not exist.
-    # However, run_seed() assumes the schema is already in place.
-
-    # First, ensure the database and tables are created by calling initialize_database
+    main_logger = logging.getLogger(__name__)
     main_logger.info("Ensuring database schema is initialized before seeding...")
-    from db.init_schema import initialize_database # UPDATED IMPORT
+    from db.init_schema import initialize_database
     try:
-        initialize_database() # This function now also uses logging
+        initialize_database()
         main_logger.info("Database schema initialization check complete.")
         run_seed()
     except Exception as e_main:
         main_logger.critical(f"Critical error during __main__ execution of db_seed: {e_main}", exc_info=True)
+
+_global_seed_initial_data_function_ref = seed_initial_data_master
+
+def seed_initial_data(cursor: sqlite3.Cursor): # type: ignore
+    """
+    Primary entry point for seeding data, typically called by init_schema.
+    This function now calls the master seeding logic.
+    """
+    _global_seed_initial_data_function_ref(cursor)

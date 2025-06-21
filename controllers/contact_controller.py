@@ -29,7 +29,19 @@ class ContactController:
         Can optionally fetch only the primary contact.
         """
         try:
-            return contacts_crud.get_contacts_for_client(client_id, primary_only=primary_only)
+            # Assuming contacts_crud.get_contacts_for_client does not take primary_only
+            # If primary_only filtering is needed, it should be implemented in contacts_crud
+            # or filtered here after fetching all contacts.
+            # For now, remove primary_only from the call to contacts_crud.
+            if primary_only:
+                # Placeholder: If primary_only is True, this controller method needs
+                # to fetch all and then filter, or contacts_crud.get_contacts_for_client
+                # needs to support it. For the error reported, the CRUD layer doesn't support it.
+                # This path is not taken by the problematic call from the logs.
+                all_contacts = contacts_crud.get_contacts_for_client(client_id)
+                return [c for c in all_contacts if c.get('is_primary_for_client')]
+            else:
+                return contacts_crud.get_contacts_for_client(client_id)
         except Exception as e:
             logging.error(f"Error in ContactController.get_contacts_for_client: {e}")
             return []

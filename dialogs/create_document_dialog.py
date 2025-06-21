@@ -204,30 +204,37 @@ class CreateDocumentDialog(QDialog):
             # we should probably not filter by category at all, or ensure get_all_templates handles an empty list gracefully.
             # For now, we'll pass None if category_ids_to_filter is empty, assuming get_all_templates
             # interprets None as "do not filter by category".
-            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
+            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None 
             if not actual_category_id_filter:
-                logging.warning(f"No categories found for desired purposes {desired_purposes}. No category filter will be applied to db_manager.get_all_templates.")
+                 logging.warning(f"No categories found for desired purposes {desired_purposes}. No category filter will be applied to db_manager.get_all_templates.")
 
             # Define the list of template types that are considered "documents"
             # These should match the 'template_type' values in the Templates table for document templates.
             document_template_types = [
-                'document_html', 'document_excel', 'document_word', 'document_pdf',
-                'document_other', 'PACKING_LIST', 'PROFORMA_INVOICE_HTML', 'SALES_CONTRACT_HTML',
-                'TECHNICAL_SPECIFICATIONS_HTML', 'WARRANTY_DOCUMENT_HTML', 'COVER_PAGE_HTML',
-                'EXCEL_PROFORMA_INVOICE', 'EXCEL_SALES_CONTRACT', 'EXCEL_PACKING_LIST',
-                'EXCEL_TECHNICAL_SPECIFICATIONS', 'EXCEL_CONTACT_PAGE'
-            ] # Expanded list based on typical document types observed in such systems.
-            logging.info(f"DB query will use template_type_filter_list: {document_template_types}")
+                'document_html', 'document_excel', 'document_word', 'document_pdf', 
+                'document_other', # Types génériques pour les utilitaires
+                'PROFORMA_INVOICE_HTML', 
+                'PACKING_LIST_HTML', 
+                'SALES_CONTRACT_HTML',
+                'TECHNICAL_SPECIFICATIONS_HTML', # Ce type est aussi dans utility_documents
+                'WARRANTY_DOCUMENT_HTML',      # Ce type est aussi dans utility_documents
+                'COVER_PAGE_HTML',             # Ce type est aussi dans utility_documents
+                'EXCEL_PROFORMA_INVOICE', 
+                'EXCEL_SALES_CONTRACT', 
+                'EXCEL_PACKING_LIST', 
+                'EXCEL_TECHNICAL_SPECIFICATIONS',
+            ]
+            logging.info(f"DB query will use template_type_filter_list: {document_template_types} and category_filter: {actual_category_id_filter}")
 
             templates_from_db = db_manager.get_all_templates(
-                template_type_filter_list=document_template_types,
+                template_type_filter_list=document_template_types, # Reactivate type filter
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id, # Fetches client-specific and global templates
-                category_id_filter=actual_category_id_filter, # Use the determined category filter
+                category_id_filter=actual_category_id_filter, # Reactivate category filter
                 apply_visibility_filter=True # Ensure visibility is checked
             )
             if templates_from_db is None: templates_from_db = [] # Ensure it's a list
-            logging.info(f"Fetched {len(templates_from_db)} templates from DB after initial filters (type, lang, client, category, visibility).")
+            logging.info(f"Fetched {len(templates_from_db)} templates from DB after REFINED filters (type, lang, client, category, visibility).")
 
             # Apply UI's extension filter locally
             if selected_ext_display != self.tr("All"):

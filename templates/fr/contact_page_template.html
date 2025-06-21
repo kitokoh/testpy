@@ -2,121 +2,108 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>PAGE DE CONTACTS - Projet {PROJECT_ID}</title>
+    <title>PAGE DE CONTACTS - Projet {{PROJECT_ID}}</title>
     <style>
-        /* === General Page Styling === */
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: "Segoe UI", Arial, sans-serif;
             margin: 0;
             padding: 0;
             background-color: #f4f7fc;
-            color: #333333;
-            font-size: 11pt;
+            color: #333;
+            font-size: 10pt;
         }
         .page {
             width: 210mm;
             min-height: 297mm;
-            padding: 15mm; /* Using 15mm as specified */
+            padding: 20mm;
             margin: 10mm auto;
-            background-color: #ffffff;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            background-color: #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
             box-sizing: border-box;
         }
-
-        /* === Header Styles === */
         .header-container-contact {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start; /* As specified */
-            border-bottom: 2px solid #4A5568; /* Dark gray border */
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            align-items: flex-start;
+            border-bottom: 2px solid #28a745; /* Green accent */
+            padding-bottom: 15px;
+            margin-bottom: 25px;
         }
         .logo-contact {
-            max-width: 150px;
-            max-height: 65px;
+            max-width: 160px;
+            max-height: 70px;
             object-fit: contain;
         }
-        .document-title-contact { /* Added this selector which was missing in the prompt but implied by h1/p rules */
+        .document-title-contact {
             text-align: right;
         }
         .document-title-contact h1 {
-            font-size: 22pt;
-            color: #4A5568; /* Dark gray to match border */
+            font-size: 20pt;
+            color: #28a745;
             margin: 0 0 5px 0;
             font-weight: 600;
         }
         .document-title-contact p {
             font-size: 9pt;
-            color: #555555;
-            margin: 3px 0;
+            color: #555;
+            margin: 2px 0;
         }
-
-        /* === Introduction Section === */
         .intro-contact {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             font-size: 11pt;
             text-align: center;
-            color: #4F4F4F;
         }
-
-        /* === Contacts Table Styles === */
         .contacts-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Subtle shadow for the table */
+            margin-top: 15px;
         }
-        .contacts-table th,
-        .contacts-table td {
-            border: 1px solid #dfe6f0; /* Lighter, more modern border color */
-            padding: 12px 15px;
+        .contacts-table th, .contacts-table td {
+            border: 1px solid #dee2e6;
+            padding: 10px 12px;
             text-align: left;
             font-size: 9.5pt;
             vertical-align: top;
         }
         .contacts-table th {
-            background-color: #4A5568; /* Dark gray, matching header elements */
-            color: #ffffff;
-            font-weight: 600; /* Slightly bolder */
+            background-color: #28a745; /* Green accent */
+            color: #fff;
+            font-weight: 500;
             text-transform: uppercase;
-            letter-spacing: 0.05em; /* Slight spacing for uppercase letters */
         }
-        .contacts-table tr:nth-child(even) td { /* Specificity for td in even rows */
-            background-color: #f8fafc; /* Very light blue/gray for alternate rows */
+        .contacts-table tr:nth-child(even) {
+            background-color: #f8f9fa;
         }
         .contacts-table td a {
-            color: #3498db; /* A standard blue for links */
+            color: #007bff;
             text-decoration: none;
         }
         .contacts-table td a:hover {
             text-decoration: underline;
         }
-
-        /* === Footer Styles === */
         .footer-contact {
-            border-top: 1px solid #4A5568; /* Dark gray to match header */
-            padding-top: 15px;
-            margin-top: 35px;
+            border-top: 1px solid #28a745;
+            padding-top: 10px;
+            margin-top: 30px;
             text-align: center;
-            font-size: 9pt;
-            color: #666666;
+            font-size: 8.5pt;
+            color: #777;
         }
     </style>
 </head>
 <body>
     <div class="page">
         <div class="header-container-contact">
-            <img src="{SELLER_LOGO_PATH}" alt="Logo Entreprise" class="logo-contact">
+            <img src="{{SELLER_LOGO_PATH}}" alt="Logo Entreprise" class="logo-contact">
             <div class="document-title-contact">
                 <h1>PAGE DE CONTACTS</h1>
-                <p>Projet: {PROJECT_ID} - {PROJECT_NAME_CONTACT_PAGE}</p>
-                <p>Date d''''impression: {DATE_CONTACT_PAGE}</p>
+                <p>Projet: {{PROJECT_ID}} - {{PROJECT_NAME_CONTACT_PAGE}}</p>
+                <p>Date d'impression: {{DATE_CONTACT_PAGE}}</p>
             </div>
         </div>
 
         <div class="intro-contact">
-            <p>Voici la liste des principaux intervenants et contacts pour le projet <strong>{PROJECT_NAME_CONTACT_PAGE}</strong>.</p>
+            <p>Voici la liste des principaux intervenants et contacts pour le projet <strong>{{PROJECT_NAME_CONTACT_PAGE}}</strong>.</p>
         </div>
 
         <table class="contacts-table">
@@ -130,12 +117,12 @@
                 </tr>
             </thead>
             <tbody>
-                {CONTACTS_TABLE_ROWS_CONTACT_PAGE}
+                {{CONTACTS_TABLE_ROWS_CONTACT_PAGE}}
             </tbody>
         </table>
 
         <div class="footer-contact">
-            <p>{SELLER_COMPANY_NAME} - Facilitant la communication pour votre projet.</p>
+            <p>{{SELLER_COMPANY_NAME}} - Facilitant la communication pour votre projet.</p>
         </div>
     </div>
 </body>

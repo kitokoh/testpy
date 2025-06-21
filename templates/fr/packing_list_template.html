@@ -2,278 +2,104 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Liste de Colisage</title>
+    <title>Packing List</title>
     <style>
-        /* === General Page Styling === */
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            font-size: 11pt;
-            background-color: #f4f7fc;
-            color: #333333;
-            line-height: 1.5;
-        }
-        .container {
-            width: 210mm;
-            min-height: 297mm;
-            margin: 10mm auto;
-            padding: 15mm;
-            background-color: #ffffff;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-            box-sizing: border-box;
-            border: none;
-        }
-
-        /* === Header === */
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .logo {
-            max-width: 150px;
-            max-height: 70px;
-            margin-bottom: 15px;
-            object-fit: contain;
-        }
-        .header h1 { /* Changed from h1 to .header h1 for specificity */
-            font-size: 2em;
-            color: #3A539B;
-            margin: 0;
-            font-weight: 600;
-        }
-
-        /* === Top Details Table (Exporter/Consignee) === */
-        .party-details-container {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 25px;
-            gap: 20px;
-        }
-        .party-column {
-            width: 48%;
-            padding: 15px;
-            background-color: #f8fafc;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-        }
-        .party-column h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-            color: #4A5568;
-            font-weight: 600;
-            border-bottom: 1px solid #d0d0d0;
-            padding-bottom: 5px;
-        }
-        .party-column p {
-            margin: 3px 0;
-            font-size: 0.9em;
-        }
-
-        /* === Shipment Info Table === */
-        .shipment-info table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-            font-size: 0.9em;
-        }
-        .shipment-info td {
-            border: 1px solid #dfe6f0;
-            padding: 9px 12px;
-        }
-        .shipment-info td strong {
-            color: #4A5568;
-            font-weight: 600;
-        }
-
-        /* === Main Details Table === */
-        .details-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 25px;
-            font-size: 9.5pt;
-        }
-        .details-table th,
-        .details-table td {
-            border: 1px solid #dfe6f0;
-            padding: 10px 12px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .details-table th {
-            background-color: #4A5568;
-            color: #ffffff;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-        .details-table tbody tr:nth-child(even) td {
-            background-color: #f8fafc;
-        }
-
-        /* === Totals Summary === */
-        .totals-summary {
-            margin-top: 25px;
-            margin-bottom: 30px;
-        }
-        .totals-summary table {
-            width: 55%;
-            border-collapse: collapse;
-            margin-left: auto;
-            font-size: 0.95em;
-        }
-        .totals-summary td {
-            padding: 9px 12px;
-            border: 1px solid #dfe6f0;
-        }
-        .totals-summary .label {
-            font-weight: 600;
-            text-align: right;
-            color: #4A5568;
-        }
-        .totals-summary td:last-child {
-            text-align: right;
-            font-weight: 500;
-        }
-
-        /* === Signatures === */
-        .signatures {
-            margin-top: 40px;
-            display: flex;
-            justify-content: space-between;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
-            gap: 20px;
-        }
-        .signature-block {
-            width: 45%;
-            text-align: left;
-            font-size: 0.9em;
-        }
-        .signature-block .line {
-            display: block;
-            width: 90%;
-            height: 1px;
-            background-color: #555555;
-            margin-top: 35px;
-            margin-bottom: 8px;
-        }
-        .signature-block p {
-            margin: 5px 0;
-        }
-
-        /* === Footer === */
-        .footer {
-            /* General footer styles can go here if needed */
-        }
-        .footer-copyright-line { /* Specific class for the copyright line */
-            text-align: center;
-            font-size: 0.85em;
-            color: #777777;
-            margin-top: 40px;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .container { width: 90%; margin: auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #444; }
+        .details-section { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .shipper-details, .consignee-details, .notify-party-details { width: 32%; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .shipment-info { clear: both; margin-bottom: 20px; background-color: #f9f9f9; padding: 15px; border: 1px solid #eee;}
+        .shipment-info p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #e9e9e9; font-weight: bold; }
+        .totals-summary { margin-top: 20px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #777; }
+        .logo { max-width: 150px; max-height: 70px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            {% if seller.company_logo_path %}
-                <img src="{{ seller.company_logo_path }}" alt="Logo" class="logo">
-            {% else %}
-                <h1>{{ seller.company_name | default:"N/A" }}</h1>
-            {% endif %}
+            <img src="{{SELLER_LOGO_PATH}}" alt="Company Logo" class="logo" />
+            <h1>PACKING LIST</h1>
         </div>
 
-        <div class="party-details-container">
-            <div class="party-column exporter-details">
-                <h4>Exportateur :</h4>
-                <p><strong>{{ seller.company_name | default:"N/A" }}</strong></p>
-                <p>{{ seller.full_address | default:"N/A" }}</p>
-                <p>Tel: {{ seller.phone | default:"N/A" }}</p>
-                <p>Email: {{ seller.email | default:"N/A" }}</p>
+        <div class.details-section">
+            <div class="shipper-details">
+                <h3>Shipper/Exporter:</h3>
+                <p><strong>{{SELLER_COMPANY_NAME}}</strong></p>
+                <p>{{SELLER_ADDRESS_LINE1}}</p>
+                <p>{{SELLER_CITY_ZIP_COUNTRY}}</p>
+                <p>Phone: {{SELLER_PHONE}}</p>
             </div>
-            <div class="party-column consignee-details">
-                <h4>Destinataire :</h4>
-                <p><strong>{{ client.company_name | default:"N/A" }}</strong></p>
-                <p>{{ client.full_address | default:"N/A" }}</p>
-                <p>Contact: {{ primary_contact_name | default:"N/A" }}</p>
+
+            <div class="consignee-details">
+                <h3>Consignee:</h3>
+                <p><strong>{{CLIENT_NAME}}</strong></p>
+                <p>{{CLIENT_ADDRESS_LINE1}}</p>
+                <p>{{CLIENT_CITY_ZIP_COUNTRY}}</p>
+                <p>Contact: {{PRIMARY_CONTACT_NAME}}</p>
+            </div>
+
+            <div class="notify-party-details">
+                <h3>Notify Party:</h3>
+                <p>{{NOTIFY_PARTY_NAME}}</p>
+                <p>{{NOTIFY_PARTY_ADDRESS}}</p>
             </div>
         </div>
 
         <div class="shipment-info">
-            <table border="0" cellpadding="5" cellspacing="0">
-                <tr>
-                    <td><strong>N° de liste de colisage :</strong></td>
-                    <td>{{ packing_list_id | default:"N/A" }}</td>
-                    <td><strong>Date :</strong></td>
-                    <td>{{ date | default:"N/A" }}</td>
-                </tr>
-                <tr>
-                    <td><strong>N° de facture :</strong></td>
-                    <td>{{ invoice_id | default:"N/A" }}</td>
-                    <td><strong>N° de projet :</strong></td>
-                    <td>{{ project_id | default:"N/A" }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Navire/Vol N° :</strong></td>
-                    <td>{{ vessel_flight_no | default:"N/A" }}</td>
-                    <td><strong>Port de chargement :</strong></td>
-                    <td>{{ port_of_loading | default:"N/A" }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Port de déchargement :</strong></td>
-                    <td>{{ port_of_discharge | default:"N/A" }}</td>
-                    <td><strong>Pays de destination finale :</strong></td>
-                    <td>{{ final_destination_country | default:"N/A" }}</td>
-                </tr>
-            </table>
+            <p><strong>Packing List No:</strong> {{PACKING_LIST_ID}}</p>
+            <p><strong>Date:</strong> {{DATE}}</p>
+            <p><strong>Invoice No:</strong> {{INVOICE_ID}}</p>
+            <p><strong>Project ID:</strong> {{PROJECT_ID}}</p>
+            <p><strong>Vessel/Flight No:</strong> {{VESSEL_FLIGHT_NO}}</p>
+            <p><strong>Port of Loading:</strong> {{PORT_OF_LOADING}}</p>
+            <p><strong>Port of Discharge:</strong> {{PORT_OF_DISCHARGE}}</p>
+            <p><strong>Final Destination:</strong> {{FINAL_DESTINATION_COUNTRY}}</p>
         </div>
 
-        <div class="details-table">
-            {{ doc.packing_list_items | safe }}
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Mark & Nos.</th>
+                    <th>Description of Goods</th>
+                    <th>No. of Packages</th>
+                    <th>Type of Packages</th>
+                    <th>Net Weight (kg)</th>
+                    <th>Gross Weight (kg)</th>
+                    <th>Dimensions (LxWxH cm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{doc.packing_list_items}} <!-- Populated by db.py -->
+                <!-- Example Row:
+                <tr>
+                    <td>CS/NO. 1-10</td>
+                    <td>Product Alpha - Model X</td>
+                    <td>10</td>
+                    <td>Cartons</td>
+                    <td>100.00</td>
+                    <td>110.00</td>
+                    <td>50x40x30</td>
+                </tr>
+                -->
+            </tbody>
+        </table>
 
         <div class="totals-summary">
-            <table>
-                <tr>
-                    <td class="label">Nombre total de colis :</td>
-                    <td>{{ total_packages | default:"N/A" }}</td>
-                </tr>
-                <tr>
-                    <td class="label">Poids net total :</td>
-                    <td>{{ total_net_weight | default:"N/A" }} KGS</td>
-                </tr>
-                <tr>
-                    <td class="label">Poids brut total :</td>
-                    <td>{{ total_gross_weight | default:"N/A" }} KGS</td>
-                </tr>
-                <tr>
-                    <td class="label">Volume total :</td>
-                    <td>{{ total_volume_cbm | default:"N/A" }} CBM</td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="signatures">
-            <div class="signature-block">
-                <span class="line"></span>
-                <p>Signature de l'expéditeur</p>
-                <p>{{ seller.company_name | default:"N/A" }}</p>
-                <p>Date: {{ date | default:"N/A" }}</p>
-            </div>
-            <div class="signature-block">
-                <span class="line"></span>
-                <p>Signature du destinataire</p>
-                <p>{{ client.company_name | default:"N/A" }}</p>
-                <p>Date: </p>
-            </div>
+            <p><strong>Total Number of Packages:</strong> {{TOTAL_PACKAGES}}</p>
+            <p><strong>Total Net Weight:</strong> {{TOTAL_NET_WEIGHT}} kg</p>
+            <p><strong>Total Gross Weight:</strong> {{TOTAL_GROSS_WEIGHT}} kg</p>
+            <p><strong>Total Volume:</strong> {{TOTAL_VOLUME_CBM}} CBM</p>
         </div>
 
         <div class="footer">
-            <p class="footer-copyright-line">&copy; {{ doc.current_year }} {{ seller.company_name }}. Tous droits réservés.</p>
+            <p>Exporter's Signature: _________________________</p>
+            <p>Date: {{DATE}}</p>
         </div>
     </div>
 </body>

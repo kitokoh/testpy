@@ -51,7 +51,10 @@ class ProductDialog(QDialog):
             products=db_manager.get_all_products_for_selection_filtered(language_code=language_code_for_db,name_pattern=name_pattern_for_db)
             if products is None:products=[]
             for product_data in products:
-                product_name=product_data.get('product_name','N/A');description=product_data.get('description','');base_unit_price=product_data.get('base_unit_price',0.0)
+                product_name=product_data.get('product_name','N/A')
+                description=product_data.get('description','') # Default to empty string
+                if description is None: description = "" # Ensure description is a string
+                base_unit_price=product_data.get('base_unit_price',0.0)
                 if base_unit_price is None:base_unit_price=0.0
                 desc_snippet=(description[:30]+'...') if len(description)>30 else description;display_text=f"{product_name} (Desc: {desc_snippet}, Prix: {base_unit_price:.2f} €)"
                 item=QListWidgetItem(display_text);item.setData(Qt.UserRole,product_data);self.existing_products_list.addItem(item)
