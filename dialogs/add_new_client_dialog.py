@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 # import db as db_manager # Removed
 from controllers.client_controller import ClientController # Added
-from db.cruds.templates_crud import get_all_templates # Added for template selection
+# from db.cruds.templates_crud import get_all_templates # Removed
 
 class AddNewClientDialog(QDialog):
     def __init__(self, parent=None, initial_country_name=None):
@@ -327,8 +327,9 @@ class AddNewClientDialog(QDialog):
             "country_name": country_name, # Raw name
             "city_name": city_name,       # Raw name
             "project_identifier": project_id_text,
-            "selected_languages": ",".join(selected_languages_list),
-            "default_template_id": self.default_template_combo.currentData()
+            "selected_languages": ",".join(selected_languages_list)
+            # "default_template_id": self.default_template_combo.currentData() # Removed
+
             # client_status_id can be defaulted by the controller or main window
         }
 

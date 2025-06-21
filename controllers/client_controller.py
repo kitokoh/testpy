@@ -119,8 +119,9 @@ class ClientController:
                 'city_id': final_city_id, # Can be None
                 'project_identifier': client_data.get('project_identifier'),
                 'client_status_id': client_data.get('client_status_id', 1), # Default status if applicable
-                'languages': client_data.get('selected_languages'), # Assuming this is how languages are stored
-                'default_template_id': client_data.get('default_template_id') # Added default_template_id
+                'languages': client_data.get('selected_languages') # Assuming this is how languages are stored
+                # 'default_template_id': client_data.get('default_template_id') # Removed
+
                 # Add any other fields required by the database schema for a client
             }
 
