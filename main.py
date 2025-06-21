@@ -9,6 +9,8 @@ if PROJECT_ROOT not in sys.path:
 
 import logging # For main.py's own logging needs, and for translator parts if setup_logging isn't called first
 import icons_rc # Import the compiled resource file
+import subprocess # Added for starting API server
+import atexit # Added for stopping API server on exit
 
 # Core PyQt5 imports for application execution
 from PyQt5.QtWidgets import QApplication
@@ -54,6 +56,9 @@ SESSION_START_TIME = None
 # Initialize from CONFIG, providing a default if key is missing
 SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
+# Global variable for the API server process
+api_server_process = None
+
 # --- DEVELOPMENT/TESTING FLAG ---
 # Set to True to bypass the login screen for faster testing.
 # WARNING: This will log in as the default admin user with super_admin privileges
@@ -63,6 +68,71 @@ BYPASS_LOGIN_FOR_TESTING = True
 # --- End Development/Testing: Bypass Login Flag ---
 
 # Old database initialization block removed as it's now called directly in main()
+
+def start_api_server():
+    """Starts the FastAPI server as a subprocess."""
+    global api_server_process
+    try:
+        # Ensure the command is correctly formatted.
+        # If 'api.main' is a module, uvicorn needs to be able to find it.
+        # This might require adjusting PYTHONPATH or running from a specific directory.
+        # For now, assume 'api.main:app' is discoverable by uvicorn in the current environment.
+        command = ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+        # Using Popen for non-blocking execution.
+        # Ensure that the subprocess's stdout/stderr are handled appropriately
+        # to prevent blocking or deadlocks if they fill up.
+        # For basic logging, we can capture them or redirect to DEVNULL if not needed.
+        api_server_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Small delay to check if process started, then check poll()
+        # This is a very basic check. A more robust check would involve
+        # trying to connect to the server's health endpoint if available.
+        # Or, monitoring its output for a startup confirmation message.
+        # For now, we assume if Popen doesn't raise an error and poll() is None, it's starting.
+        if api_server_process.poll() is None:
+            logging.info(f"FastAPI server process started successfully with PID: {api_server_process.pid}. Command: {' '.join(command)}")
+        else:
+            # This means the process terminated quickly, likely an error.
+            stdout, stderr = api_server_process.communicate() # Get output
+            logging.error(f"FastAPI server process failed to start. Exit code: {api_server_process.returncode}")
+            logging.error(f"Stdout: {stdout.decode().strip()}")
+            logging.error(f"Stderr: {stderr.decode().strip()}")
+            api_server_process = None # Reset as it failed
+
+    except FileNotFoundError:
+        logging.error("Error starting FastAPI server: 'uvicorn' command not found. Ensure uvicorn is installed and in PATH.")
+        api_server_process = None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while starting the FastAPI server: {e}", exc_info=True)
+        api_server_process = None
+
+def stop_api_server():
+    """Stops the FastAPI server process if it is running."""
+    global api_server_process
+    if api_server_process and api_server_process.poll() is None: # Check if process exists and is running
+        logging.info(f"Attempting to terminate API server process with PID: {api_server_process.pid}")
+        try:
+            api_server_process.terminate() # Send SIGTERM
+            try:
+                # Wait for a few seconds for graceful shutdown
+                api_server_process.wait(timeout=5)
+                logging.info(f"API server process with PID: {api_server_process.pid} terminated.")
+            except subprocess.TimeoutExpired:
+                logging.warning(f"API server process with PID: {api_server_process.pid} did not terminate in time. Sending SIGKILL.")
+                api_server_process.kill() # Send SIGKILL
+                api_server_process.wait() # Wait for kill to complete
+                logging.info(f"API server process with PID: {api_server_process.pid} killed.")
+            except Exception as e_wait: # Catch other errors during wait (e.g. process already died)
+                logging.info(f"Error waiting for API server process {api_server_process.pid} to terminate: {e_wait}. It might have already exited.")
+        except ProcessLookupError: # Raised if process does not exist (e.g. already terminated)
+            logging.info(f"API server process with PID: {api_server_process.pid} not found. Likely already stopped.")
+        except Exception as e:
+            logging.error(f"Error terminating/killing API server process with PID: {api_server_process.pid}: {e}", exc_info=True)
+    elif api_server_process: # Process exists but poll() is not None, meaning it already terminated
+        logging.info(f"API server process with PID: {api_server_process.pid} was already stopped (return code: {api_server_process.returncode}).")
+    else: # api_server_process is None
+        logging.info("No API server process to stop (api_server_process is None).")
 
 def expire_session():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
@@ -90,11 +160,20 @@ def check_session_timeout() -> bool:
 def main():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
 
-    db.initialize_database() # Initialize database before any other operations
-
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
+
+    # Start the API server
+    start_api_server()
+
+    # Register the function to stop the API server on application exit
+    # This ensures that if start_api_server() actually started a process,
+    # we attempt to clean it up.
+    atexit.register(stop_api_server)
+
+    # Initialize database after logging and API server start attempt
+    db.initialize_database()
     # Log the configured session timeout value
     logging.info(f"Session timeout is set to: {SESSION_TIMEOUT_SECONDS // 60} minutes ({SESSION_TIMEOUT_SECONDS} seconds).")
 
