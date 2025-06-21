@@ -1,0 +1,45 @@
+**Project Management (`project_management/dashboard.py` - MainDashboard):**
+
+1.  **Enhanced Project Filtering & Search:** Implement actual filtering in `filter_projects` using updated `db.get_all_projects`.
+2.  **Full Project Template Integration:** Complete `ProjectTemplateManager` integration for creating projects from templates (including tasks, milestones). Add UI for managing these project templates.
+3.  **Customizable Project Dashboard View:** Allow users to select KPIs, configure graph types, and choose projects for summary views on the main dashboard page.
+4.  **Gantt Chart View:** Add a Gantt chart view for projects and tasks to visualize timelines and dependencies.
+5.  **Resource Management View:** Create a view to show team member workload based on assigned tasks across projects.
+6.  **Budget Tracking and Reporting:** Implement tracking of actual expenses against project budgets and add budget vs. actuals reports.
+7.  **Project-Specific Document Management:** Add a section in project details to attach/link relevant documents.
+
+**Task Management (within `project_management/dashboard.py` and dialogs):**
+
+8.  **Task Dependencies UI:** Create UI for defining and visualizing task dependencies (finish-to-start, etc.).
+9.  **Sub-Tasks:** Allow creating and managing sub-tasks under parent tasks.
+10. **Time Tracking for Tasks:** Provide UI for team members to log time spent on tasks.
+11. **Batch Task Operations:** Enable selecting multiple tasks for bulk updates (status, assignee, priority).
+12. **Task Comments/Discussion Feature:** Add a section for comments and discussions within task details.
+
+**Production Orders (`project_management/dialogs/add_production_order_dialog.py`, etc.):**
+
+13. **Formal Link Production Orders to Sales Orders/Clients:** If sales orders exist, allow direct linking, which also links to the client.
+14. **Material/Resource Planning for Production Steps:** Allow specifying required materials/resources for each production task, potentially linking to an inventory module.
+15. **Visual Progress for Production Orders:** Add a progress bar or mini-Gantt in `ProductionOrderDetailDialog` to show step status.
+16. **Copy Production Steps from Templates/Previous Orders:** Enable creating new production orders by copying steps from templates or similar past orders.
+
+**Milestones (within `project_management/dashboard.py` using `dialogs/add_edit_milestone_dialog.py`):**
+
+17. **Milestone Visualization on Timelines:** Display milestones on project timelines or Gantt charts.
+18. **Link Tasks to Milestones:** Allow associating tasks with milestones, where task completion contributes to milestone achievement.
+
+**Cover Page Management (`project_management/dialogs/cover_page_editor_dialog.py`):**
+
+19. **Live Preview in Cover Page Editor:** Integrate a live preview panel in `CoverPageEditorDialog` that updates with changes to style JSON or fields.
+20. **User-Friendly Style Configuration for Cover Pages:** Replace raw JSON editing with UI controls (color pickers, font selectors, etc.) for common style attributes.
+
+**Notifications (`project_management/notifications.py`):**
+
+21. **User-Configurable Notifications:** Allow users to select which notifications they wish to receive.
+22. **In-App Notification Center:** Create a panel listing past notifications with read/unread status and links.
+23. **Email Notification Option:** Add an option to send critical notifications via email.
+
+**General UI/UX:**
+
+24. **Standardize "Actions" in Tables:** Use a consistent method (e.g., dedicated "Actions" column with icon buttons) for edit, delete, view details in all tables.
+25. **Dynamic Statuses from DB:** Ensure all status dropdowns (project, task) are populated dynamically from `StatusSettings` table via `db` calls, not hardcoded.
