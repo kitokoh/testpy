@@ -4,9 +4,9 @@ from PyQt5.QtWidgets import QDialog, QLabel, QVBoxLayout, QDialogButtonBox
 class InstallerDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Installer")
+        self.setWindowTitle(self.tr("Installer"))
         layout = QVBoxLayout(self)
-        label = QLabel("InstallerDialog placeholder: Feature not fully implemented.")
+        label = QLabel(self.tr("InstallerDialog placeholder: Feature not fully implemented."))
         layout.addWidget(label)
 
         # Add Ok and Cancel buttons

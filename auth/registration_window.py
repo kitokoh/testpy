@@ -31,65 +31,68 @@ class RegistrationWindow(QDialog):
         left_widget.setObjectName("registrationFormArea")
         left_widget.setFixedWidth(380) # Set fixed width for the form area
 
-        form_layout = QVBoxLayout(left_widget)
-        form_layout.setContentsMargins(30, 40, 30, 40)
-        form_layout.setSpacing(15)
+        form_v_layout = QVBoxLayout(left_widget) # Changed name for clarity
+        form_v_layout.setContentsMargins(30, 40, 30, 40)
+        form_v_layout.setSpacing(15)
 
 
         # Title Label
-        title_label = QLabel("Create Your Account")
+        title_label = QLabel(self.tr("Create Your Account"))
         title_label.setObjectName("dialogHeaderLabel")
         title_label.setAlignment(Qt.AlignCenter)
-        form_layout.addWidget(title_label)
+        form_v_layout.addWidget(title_label)
 
         # Subtitle or instruction
-        instruction_label = QLabel("Fill in the details below to register.")
+        instruction_label = QLabel(self.tr("Fill in the details below to register."))
         instruction_label.setAlignment(Qt.AlignCenter)
         instruction_label.setStyleSheet("font-size: 10pt; color: #6c757d;")
-        form_layout.addWidget(instruction_label)
+        form_v_layout.addWidget(instruction_label)
 
-        form_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        form_v_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
+
+        form_layout_internal = QFormLayout() # Using QFormLayout for labels and inputs
+        form_layout_internal.setSpacing(10)
+        form_layout_internal.setLabelAlignment(Qt.AlignRight)
 
         # Username
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Username")
+        self.username_input.setPlaceholderText(self.tr("Username"))
 
         # Email
         self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("Email")
+        self.email_input.setPlaceholderText(self.tr("Email"))
 
         # Password
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Password")
+        self.password_input.setPlaceholderText(self.tr("Password"))
         self.password_input.setEchoMode(QLineEdit.Password)
 
         # Confirm Password
         self.confirm_password_input = QLineEdit()
-        self.confirm_password_input.setPlaceholderText("Confirm Password")
+        self.confirm_password_input.setPlaceholderText(self.tr("Confirm Password"))
         self.confirm_password_input.setEchoMode(QLineEdit.Password)
 
-        form_layout.addWidget(QLabel("Username:"))
-        form_layout.addWidget(self.username_input)
-        form_layout.addWidget(QLabel("Email:"))
-        form_layout.addWidget(self.email_input)
-        form_layout.addWidget(QLabel("Password:"))
-        form_layout.addWidget(self.password_input)
-        form_layout.addWidget(QLabel("Confirm Password:"))
-        form_layout.addWidget(self.confirm_password_input)
+        form_layout_internal.addRow(QLabel(self.tr("Username:")), self.username_input)
+        form_layout_internal.addRow(QLabel(self.tr("Email:")), self.email_input)
+        form_layout_internal.addRow(QLabel(self.tr("Password:")), self.password_input)
+        form_layout_internal.addRow(QLabel(self.tr("Confirm Password:")), self.confirm_password_input)
 
-        form_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        form_v_layout.addLayout(form_layout_internal) # Add QFormLayout to QVBoxLayout
+
+
+        form_v_layout.addSpacerItem(QSpacerItem(20, 15, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Register Button
-        register_button = QPushButton("Register")
+        register_button = QPushButton(self.tr("Register"))
         register_button.setObjectName("primaryButton")
         register_button.setMinimumHeight(35)
         register_button.clicked.connect(self.handle_registration)
-        form_layout.addWidget(register_button)
+        form_v_layout.addWidget(register_button) # Add to QVBoxLayout
 
-        form_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
+        form_v_layout.addSpacerItem(QSpacerItem(20, 10, QSizePolicy.Minimum, QSizePolicy.Fixed))
 
         # Back to Login Button
-        back_to_login_button = QPushButton("Already have an account? Login")
+        back_to_login_button = QPushButton(self.tr("Already have an account? Login"))
         back_to_login_button.setObjectName("linkButton")
         back_to_login_button.setCursor(Qt.PointingHandCursor)
         back_to_login_button.clicked.connect(self.go_to_login)
@@ -152,20 +155,20 @@ class RegistrationWindow(QDialog):
 
         # Validation
         if not all([username, email, password, confirm_password]):
-            QMessageBox.warning(self, "Input Error", "All fields are required.")
+            QMessageBox.warning(self, self.tr("Input Error"), self.tr("All fields are required."))
             return
 
         if password != confirm_password:
-            QMessageBox.warning(self, "Input Error", "Passwords do not match.")
+            QMessageBox.warning(self, self.tr("Input Error"), self.tr("Passwords do not match."))
             return
 
         # Use users_crud_instance for checks
         if users_crud_instance.get_user_by_username(username): # Pass conn=None, decorator handles it
-            QMessageBox.warning(self, "Input Error", "Username already exists.")
+            QMessageBox.warning(self, self.tr("Input Error"), self.tr("Username already exists."))
             return
 
         if users_crud_instance.get_user_by_email(email): # Pass conn=None
-            QMessageBox.warning(self, "Input Error", "Email already registered.")
+            QMessageBox.warning(self, self.tr("Input Error"), self.tr("Email already registered."))
             return
 
         # If all validations pass
@@ -181,12 +184,12 @@ class RegistrationWindow(QDialog):
         reg_result = users_crud_instance.add_user(user_data) # Pass conn=None
 
         if reg_result['success']:
-            QMessageBox.information(self, "Success", "Registration successful! You can now log in.")
+            QMessageBox.information(self, self.tr("Success"), self.tr("Registration successful! You can now log in."))
             self.accept()  # Close the registration dialog
         else:
             # Display specific error from add_user (e.g., password too short, db error)
-            error_message = reg_result.get('error', "Registration failed. Please try again or contact support.")
-            QMessageBox.critical(self, "Error", error_message)
+            error_message = reg_result.get('error', self.tr("Registration failed. Please try again or contact support."))
+            QMessageBox.critical(self, self.tr("Error"), self.tr(error_message)) # Ensure error_message is also translatable if it's a key
 
     def go_to_login(self):
         self.accept() # Close the dialog, LoginWindow will re-show itself.

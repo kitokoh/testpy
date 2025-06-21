@@ -63,7 +63,7 @@ class LoginWindow(QDialog):
         logo_label = QLabel()
         pixmap = QPixmap(":/icons/logo.svg")
         if pixmap.isNull():
-            logo_label.setText("Company Logo")
+            logo_label.setText(self.tr("Company Logo"))
             logo_label.setAlignment(Qt.AlignCenter)
             logo_label.setStyleSheet("font-size: 14px; color: #888;")
         else:
@@ -132,7 +132,7 @@ class LoginWindow(QDialog):
         promo_layout.setSpacing(20)
         promo_layout.setAlignment(Qt.AlignCenter)
 
-        self.promoHeaderLabel = QLabel("ClientDocManager")
+        self.promoHeaderLabel = QLabel(self.tr("ClientDocManager"))
         self.promoHeaderLabel.setObjectName("promoHeaderLabel")
         self.promoHeaderLabel.setAlignment(Qt.AlignCenter) # Set alignment in Python
         self.promoHeaderLabel.setWordWrap(True)
