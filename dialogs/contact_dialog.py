@@ -11,16 +11,20 @@ from controllers.contact_controller import ContactController # Added
 import icons_rc # Import for Qt resource file
 
 class ContactDialog(QDialog):
-    def __init__(self, client_id=None, contact_data=None, parent=None):
+    def __init__(self, client_id=None, contact_data=None, parent=None, is_first_contact=False): # Added is_first_contact
         super().__init__(parent)
         self.client_id = client_id
         self.contact_data = contact_data or {}
+        self.is_first_contact = is_first_contact # Store is_first_contact
         self.contact_controller = ContactController() # Added
         self.setWindowTitle(self.tr("Modifier Contact") if self.contact_data and self.contact_data.get('contact_id') else self.tr("Ajouter Contact"))
         self.setMinimumSize(450,300)
         self.setup_ui()
         if self.contact_data: # Ensure form is populated if contact_data is provided
             self.populate_form()
+        elif self.is_first_contact and self.client_id: # If new contact and it's the first for a client
+            self.primary_check.setChecked(True)
+            self.primary_check.setEnabled(False) # Optionally disable it
 
 
     def _create_icon_label_widget(self,icon_name,label_text):

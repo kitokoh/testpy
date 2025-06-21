@@ -231,7 +231,12 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
 
         if ui_map_data:
             contact_controller = ContactController() # Instantiate controller
-            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
+
+            # Check if this is the first contact for the client
+            existing_contacts = get_contacts_for_client(actual_new_client_id, limit=1)
+            is_first_contact = not existing_contacts
+
+            contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager, is_first_contact=is_first_contact)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()
 
