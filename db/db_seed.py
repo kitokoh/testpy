@@ -36,6 +36,12 @@ except ImportError as e:
 except AttributeError:
     logging.error(f"CONFIG variable not found in the loaded app_config_module from {APP_CONFIG_PATH}")
     raise
+# Add the project root to sys.path to allow importing app_config
+APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if APP_ROOT_DIR not in sys.path:
+    sys.path.insert(0, APP_ROOT_DIR)
+
+from app_config import CONFIG
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
