@@ -1,4 +1,5 @@
 import os
+import sys
 import sqlite3
 import uuid
 import hashlib
@@ -8,6 +9,12 @@ import logging
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
+
+# Add the project root to sys.path to allow importing app_config
+APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if APP_ROOT_DIR not in sys.path:
+    sys.path.insert(0, APP_ROOT_DIR)
+
 from app_config import CONFIG
 
 # Import necessary functions directly from their new CRUD module locations
@@ -28,9 +35,6 @@ from db.cruds import partners_crud
 # Assuming company and company personnel functions will be imported if they were used via db_main_manager
 # For now, let's assume they are not, or will be handled if errors arise.
 
-# Path adjustments for db_seed.py located in db/
-# __file__ is db/db_seed.py. os.path.dirname(__file__) is db/. os.pardir goes up one level.
-APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup
 
 # Redundant local helper functions and data are removed.
