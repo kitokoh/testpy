@@ -166,15 +166,41 @@ def remove_contact_from_list(data: dict, conn: sqlite3.Connection = None) -> obj
 # --- ClientContacts CRUD ---
 @_manage_conn
 def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = False, can_receive_documents: bool = True, conn: sqlite3.Connection = None) -> int | None:
-    logging.info(f"link_contact_to_client called with client_id: {client_id}, contact_id: {contact_id}") # New log
-    cursor=conn.cursor()
-    sql="INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents) VALUES (?,?,?,?)"
-    try:
-        cursor.execute(sql,(client_id,contact_id,is_primary,can_receive_documents))
-        return cursor.lastrowid
-    except sqlite3.Error as e: # Handles UNIQUE constraint
-        logging.error(f"Error linking contact {contact_id} to client {client_id}. Error type: {type(e)}, Message: {e}") # Enhanced log
-        return None
+    logging.info(f"Attempting to link/update contact {contact_id} for client {client_id}. Is_primary: {is_primary}, Can_receive_docs: {can_receive_documents}")
+    cursor = conn.cursor()
+
+    # Check if the link already exists
+    existing_link = get_specific_client_contact_link_details(client_id, contact_id, conn=conn)
+
+    if existing_link:
+        logging.info(f"Link already exists for client {client_id} and contact {contact_id}. ClientContactID: {existing_link['client_contact_id']}.")
+        # Link exists, check if an update is needed for is_primary or can_receive_documents
+        details_to_update = {}
+        if existing_link.get('is_primary_for_client') != is_primary:
+            details_to_update['is_primary_for_client'] = is_primary
+        if existing_link.get('can_receive_documents') != can_receive_documents:
+            details_to_update['can_receive_documents'] = can_receive_documents
+        
+        if details_to_update:
+            logging.info(f"Updating existing link {existing_link['client_contact_id']} with details: {details_to_update}")
+            if update_client_contact_link(existing_link['client_contact_id'], details_to_update, conn=conn):
+                logging.info(f"Successfully updated link {existing_link['client_contact_id']}.")
+            else:
+                logging.error(f"Failed to update existing link {existing_link['client_contact_id']}.")
+                # Depending on desired behavior, could return None or the existing ID anyway
+        return existing_link['client_contact_id'] # Return existing link ID
+    else:
+        # Link does not exist, proceed with insertion
+        logging.info(f"No existing link found for client {client_id} and contact {contact_id}. Creating new link.")
+        sql = "INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents) VALUES (?,?,?,?)"
+        try:
+            cursor.execute(sql, (client_id, contact_id, is_primary, can_receive_documents))
+            new_link_id = cursor.lastrowid
+            logging.info(f"Successfully created new link for client {client_id}, contact {contact_id}. New ClientContactID: {new_link_id}")
+            return new_link_id
+        except sqlite3.Error as e:
+            logging.error(f"Error inserting new link for contact {contact_id} to client {client_id}. Error: {e}", exc_info=True)
+            return None
 
 @_manage_conn
 def unlink_contact_from_client(client_id: str, contact_id: int, conn: sqlite3.Connection = None) -> bool:
