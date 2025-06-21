@@ -185,47 +185,38 @@ class CreateDocumentDialog(QDialog):
         logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
 
         try:
-            # Fetch client-specific and global templates based on filters
-            category_ids_to_filter = []
-            # Define desired purposes
-            desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
-            all_categories = get_all_template_categories()
+            # Category filtering logic removed from here.
+            # # Fetch client-specific and global templates based on filters
+            # category_ids_to_filter = []
+            # # Define desired purposes
+            # desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
+            # all_categories = get_all_template_categories()
 
-            if all_categories:
-                for category in all_categories:
-                    purpose = category.get('purpose')
-                    if purpose == 'client_document' or purpose == 'utility':
+            # if all_categories:
+            #     for category in all_categories:
+            #         purpose = category.get('purpose')
+            #         if purpose in ['client_document', 'utility', 'document_global']:
+            #             category_ids_to_filter.append(category['category_id'])
 
-                        category_ids_to_filter.append(category['category_id'])
+            # logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
 
-            logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
-
-            if not category_ids_to_filter:
-                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
-                # If category_ids_to_filter is empty and passed to get_all_templates,
-                # it should result in no templates if the IN clause becomes `IN ()`.
-                # Or, if get_all_templates handles empty list by not adding the category filter,
-                # then all templates (matching other criteria) would be shown.
-                # The current implementation of get_all_templates with an empty list for IN clause
-                # will likely result in an SQL error or no results for that clause.
-                # It's better if get_all_templates doesn't add the clause if the list is empty.
-                # For now, we pass the empty list. If it causes issues, get_all_templates needs adjustment
-                # or we explicitly pass None if category_ids_to_filter is empty.
-                # Let's assume get_all_templates handles an empty list for category_id_filter correctly
-                # by not filtering on categories if the list is empty (e.g. by not adding the IN clause).
-                # To be safe, if empty, we might not want to filter by category at all,
-                # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
-                # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
-            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
+            # if not category_ids_to_filter:
+            #     logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
+            # actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
 
             templates_from_db = db_manager.get_all_templates(
                 template_type_filter=template_type_filter,
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=actual_category_id_filter
+                category_id_filter=None  # Fetch all categories
             )
             if templates_from_db is None: templates_from_db = []
-            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
+            # The log below "Fetched ... templates from DB initially after category filtering." might be slightly misleading now,
+            # as category filtering at the DB query level is removed. It now reflects fetching after other filters (type, lang, client).
+            # Consider renaming or removing if it causes confusion. For now, keeping it as is.
+            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially (before search/default processing).")
+            # Add new log here - this one is more accurate for "after get_all_templates"
+            logging.info(f"Templates received from get_all_templates (before search/default processing): {len(templates_from_db)}")
 
             # Apply search text filter locally first
             if search_text:
@@ -294,6 +285,8 @@ class CreateDocumentDialog(QDialog):
                     item_text = f"[D] {item_text}"
 
                 item = QListWidgetItem(item_text)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
                 # Store the original template_dict (or its copy if modification is an issue) in UserRole
                 # Here, template_dict_display_item contains the original data + 'is_display_default'
                 item.setData(Qt.UserRole, template_dict_display_item)
@@ -312,7 +305,8 @@ class CreateDocumentDialog(QDialog):
                     item_template_data = item.data(Qt.UserRole)
                     if isinstance(item_template_data, dict) and item_template_data.get('template_id') == target_template_id:
                         logging.info(f"Pre-selecting template item based on template_id: {target_template_id} (Name: {item_template_data.get('template_name')})")
-                        item.setSelected(True)
+                        # item.setSelected(True) # Selection driven by check state
+                        item.setCheckState(Qt.Checked) # Ensure it's checked
                         from PyQt5.QtWidgets import QAbstractItemView # Import for PositionAtCenter
                         self.templates_list.scrollToItem(item, QAbstractItemView.PositionAtCenter)
                         break
@@ -321,8 +315,15 @@ class CreateDocumentDialog(QDialog):
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):
-        selected_items = self.templates_list.selectedItems()
-        if not selected_items: QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer.")); return
+        selected_items_data = []
+        for i in range(self.templates_list.count()):
+            item = self.templates_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_items_data.append(item.data(Qt.UserRole))
+
+        if not selected_items_data:
+            QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez cocher au moins un document à créer."))
+            return
         created_files_count = 0
 
         default_company_obj = db_manager.get_default_company()
@@ -333,9 +334,9 @@ class CreateDocumentDialog(QDialog):
         client_id_for_context = self.client_info.get('client_id')
         project_id_for_context_arg = self.client_info.get('project_id', self.client_info.get('project_identifier'))
 
-        for item in selected_items:
-            template_data = item.data(Qt.UserRole)
-            if not isinstance(template_data, dict):
+        for template_data in selected_items_data: # Iterate over collected data
+            # template_data is already the dictionary from item.data(Qt.UserRole)
+            if not isinstance(template_data, dict): # Should not happen if data integrity is maintained
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Données de modèle invalides pour l'élément sélectionné."))
                 continue
 
@@ -517,8 +518,8 @@ class CreateDocumentDialog(QDialog):
         if created_files_count > 0:
             QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
             self.accept()
-        elif not selected_items:
-            # This case should be handled by the initial check, but good to have robustness
+        elif not selected_items_data: # Check against selected_items_data
+            # This case is handled by the check at the beginning of the method.
             pass
-        else: # Some items were selected, but none were created
+        else: # Some items were selected (checked), but none were created
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les messages d'erreur précédents ou les logs pour plus de détails."))
