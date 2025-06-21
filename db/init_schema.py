@@ -1892,6 +1892,56 @@ CREATE TABLE IF NOT EXISTS Templates (
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_exp_tags_tag_id ON ExperienceTags(tag_id)")
     # --- End Experience Module Indexes ---
 
+    # --- Company Expense Module Tables ---
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS company_factures (
+        facture_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_file_name TEXT NOT NULL,
+        stored_file_path TEXT NOT NULL,
+        file_mime_type TEXT,
+        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        extraction_status TEXT DEFAULT 'pending_review' NOT NULL,
+        extracted_data_json TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TIMESTAMP
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS company_expenses (
+        expense_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expense_date DATE NOT NULL,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL,
+        recipient_name TEXT NOT NULL,
+        description TEXT,
+        facture_id INTEGER UNIQUE, -- Ensures one-to-one after facture is linked
+        created_by_user_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted INTEGER DEFAULT 0,
+        deleted_at TIMESTAMP,
+        FOREIGN KEY (facture_id) REFERENCES company_factures (facture_id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES Users (user_id) ON DELETE SET NULL
+    )
+    """)
+    print("DEBUG_INIT_DB: Company Expense and Facture tables created or already exist.")
+
+    # --- Indexes for Company Expense Module ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_factures_upload_date ON company_factures(upload_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_factures_extraction_status ON company_factures(extraction_status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_factures_is_deleted ON company_factures(is_deleted)")
+
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_expenses_expense_date ON company_expenses(expense_date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_expenses_recipient_name ON company_expenses(recipient_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_expenses_facture_id ON company_expenses(facture_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_expenses_created_by_user_id ON company_expenses(created_by_user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_company_expenses_is_deleted ON company_expenses(is_deleted)")
+    print("DEBUG_INIT_DB: Indexes for Company Expense and Facture tables created or already exist.")
+    # --- End Company Expense Module Tables and Indexes ---
+
     # --- Seed Data (from db/schema.py, ensuring use of db_config) ---
     try:
         print("DEBUG_INIT_DB: Starting data seeding phase.")
