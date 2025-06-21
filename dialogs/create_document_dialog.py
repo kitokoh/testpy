@@ -24,10 +24,11 @@ from utils import populate_docx_template
 import icons_rc # Import for Qt resource file
 
 class CreateDocumentDialog(QDialog):
-    def __init__(self, client_info, config, parent=None):
+    def __init__(self, client_info, config, parent=None, template_data=None): # Added template_data
         super().__init__(parent)
         self.client_info = client_info
         self.config = config # Store config passed from main
+        self.template_data = template_data # Store template_data
         self.setWindowTitle(self.tr("Créer des Documents"))
         self.setMinimumSize(600, 500)
         self._initial_load_complete = False
@@ -66,7 +67,7 @@ class CreateDocumentDialog(QDialog):
         combined_filter_layout.addWidget(self.extension_filter_label)
         self.extension_filter_combo = QComboBox()
         self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
-        self.extension_filter_combo.setCurrentText("HTML")
+        self.extension_filter_combo.setCurrentText(self.tr("All"))
         combined_filter_layout.addWidget(self.extension_filter_combo)
 
         # Search Bar
@@ -175,27 +176,32 @@ class CreateDocumentDialog(QDialog):
         type_map_from_ext = {".html": "document_html", ".xlsx": "document_excel", ".docx": "document_word"} # Add other types if needed
 
         selected_ext_val = ext_map.get(selected_ext_display)
-        template_type_filter = None
-        if selected_ext_display != self.tr("All"):
-            template_type_filter = type_map_from_ext.get(selected_ext_val)
+        # template_type_filter will be applied locally after DB fetch
+        # The DB query will use template_type_filter_list for broad document types
 
         effective_lang_filter = selected_lang if selected_lang != self.tr("All") else None
         current_client_id = self.client_info.get('client_id')
+        # logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
+        logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, UI ext_filter: {selected_ext_display}, search: '{search_text}'")
 
         try:
             # Fetch client-specific and global templates based on filters
-            # get_all_templates is now client-aware and handles other filters
-
             category_ids_to_filter = []
-            all_categories = get_all_template_categories() # Fetches all categories from the DB
+            # Define desired purposes
+            desired_purposes = ['client_document', 'utility', 'document_global'] # Expanded list
+            all_categories = get_all_template_categories()
 
             if all_categories:
                 for category in all_categories:
-                    if category.get('purpose') == 'client_document':
+                    purpose = category.get('purpose')
+                    if purpose in ['client_document', 'utility', 'document_global']:
+
                         category_ids_to_filter.append(category['category_id'])
 
+            logging.info(f"Category IDs to filter by (purposes: {desired_purposes}): {category_ids_to_filter}")
+
             if not category_ids_to_filter:
-                logging.warning("No categories found with purpose 'client_document'. No templates will be shown based on this criterion if category filtering is applied.")
+                logging.warning("No categories found with purpose 'client_document' or 'utility'. No templates will be shown based on this criterion if category filtering is applied.")
                 # If category_ids_to_filter is empty and passed to get_all_templates,
                 # it should result in no templates if the IN clause becomes `IN ()`.
                 # Or, if get_all_templates handles empty list by not adding the category filter,
@@ -210,14 +216,36 @@ class CreateDocumentDialog(QDialog):
                 # To be safe, if empty, we might not want to filter by category at all,
                 # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
                 # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
+            if not category_ids_to_filter:
+                logging.warning(f"No categories found for desired purposes {desired_purposes}. Expanding filter to include templates from any category (or those with NULL purpose if DB handles it implicitly).")
+                actual_category_id_filter = None # This will cause get_all_templates to not filter by category
+            else:
+                actual_category_id_filter = category_ids_to_filter
+
+            document_template_types = ['document_html', 'document_excel', 'document_word', 'document_pdf', 'document_other']
+            logging.info(f"DB query will use template_type_filter_list: {document_template_types}")
+
 
             templates_from_db = db_manager.get_all_templates(
-                template_type_filter=template_type_filter,
+                template_type_filter_list=document_template_types, # Use list for broad doc types
+                template_type_filter=None, # Set single type filter to None for DB query
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
-                category_id_filter=category_ids_to_filter # Pass the list of category IDs
+                category_id_filter=None  # Fetch all categories
             )
             if templates_from_db is None: templates_from_db = []
+            logging.info(f"Fetched {len(templates_from_db)} document-type templates from DB.")
+
+            # Apply UI's extension filter locally
+            if selected_ext_display != self.tr("All"):
+                target_template_type_for_gui_filter = type_map_from_ext.get(ext_map.get(selected_ext_display))
+                if target_template_type_for_gui_filter:
+                    templates_from_db = [
+                        t for t in templates_from_db
+                        if t.get('template_type') == target_template_type_for_gui_filter
+                    ]
+            logging.info(f"Templates after local extension filter '{selected_ext_display}': {len(templates_from_db)}")
+
 
             # Apply search text filter locally first
             if search_text:
@@ -225,6 +253,7 @@ class CreateDocumentDialog(QDialog):
                     t for t in templates_from_db
                     if search_text in t.get('template_name', '').lower()
                 ]
+            logging.info(f"Templates after local search filter '{search_text}': {len(templates_from_db)}")
 
             # Refine default status based on client-specificity
             # Key: (template_type, language_code)
@@ -286,6 +315,8 @@ class CreateDocumentDialog(QDialog):
                     item_text = f"[D] {item_text}"
 
                 item = QListWidgetItem(item_text)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
                 # Store the original template_dict (or its copy if modification is an issue) in UserRole
                 # Here, template_dict_display_item contains the original data + 'is_display_default'
                 item.setData(Qt.UserRole, template_dict_display_item)
@@ -296,14 +327,33 @@ class CreateDocumentDialog(QDialog):
                     item.setFont(font)
                     # item.setBackground(QColor("#E0F0E0")) # Optional: QColor needs import
                 self.templates_list.addItem(item)
+
+            if self.template_data and self.template_data.get('template_id'):
+                target_template_id = self.template_data.get('template_id')
+                for i in range(self.templates_list.count()):
+                    item = self.templates_list.item(i)
+                    item_template_data = item.data(Qt.UserRole)
+                    if isinstance(item_template_data, dict) and item_template_data.get('template_id') == target_template_id:
+                        logging.info(f"Pre-selecting template item based on template_id: {target_template_id} (Name: {item_template_data.get('template_name')})")
+                        # item.setSelected(True) # Selection driven by check state
+                        item.setCheckState(Qt.Checked) # Ensure it's checked
+                        from PyQt5.QtWidgets import QAbstractItemView # Import for PositionAtCenter
+                        self.templates_list.scrollToItem(item, QAbstractItemView.PositionAtCenter)
+                        break
         except Exception as e:
-            # Log the full traceback for detailed debugging
             logging.error("Error loading templates in dialog", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des modèles:\n{0}").format(str(e)))
 
     def create_documents(self):
-        selected_items = self.templates_list.selectedItems()
-        if not selected_items: QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez sélectionner au moins un document à créer.")); return
+        selected_items_data = []
+        for i in range(self.templates_list.count()):
+            item = self.templates_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_items_data.append(item.data(Qt.UserRole))
+
+        if not selected_items_data:
+            QMessageBox.warning(self, self.tr("Aucun document sélectionné"), self.tr("Veuillez cocher au moins un document à créer."))
+            return
         created_files_count = 0
 
         default_company_obj = db_manager.get_default_company()
@@ -314,9 +364,9 @@ class CreateDocumentDialog(QDialog):
         client_id_for_context = self.client_info.get('client_id')
         project_id_for_context_arg = self.client_info.get('project_id', self.client_info.get('project_identifier'))
 
-        for item in selected_items:
-            template_data = item.data(Qt.UserRole)
-            if not isinstance(template_data, dict):
+        for template_data in selected_items_data: # Iterate over collected data
+            # template_data is already the dictionary from item.data(Qt.UserRole)
+            if not isinstance(template_data, dict): # Should not happen if data integrity is maintained
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Données de modèle invalides pour l'élément sélectionné."))
                 continue
 
@@ -329,15 +379,18 @@ class CreateDocumentDialog(QDialog):
             if not actual_template_filename:
                 QMessageBox.warning(self, self.tr("Erreur Modèle"), self.tr("Nom de fichier manquant pour le modèle '{0}'. Impossible de créer.").format(db_template_name)); continue
 
-            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            # Path construction modification: include template_type as a subdirectory
+            template_type_folder = template_type if template_type and template_type.strip() else "unknown_type"
 
-            # === Added Existence Check ===
+            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Lang: {db_template_lang}, File: {actual_template_filename})")
+
             if not os.path.exists(template_file_on_disk_abs):
                 logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'. Skipping this template.")
                 QMessageBox.warning(self, self.tr("Fichier Modèle Introuvable"),
-                                    self.tr("Le fichier pour le modèle '{0}' ({1}) est introuvable à l'emplacement attendu:\n{2}\n\nCe modèle sera ignoré.").format(db_template_name, db_template_lang, template_file_on_disk_abs))
+                                    self.tr("Le fichier pour le modèle '{0}' ({1}) de type '{2}' est introuvable à l'emplacement attendu:\n{3}\n\nCe modèle sera ignoré.").format(db_template_name, db_template_lang, template_type, template_file_on_disk_abs))
                 continue
-            # === End of Added Existence Check ===
+            # No need for '=== Added Existence Check ===' comments, the logic is integrated.
 
             # The original if os.path.exists(template_file_on_disk_abs) is now redundant due to the check above,
             # but the logic inside it should proceed if the file exists (i.e., if the `continue` above wasn't hit).
@@ -495,8 +548,8 @@ class CreateDocumentDialog(QDialog):
         if created_files_count > 0:
             QMessageBox.information(self, self.tr("Documents créés"), self.tr("{0} documents ont été créés avec succès.").format(created_files_count))
             self.accept()
-        elif not selected_items:
-            # This case should be handled by the initial check, but good to have robustness
+        elif not selected_items_data: # Check against selected_items_data
+            # This case is handled by the check at the beginning of the method.
             pass
-        else: # Some items were selected, but none were created
+        else: # Some items were selected (checked), but none were created
             QMessageBox.warning(self, self.tr("Erreur"), self.tr("Aucun document n'a pu être créé. Vérifiez les messages d'erreur précédents ou les logs pour plus de détails."))

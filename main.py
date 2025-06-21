@@ -1,13 +1,22 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
+
+# Determine project root and add to sys.path
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import logging # For main.py's own logging needs, and for translator parts if setup_logging isn't called first
 import icons_rc # Import the compiled resource file
+import subprocess # Added for starting API server
+import atexit # Added for stopping API server on exit
 
 # Core PyQt5 imports for application execution
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QLocale, QLibraryInfo, QTranslator, Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtCore import QStringListModel
 
 # Imports from project structure
 from app_setup import (
@@ -34,6 +43,7 @@ from main_window import DocumentManager # The main application window
 from notifications import NotificationManager # Added for notifications
 from db.cruds.users_crud import users_crud_instance # Added for default operational user
 from PyQt5.QtWidgets import QMessageBox # Added for error dialog
+from PyQt5.QtWidgets import QSplashScreen
 
 import datetime # Added for session timeout
 from PyQt5.QtCore import QSettings # Added for Remember Me
@@ -46,6 +56,9 @@ SESSION_START_TIME = None
 # Initialize from CONFIG, providing a default if key is missing
 SESSION_TIMEOUT_SECONDS = CONFIG.get("session_timeout_minutes", 30) * 60
 
+# Global variable for the API server process
+api_server_process = None
+
 # --- DEVELOPMENT/TESTING FLAG ---
 # Set to True to bypass the login screen for faster testing.
 # WARNING: This will log in as the default admin user with super_admin privileges
@@ -55,6 +68,71 @@ BYPASS_LOGIN_FOR_TESTING = True
 # --- End Development/Testing: Bypass Login Flag ---
 
 # Old database initialization block removed as it's now called directly in main()
+
+def start_api_server():
+    """Starts the FastAPI server as a subprocess."""
+    global api_server_process
+    try:
+        # Ensure the command is correctly formatted.
+        # If 'api.main' is a module, uvicorn needs to be able to find it.
+        # This might require adjusting PYTHONPATH or running from a specific directory.
+        # For now, assume 'api.main:app' is discoverable by uvicorn in the current environment.
+        command = ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+        # Using Popen for non-blocking execution.
+        # Ensure that the subprocess's stdout/stderr are handled appropriately
+        # to prevent blocking or deadlocks if they fill up.
+        # For basic logging, we can capture them or redirect to DEVNULL if not needed.
+        api_server_process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # Small delay to check if process started, then check poll()
+        # This is a very basic check. A more robust check would involve
+        # trying to connect to the server's health endpoint if available.
+        # Or, monitoring its output for a startup confirmation message.
+        # For now, we assume if Popen doesn't raise an error and poll() is None, it's starting.
+        if api_server_process.poll() is None:
+            logging.info(f"FastAPI server process started successfully with PID: {api_server_process.pid}. Command: {' '.join(command)}")
+        else:
+            # This means the process terminated quickly, likely an error.
+            stdout, stderr = api_server_process.communicate() # Get output
+            logging.error(f"FastAPI server process failed to start. Exit code: {api_server_process.returncode}")
+            logging.error(f"Stdout: {stdout.decode().strip()}")
+            logging.error(f"Stderr: {stderr.decode().strip()}")
+            api_server_process = None # Reset as it failed
+
+    except FileNotFoundError:
+        logging.error("Error starting FastAPI server: 'uvicorn' command not found. Ensure uvicorn is installed and in PATH.")
+        api_server_process = None
+    except Exception as e:
+        logging.error(f"An unexpected error occurred while starting the FastAPI server: {e}", exc_info=True)
+        api_server_process = None
+
+def stop_api_server():
+    """Stops the FastAPI server process if it is running."""
+    global api_server_process
+    if api_server_process and api_server_process.poll() is None: # Check if process exists and is running
+        logging.info(f"Attempting to terminate API server process with PID: {api_server_process.pid}")
+        try:
+            api_server_process.terminate() # Send SIGTERM
+            try:
+                # Wait for a few seconds for graceful shutdown
+                api_server_process.wait(timeout=5)
+                logging.info(f"API server process with PID: {api_server_process.pid} terminated.")
+            except subprocess.TimeoutExpired:
+                logging.warning(f"API server process with PID: {api_server_process.pid} did not terminate in time. Sending SIGKILL.")
+                api_server_process.kill() # Send SIGKILL
+                api_server_process.wait() # Wait for kill to complete
+                logging.info(f"API server process with PID: {api_server_process.pid} killed.")
+            except Exception as e_wait: # Catch other errors during wait (e.g. process already died)
+                logging.info(f"Error waiting for API server process {api_server_process.pid} to terminate: {e_wait}. It might have already exited.")
+        except ProcessLookupError: # Raised if process does not exist (e.g. already terminated)
+            logging.info(f"API server process with PID: {api_server_process.pid} not found. Likely already stopped.")
+        except Exception as e:
+            logging.error(f"Error terminating/killing API server process with PID: {api_server_process.pid}: {e}", exc_info=True)
+    elif api_server_process: # Process exists but poll() is not None, meaning it already terminated
+        logging.info(f"API server process with PID: {api_server_process.pid} was already stopped (return code: {api_server_process.returncode}).")
+    else: # api_server_process is None
+        logging.info("No API server process to stop (api_server_process is None).")
 
 def expire_session():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
@@ -82,11 +160,20 @@ def check_session_timeout() -> bool:
 def main():
     global CURRENT_SESSION_TOKEN, CURRENT_USER_ROLE, CURRENT_USER_ID, SESSION_START_TIME
 
-    db.initialize_database() # Initialize database before any other operations
-
     # 1. Configure logging as the very first step.
     setup_logging()
     logging.info("Application starting...")
+
+    # Start the API server
+    start_api_server()
+
+    # Register the function to stop the API server on application exit
+    # This ensures that if start_api_server() actually started a process,
+    # we attempt to clean it up.
+    atexit.register(stop_api_server)
+
+    # Initialize database after logging and API server start attempt
+    db.initialize_database()
     # Log the configured session timeout value
     logging.info(f"Session timeout is set to: {SESSION_TIMEOUT_SECONDS // 60} minutes ({SESSION_TIMEOUT_SECONDS} seconds).")
 
@@ -102,6 +189,12 @@ def main():
 
     # 4. Create QApplication Instance
     app = QApplication(sys.argv)
+
+    # Display Splash Screen
+    splash_pix = QPixmap(os.path.join(APP_ROOT_DIR, "icons", "leopard_logo.svg"))
+    splash = QSplashScreen(splash_pix, Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+    splash.show()
+    app.processEvents() # Ensure splash screen is displayed promptly
 
     # 5. Set Application Name and Style
     app.setApplicationName("ClientDocManager")
@@ -186,35 +279,67 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
+    # 8. Setup Translations
     language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
-    # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
+
     if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
         language_code = language_code_from_db.strip()
         logging.info(f"Language '{language_code}' loaded from database setting.")
     else:
         default_lang = QLocale.system().name().split('_')[0]
-        language_code = CONFIG.get("language", default_lang)
+        language_code = CONFIG.get("language", default_lang if default_lang in ["en", "fr"] else "en") # Fallback to 'en' if system lang not supported
         if language_code_from_db is None:
             logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
         else: # Empty string or not a string
-            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
+            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}'). Defaulting to '{language_code}'.")
 
-    translator = QTranslator()
-    translation_path_app = os.path.join(APP_ROOT_DIR, "translations", "qm", f"app_{language_code}.qm")
-    if translator.load(translation_path_app):
-        app.installTranslator(translator)
-        logging.info(f"Loaded custom translation for {language_code} from {translation_path_app}")
+    # Load application translations
+    # First, try to load from the language-specific directory (e.g., translations/qm/fr/main.qm)
+    app_translator = QTranslator()
+    translation_filename = "main.qm" # Assuming your QM file is named main.qm
+    lang_spec_translation_path = os.path.join(APP_ROOT_DIR, "translations", "qm", language_code, translation_filename)
+
+    if os.path.exists(lang_spec_translation_path):
+        if app_translator.load(lang_spec_translation_path):
+            app.installTranslator(app_translator)
+            logging.info(f"Successfully loaded and installed application translation: {lang_spec_translation_path}")
+        else:
+            logging.warning(f"Failed to load application translation from {lang_spec_translation_path}. Error: {app_translator.errorString()}")
     else:
-        logging.warning(f"Failed to load custom translation for {language_code} from {translation_path_app}")
+        # Fallback to loading from the general qm directory (e.g., translations/qm/fr.qm or en.qm)
+        # This might be useful if you don't use subdirectories per language for qm files.
+        # However, current structure implies subdirectories.
+        logging.warning(f"Application translation file not found at specific path: {lang_spec_translation_path}. Trying general path if applicable or skipping.")
+        # Example of a more general path (adjust if your structure is different):
+        # general_translation_path = os.path.join(APP_ROOT_DIR, "translations", "qm", f"{language_code}.qm")
+        # if os.path.exists(general_translation_path):
+        #    if app_translator.load(general_translation_path):
+        #        app.installTranslator(app_translator)
+        #        logging.info(f"Successfully loaded and installed application translation from general path: {general_translation_path}")
+        #    else:
+        #        logging.warning(f"Failed to load application translation from general path {general_translation_path}. Error: {app_translator.errorString()}")
+        # else:
+        #    logging.warning(f"No application translation file found for language '{language_code}'.")
 
+
+    # Load Qt base translations
     qt_translator = QTranslator()
-    # Use QLibraryInfo.location(QLibraryInfo.TranslationsPath) for Qt base translations
     qt_translation_path_base = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
     if qt_translator.load(QLocale(language_code), "qtbase", "_", qt_translation_path_base):
         app.installTranslator(qt_translator)
         logging.info(f"Loaded Qt base translations for {language_code} from {qt_translation_path_base}")
     else:
-        logging.warning(f"Failed to load Qt base translations for {language_code} from {qt_translation_path_base}")
+        # Try a more generic locale if the specific one (e.g., fr_FR) fails
+        generic_locale_name = language_code.split('_')[0]
+        if generic_locale_name != language_code: # Avoid redundant logging if already generic
+            logging.info(f"Trying generic Qt base translations for {generic_locale_name} from {qt_translation_path_base}")
+            if qt_translator.load(QLocale(generic_locale_name), "qtbase", "_", qt_translation_path_base):
+                app.installTranslator(qt_translator)
+                logging.info(f"Loaded generic Qt base translations for {generic_locale_name} from {qt_translation_path_base}")
+            else:
+                logging.warning(f"Failed to load Qt base translations for {language_code} or {generic_locale_name} from {qt_translation_path_base}")
+        else:
+            logging.warning(f"Failed to load Qt base translations for {language_code} from {qt_translation_path_base}")
 
     # 9. Initialize Default Templates (after DB and CONFIG are ready)
     # initialize_default_templates is imported from app_setup
@@ -246,23 +371,28 @@ def main():
 
     if first_launch_detected:
         logging.info("Application detected first launch. Executing InitialSetupDialog.")
-        initial_setup_dialog = InitialSetupDialog()
-        result = initial_setup_dialog.exec_()
-        if result == QDialog.Accepted:
-            # Use CONFIG for directory paths in mark_initial_setup_complete
-            mark_initial_setup_complete(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
-            logging.info("Initial setup marked as complete.")
-            companies_exist = bool(db.get_all_companies()) # Re-check companies after setup
-        else:
-            logging.warning("InitialSetupDialog cancelled. Application may lack configurations.")
-            # Potentially exit or show critical error if setup is vital
+        # initial_setup_dialog = InitialSetupDialog()
+        # result = initial_setup_dialog.exec_()
+        # if result == QDialog.Accepted:
+        #     # Use CONFIG for directory paths in mark_initial_setup_complete
+        #     mark_initial_setup_complete(APP_ROOT_DIR, CONFIG.get('templates_dir'), CONFIG.get('clients_dir'))
+        #     logging.info("Initial setup marked as complete.")
+        #     companies_exist = bool(db.get_all_companies()) # Re-check companies after setup
+        # else:
+        #     logging.warning("InitialSetupDialog cancelled. Application may lack configurations.")
+        #     # Potentially exit or show critical error if setup is vital
 
     # Now, handle the PromptCompanyInfoDialog based on company existence and the flag
     if not companies_exist:
         if first_launch_detected or show_setup_prompt_config_value: # Show if first launch OR if flag is true
             logging.info("No companies found or setup prompt explicitly enabled. Prompting for company information.")
-            prompt_dialog = PromptCompanyInfoDialog()
-            dialog_result_company = prompt_dialog.exec_()
+            # prompt_dialog = PromptCompanyInfoDialog()
+            # dialog_result_company = prompt_dialog.exec_()
+
+            # if dialog_result_company == QDialog.Accepted:
+            # Simulate dialog acceptance to proceed with default company creation if logic expects it
+            dialog_result_company = QDialog.Accepted # SIMULATED ACCEPTANCE
+            prompt_dialog = type('obj', (object,), {'use_default_company': True, 'get_company_data': lambda: None})() # SIMULATED DIALOG
 
             if dialog_result_company == QDialog.Accepted:
                 if prompt_dialog.use_default_company:
@@ -428,44 +558,47 @@ def main():
         QApplication.instance().notification_manager = notification_manager
 
         main_window.show()
+        splash.finish(main_window) # Close splash screen
         logging.info("Main window shown. Application is running.")
         sys.exit(app.exec_())
     else:
         # This path should ideally not be reached if logic is correct,
         # as either proceed_to_main_app is true or sys.exit() was called.
         logging.error("Fatal error in authentication flow. Application cannot start.")
+        splash.hide() # Ensure splash screen is hidden on error
         sys.exit(1)
 
-    login_dialog = LoginWindow() # Create LoginWindow instance
-    login_result = login_dialog.exec_() # Show login dialog modally
-
-    if login_result == QDialog.Accepted:
-        session_token = login_dialog.get_session_token()
-        logged_in_user = login_dialog.get_current_user()
-
-        CURRENT_SESSION_TOKEN = session_token
-        if logged_in_user:
-            CURRENT_USER_ROLE = logged_in_user.get('role')
-            CURRENT_USER_ID = logged_in_user.get('user_id')
-            # Set session start time
-            SESSION_START_TIME = datetime.datetime.now()
-            logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
-        else:
-            logging.error("Login reported successful, but no user data retrieved. Exiting.")
-            sys.exit(1)
-
-        # 11. Create and Show Main Window (only after successful login)
-        # DocumentManager is imported from main_window
-        # APP_ROOT_DIR is imported from app_setup
-        main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID) # Pass user_id and role if needed by DocumentManager
-        main_window.show()
-        logging.info("Main window shown. Application is running.")
-
-        # 12. Execute Application
-        sys.exit(app.exec_())
-    else:
-        logging.info("Login failed or cancelled. Exiting application.")
-        sys.exit() # Exit if login is not successful
+    # The following block seems redundant due to the logic above,
+    # but if it's reached, ensure splash screen is handled.
+    # Consider refactoring to avoid this redundancy.
+    # login_dialog = LoginWindow() # Create LoginWindow instance
+    # login_result = login_dialog.exec_() # Show login dialog modally
+    #
+    # if login_result == QDialog.Accepted:
+    #     session_token = login_dialog.get_session_token()
+    #     logged_in_user = login_dialog.get_current_user()
+    #
+    #     CURRENT_SESSION_TOKEN = session_token
+    #     if logged_in_user:
+    #         CURRENT_USER_ROLE = logged_in_user.get('role')
+    #         CURRENT_USER_ID = logged_in_user.get('user_id')
+    #         SESSION_START_TIME = datetime.datetime.now()
+    #         logging.info(f"Login successful. User: {logged_in_user.get('username')}, Role: {CURRENT_USER_ROLE}, Token: {CURRENT_SESSION_TOKEN}, Session started: {SESSION_START_TIME}")
+    #     else:
+    #         logging.error("Login reported successful, but no user data retrieved. Exiting.")
+    #         splash.hide()
+    #         sys.exit(1)
+    #
+    #     main_window = DocumentManager(APP_ROOT_DIR, CURRENT_USER_ID)
+    #     main_window.show()
+    #     splash.finish(main_window)
+    #     logging.info("Main window shown. Application is running.")
+    #
+    #     sys.exit(app.exec_())
+    # else:
+    #     logging.info("Login failed or cancelled. Exiting application.")
+    #     splash.hide()
+    #     sys.exit()
 
 def get_notification_manager():
     """

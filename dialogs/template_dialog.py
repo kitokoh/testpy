@@ -16,7 +16,7 @@ from PyQt5.QtCore import Qt, QUrl
 
 import db as db_manager
 from db.cruds.template_categories_crud import get_all_template_categories
-from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates
+from db.cruds.templates_crud import get_distinct_template_languages, get_distinct_template_types, get_filtered_templates, get_distinct_template_extensions # Added import
 # templates_crud_instance is not used directly by TemplateDialog
 import icons_rc # Import for Qt resource file
 
@@ -47,16 +47,12 @@ class TemplateDialog(QDialog):
         filter_layout.addWidget(self.language_filter_label, 0, 2)
         filter_layout.addWidget(self.language_filter_combo, 0, 3)
 
-        self.doc_type_filter_label = QLabel(self.tr("Document Type:"))
-        self.doc_type_filter_combo = QComboBox()
-        filter_layout.addWidget(self.doc_type_filter_label, 0, 4)
-        filter_layout.addWidget(self.doc_type_filter_combo, 0, 5)
+        self.extension_filter_label = QLabel(self.tr("Extension:")) # Renamed
+        self.extension_filter_combo = QComboBox() # Renamed
+        filter_layout.addWidget(self.extension_filter_label, 0, 4) # Renamed
+        filter_layout.addWidget(self.extension_filter_combo, 0, 5) # Renamed
 
-        self.client_filter_label = QLabel(self.tr("Client:"))
-        self.client_filter_combo = QComboBox()
-        filter_layout.addWidget(self.client_filter_label, 1, 0) # New row for client filter
-        filter_layout.addWidget(self.client_filter_combo, 1, 1, 1, 5) # Span across multiple columns
-
+        # Client filter removed
         # Add some stretch to push filters to the left if needed, or set column stretch factors
         filter_layout.setColumnStretch(6, 1) # Add stretch to the right of filters
         left_vbox_layout.addLayout(filter_layout)
@@ -84,41 +80,30 @@ class TemplateDialog(QDialog):
 
         self.populate_category_filter()
         self.populate_language_filter()
-        self.populate_doc_type_filter()
-        self.populate_client_filter() # Populate new client filter
+        self.populate_extension_filter() # Renamed method call
+        # self.populate_client_filter() # Removed
 
         # Connect filter signals
         self.category_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
         self.language_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
-        self.doc_type_filter_combo.currentIndexChanged.connect(self.handle_filter_changed)
-        self.client_filter_combo.currentIndexChanged.connect(self.handle_filter_changed) # Connect new filter
+        self.extension_filter_combo.currentIndexChanged.connect(self.handle_filter_changed) # Renamed combo
+        # self.client_filter_combo.currentIndexChanged.connect(self.handle_filter_changed) # Removed
 
         self.load_templates(); self.template_list.currentItemChanged.connect(self.handle_tree_item_selection)
 
     def handle_filter_changed(self):
         category_id = self.category_filter_combo.currentData()
         language_code = self.language_filter_combo.currentData()
-        doc_type = self.doc_type_filter_combo.currentData()
-        client_filter_data = self.client_filter_combo.currentData()
+        extension = self.extension_filter_combo.currentData() # Changed from doc_type
+        # client_filter_data removed
 
-        client_id = None
-        fetch_global_only = False
-
-        if isinstance(client_filter_data, str):
-            if client_filter_data == "__ALL__":
-                client_id = None
-            elif client_filter_data == "__GLOBAL_ONLY__":
-                fetch_global_only = True
-                client_id = None # Ensure client_id is None when fetching global only
-            else: # This means a specific client_id was stored
-                client_id = client_filter_data
+        # client_id and fetch_global_only removed
 
         self.load_templates(
             category_filter=category_id,
             language_filter=language_code,
-            type_filter=doc_type,
-            client_id_filter=client_id,
-            fetch_global_only=fetch_global_only
+            extension_filter=extension # Changed from type_filter
+            # client_id_filter and fetch_global_only removed
         )
 
     def populate_category_filter(self):
@@ -152,45 +137,21 @@ class TemplateDialog(QDialog):
             logging.error(f"Error populating language filter: {e}")
             QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template languages for filtering."))
 
-    def populate_doc_type_filter(self):
-        self.doc_type_filter_combo.addItem(self.tr("All Types"), "all")
-        self.doc_type_map = {
-            "document_excel": self.tr("Excel"),
-            "document_word": self.tr("Word"),
-            "document_html": self.tr("HTML"),
-            "document_other": self.tr("Other"),
-        }
+    def populate_extension_filter(self): # Renamed method
+        self.extension_filter_combo.clear() # Clear items before populating
+        self.extension_filter_combo.addItem(self.tr("All Extensions"), "all") # Changed text
+        # self.doc_type_map removed
         try:
-            doc_types = get_distinct_template_types()
-            if doc_types:
-                for type_tuple in doc_types:
-                    db_type = type_tuple[0]
-                    display_name = self.doc_type_map.get(db_type, db_type) # Use existing map
-                    # Add new types if not in map
-                    if db_type not in self.doc_type_map:
-                         self.doc_type_map[db_type] = db_type # Store new types as they are
-                         display_name = db_type
-                    self.doc_type_filter_combo.addItem(display_name, db_type)
+            extensions = get_distinct_template_extensions() # Call new DB function
+            if extensions:
+                for ext in extensions: # extensions is a list of strings e.g. ['pdf', 'docx']
+                    self.extension_filter_combo.addItem(ext.upper(), ext) # Display "PDF", data "pdf"
         except Exception as e:
-            logging.error(f"Error populating document type filter: {e}")
-            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template document types for filtering."))
+            logging.error(f"Error populating extension filter: {e}") # Updated log message
+            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load template extensions for filtering.")) # Updated message
 
-    def populate_client_filter(self):
-        self.client_filter_combo.addItem(self.tr("All Clients & Global"), "__ALL__") # Represents client_id_filter = None
-        self.client_filter_combo.addItem(self.tr("Global Templates Only"), "__GLOBAL_ONLY__") # Represents fetch_global_only = True
-        try:
-            # Fetching all clients to populate the filter.
-            # db_manager.get_all_clients() should return a list of client dicts.
-            clients = db_manager.get_all_clients() # Assuming this function exists and works
-            if clients:
-                for client in clients:
-                    # Display client name, store client_id
-                    self.client_filter_combo.addItem(client.get('client_name', client.get('company_name', 'Unknown Client')), client.get('client_id'))
-            else:
-                logging.info("No clients found to populate client filter.")
-        except Exception as e:
-            logging.error(f"Error populating client filter: {e}")
-            QMessageBox.warning(self, self.tr("Filter Error"), self.tr("Could not load clients for filtering."))
+    # def populate_client_filter(self): # Method removed
+    #     pass
 
 
     def handle_tree_item_selection(self,current_item,previous_item):
@@ -224,23 +185,22 @@ class TemplateDialog(QDialog):
             else: self.preview_area.setPlainText(self.tr("Détails du modèle non trouvés dans la base de données."))
         except Exception as e_general: self.preview_area.setPlainText(self.tr("Une erreur est survenue lors de la récupération des détails du modèle:\n{0}").format(str(e_general)))
 
-    def load_templates(self, category_filter=None, language_filter=None, type_filter=None, client_id_filter=None, fetch_global_only=False):
+    def load_templates(self, category_filter=None, language_filter=None, extension_filter=None): # Renamed type_filter to extension_filter
         self.template_list.clear()
         self.preview_area.clear()
         self.preview_area.setPlaceholderText(self.tr("Sélectionnez un modèle pour afficher un aperçu."))
 
         effective_category_id = category_filter if category_filter != "all" else None
         effective_language_code = language_filter if language_filter != "all" else None
-        effective_template_type = type_filter if type_filter != "all" else None
+        effective_extension = extension_filter if extension_filter != "all" else None # Renamed
 
-        # client_id_filter and fetch_global_only are passed directly
+        # client_id_filter and fetch_global_only are removed from parameters
 
         all_templates_from_db = get_filtered_templates(
             category_id=effective_category_id,
             language_code=effective_language_code,
-            template_type=effective_template_type,
-            client_id_filter=client_id_filter,
-            fetch_global_only=fetch_global_only
+            file_extension_filter=effective_extension # Changed template_type to file_extension_filter
+            # client_id_filter and fetch_global_only removed from call
         )
 
         if not all_templates_from_db:
@@ -266,15 +226,15 @@ class TemplateDialog(QDialog):
 
                 for template_dict in all_templates_from_db:
                     template_name = template_dict['template_name']
-                    template_db_type = template_dict.get('template_type', 'N/A')
-                    display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
+                    template_db_type = template_dict.get('template_type', 'N/A') # This is the internal type
+                    # display_type_name = self.doc_type_map.get(template_db_type, template_db_type) # doc_type_map removed, display raw template_type
                     language = template_dict['language_code']
-                    client_display = template_dict.get('client_id', self.tr("Global"))
+                    client_display = template_dict.get('client_id', self.tr("Global")) # Client column remains for now, shows "Global"
                     if client_display is None: client_display = self.tr("Global")
                     is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
                     # Template items won't have a specific "Purpose" column value, it's a category attribute.
                     # So the 6th column for template rows will be empty.
-                    template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""])
+                    template_item = QTreeWidgetItem(category_item, [template_name, template_db_type, language, str(client_display), is_default, ""]) # Display raw template_db_type
                     template_item.setData(0, Qt.UserRole, template_dict['template_id'])
         else:
             all_db_categories = db_manager.get_all_template_categories()
@@ -300,13 +260,13 @@ class TemplateDialog(QDialog):
 
                     for template_dict in templates_by_category[cat_id]:
                         template_name = template_dict['template_name']
-                        template_db_type = template_dict.get('template_type', 'N/A')
-                        display_type_name = self.doc_type_map.get(template_db_type, template_db_type)
+                        template_db_type = template_dict.get('template_type', 'N/A') # This is the internal type
+                        # display_type_name = self.doc_type_map.get(template_db_type, template_db_type) # doc_type_map removed
                         language = template_dict['language_code']
-                        client_display = template_dict.get('client_id', self.tr("Global"))
+                        client_display = template_dict.get('client_id', self.tr("Global")) # Client column remains
                         if client_display is None: client_display = self.tr("Global")
                         is_default = self.tr("Yes") if template_dict.get('is_default_for_type_lang') else self.tr("No")
-                        template_item = QTreeWidgetItem(category_item, [template_name, display_type_name, language, str(client_display), is_default, ""]) # Empty for purpose column
+                        template_item = QTreeWidgetItem(category_item, [template_name, template_db_type, language, str(client_display), is_default, ""]) # Display raw template_db_type, Empty for purpose column
                         template_item.setData(0, Qt.UserRole, template_dict['template_id'])
 
         self.template_list.expandAll()
@@ -329,10 +289,27 @@ class TemplateDialog(QDialog):
             if ok_new_name and new_category_name_text.strip():
                 new_category_purpose_text, ok_new_purpose = QInputDialog.getText(self, self.tr("New Category Purpose"), self.tr("Enter purpose for new category (e.g., client_document, email):"))
                 if ok_new_purpose: # User might cancel purpose input, or leave it empty
+                    category_purpose_for_db = None
+                    if not new_category_purpose_text.strip():
+                        # Determine file_ext (logic already exists later, so we'll use a placeholder for now and refine if needed)
+                        # This part of the code is before file_ext is determined.
+                        # We will determine file_ext based on file_path earlier for this logic.
+                        # For now, let's assume we can get it or pass a general purpose.
+                        # Let's re-evaluate after seeing the full context of file_path.
+                        # For the purpose of this diff, we'll determine file_ext here from file_path
+                        # which is available at the beginning of the add_template method.
+                        _, temp_file_ext = os.path.splitext(file_path)
+                        temp_file_ext = temp_file_ext.lower()
+                        if temp_file_ext in ['.html', '.docx', '.xlsx', '.pdf']: # Common document types
+                            category_purpose_for_db = 'client_document'
+                        # else: category_purpose_for_db remains None or could be 'general'
+                    else:
+                        category_purpose_for_db = new_category_purpose_text.strip()
+
                     final_category_id = db_manager.add_template_category(
                         category_name=new_category_name_text.strip(),
                         description=f"{new_category_name_text.strip()} category", # Default description
-                        purpose=new_category_purpose_text.strip() if new_category_purpose_text.strip() else None
+                        purpose=category_purpose_for_db
                     )
                     if not final_category_id:
                         QMessageBox.warning(self, self.tr("Error"), self.tr("Could not create category: {0}").format(new_category_name_text.strip()))

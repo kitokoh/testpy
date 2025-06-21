@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 @_manage_conn
 def add_product_to_client_or_project(link_data: dict, conn: sqlite3.Connection = None) -> int | None:
+    logging.info(f"cpp_crud.add_product_to_client_or_project: Attempting to link with data: {link_data}")
     cursor = conn.cursor()
     product_id = link_data.get('product_id')
     client_id = link_data.get('client_id')
@@ -47,7 +48,7 @@ def add_product_to_client_or_project(link_data: dict, conn: sqlite3.Connection =
         logger.info(f"Product linked to client/project. New ClientProjectProducts ID: {last_id}")
         return last_id
     except sqlite3.Error as e:
-        logger.error(f"DB error in add_product_to_client_or_project: {e}")
+        logger.error(f"cpp_crud.add_product_to_client_or_project: Failed to link with data {link_data}. Error: {type(e).__name__} - {e}", exc_info=True)
         return None
 
 @_manage_conn
@@ -130,6 +131,7 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None, c
     If project_id is provided, retrieves products for that specific project.
     If project_id is '__NONE__', retrieves products for the client that are NOT linked to any project.
     """
+    logging.info(f"cpp_crud.get_products_for_client_or_project: Fetching for client_id='{client_id}', project_id='{project_id}'")
     cursor = conn.cursor()
     sql = """SELECT cpp.*,
                     p.product_name, p.description as product_description, p.category as product_category,
@@ -149,9 +151,11 @@ def get_products_for_client_or_project(client_id: str, project_id: str = None, c
     sql += " ORDER BY p.product_name"
     try:
         cursor.execute(sql, params)
-        return [dict(row) for row in cursor.fetchall()]
+        results = [dict(row) for row in cursor.fetchall()]
+        logging.info(f"cpp_crud.get_products_for_client_or_project: Found {len(results)} items for client_id='{client_id}', project_id='{project_id}'.")
+        return results
     except sqlite3.Error as e:
-        logger.error(f"DB error in get_products_for_client_or_project (client: {client_id}, project: {project_id}): {e}")
+        logger.error(f"cpp_crud.get_products_for_client_or_project: DB error for client_id='{client_id}', project_id='{project_id}'. Error: {type(e).__name__} - {e}", exc_info=True)
         return []
 
 @_manage_conn

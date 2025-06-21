@@ -1,0 +1,30 @@
+**API Client (`botpress_integration/api_client.py`):**
+
+1.  **Granular API Endpoint Methods:** Add dedicated client methods for more Botpress API capabilities (managing conversations, users, NLU, KB, analytics).
+2.  **Webhook Handling Support:** Design components to receive and process webhooks from Botpress for reactive integrations.
+3.  **Support for Diverse Message Types:** Allow sending various Botpress message types (images, cards, quick replies) beyond plain text.
+4.  **Configurable Retries for API Calls:** Implement retry mechanisms (e.g., exponential backoff) for transient network errors or specific HTTP status codes.
+5.  **Pagination for Message Retrieval:** Add pagination support (`limit`, `offset`/cursor) to `get_conversations` for fetching message history in chunks.
+
+**CRUD Operations (`botpress_integration/crud.py` & `models.py`):**
+
+6.  **Consistent User ID Linking:** If `UserBotpressSettings.user_id` links to a main `Users` table, consider using `ForeignKey` for integrity.
+7.  **Secure API Key Storage:** Encrypt `api_key` in `UserBotpressSettings` or integrate with a secrets management system.
+8.  **Prompt Categorization/Tagging:** Add categories or tags to `UserPrompt` for better organization.
+9.  **Extended Conversation Metadata:** Add fields to `Conversation` model for initial query, language, sentiment, or links to internal app entities (client_id, order_id).
+10. **Rich Message Content Storage:** Enhance `Message.content` to store structured data (JSON for cards) or media references if the bot supports rich messages.
+11. **Conversation Archiving/Deletion Workflow:** Implement proper soft-delete or hard-delete for conversations and messages.
+
+**UI Components (`botpress_integration/ui_components.py`):**
+
+12. **Dynamic Conversation Loading/Pagination in UI:** Implement infinite scrolling or "Load More" for conversation history.
+13. **Rich Message and Suggestion Rendering:** Improve UI rendering for diverse message types (images, cards, formatted lists) and interactive suggestions.
+14. **Prompt Management UI Improvements:** Add search/filter for prompts; allow quick insertion of prompt text into the message input.
+15. **Enhanced Conversation Management UI:**
+    *   Allow manual archiving/closing of conversations.
+    *   Implement search/filter for conversations (by user ID, date, status).
+    *   Option to initiate new local/Botpress conversations.
+16. **Real-time Updates (Advanced):** Explore WebSockets for a more interactive chat experience if Botpress supports it.
+17. **Contextual Error Display:** Provide more user-friendly and specific error messages in the UI.
+18. **Bot Info/Status Display:** Show basic bot information or connection status within the UI.
+19. **Clear ID Distinction:** Ensure clarity in UI/logs if distinguishing between local DB IDs and Botpress IDs is necessary for users/admins.

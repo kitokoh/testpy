@@ -49,6 +49,7 @@ class ProductsCRUD(GenericCRUD):
             dict: {'success': True, 'id': new_product_id} on success,
                   {'success': False, 'error': 'message'} on failure.
         """
+        logging.info(f"products_crud.add_product: Attempting to add product with data: {product_data}")
         required_fields = ['product_name', 'product_code', 'base_unit_price']
         for field in required_fields:
             if not product_data.get(field): # Also checks for empty string for product_code implicitly here
@@ -82,11 +83,14 @@ class ProductsCRUD(GenericCRUD):
             cursor.execute(sql, params)
             new_id = cursor.lastrowid
             return {'success': True, 'id': new_id}
-        except sqlite3.IntegrityError as e:
-            logging.error(f"IntegrityError in add_product for '{product_data.get('product_name')}': {e}")
-            return {'success': False, 'error': f"Product name or other unique constraint violated: {str(e)}"}
-        except sqlite3.Error as e_gen:
-            logging.error(f"SQLite error in add_product for '{product_data.get('product_name')}': {e_gen}")
+        except sqlite3.IntegrityError as e: # Specific integrity error
+            logging.error(f"products_crud.add_product: Failed to add product with data {product_data}. Error: {type(e).__name__} - {e}", exc_info=True)
+            # More specific error message for unique constraint violation can be useful
+            if "UNIQUE constraint failed" in str(e):
+                 return {'success': False, 'error': f"Product name, code, or other unique field already exists: {str(e)}"}
+            return {'success': False, 'error': f"Database integrity error: {str(e)}"}
+        except sqlite3.Error as e_gen: # Generic SQLite error
+            logging.error(f"products_crud.add_product: Failed to add product with data {product_data}. Error: {type(e_gen).__name__} - {e_gen}", exc_info=True)
             return {'success': False, 'error': str(e_gen)}
 
     @_manage_conn
@@ -139,6 +143,7 @@ class ProductsCRUD(GenericCRUD):
             Optional[Dict[str, Any]]: Product data as a dictionary if found and not excluded,
                                       otherwise None. Includes 'media_links'.
         """
+        logging.info(f"products_crud.get_product_by_name: Searching for product_name='{product_name}'")
         cursor = conn.cursor()
         sql = f"SELECT * FROM {self.table_name} WHERE product_name = ?"
         params = [product_name]
@@ -162,10 +167,10 @@ class ProductsCRUD(GenericCRUD):
                 product_dict['media_links'] = media_links
             else:
                 product_dict['media_links'] = []
-
+            logging.info(f"products_crud.get_product_by_name: Found product: {product_dict if product_dict else None}")
             return product_dict
         except sqlite3.Error as e:
-            logging.error(f"Error getting product by name '{product_name}': {e}")
+            logging.error(f"products_crud.get_product_by_name: DB error for product_name='{product_name}'. Error: {type(e).__name__} - {e}", exc_info=True)
             return None
 
     @_manage_conn

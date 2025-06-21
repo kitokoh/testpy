@@ -308,6 +308,16 @@ def get_document_context_data(
                 "weight": original_prod_details.get('weight'), "dimensions": original_prod_details.get('dimensions'),
                 "images": processed_media_links, "equivalents": batch_info.get('equivalents', [])
             }
+
+            # Add the first image URL directly
+            if processed_media_links:
+                product_context_item["image_url"] = processed_media_links[0].get('url')
+            else:
+                product_context_item["image_url"] = None
+
+            # Add product code
+            product_context_item["code"] = original_prod_details.get('product_code', 'N/A')
+
             context["products"].append(product_context_item)
             products_table_html_rows_list.append(f"<tr><td>{idx+1}</td><td>{prod_name}</td><td>{qty}</td><td>{format_currency(unit_price_f, context['doc']['currency_symbol'])}</td><td>{format_currency(total_price_f, context['doc']['currency_symbol'])}</td></tr>")
 

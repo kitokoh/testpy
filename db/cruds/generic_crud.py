@@ -56,6 +56,10 @@ def _manage_conn(func):
 
 # Generic CRUD Base Class
 class GenericCRUD:
+    def __init__(self, table_name=None, primary_key=None, db_path=None):
+        self.table_name = table_name
+        self.primary_key = primary_key
+        self.db_path = db_path
     """
     A base class providing generic CRUD (Create, Read, Update, Delete) operations
     that can be inherited by specific CRUD classes for different database tables.

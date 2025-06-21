@@ -15,6 +15,8 @@ from PyQt5.QtWidgets import QMessageBox, QDialog, QInputDialog # QInputDialog wa
 # from PyQt5.QtCore import QStandardPaths # Removed as not used by these functions
 
 # Import necessary functions directly from their new CRUD module locations
+from controllers.client_controller import ClientController # Added
+from controllers.contact_controller import ContactController # Added
 from db.cruds.locations_crud import get_country_by_id, get_city_by_id # These are fine as locations_crud is not refactored to class yet
 from db.cruds.status_settings_crud import get_status_setting_by_name, get_status_setting_by_id # Fine
 from db.cruds.clients_crud import clients_crud_instance # Import the instance
@@ -37,147 +39,130 @@ from dialogs import (
 import logging # For logging errors or info
 
 def handle_create_client_execution(doc_manager, client_data_dict=None):
-    if client_data_dict:
-        client_name_val = client_data_dict.get("client_name", "").strip()
-        company_name_val = client_data_dict.get("company_name", "").strip()
-        need_val = client_data_dict.get("primary_need_description", "").strip()
-        country_id_val = client_data_dict.get("country_id")
-        # Use country_name from dict for folder, ensure it's there
-        country_name_for_folder = client_data_dict.get("country_name", "").strip()
-        city_id_val = client_data_dict.get("city_id")
-        project_identifier_val = client_data_dict.get("project_identifier", "").strip()
-        price_val = 0  # Price is not part of the new dialog, initialized to 0
-        # Languages are already a list of codes in the dict, directly use it
-        selected_langs_list = client_data_dict.get("selected_languages", "fr").split(',')
-        if not country_name_for_folder and country_id_val: # If name wasn't in dict but ID was
-            country_obj = get_country_by_id(country_id_val)
-            if country_obj: country_name_for_folder = country_obj.get('country_name',"")
+    client_controller = ClientController() # Instantiate controller
 
-    else: # Fallback to old way if no dict provided - though UI is removed
-        # This block will likely be unused now but kept for logical completeness during transition
-        client_name_val = doc_manager.client_name_input.text().strip()
-        company_name_val = doc_manager.company_name_input.text().strip()
-        need_val = doc_manager.client_need_input.text().strip()
-        country_id_val = doc_manager.country_select_combo.currentData()
-        country_name_for_folder = doc_manager.country_select_combo.currentText().strip()
-        city_id_val = doc_manager.city_select_combo.currentData()
-        project_identifier_val = doc_manager.project_id_input_field.text().strip()
-        price_val = doc_manager.final_price_input.value()
-        lang_option_text = doc_manager.language_select_combo.currentText()
-        lang_map_from_display = {
-            doc_manager.tr("English only (en)"): ["en"],
-            doc_manager.tr("French only (fr)"): ["fr"],
-            doc_manager.tr("Arabic only (ar)"): ["ar"],
-            doc_manager.tr("Turkish only (tr)"): ["tr"],
-            doc_manager.tr("Portuguese only (pt)"): ["pt"],
-            doc_manager.tr("All supported languages (en, fr, ar, tr, pt)"): ["en", "fr", "ar", "tr", "pt"]
-        }
-        selected_langs_list = lang_map_from_display.get(lang_option_text, ["en"])
+    if not client_data_dict:
+        # This path should ideally not be taken if AddNewClientDialog is always used
+        QMessageBox.critical(doc_manager, "Erreur", "Données client non fournies.")
+        return
 
+    # Basic validation of data from dialog (raw names)
+    client_name_val = client_data_dict.get("client_name", "").strip()
+    country_name_for_folder = client_data_dict.get("country_name", "").strip() # Used for folder name
+    project_identifier_val = client_data_dict.get("project_identifier", "").strip()
 
-    if not client_name_val or not country_id_val or not project_identifier_val:
+    if not client_name_val or not country_name_for_folder or not project_identifier_val:
         QMessageBox.warning(doc_manager, doc_manager.tr("Champs Requis"), doc_manager.tr("Nom client, Pays et ID Projet sont obligatoires."))
-        # Added notification
         doc_manager.notify(title=doc_manager.tr("Champs Requis Manquants"),
                            message=doc_manager.tr("Nom client, Pays et ID Projet sont obligatoires pour la création."),
                            type='WARNING')
         return
 
+    # --- Client Creation via Controller ---
+    client_data_dict_for_controller = client_data_dict.copy()
+    client_data_dict_for_controller['created_by_user_id'] = doc_manager.current_user_id
+
+    created_client_info = client_controller.create_client(client_data_dict_for_controller)
+
+    actual_new_client_id = None
+    new_project_id_central_db = None # Define for later use in error handling
+
+    if not created_client_info or not created_client_info.get("client_id"):
+        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
+                             doc_manager.tr("Impossible de créer le client via le contrôleur."))
+        # Add None check for created_client_info before calling .get()
+        if created_client_info is None:
+            print("Error: Client creation failed, created_client_info is None.") # Or use actual logging
+            doc_manager.notify(title=doc_manager.tr("Erreur Création Client"),
+                               message=doc_manager.tr("Le contrôleur n'a pas pu créer le client. Réponse nulle."),
+                               type='ERROR')
+            return # Or handle appropriately otherwise
+
+        doc_manager.notify(title=doc_manager.tr("Erreur Création Client"),
+                           message=created_client_info.get("error", doc_manager.tr("Le contrôleur n'a pas pu créer le client.")),
+                           type='ERROR')
+        return
+
+    actual_new_client_id = created_client_info.get("client_id")
+    country_id_val = created_client_info.get("country_id") # Resolved by controller
+    city_id_val = created_client_info.get("city_id")       # Resolved by controller
+
+    # --- Folder Creation ---
     folder_name_str = f"{client_name_val}_{country_name_for_folder}_{project_identifier_val}".replace(" ", "_").replace("/", "-")
     base_folder_full_path = os.path.join(doc_manager.config["clients_dir"], folder_name_str)
 
+    # Note: project_identifier uniqueness should ideally be handled by client_controller.create_client
+    # If it returns successfully, we assume project_identifier is unique.
+    # The folder path uniqueness is a separate check.
     if os.path.exists(base_folder_full_path):
         QMessageBox.warning(doc_manager, doc_manager.tr("Dossier Existant"),
-                            doc_manager.tr("Un dossier client avec un chemin similaire existe déjà. Veuillez vérifier les détails ou choisir un ID Projet différent."))
-        # Added notification
+                            doc_manager.tr("Un dossier client avec un chemin similaire existe déjà: {0}. Le client a été créé en DB, mais le dossier n'est pas unique.").format(base_folder_full_path))
         doc_manager.notify(title=doc_manager.tr("Dossier Client Existant"),
-                           message=doc_manager.tr("Un dossier client avec le nom '{0}' (ou similaire) existe déjà.").format(folder_name_str),
-                           type='ERROR')
-        return
-
-    default_status_name = "En cours"
-    status_setting_obj = get_status_setting_by_name(default_status_name, 'Client')
-    if not status_setting_obj or not status_setting_obj.get('status_id'):
-        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Configuration"),
-                             doc_manager.tr("Statut par défaut '{0}' non trouvé pour les clients. Veuillez configurer les statuts.").format(default_status_name))
-        # Added notification
-        doc_manager.notify(title=doc_manager.tr("Erreur Configuration Statut"),
-                           message=doc_manager.tr("Statut client par défaut '{0}' introuvable.").format(default_status_name),
-                           type='ERROR')
-        return
-    default_status_id = status_setting_obj['status_id']
-
-    client_data_for_db = {
-        'client_name': client_name_val,
-        'company_name': company_name_val if company_name_val else None,
-        'primary_need_description': need_val,
-        'project_identifier': project_identifier_val,
-        'country_id': country_id_val,
-        'city_id': city_id_val if city_id_val else None,
-        'default_base_folder_path': base_folder_full_path,
-        'selected_languages': ",".join(selected_langs_list),
-        'price': price_val,
-        'status_id': default_status_id,
-        'category': 'Standard',
-        'notes': '',
-        'created_by_user_id': doc_manager.current_user_id
-    }
-
-    actual_new_client_id = None
-    new_project_id_central_db = None
+                           message=doc_manager.tr("Un dossier client avec le chemin '{0}' existe déjà. Le client ID {1} a été créé en DB mais le dossier n'est pas unique.").format(base_folder_full_path, actual_new_client_id),
+                           type='WARNING')
+        # Client exists in DB. We might want to update it with this path, or allow user to change, or rollback.
+        # For now, proceed and update client with this path, assuming user might consolidate.
+        # This behavior might need refinement based on product requirements.
 
     try:
-        # Use clients_crud_instance.add_client
-        create_result = clients_crud_instance.add_client(client_data_for_db) # conn is handled by decorator
-        if not create_result['success']:
-            error_message = create_result.get('error', doc_manager.tr("Une erreur inconnue est survenue."))
-            QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"),
-                                 doc_manager.tr("Impossible de créer le client: {0}").format(error_message))
-            doc_manager.notify(title=doc_manager.tr("Erreur Création Client DB"),
-                               message=doc_manager.tr("Impossible de créer le client dans la base de données: {0}").format(error_message),
-                               type='ERROR')
-            return
-
-        actual_new_client_id = create_result['client_id']
-
         os.makedirs(base_folder_full_path, exist_ok=True)
-        # selected_langs_list is already a list of strings
-        for lang_code in selected_langs_list:
-            os.makedirs(os.path.join(base_folder_full_path, lang_code), exist_ok=True)
+        # Update client record with the base_folder_full_path
+        if actual_new_client_id: # Ensure client ID is valid
+            clients_crud_instance.update_client(actual_new_client_id, {'default_base_folder_path': base_folder_full_path})
+            created_client_info['default_base_folder_path'] = base_folder_full_path # Keep our local copy updated
 
+        # Create language subfolders
+        # Ensure selected_languages is a string from controller, then split.
+        selected_langs_str = created_client_info.get("languages", "fr") # 'languages' is the key from controller
+        selected_langs_list = selected_langs_str.split(',') if isinstance(selected_langs_str, str) else ["fr"]
+
+
+        for lang_code in selected_langs_list:
+            os.makedirs(os.path.join(base_folder_full_path, lang_code.strip()), exist_ok=True)
+
+    except OSError as e_os:
+        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
+        doc_manager.notify(title=doc_manager.tr("Erreur Création Dossier"), message=doc_manager.tr("Erreur de création du dossier pour le client '{0}'.").format(client_name_val), type='ERROR')
+        if actual_new_client_id:
+            clients_crud_instance.delete_client(actual_new_client_id) # Rollback client creation
+            doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Entrée client (ID: {0}) annulée suite à l'erreur de dossier.").format(actual_new_client_id), type='INFO')
+        return # Stop further execution
+
+    # --- Project and Task Creation (remains largely the same, using actual_new_client_id) ---
+    try:
         project_status_planning_obj = get_status_setting_by_name("Planning", "Project")
         project_status_id_for_pm = project_status_planning_obj['status_id'] if project_status_planning_obj else None
 
         if not project_status_id_for_pm:
             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Configuration Projet"),
                                 doc_manager.tr("Statut de projet par défaut 'Planning' non trouvé. Le projet ne sera pas créé avec un statut initial."))
-            # Added notification for missing project status config
             doc_manager.notify(title=doc_manager.tr("Erreur Configuration Projet"),
-                               message=doc_manager.tr("Statut projet par défaut 'Planning' non trouvé. Le projet associé n'aura pas de statut initial."),
+                               message=doc_manager.tr("Statut projet par défaut 'Planning' non trouvé."),
                                type='WARNING')
 
         project_data_for_db = {
             'client_id': actual_new_client_id,
-            'project_name': f"Projet pour {client_name_val}",
-            'description': f"Projet pour client: {client_name_val}. Besoin initial: {need_val}",
+            'project_name': f"Projet pour {created_client_info.get('client_name', client_name_val)}", # Use name from controller if available
+            'description': f"Projet pour client: {created_client_info.get('client_name', client_name_val)}. Besoin initial: {created_client_info.get('primary_need_description', '')}",
             'start_date': datetime.now().strftime("%Y-%m-%d"),
             'deadline_date': (datetime.now() + timedelta(days=60)).strftime("%Y-%m-%d"),
-            'budget': 0.0, # Price is 0 initially from dialog
+            'budget': created_client_info.get('price', 0.0), # Price from controller (likely 0 or default)
             'status_id': project_status_id_for_pm,
             'priority': 1
         }
+        logging.info(f"Attempting to create project for client {actual_new_client_id} with data: {project_data_for_db}")
         new_project_id_central_db = add_project(project_data_for_db)
 
         if new_project_id_central_db:
             QMessageBox.information(doc_manager, doc_manager.tr("Projet Créé (Central DB)"),
-                                    doc_manager.tr("Un projet associé a été créé dans la base de données centrale pour {0}.").format(client_name_val))
+                                    doc_manager.tr("Un projet associé a été créé pour {0}.").format(created_client_info.get('client_name', client_name_val)))
 
             task_status_todo_obj = get_status_setting_by_name("To Do", "Task")
             task_status_id_for_todo = task_status_todo_obj['status_id'] if task_status_todo_obj else None
 
             if not task_status_id_for_todo:
                 QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Configuration Tâche"),
-                                    doc_manager.tr("Statut de tâche par défaut 'To Do' non trouvé. Les tâches standard ne seront pas créées avec un statut initial."))
+                                    doc_manager.tr("Statut de tâche par défaut 'To Do' non trouvé."))
 
             standard_tasks = [
                 {"name": "Initial Client Consultation & Needs Assessment", "description": "Understand client requirements, objectives, target markets, and budget.", "priority_val": 2, "deadline_days": 3},
@@ -187,190 +172,189 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
 
             for task_item in standard_tasks:
                 task_deadline = (datetime.now() + timedelta(days=task_item["deadline_days"])).strftime("%Y-%m-%d")
-                add_task({
+                task_data_for_db = {
                     'project_id': new_project_id_central_db,
                     'task_name': task_item["name"],
                     'description': task_item["description"],
                     'status_id': task_status_id_for_todo,
                     'priority': task_item["priority_val"],
                     'due_date': task_deadline
-                })
+                }
+                logging.info(f"Attempting to add task for project {new_project_id_central_db} with data: {task_data_for_db}")
+                add_task(task_data_for_db)
             QMessageBox.information(doc_manager, doc_manager.tr("Tâches Créées (Central DB)"),
-                                    doc_manager.tr("Des tâches standard ont été ajoutées au projet pour {0}.").format(client_name_val))
+                                    doc_manager.tr("Des tâches standard ont été ajoutées au projet pour {0}.").format(created_client_info.get('client_name', client_name_val)))
         else:
+            logging.error(f"Failed to create project for client {actual_new_client_id}. Data attempted: {project_data_for_db}")
             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB Projet"),
-                                doc_manager.tr("Le client a été créé, mais la création du projet associé dans la base de données centrale a échoué."))
-            # Added notification
+                                doc_manager.tr("Le client a été créé, mais la création du projet associé a échoué."))
             doc_manager.notify(title=doc_manager.tr("Erreur Création Projet Associé"),
-                               message=doc_manager.tr("Client créé, mais échec de la création du projet associé."),
+                               message=doc_manager.tr("Client créé (ID: {0}), mais échec de la création du projet associé.").format(actual_new_client_id),
                                type='WARNING')
 
-        client_dict_from_db = clients_crud_instance.get_client_by_id(actual_new_client_id)
+        # --- Update UI Map Data (ui_map_data) ---
+        client_dict_from_controller = created_client_info # Use the data from controller
+
         ui_map_data = None
-        if client_dict_from_db:
-            country_obj = get_country_by_id(client_dict_from_db.get('country_id')) if client_dict_from_db.get('country_id') else None
-            city_obj = get_city_by_id(client_dict_from_db.get('city_id')) if client_dict_from_db.get('city_id') else None
-            status_obj = get_status_setting_by_id(client_dict_from_db.get('status_id')) if client_dict_from_db.get('status_id') else None
+        if client_dict_from_controller:
+            # Fetch names for IDs obtained from controller
+            country_obj = get_country_by_id(client_dict_from_controller.get('country_id')) if client_dict_from_controller.get('country_id') else None
+            city_obj = get_city_by_id(client_dict_from_controller.get('city_id')) if client_dict_from_controller.get('city_id') else None
+            # Status should be part of created_client_info if controller sets it, or fetch if controller returns status_id
+            status_id_from_controller = client_dict_from_controller.get('client_status_id') # Key used in controller
+            status_obj = get_status_setting_by_id(status_id_from_controller) if status_id_from_controller else None
+
+            sel_langs_str_ui = client_dict_from_controller.get('languages', 'fr') # Key used in controller
+            sel_langs_list_ui = sel_langs_str_ui.split(',') if isinstance(sel_langs_str_ui, str) else ['fr']
+
             ui_map_data = {
-                "client_id": client_dict_from_db.get('client_id'), "client_name": client_dict_from_db.get('client_name'),
-                "company_name": client_dict_from_db.get('company_name'), "need": client_dict_from_db.get('primary_need_description'),
-                "country": country_obj['country_name'] if country_obj else "N/A", "country_id": client_dict_from_db.get('country_id'),
-                "city": city_obj['city_name'] if city_obj else "N/A", "city_id": client_dict_from_db.get('city_id'),
-                "project_identifier": client_dict_from_db.get('project_identifier'), "base_folder_path": client_dict_from_db.get('default_base_folder_path'),
-                "selected_languages": client_dict_from_db.get('selected_languages','').split(',') if client_dict_from_db.get('selected_languages') else [],
-                "price": client_dict_from_db.get('price'), "notes": client_dict_from_db.get('notes'),
-                "status": status_obj['status_name'] if status_obj else "N/A", "status_id": client_dict_from_db.get('status_id'),
-                "creation_date": client_dict_from_db.get('created_at','').split("T")[0] if client_dict_from_db.get('created_at') else "N/A",
-                "category": client_dict_from_db.get('category')
+                "client_id": client_dict_from_controller.get('client_id'),
+                "client_name": client_dict_from_controller.get('client_name'),
+                "company_name": client_dict_from_controller.get('company_name'),
+                "need": client_dict_from_controller.get('primary_need_description'),
+                "country": country_obj['country_name'] if country_obj else client_data_dict.get("country_name", "N/A"), # Fallback to original input if needed
+                "country_id": client_dict_from_controller.get('country_id'),
+                "city": city_obj['city_name'] if city_obj else client_data_dict.get("city_name", "N/A"), # Fallback to original input if needed
+                "city_id": client_dict_from_controller.get('city_id'),
+                "project_identifier": client_dict_from_controller.get('project_identifier'),
+                "base_folder_path": client_dict_from_controller.get('default_base_folder_path'), # Updated earlier
+                "selected_languages": sel_langs_list_ui,
+                "price": client_dict_from_controller.get('price', 0), # Price from controller
+                "notes": client_dict_from_controller.get('notes', ''), # Notes from controller
+                "status": status_obj['status_name'] if status_obj else "N/A",
+                "status_id": status_id_from_controller,
+                "creation_date": client_dict_from_controller.get('created_at','').split("T")[0] if client_dict_from_controller.get('created_at') else datetime.now().strftime("%Y-%m-%d"),
+                "category": client_dict_from_controller.get('category', 'Standard') # Category from controller
             }
             doc_manager.clients_data_map[actual_new_client_id] = ui_map_data
             doc_manager.add_client_to_list_widget(ui_map_data)
 
-        # Removed clearing of input fields as they are in the dialog now
-        # doc_manager.client_name_input.clear(); doc_manager.company_name_input.clear(); doc_manager.client_need_input.clear()
-        # doc_manager.project_id_input_field.clear(); doc_manager.final_price_input.setValue(0)
-
-        if ui_map_data: # Ensure ui_map_data is populated
-            # ContactDialog, ProductDialog, and CreateDocumentDialog calls removed as per request.
-            # The client's price will remain at its initial value (likely 0)
-            # until products are added manually via the ClientWidget.
-            # actual_new_client_id should be valid here if ui_map_data is True.
-            logging.info(f"Skipping Contact, Product, and CreateDocument dialogs for client ID: {actual_new_client_id}.")
-            # The original logic for price calculation based on dialogs is removed.
-            # Price will be initial_price (e.g. 0) or as set before this block.
-            # If there was any other logic inside this if ui_map_data block that needs to be preserved,
-            # it should have been identified and kept. For now, the assumption is this block was primarily for these dialogs.
-
-
+        if ui_map_data:
+            contact_controller = ContactController() # Instantiate controller
             contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()
-                try:
-                    existing_contact = get_contact_by_email(contact_form_data['email'])
-                    contact_id_to_link = None
-                    if existing_contact:
-                        contact_id_to_link = existing_contact['contact_id']
-                        update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
-                        if update_data: update_contact(contact_id_to_link, update_data)
-                    else:
-                        new_contact_id = add_contact({
-                            'name': contact_form_data['name'], 'email': contact_form_data['email'],
-                            'phone': contact_form_data['phone'], 'position': contact_form_data['position']
-                        })
-                        if new_contact_id: contact_id_to_link = new_contact_id
-                        else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le nouveau contact global."))
 
-                    if contact_id_to_link:
-                        if contact_form_data['is_primary_for_client']:
-                            client_contacts = get_contacts_for_client(actual_new_client_id)
-                            if client_contacts:
-                                for cc in client_contacts:
-                                    if cc['is_primary_for_client'] and cc.get('client_contact_id'):
-                                        update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
-                        link_id = link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary_for_client'])
-                        if not link_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
-                except Exception as e_contact_save:
-                    QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Contact"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
+                logging.info(f"Attempting to process contact for client {actual_new_client_id} using ContactController. Form data: {contact_form_data}")
 
-                product_dialog = ProductDialog(client_id=actual_new_client_id, app_root_dir=doc_manager.app_root_dir, parent=doc_manager) # Pass app_root_dir
-                if product_dialog.exec_() == QDialog.Accepted:
-                    products_list_data = product_dialog.get_data()
-                    for product_item_data in products_list_data:
-                        try:
-                            global_product = get_product_by_name(product_item_data['name'])
-                            global_product_id = None; current_base_unit_price = None
-                            if global_product:
-                                global_product_id = global_product['product_id']; current_base_unit_price = global_product.get('base_unit_price')
+                # Use the ContactController here
+                contact_id_linked, link_id = contact_controller.get_or_create_contact_and_link(
+                    client_id=actual_new_client_id,
+                    contact_form_data=contact_form_data
+                )
+
+                if contact_id_linked:
+                    logging.info(f"Contact processed successfully for client {actual_new_client_id}. Contact ID: {contact_id_linked}, Link ID: {link_id}")
+                    # Optionally, notify user of contact success, though ContactDialog itself might do this.
+                    # For consistency, a simple log here is fine, or a notification via doc_manager.notify if desired.
+                    # Example: doc_manager.notify(title=doc_manager.tr("Contact Traité"), message=doc_manager.tr("Le contact a été traité avec succès pour le nouveau client."), type='SUCCESS')
+                else:
+                    logging.error(f"Failed to process contact for client {actual_new_client_id} using ContactController.")
+                    QMessageBox.warning(doc_manager,
+                                        doc_manager.tr("Erreur Contact"),
+                                        doc_manager.tr("Le traitement du contact a échoué. Veuillez vérifier les informations du contact ou consulter les logs pour plus de détails."))
+            else:
+                logging.info(f"ContactDialog was cancelled for client {actual_new_client_id}.")
+
+            # ProductDialog and subsequent price calculation
+            product_dialog = ProductDialog(client_id=actual_new_client_id, app_root_dir=doc_manager.app_root_dir, parent=doc_manager)
+            if product_dialog.exec_() == QDialog.Accepted:
+                products_list_data = product_dialog.get_data()
+                for product_item_data in products_list_data:
+                    logging.info(f"Processing product item from dialog: {product_item_data}")
+                    try:
+                        logging.info(f"Attempting to get global product by name: '{product_item_data.get('name')}'")
+                        global_product = get_product_by_name(product_item_data['name'])
+                        global_product_id = None; current_base_unit_price = None
+                        if global_product:
+                            global_product_id = global_product['product_id']; current_base_unit_price = global_product.get('base_unit_price')
+                        else:
+                            new_global_product_data = {
+                                'product_name': product_item_data['name'], 'description': product_item_data['description'],
+                                'base_unit_price': product_item_data['unit_price'], 'language_code': product_item_data.get('language_code', 'fr')
+                            }
+                            logging.info(f"Global product '{product_item_data.get('name')}' not found. Attempting to add new global product with data: {new_global_product_data}")
+                            new_global_product_id = add_product(new_global_product_data)
+                            if new_global_product_id:
+                                global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
                             else:
-                                new_global_product_id = add_product({
-                                    'product_name': product_item_data['name'], 'description': product_item_data['description'],
-                                    'base_unit_price': product_item_data['unit_price'], 'language_code': product_item_data.get('language_code', 'fr')
-                                })
-                                if new_global_product_id: global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
-                                else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr'))); continue
+                                logging.error(f"Failed to add global product '{product_item_data.get('name')}' with data {new_global_product_data}. Skipping linking for this item.")
+                                QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr')));
+                                continue
 
-                            if global_product_id:
-                                unit_price_override_val = product_item_data['unit_price'] if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price else None
-                                link_data = {'client_id': actual_new_client_id, 'project_id': None, 'product_id': global_product_id, 'quantity': product_item_data['quantity'], 'unit_price_override': unit_price_override_val}
-                                cpp_id = add_product_to_client_or_project(link_data)
-                                if not cpp_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
-                        except Exception as e_product_save:
-                            QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Produit"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))
+                        if global_product_id:
+                            unit_price_override_val = product_item_data['unit_price'] if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price else None
+                            link_data = {'client_id': actual_new_client_id, 'project_id': None, 'product_id': global_product_id, 'quantity': product_item_data['quantity'], 'unit_price_override': unit_price_override_val}
+                            logging.info(f"Attempting to link product_id {global_product_id} to client {actual_new_client_id} (project: None) with link data: {link_data}")
+                            cpp_id = add_product_to_client_or_project(link_data)
+                            if not cpp_id:
+                                logging.error(f"Failed to link product_id {global_product_id} to client {actual_new_client_id} with link data {link_data}.")
+                                QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
+                    except Exception as e_product_save:
+                        logging.error(f"Unexpected error processing product '{product_item_data.get('name', 'Inconnu')}': {type(e_product_save).__name__} - {e_product_save}", exc_info=True)
+                        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Produit"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))
 
-                    linked_products = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                    if linked_products is None: linked_products = []
-                    calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
-                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
-                    ui_map_data['price'] = calculated_total_sum # Update the map for CreateDocumentDialog
-                    if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+            # Recalculate price after product dialog (whether accepted or cancelled)
+            linked_products = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
+            if linked_products is None: linked_products = []
+            calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
+            logging.info(f"Recalculated total price for client {actual_new_client_id} after product changes: {calculated_total_sum}")
+            logging.info(f"Attempting to update client {actual_new_client_id} with new price: {calculated_total_sum}")
+            update_price_result = clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
 
-                    create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=doc_manager.config, parent=doc_manager)
-                    if create_document_dialog.exec_() == QDialog.Accepted: logging.info("CreateDocumentDialog accepted.")
-                    else: logging.info("CreateDocumentDialog cancelled.")
-                else: # ProductDialog cancelled
-                    logging.info("ProductDialog cancelled.")
-                    if actual_new_client_id and ui_map_data: # Recalculate price
-                        linked_products_on_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                        if linked_products_on_cancel is None: linked_products_on_cancel = []
-                        calculated_total_sum_on_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_cancel if p.get('total_price_calculated') is not None)
-                        clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_cancel})
-                        ui_map_data['price'] = calculated_total_sum_on_cancel
-                        if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_cancel
-            else: # ContactDialog cancelled
-                logging.info("ContactDialog cancelled.")
-                if actual_new_client_id and ui_map_data: # Recalculate price
-                    linked_products_on_contact_cancel = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
-                    if linked_products_on_contact_cancel is None: linked_products_on_contact_cancel = []
-                    calculated_total_sum_on_contact_cancel = sum(p.get('total_price_calculated', 0.0) for p in linked_products_on_contact_cancel if p.get('total_price_calculated') is not None)
-                    clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum_on_contact_cancel})
-                    ui_map_data['price'] = calculated_total_sum_on_contact_cancel
-                    if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum_on_contact_cancel
-        else: # ui_map_data was not populated
+            if update_price_result and update_price_result.get('success') and update_price_result.get('updated_count', 0) > 0:
+                logging.info(f"Successfully updated price for client {actual_new_client_id} to {calculated_total_sum}")
+                # Update local data maps (existing logic)
+                ui_map_data['price'] = calculated_total_sum
+                if actual_new_client_id in doc_manager.clients_data_map:
+                    doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+            else:
+                error_msg = update_price_result.get('error', 'Unknown error') if update_price_result else 'Unknown error'
+                logging.error(f"Failed to update price for client {actual_new_client_id} to {calculated_total_sum}. DB Result: {update_price_result}")
+                QMessageBox.warning(doc_manager,
+                                    doc_manager.tr("Erreur Mise à Jour Prix"),
+                                    doc_manager.tr("Le prix calculé ({0}) pour le client n'a pas pu être sauvegardé en base de données. Erreur: {1}").format(calculated_total_sum, error_msg))
+
+            # CreateDocumentDialog call
+            logging.info(f"Attempting to show CreateDocumentDialog for client ID {actual_new_client_id}. Client info (ui_map_data) being passed: {ui_map_data}")
+            create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=doc_manager.config, parent=doc_manager)
+            if create_document_dialog.exec_() == QDialog.Accepted: logging.info("CreateDocumentDialog accepted.")
+            else: logging.info("CreateDocumentDialog cancelled.")
+
+        else: # ui_map_data was not populated (should not happen if controller succeeded)
              QMessageBox.warning(doc_manager, doc_manager.tr("Erreur Données Client"), doc_manager.tr("Les données du client (ui_map_data) ne sont pas disponibles pour la séquence de dialogue."))
 
-
-        # QMessageBox.information(doc_manager, doc_manager.tr("Client Créé"),
-        #                         doc_manager.tr("Client {0} créé avec succès (ID Interne: {1}).").format(client_name_val, actual_new_client_id))
         doc_manager.notify(title=doc_manager.tr("Client Créé"),
-                           message=doc_manager.tr("Le client '{0}' (ID: {1}) a été créé avec succès.").format(client_name_val, actual_new_client_id),
+                           message=doc_manager.tr("Le client '{0}' (ID: {1}) a été créé avec succès.").format(created_client_info.get('client_name', client_name_val), actual_new_client_id),
                            type='SUCCESS')
         doc_manager.open_client_tab_by_id(actual_new_client_id)
         doc_manager.stats_widget.update_stats()
 
-    except sqlite3.IntegrityError as e_sqlite_integrity:
-        logging.error(f"Database integrity error during client creation: {client_name_val}", exc_info=True)
+    except sqlite3.IntegrityError as e_sqlite_integrity: # This might be caught by controller now
+        logging.error(f"Database integrity error: {client_name_val}", exc_info=True)
         error_msg_detail = str(e_sqlite_integrity).lower()
-        user_message = doc_manager.tr("Erreur de base de données lors de la création du client.")
-        if "unique constraint failed: clients.project_identifier" in error_msg_detail:
-            user_message = doc_manager.tr("L'ID de Projet '{0}' existe déjà. Veuillez en choisir un autre.").format(project_identifier_val)
-        elif "unique constraint failed: clients.default_base_folder_path" in error_msg_detail:
-             user_message = doc_manager.tr("Un client avec un nom ou un chemin de dossier résultant similaire existe déjà. Veuillez modifier le nom du client ou l'ID de projet.")
+        user_message = doc_manager.tr("Erreur de base de données.")
+        if "unique constraint failed: clients.project_identifier" in error_msg_detail: # Should be caught by controller
+            user_message = doc_manager.tr("L'ID de Projet '{0}' existe déjà.").format(project_identifier_val)
+        elif "unique constraint failed: clients.default_base_folder_path" in error_msg_detail: # Path created from user input
+             user_message = doc_manager.tr("Un client avec un nom ou un chemin de dossier résultant similaire existe déjà.")
         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur de Données"), user_message)
         doc_manager.notify(title=doc_manager.tr("Erreur Données Client"), message=user_message, type='ERROR')
-    except OSError as e_os:
-        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Dossier"), doc_manager.tr("Erreur de création du dossier client:\n{0}").format(str(e_os)))
-        doc_manager.notify(title=doc_manager.tr("Erreur Création Dossier"), message=doc_manager.tr("Erreur de création du dossier pour le client '{0}'.").format(client_name_val), type='ERROR')
-        if actual_new_client_id:
-             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback DB entry
-             QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client a été retiré de la base de données suite à l'erreur de création de dossier."))
-             doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Entrée client annulée suite à l'erreur de dossier."), type='INFO')
-    except Exception as e_db:
-        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Inattendue"), doc_manager.tr("Une erreur s'est produite lors de la création du client, du projet ou des tâches:\n{0}").format(str(e_db)))
-        doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue lors de la création du client ou des éléments associés."), type='ERROR')
-        if new_project_id_central_db and get_project_by_id(new_project_id_central_db): # Check if project was created
-            delete_project(new_project_id_central_db) # Attempt to rollback project
-        if actual_new_client_id and clients_crud_instance.get_client_by_id(actual_new_client_id): # Check if client was created
-             clients_crud_instance.delete_client(actual_new_client_id) # Attempt to rollback client
-             QMessageBox.information(doc_manager, doc_manager.tr("Rollback"), doc_manager.tr("Le client et le projet associé (si créé) ont été retirés de la base de données suite à l'erreur."))
-             doc_manager.notify(title=doc_manager.tr("Rollback DB"), message=doc_manager.tr("Client et projet associé annulés suite à une erreur grave."), type='INFO')
-        # Rollback for add_client would ideally be handled within add_client or by a transaction manager
-        # if folder creation fails after DB entry. For now, this manual rollback is kept.
-        if actual_new_client_id and not os.path.exists(base_folder_full_path): # If DB succeeded but folder failed
-            logging.warning(f"Folder creation failed for {actual_new_client_id} after DB entry. Attempting to soft delete client.")
-            clients_crud_instance.delete_client(actual_new_client_id) # Soft delete
-            doc_manager.notify(title=doc_manager.tr("Rollback Partiel"),
-                               message=doc_manager.tr("Client '{0}' marqué comme supprimé car la création du dossier a échoué.").format(client_name_val),
-                               type='WARNING')
+        # If client was created by controller but project/task fails here, client still exists.
+        # Consider if rollback is needed for controller-created client if subsequent steps fail.
+        # For now, if controller created client, it remains.
+    except Exception as e_general:
+        QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Inattendue"), doc_manager.tr("Une erreur s'est produite:\n{0}").format(str(e_general)))
+        doc_manager.notify(title=doc_manager.tr("Erreur Inattendue Création"), message=doc_manager.tr("Erreur inattendue."), type='ERROR')
+        # Rollback for project/tasks if created
+        if new_project_id_central_db and get_project_by_id(new_project_id_central_db):
+            delete_project(new_project_id_central_db)
+        # Client created by controller remains unless explicitly rolled back.
+        # This part needs careful consideration of transactional behavior.
+        # If client was created (actual_new_client_id is not None), but this later part fails,
+        # the client exists in DB, but project/tasks might not.
+        # The original code had some rollback logic for client if os.makedirs failed after client creation.
+        # That specific OSError is handled above with rollback. This is for other exceptions.
 
 
 def load_and_display_clients(doc_manager, filters: dict = None, limit: int = None, offset: int = 0, include_deleted: bool = False):

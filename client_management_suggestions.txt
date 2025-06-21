@@ -1,0 +1,68 @@
+**Client Information & Management:**
+
+1.  **Advanced Search/Filtering:**
+    *   Extend client listing filters (creation date range, assigned personnel, specific needs).
+    *   Expose more of `clients_crud.py` `get_all_clients_with_details` filter capabilities in the UI.
+2.  **Client Archiving/Deactivation:**
+    *   UI for "Archive Client" using existing soft delete fields in `clients_crud.py`.
+    *   View/filter for archived clients.
+3.  **Custom Fields for Clients:**
+    *   Allow user-defined custom fields for clients (e.g., "Industry Type," "Lead Source"). Requires schema changes.
+4.  **Client Relationship Management (CRM Lite):**
+    *   **Interaction Logging:** Log specific interactions (calls, meetings, emails) with timestamps and types.
+    *   **Follow-up Reminders:** Set reminders for client follow-ups.
+5.  **Merge Duplicate Clients:**
+    *   Utility to identify and merge duplicate client entries and their related data.
+6.  **Client Segmentation/Tagging:**
+    *   Allow adding multiple tags to clients (e.g., "VIP," "Prospect") for flexible filtering.
+
+**Contact Management (within Client context):**
+
+7.  **Contact Roles/Responsibilities:**
+    *   Enhance "Position" field to define specific roles within a project/deal (e.g., "Decision Maker," "Technical Contact").
+8.  **Bulk Email/SMS to Client Contacts:**
+    *   Option to send bulk communications to selected client contacts (respecting opt-outs).
+
+**Document Management:**
+
+9.  **Document Versioning:**
+    *   Implement full document versioning beyond the current `version_tag` in `client_widget.py`.
+10. **Document Review/Approval Workflow:**
+    *   Simple review/approval status for specific document types.
+11. **Enhanced Document Linking:**
+    *   Allow linking documents to each other (e.g., "supersedes document X").
+
+**Product & Order Management (as it relates to Clients):**
+
+12. **Order History Tab:**
+    *   Dedicated "Order History" tab summarizing client orders/projects with drill-down capabilities.
+13. **Client-Specific Pricing/Discounts for Products:**
+    *   Formalize client-specific price lists or discount rules.
+
+**Assignments & Team Management:**
+
+14. **Notification for Assignments:**
+    *   Notify personnel when assigned to a client/project via the "Affectations" tab.
+15. **Assignment History:**
+    *   Track history of personnel assignments.
+
+**Billing & Invoicing:**
+
+16. **Invoice History Tab:**
+    *   Dedicated tab for client invoices, showing status (Paid, Unpaid, Overdue) and document access.
+17. **Payment Tracking:**
+    *   Allow recording payments against invoices.
+
+**SAV (After-Sales Service):**
+
+18. **Knowledge Base Integration for SAV:**
+    *   Link SAV tickets to relevant knowledge base articles or product documentation.
+19. **SAV Ticket Prioritization & SLA Tracking:**
+    *   Allow setting priority for SAV tickets and track against SLAs.
+
+**General UI/UX Enhancements:**
+
+20. **Audit Log for Client Record Changes:**
+    *   Track significant changes to client records for auditing.
+21. **Dashboard/Summary View for Client:**
+    *   Expand the client info section into a comprehensive dashboard with recent activity and key stats.

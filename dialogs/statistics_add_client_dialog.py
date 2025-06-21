@@ -61,7 +61,7 @@ class StatisticsAddClientDialog(QDialog):
         self.setMinimumHeight(450)
 
         self._initial_country_name = initial_country_name
-        if hasattr(db_manager, isinstance(db_manager, object)) and not isinstance(db_manager, type): # Check if it's an instance
+        if isinstance(db_manager, object) and not isinstance(db_manager, type): # Check if it's an instance
              db_manager._initial_country_name = initial_country_name # For mock
 
         self._current_step = 0

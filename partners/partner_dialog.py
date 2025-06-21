@@ -306,14 +306,14 @@ class PartnerDialog(QDialog):
         self.start_date_input = QDateEdit()
         self.start_date_input.setDisplayFormat("yyyy-MM-dd")
         self.start_date_input.setCalendarPopup(True)
-        self.start_date_input.setNullable(True)
+        self.start_date_input.setCalendarPopup(True)
         self.start_date_input.setDate(QDate()) # Set to null
         form_layout.addRow("Collaboration Start Date:", self.start_date_input)
 
         self.end_date_input = QDateEdit()
         self.end_date_input.setDisplayFormat("yyyy-MM-dd")
         self.end_date_input.setCalendarPopup(True)
-        self.end_date_input.setNullable(True)
+        self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDate(QDate()) # Set to null
         form_layout.addRow("Collaboration End Date:", self.end_date_input)
 
