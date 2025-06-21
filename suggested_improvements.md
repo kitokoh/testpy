@@ -1,0 +1,576 @@
+# Suggested Functional Improvements
+
+## API Module Suggestions
+- **General API Enhancements:**
+- 1.  **API Versioning:** Standardize API versioning in paths for all routers (e.g., `/api/v1/...`).
+- 2.  **Comprehensive API Documentation (OpenAPI/Swagger):**
+-     *   Add detailed `Field` descriptions for all Pydantic models in `api/models.py`.
+-     *   Include `description` parameters for all `Query`, `Path`, `Body` in endpoint definitions.
+-     *   Provide example requests/responses in OpenAPI documentation.
+- 3.  **Standardized Error Response Model:** Define a consistent JSON structure for error responses (e.g., `{"detail": "message", "error_code": "CODE"}`).
+- 4.  **Rate Limiting:** Implement rate limiting for critical or resource-intensive endpoints.
+- 5.  **Request/Response Logging Middleware:** Add middleware for detailed logging of requests and responses (excluding sensitive data).
+- 6.  **Background Tasks:** Utilize FastAPI's `BackgroundTasks` for long-running operations (e.g., complex report generation).
+- **Authentication & Authorization (`api/auth.py`, `api/dependencies.py`):**
+- 7.  **Token Refresh Endpoints:** Add an endpoint to refresh access tokens using refresh tokens.
+- 8.  **Granular Permissions/Scopes:** Expand the permission system beyond simple roles (e.g., "read_own_documents", "edit_all_documents", OAuth2 scopes).
+- 9.  **User Management API Endpoints:** Add CRUD endpoints for user management and role assignments (requires `users_crud.py`).
+- 10. **Audit Log for Auth Events:** Log significant authentication events (login success/failure, token refresh).
+- **`api/assets.py` (Assets Management):**
+- 11. **Direct Media Upload with Asset Creation/Update:** Allow direct media file uploads when creating or updating an asset.
+- 12. **Bulk Asset Operations:** Endpoints for bulk creation, update, or deletion of assets.
+- 13. **Asset History/Log:** Endpoint to retrieve an audit trail of changes to an asset's status or assignments.
+- 14. **Filter Assets by Purchase Date Range:** Add `purchase_date_start` and `purchase_date_end` filters to the asset listing endpoint.
+- **`api/documents.py` (Document Generation):**
+- 15. **Support for Multiple Template Engines/Types:** Extend `/generate` to handle different template types (DOCX, etc.) by dispatching to appropriate generators.
+- 16. **Asynchronous Document Generation:** Make `/generate` asynchronous for complex documents, returning a task ID for status polling.
+- 17. **Get Document Metadata Endpoint:** Add `/documents/{document_id}/metadata` to fetch metadata without downloading the file.
+- 18. **List Generated Documents with Filtering:** Implement `/documents/` to list documents with filters (client, project, date, type).
+- **`api/employee_documents.py`:**
+- 19. **Chunked/Resumable Uploads:** Support for large employee document uploads.
+- 20. **Document Versioning:** Allow uploading new versions of existing employee documents.
+- 21. **Search Employee Documents:** Add search capabilities (name, description, content if indexed).
+- **HR Modules (`api/employees.py`, `api/leave.py`, `api/performance.py`, `api/hr_reports.py`):**
+- 22. **Managerial Access Control:** Introduce logic for managers to access/manage data for their direct reports.
+- 23. **Leave Balance Calculation Endpoint:** An endpoint to return the current *available* leave balance for an employee/leave type.
+- 24. **Bulk Leave Balance Adjustments:** Endpoint for HR to perform bulk adjustments to leave balances.
+- 25. **Performance Review Cycle Automation:** Endpoints to automate parts of the review cycle (e.g., bulk-create draft reviews, send notifications).
+- 26. **Export HR Reports:** Add options to export HR reports in CSV or PDF format, not just JSON.
+- **`api/products.py`:**
+- 27. **Product Variant Support:** Model and manage product variants (size, color, etc.) via API.
+- 28. **Inventory/Stock Management for Products:** Add endpoints to manage stock levels for physical products.
+- 29. **Product Pricing Tiers/Rules:** Support for different pricing for various customer groups or quantities.
+- **`api/payments.py` (Invoice Payments):**
+- 30. **Record Partial Payments:** Allow recording multiple partial payments against an invoice.
+- 31. **Payment Gateway Integration (Advanced):** Integrate with payment gateways.
+- 32. **Refunds/Credit Notes:** Endpoints to manage refunds or issue credit notes related to invoices.
+- **`api/templates.py`:**
+- 33. **Full CRUD for Document Templates:** Implement CRUD endpoints for general document templates (HTML, DOCX), including template file uploads and management, similar to how `TemplateDialog` implies interaction with `db_manager.add_template`.
+- **`api/models.py`:**
+- 34. **SQLAlchemy Model Consistency:** Review `ProductResponse.product_id` type (int in Pydantic, String in SQLAlchemy `Product.id`). Ensure consistency or handle type conversion.
+- 35. **SQLAlchemy Relationships:** Ensure all `relationship()` definitions in SQLAlchemy models have `back_populates` where appropriate to maintain bidirectional relationships correctly and avoid warnings/issues. For example, `ProformaInvoiceItem.product` relationship to `Product` does not have a `back_populates` on `Product`.
+- 36. **Enum Usage in SQLAlchemy:** Ensure all enums used in Pydantic models (like `ProformaInvoiceStatusEnum`, `GoalStatusEnum`, etc.) are consistently applied in SQLAlchemy models using `SQLAlchemyEnum(YourEnumPythonClass)` for proper type handling and validation at the DB level. `LeaveRequest.status` and `Goal.status` correctly use this. `PerformanceReview.status` also.
+
+## Botpress Integration Suggestions
+- **API Client (`botpress_integration/api_client.py`):**
+- 1.  **Granular API Endpoint Methods:** Add dedicated client methods for more Botpress API capabilities (managing conversations, users, NLU, KB, analytics).
+- 2.  **Webhook Handling Support:** Design components to receive and process webhooks from Botpress for reactive integrations.
+- 3.  **Support for Diverse Message Types:** Allow sending various Botpress message types (images, cards, quick replies) beyond plain text.
+- 4.  **Configurable Retries for API Calls:** Implement retry mechanisms (e.g., exponential backoff) for transient network errors or specific HTTP status codes.
+- 5.  **Pagination for Message Retrieval:** Add pagination support (`limit`, `offset`/cursor) to `get_conversations` for fetching message history in chunks.
+- **CRUD Operations (`botpress_integration/crud.py` & `models.py`):**
+- 6.  **Consistent User ID Linking:** If `UserBotpressSettings.user_id` links to a main `Users` table, consider using `ForeignKey` for integrity.
+- 7.  **Secure API Key Storage:** Encrypt `api_key` in `UserBotpressSettings` or integrate with a secrets management system.
+- 8.  **Prompt Categorization/Tagging:** Add categories or tags to `UserPrompt` for better organization.
+- 9.  **Extended Conversation Metadata:** Add fields to `Conversation` model for initial query, language, sentiment, or links to internal app entities (client_id, order_id).
+- 10. **Rich Message Content Storage:** Enhance `Message.content` to store structured data (JSON for cards) or media references if the bot supports rich messages.
+- 11. **Conversation Archiving/Deletion Workflow:** Implement proper soft-delete or hard-delete for conversations and messages.
+- **UI Components (`botpress_integration/ui_components.py`):**
+- 12. **Dynamic Conversation Loading/Pagination in UI:** Implement infinite scrolling or "Load More" for conversation history.
+- 13. **Rich Message and Suggestion Rendering:** Improve UI rendering for diverse message types (images, cards, formatted lists) and interactive suggestions.
+- 14. **Prompt Management UI Improvements:** Add search/filter for prompts; allow quick insertion of prompt text into the message input.
+- 15. **Enhanced Conversation Management UI:**
+-     *   Allow manual archiving/closing of conversations.
+-     *   Implement search/filter for conversations (by user ID, date, status).
+-     *   Option to initiate new local/Botpress conversations.
+- 16. **Real-time Updates (Advanced):** Explore WebSockets for a more interactive chat experience if Botpress supports it.
+- 17. **Contextual Error Display:** Provide more user-friendly and specific error messages in the UI.
+- 18. **Bot Info/Status Display:** Show basic bot information or connection status within the UI.
+- 19. **Clear ID Distinction:** Ensure clarity in UI/logs if distinguishing between local DB IDs and Botpress IDs is necessary for users/admins.
+
+## Client Management Suggestions
+- **Client Information & Management:**
+- 1.  **Advanced Search/Filtering:**
+-     *   Extend client listing filters (creation date range, assigned personnel, specific needs).
+-     *   Expose more of `clients_crud.py` `get_all_clients_with_details` filter capabilities in the UI.
+- 2.  **Client Archiving/Deactivation:**
+-     *   UI for "Archive Client" using existing soft delete fields in `clients_crud.py`.
+-     *   View/filter for archived clients.
+- 3.  **Custom Fields for Clients:**
+-     *   Allow user-defined custom fields for clients (e.g., "Industry Type," "Lead Source"). Requires schema changes.
+- 4.  **Client Relationship Management (CRM Lite):**
+-     *   **Interaction Logging:** Log specific interactions (calls, meetings, emails) with timestamps and types.
+-     *   **Follow-up Reminders:** Set reminders for client follow-ups.
+- 5.  **Merge Duplicate Clients:**
+-     *   Utility to identify and merge duplicate client entries and their related data.
+- 6.  **Client Segmentation/Tagging:**
+-     *   Allow adding multiple tags to clients (e.g., "VIP," "Prospect") for flexible filtering.
+- **Contact Management (within Client context):**
+- 7.  **Contact Roles/Responsibilities:**
+-     *   Enhance "Position" field to define specific roles within a project/deal (e.g., "Decision Maker," "Technical Contact").
+- 8.  **Bulk Email/SMS to Client Contacts:**
+-     *   Option to send bulk communications to selected client contacts (respecting opt-outs).
+- **Document Management:**
+- 9.  **Document Versioning:**
+-     *   Implement full document versioning beyond the current `version_tag` in `client_widget.py`.
+- 10. **Document Review/Approval Workflow:**
+-     *   Simple review/approval status for specific document types.
+- 11. **Enhanced Document Linking:**
+-     *   Allow linking documents to each other (e.g., "supersedes document X").
+- **Product & Order Management (as it relates to Clients):**
+- 12. **Order History Tab:**
+-     *   Dedicated "Order History" tab summarizing client orders/projects with drill-down capabilities.
+- 13. **Client-Specific Pricing/Discounts for Products:**
+-     *   Formalize client-specific price lists or discount rules.
+- **Assignments & Team Management:**
+- 14. **Notification for Assignments:**
+-     *   Notify personnel when assigned to a client/project via the "Affectations" tab.
+- 15. **Assignment History:**
+-     *   Track history of personnel assignments.
+- **Billing & Invoicing:**
+- 16. **Invoice History Tab:**
+-     *   Dedicated tab for client invoices, showing status (Paid, Unpaid, Overdue) and document access.
+- 17. **Payment Tracking:**
+-     *   Allow recording payments against invoices.
+- **SAV (After-Sales Service):**
+- 18. **Knowledge Base Integration for SAV:**
+-     *   Link SAV tickets to relevant knowledge base articles or product documentation.
+- 19. **SAV Ticket Prioritization & SLA Tracking:**
+-     *   Allow setting priority for SAV tickets and track against SLAs.
+- **General UI/UX Enhancements:**
+- 20. **Audit Log for Client Record Changes:**
+-     *   Track significant changes to client records for auditing.
+- 21. **Dashboard/Summary View for Client:**
+-     *   Expand the client info section into a comprehensive dashboard with recent activity and key stats.
+
+## Contact Manager Suggestions
+- **Core Contact Management & UI (`contact_manager/contact_list_widget.py`):**
+- 1.  **Unified Contact Details View/Edit Dialog:** Create a comprehensive dialog for viewing/editing contacts from all sources (Platform Client, Partner, Personnel, Google).
+- 2.  **Improved UI Contact Filtering:**
+-     *   Add filters for company, sync status, tags.
+-     *   Allow multi-select for "Type" filter.
+- 3.  **General "Add New Contact" Workflow:** Implement a button and dialog in `ContactListWidget` to add new contacts of various types (Client, Partner, Personnel, general Google contact).
+- 4.  **Full "Assign Role" Functionality:** Implement the dialog for linking Google contacts to existing platform entities or creating new platform entities from Google contact data.
+- 5.  **Contact Merging Utility:** Develop a feature to find and merge duplicate contacts (platform-platform and platform-Google).
+- 6.  **Custom Fields for Contacts:** Allow defining and using custom fields for platform contacts, with potential mapping to Google custom fields.
+- 7.  **Contact Groups/Lists:** Enable users to create custom contact groups for organization and bulk actions.
+- **Google Integration (`google_auth.py`, `google_people_api.py`, `google_settings_dialog.py`, `sync_service.py`):**
+- 8.  **Full OAuth 2.0 Flow Implementation:** Complete the OAuth 2.0 flow in `google_auth.py` and `GoogleSettingsDialog` (local server or custom URL scheme for callback, token exchange, secure storage, transparent refresh).
+- 9.  **Robust Google People API Client:** Replace placeholder logic in `google_people_api.py` with actual HTTP calls (using `requests` or `google-api-python-client`), including error handling and rate limit considerations.
+- 10. **Comprehensive Two-Way Synchronization Logic (`sync_service.py`):**
+-     *   Implement fetching of recently changed contacts (ETags, timestamps).
+-     *   Define clear data mapping and transformation rules (platform fields <-> Google Person resource).
+-     *   Implement conflict resolution strategies.
+-     *   Utilize `ContactSyncLog` effectively.
+- 11. **Background Sync Service:** Develop a background service (QThread or process) for periodic contact synchronization.
+- 12. **Selective Sync Configuration:** Allow users to choose Google Contact groups to sync or use platform-side tags/categories to control sync scope.
+- 13. **Field Mapping Configuration UI:** Provide a UI for users to configure mappings between platform and Google contact fields, especially custom fields.
+- 14. **Enhanced Google Sync Settings UI (`google_settings_dialog.py`):** Add options for sync direction, frequency, conflict resolution, and viewing sync logs.
+- 15. **Google Contact Photo Synchronization:** Implement syncing of contact photos.
+- 16. **Multiple Google Accounts (Optional):** Consider allowing a user to link and manage multiple Google accounts for contact sync.
+- **General Module Enhancements:**
+- 17. **Structured Logging:** Implement consistent structured logging using the `logging` module throughout the package.
+- 18. **Comprehensive Testing:** Develop unit and integration tests with mocks for Google API interactions and sync logic.
+
+## Document Management Suggestions
+- **Document Generation & Templating:**
+- 1.  **Unified Template Management:**
+-     *   Create a unified system for managing HTML, DOCX, and potentially other template types (e.g., XLSX).
+-     *   Integrate DOCX template management with the existing `templates_crud.py`.
+- 2.  **DOCX Template Placeholders in DB/Dynamic Fetching:**
+-     *   Allow dynamic fetching or management of available `{{KEY}}` placeholders for DOCX templates, possibly linking them to `context_builder.py` output.
+- 3.  **Enhanced Context for Templates (`context_builder.py`):**
+-     *   Support more complex data structures (lists of transactions, detailed contact lists).
+-     *   Include user-defined custom fields from client/project entities.
+-     *   Add computed fields or simple logic (e.g., "days_until_deadline").
+- 4.  **Live Preview for HTML/DOCX Templates:**
+-     *   Implement a live preview feature for template editing, showing changes with sample data.
+- 5.  **Cover Page Customization UI (`cover_page_generator.py`, `cover_pages_crud.py`):**
+-     *   Develop a UI for easier customization of cover page elements (fonts, colors, layout) beyond direct JSON editing.
+-     *   Allow associating cover page designs with document types or clients/projects.
+- 6.  **Conditional Sections in Templates:**
+-     *   Introduce logic for conditional content display in HTML and DOCX templates (e.g., based on client category).
+- 7.  **Looping/Iteration in DOCX Templates:**
+-     *   Enable repeating table rows or content blocks in DOCX for line items or lists, likely requiring advanced DOCX manipulation.
+- **Document Storage & Management (`client_documents_crud.py`, `document_manager_logic.py`):**
+- 8.  **Full Document Version History:**
+-     *   Expand `version_tag` in `client_documents_crud.py` to support full version control (view/revert previous versions).
+- 9.  **Document Metadata Enhancement:**
+-     *   Add fields to `ClientDocuments` like keywords/tags, expiration dates, and document status (Draft, Reviewed, Approved, Sent).
+- 10. **Advanced Document Search:**
+-     *   Implement search by name, type, date range, content (if indexed), or custom metadata.
+- 11. **Document Relationships/Linking:**
+-     *   Allow users to link related documents (e.g., quote to contract) via a dedicated `DocumentLinks` table.
+- 12. **Bulk Document Operations:**
+-     *   Support bulk actions (download as ZIP, delete, status update) for selected documents.
+- 13. **Document Access Control/Permissions:**
+-     *   (Advanced) Implement role-based permissions for document actions.
+- 14. **Audit Trail for Documents:**
+-     *   Expand logging to track who created, viewed, modified, or deleted documents and when.
+- **Workflow & Integration:**
+- 15. **Automated Document Generation Triggers:**
+-     *   Allow setting rules for automatic document generation based on application events.
+- 16. **Document Review and Approval Workflow:**
+-     *   Implement a simple workflow for document review and approval with comments.
+- 17. **E-signature Integration:**
+-     *   Integrate with e-signature services for sending documents.
+- 18. **Final Invoice Document Flow (`document_manager_logic.py`):**
+-     *   Ensure robust linking and easy access to "FINAL_INVOICE" type documents from both client views and dedicated invoice management areas.
+- **Error Handling & Logging:**
+- 19. **Granular Error Reporting in Generators:**
+-     *   Provide more specific error messages or codes from document generators (`html_generator.py`, `docx_generator.py`, `cover_page_generator.py`) to improve UI feedback.
+
+## Ecommerce Integrations Suggestions
+- **Base Connector (`ecommerce_integrations/base_connector.py`):**
+- 1.  **Standardized Error Handling & Exceptions:** Define custom exceptions (`AuthenticationError`, `ConnectionError`, `ProductNotFoundError`, `RateLimitError`, `PlatformAPIError`) for consistent error management.
+- 2.  **Configuration Validation:** Add basic validation for `store_url`, `api_key`, `api_secret` in the base `__init__`.
+- 3.  **Support for More E-commerce Entities:** Define abstract methods and base data models for Orders, Customers, Categories/Collections, and Inventory.
+- 4.  **Webhook Registration/Handling Interface (Advanced):** Define an abstract interface for managing webhooks on e-commerce platforms.
+- 5.  **Batch Operations Interface:** Define abstract methods for batch product/order operations (create, update).
+- 6.  **Platform Capabilities Metadata:** Add an abstract method `get_platform_capabilities()` for connectors to declare supported features.
+- 7.  **Enhanced `BaseProductData` Model:**
+-     *   Add support for product variants (size, color) with their own SKUs, prices, stock.
+-     *   Include fields for custom attributes/metafields.
+-     *   Formalize `images` and `categories` structure (e.g., `BaseImageData`, `BaseCategoryData` nested models).
+-     *   Add more pricing details (e.g., `sale_price`, `tax_status`, `tax_class`).
+- 8.  **Connection Pooling/Management:** Allow `connect`/`disconnect` to manage persistent client instances with connection pooling if beneficial.
+- **WooCommerce Connector (`ecommerce_integrations/woocommerce_connector.py`):**
+- 9.  **Full Implementation of Abstract Methods:** Fully implement all inherited abstract methods using the WooCommerce REST API (products, orders, customers, etc.). This includes completing:
+-     *   `_transform_wc_product_to_base_product_data`
+-     *   `_transform_base_product_data_to_wc_format`
+- 10. **Proper WooCommerce Pagination Handling:** Implement correct offset-to-page conversion and use `per_page` for limits in `get_platform_products` and other listing methods.
+- 11. **Specific WooCommerce Error Handling:** Translate WooCommerce API errors into the standard exceptions defined in `base_connector.py`.
+- 12. **Support for WooCommerce Product Variations:** Implement logic to fetch, create, and update product variations.
+- 13. **Full Image Handling for WooCommerce:** Implement image uploading and association during product creation/update.
+- 14. **Category and Tag Handling for WooCommerce:** Implement fetching/creating category/tag IDs by name during product sync.
+- 15. **Robust Authentication for WooCommerce:** Ensure support for all necessary WooCommerce authentication methods.
+- 16. **WooCommerce Webhook Support:** Implement methods to create, list, and delete webhooks in WooCommerce.
+- **General Module Enhancements:**
+- 17. **Consistent Asynchronous Operations:** Ensure all connector implementations correctly use `async`/`await` with asynchronous HTTP clients (e.g., `httpx.AsyncClient`).
+- 18. **Secure Configuration Management:** Integrate with a central application configuration system for API keys and secrets.
+- 19. **Structured Logging:** Implement consistent structured logging using the `logging` module across all connectors.
+- 20. **Comprehensive Testing Suite:** Develop a testing suite with mock API responses for each connector.
+- 21. **New Connectors for Other Platforms:** Plan and create new connector classes for other platforms (e.g., Shopify, Magento).
+
+## Excel Editor Suggestions
+- **Core Editing & Data Handling:**
+- 1.  **Formula Support:**
+-     *   Implement a formula bar and the ability to input, evaluate, and recalculate Excel-like formulas within the `QTableWidget`.
+- 2.  **Cell Formatting Toolbar/Dialog:**
+-     *   Add UI controls (toolbar/context menu) for users to apply cell formatting (font, size, color, alignment, number format, borders) directly, reflecting changes in the `openpyxl` model.
+- 3.  **Insert/Delete Rows/Columns at Specific Positions:**
+-     *   Allow inserting/deleting rows or columns at the current selection, not just at the end.
+- 4.  **Copy/Paste with Styles:**
+-     *   Implement copy/paste that preserves cell styles within the table and potentially with external Excel.
+- 5.  **Find and Replace:**
+-     *   Add a find and replace dialog for searching and replacing text/values within the current sheet.
+- 6.  **Sheet Management UI:**
+-     *   Provide UI options to rename, add, delete, or reorder sheets.
+- 7.  **Handling More Excel Features (Advanced):**
+-     *   **Charts:** Basic viewing or editing of charts.
+-     *   **Conditional Formatting:** Visualize or apply existing conditional formatting.
+-     *   **Data Validation:** Respect data validation rules during cell editing.
+- 8.  **Improved `load_workbook` Error Reporting:**
+-     *   Consolidate and provide clearer, user-friendly messages for different file load failures.
+- 9.  **Undo/Redo Functionality:**
+-     *   Implement an undo/redo stack for edits, formatting, and structural changes.
+- **PDF Export (`PDFGenerator`):**
+- 10. **UI for PDF Export Options:**
+-     *   Create a dialog for users to customize `PDFExportSettings` (orientation, page size, margins, header/footer, grid lines, watermark) before export.
+- 11. **Fit to Page / Scale to Page for PDF:**
+-     *   Add options to scale sheet content to fit PDF pages.
+- 12. **Selective Cell Range Export to PDF:**
+-     *   Allow exporting only a selected range of cells to PDF.
+- 13. **Improved PDF Header/Footer Rendering:**
+-     *   More robustly parse and render Excel header/footer codes (e.g., `&G` for images, `&P` for page number).
+-     *   Allow custom header/footer text/images in PDF export settings.
+- 14. **Image Rendering Fidelity in PDF:**
+-     *   Improve image quality, scaling, and positioning in PDFs to match Excel more closely.
+- 15. **Better Font Mapping/Embedding for PDF:**
+-     *   Use fonts from Excel styles more accurately in PDFs and embed fonts for consistency.
+- **Client Data Panel:**
+- 16. **Robust Load/Save Client Data with Excel:**
+-     *   Make `extract_client_data` more configurable or allow user mapping of cells to client data fields.
+-     *   Offer to write client data back to designated cells on save.
+- 17. **Logo Handling for Client Data:**
+-     *   Better integrate logo management, potentially embedding it in the Excel file or linking to a central client profile.
+- **UI & UX:**
+- 18. **Context Menus in Table:**
+-     *   Add right-click context menus for common table actions (cut, copy, paste, insert/delete, format).
+- 19. **Clearer Read-Only Mode Indication:**
+-     *   Visually indicate when a file is loaded in read-only mode and disable editing controls.
+- 20. **Consistent Progress Bar Usage:**
+-     *   Ensure `set_progress` is used for all potentially long operations.
+
+## Invoicing Module Suggestions
+- **Invoice Creation & Data Management (`invoicing/final_invoice_data_dialog.py`, `invoicing/manual_invoice_dialog.py`):**
+- 1.  **Automated Invoice Number Generation:** Implement a customizable automated invoice numbering system (sequential, date-based prefix).
+- 2.  **Line Item Management Enhancements:**
+-     *   **`FinalInvoiceDataDialog`**:
+-         *   Allow direct editing of quantity/price in the line items table.
+-         *   Option to add custom line items (not linked to `product_id`) for services/miscellaneous charges.
+-         *   Enable reordering of line items.
+-     *   **`ManualInvoiceDialog`**: Should allow adding structured line items similar to `FinalInvoiceDataDialog` instead of just a single `total_amount`.
+- 3.  **Advanced Tax Configuration:** Support multiple tax rates, item-specific taxes, and saving default tax configurations.
+- 4.  **Currency Formatting and Symbols:** Ensure correct currency symbol display and number formatting in UI and PDFs, linking to currency selection.
+- 5.  **Template Selection for Invoice PDF:** Allow users to select a specific invoice PDF template during creation or from settings.
+- 6.  **Discount Handling:** Provide UI options for applying discounts (percentage/fixed amount) at line item or subtotal level.
+- 7.  **Shipping Charges Field:** Add a dedicated field for shipping charges in invoice creation dialogs.
+- **Invoice Listing & Management (`invoicing/invoice_management_widget.py`):**
+- 8.  **Advanced Invoice Filtering:** Add UI filters for due date range, client, project, currency, and amount range.
+- 9.  **Customizable Columns in Invoice List:** Allow users to show/hide or reorder columns in the `invoices_table`.
+- 10. **Bulk Invoice Actions:**
+-     *   Enable multi-select for actions like marking as paid/unpaid, sending reminders, exporting summaries, or batch PDF downloads.
+- 11. **Invoice PDF Regeneration:** Option to regenerate an invoice PDF (e.g., if template changed or minor non-financial corrections needed).
+- 12. **Recurring Invoices:** Functionality to set up and manage recurring invoices.
+- **Payment Tracking (`invoicing/record_payment_dialog.py`):**
+- 13. **Enhanced Partial Payment Tracking:** Allow recording multiple partial payments, tracking remaining balance, and reflecting "Amount Paid" / "Balance Due" in tables.
+- 14. **Payment History for Invoice:** Display a history of payments for an invoice in `InvoiceDetailsDialog`.
+- 15. **Automated Overdue Invoice Handling:** Automatically flag overdue invoices and implement options for sending automated reminders.
+- **Reporting & Analytics:**
+- 16. **Sales/Revenue Reports:** Generate reports on sales, revenue, outstanding amounts, sales by client/product, with filters.
+- 17. **Tax Reports:** Generate reports summarizing taxes collected for specified periods.
+- **General & Integration:**
+- 18. **Streamlined Proforma to Invoice Workflow:** Improve the process of converting an "Accepted" Proforma Invoice to a Final Invoice, pre-filling data.
+- 19. **Emailing Invoices:** Add "Send by Email" option from `InvoiceManagementWidget` or `InvoiceDetailsDialog`, using email templates and configuration.
+- 20. **Audit Trail for Invoices:** Log changes to invoice status, payments, and sending history.
+- 21. **User-Friendly Invoice Template Customization:** Provide easier ways to customize invoice PDF appearance beyond selecting pre-made templates.
+
+## Media Manager Suggestions
+- **Core Media Item Management (`media_manager/models.py`, `media_manager/operations.py`):**
+- 1.  **Enhanced Metadata Handling:**
+-     *   Extract more comprehensive metadata (EXIF, IPTC, XMP for images; codecs, bitrate for videos).
+-     *   Allow manual editing of key-value metadata pairs.
+-     *   Define standardized metadata schemas (e.g., Dublin Core).
+-     *   Enable searching by specific metadata fields in `search_media`.
+- 2.  **Advanced Tag Management:**
+-     *   Provide a UI for managing tags (view, rename, delete, merge, usage count).
+-     *   Support hierarchical tags/categories.
+-     *   (Advanced) Integrate AI/ML for auto-tagging image/video content.
+- 3.  **Improved Thumbnail Generation:**
+-     *   Allow configurable thumbnail sizes.
+-     *   Enable user selection of video thumbnails.
+-     *   Use appropriate default/placeholder thumbnails for unsupported types or links.
+- 4.  **Flexible File Operations & Storage:**
+-     *   Abstract file storage to support backends like local filesystem and cloud (S3, Azure Blob).
+-     *   Implement duplicate file detection (e.g., based on hash).
+-     *   (Advanced) Add file versioning capabilities.
+- 5.  **Enhanced Link Item (`LinkItem` model):**
+-     *   Implement URL validation (reachability).
+-     *   Attempt to fetch favicons or generate webpage thumbnails for links.
+-     *   Detect content type at the URL (image, video, webpage).
+- 6.  **Standardized Error Handling:** Replace `print` with custom exceptions and structured logging in `operations.py`.
+- 7.  **Fully Asynchronous Operations:** Ensure all I/O (file, database, network) in `operations.py` is truly asynchronous if used in an async environment (FastAPI). Database calls currently appear synchronous.
+- **Integration & Usage:**
+- 8.  **Generic Media Linking Mechanism:**
+-     *   Develop a system for linking media items to any entity (clients, projects, tasks) beyond just assets/products.
+-     *   Allow context-specific metadata on these links (e.g., image role like 'profile_picture').
+- 9.  **Reusable Media Picker UI Component:** Create a UI component for selecting existing media or uploading new items, with search, filtering, and different view modes.
+- 10. **Media Usage Tracking:** Implement tracking of where each media item is linked/used.
+- 11. **Access Control/Permissions for Media:** Define permissions for viewing, uploading, editing, and deleting media items.
+- 12. **Bulk Media Operations UI:** Provide UI for bulk tagging, deletion, or adding media to collections.
+- **Specific Model Enhancements (`media_manager/models.py`):**
+- 13. **Increased Robustness for `MediaItem.from_dict`:** Make `from_dict` more resilient to missing optional fields in input data, with clear logging.
+- 14. **First-Class Common Metadata Attributes:** Consider promoting frequently accessed metadata (e.g., `author`, `copyright`) to dedicated fields in `MediaItem` model for easier querying, while retaining the generic `metadata` dict.
+
+## Mobile Module Suggestions
+- **Data Handling & API Interaction (`mobile/data_handler.py`):**
+- 1.  **Real API Client Implementation:** Replace mock API calls with actual HTTP requests (e.g., using `requests` or `httpx` if Kivy is used asynchronously) to the backend, including authentication and error handling.
+- 2.  **Offline Data Caching:** Implement local caching (SQLite via Kivy storage or file cache) for products, templates, languages, countries, with cache invalidation/sync strategies.
+- 3.  **Mobile Configuration Management:** Introduce a settings system for API URLs, default language, etc., within the mobile app.
+- **Document Handling (`mobile/document_handler.py`):**
+- 4.  **Robust PDF Generation and Storage:**
+-     *   Provide options for persistent PDF storage on the device (e.g., "My Documents" folder).
+-     *   Allow users to name output files.
+-     *   Improve error handling for PDF saving.
+- 5.  **Native PDF Viewing/Sharing:** Use `plyer.sharing.share_file` or platform-native APIs to open/share PDFs.
+- 6.  **Native Email Client Integration:** Ensure robust attachment handling with `plyer.email`; allow users to edit email body/subject before sending.
+- 7.  **Template Content Caching:** Cache frequently used or large templates locally.
+- **NLU Capabilities (`mobile/nlu_handler.py`, `mobile/nlu_controller.py`):**
+- 8.  **More Sophisticated NLU Parsing:** Consider integrating a lightweight on-device NLU library or a more robust cloud NLU service for better understanding and context carry-over.
+- 9.  **Expand NLU Intents and Entities:** Add more intents like `REMOVE_PRODUCT`, `CLEAR_SELECTION`, `CHANGE_QUANTITY`, and navigation/settings commands.
+- 10. **NLU Feedback and Correction:** Implement confirmation steps for NLU actions with low confidence or critical impact.
+- 11. **Voice-to-Text Input for NLU:** Integrate voice-to-text (e.g., `plyer.stt`) for command input.
+- **UI/UX (`mobile/ui.py`, `mobile/mobile.kv`):**
+- 12. **Improved UI Layout and Styling (`mobile.kv`):** Develop a polished UI using Kivy layouts, styling, and custom widgets (e.g., Material Design).
+- 13. **Dynamic Product List Filtering:** Add a search bar to "Available Products" to filter products by name via API.
+- 14. **Enhanced Visual Feedback:** Ensure clear visual feedback for all selections (language, country, template, products).
+- 15. **Improved Error/Information Popups:** Use Kivy's `Popup` with better formatting for user messages.
+- 16. **Clear "No Data" Indicators:** Display user-friendly messages when lists or spinners are empty.
+- 17. **Robust Temporary File Management:** Implement strategies for clearing temporary files (on exit, timed).
+- 18. **Dedicated UI for NLU Interaction:** Add a microphone button and a text area for NLU input/output.
+- 19. **Mobile Settings Screen:** Create a screen for API details, default preferences, etc.
+- 20. **Offline Indicator:** Visually indicate to the user if the app is offline and using cached data.
+- **Overall Mobile App (`mobile/main.py`):**
+- 21. **Advanced State Management:** For multi-screen apps, consider a dedicated state management solution.
+- 22. **Clear Navigation:** Implement intuitive navigation (ScreenManager transitions, side drawer, bottom navigation) if more screens are added.
+- 23. **Consistent Loading Indicators:** Use the `busy_indicator` (ModalView) for all potentially long operations.
+
+## PDF Generation Suggestions
+- **HTML to PDF Conversion (`html_to_pdf_util.py`):**
+- 1.  **Advanced CSS Support & Page Control (WeasyPrint):**
+-     *   Expose more CSS Paged Media properties (e.g., `@page` margins, HTML/CSS headers/footers, page numbering, named pages, page breaks).
+-     *   Consider using a more standard templating engine like Jinja2 if `render_html_template` has limitations with complex CSS or logic.
+- 2.  **Detailed WeasyPrint Error Handling:**
+-     *   Provide more specific error messages from WeasyPrint to the user (e.g., CSS issues, asset loading failures).
+- 3.  **Font Management for HTML/WeasyPrint:**
+-     *   Implement a system to manage fonts available to WeasyPrint (user uploads, configure font directories).
+-     *   Ensure robust `@font-face` support.
+- 4.  **SVG and Complex Graphics in HTML:**
+-     *   Verify and enhance rendering fidelity for SVGs and other complex visual elements in HTML-to-PDF.
+- 5.  **Accessibility (Tagged PDF) for HTML-generated PDFs:**
+-     *   Enable WeasyPrint options for generating tagged PDFs (PDF/UA).
+- **Cover Page Generation (`document_generator/cover_page_generator.py`, `pagedegrde.py`):**
+- 6.  **Enhanced ReportLab Graphics & Layout (`pagedegrde.py`):**
+-     *   Extend `generate_cover_page_logic` with more layout options (multi-column, advanced text flow, backgrounds, watermarks).
+-     *   Expand `config_dict` for finer control over ReportLab drawing operations (coordinates, text properties).
+- 7.  **User-Managed Fonts for ReportLab Cover Pages:**
+-     *   Allow users to upload/manage custom TTF fonts for ReportLab, beyond the current `_register_fonts` scope.
+-     *   Improve font fallback mechanisms and warnings.
+- 8.  **Clearer HTML vs. ReportLab Cover Page Choice in `pagedegrde.py`:**
+-     *   Ensure the UI clearly indicates whether an HTML or ReportLab style is being used for the cover page and that context/config is correctly routed.
+-     *   HTML cover page templates should support the same dynamic context variables as ReportLab.
+- 9.  **Actual PDF Preview for ReportLab in `pagedegrde.py`:**
+-     *   Replace the placeholder `PreviewWidget.render_pdf_page_to_image` with a proper PDF rendering library (Poppler, MuPDF) for ReportLab previews.
+- 10. **Barcode/QR Code on ReportLab Cover Pages:**
+-     *   Add options to include configurable QR codes or barcodes on cover pages via ReportLab.
+- **PDF Compilation (`dialogs/compile_pdf_dialog.py`):**
+- 11. **Robust Page Range Selection for Merging:**
+-     *   Add stricter parsing and validation for page selection strings (e.g., "1-3,5") in `CompilePdfDialog`, with clear error feedback for invalid ranges.
+- 12. **Table of Contents (TOC) for Compiled PDFs:**
+-     *   Optionally generate a TOC for compiled PDFs, using merged file names or PDF bookmarks as entries.
+- 13. **Consistent Header/Footer for Compiled PDFs:**
+-     *   Allow adding dynamic headers/footers (page numbers, compilation date, project name) across all pages of the merged PDF.
+- 14. **Security Options for Compiled PDFs:**
+-     *   Add UI options for password protection and encryption of the final compiled PDF (using PyPDF2 capabilities).
+- 15. **Metadata for Compiled PDFs:**
+-     *   Allow users to set metadata (Author, Title, Subject, Keywords) for the compiled PDF.
+- 16. **Enhanced Cover Page Customization in `CompilePdfDialog`:**
+-     *   Allow selection of predefined cover page templates or more detailed customization of the cover page generated during PDF compilation, rather than a fixed configuration.
+- **General PDF Enhancements:**
+- 17. **PDF/A Compliance Option:**
+-     *   Provide an option to generate PDFs compliant with PDF/A standards for archival.
+- 18. **Improved Logging and Error Diagnostics:**
+-     *   Enhance logging across all PDF generation steps to provide detailed diagnostics when generation fails.
+
+## Project Management Suggestions
+- **Project Management (`project_management/dashboard.py` - MainDashboard):**
+- 1.  **Enhanced Project Filtering & Search:** Implement actual filtering in `filter_projects` using updated `db.get_all_projects`.
+- 2.  **Full Project Template Integration:** Complete `ProjectTemplateManager` integration for creating projects from templates (including tasks, milestones). Add UI for managing these project templates.
+- 3.  **Customizable Project Dashboard View:** Allow users to select KPIs, configure graph types, and choose projects for summary views on the main dashboard page.
+- 4.  **Gantt Chart View:** Add a Gantt chart view for projects and tasks to visualize timelines and dependencies.
+- 5.  **Resource Management View:** Create a view to show team member workload based on assigned tasks across projects.
+- 6.  **Budget Tracking and Reporting:** Implement tracking of actual expenses against project budgets and add budget vs. actuals reports.
+- 7.  **Project-Specific Document Management:** Add a section in project details to attach/link relevant documents.
+- **Task Management (within `project_management/dashboard.py` and dialogs):**
+- 8.  **Task Dependencies UI:** Create UI for defining and visualizing task dependencies (finish-to-start, etc.).
+- 9.  **Sub-Tasks:** Allow creating and managing sub-tasks under parent tasks.
+- 10. **Time Tracking for Tasks:** Provide UI for team members to log time spent on tasks.
+- 11. **Batch Task Operations:** Enable selecting multiple tasks for bulk updates (status, assignee, priority).
+- 12. **Task Comments/Discussion Feature:** Add a section for comments and discussions within task details.
+- **Production Orders (`project_management/dialogs/add_production_order_dialog.py`, etc.):**
+- 13. **Formal Link Production Orders to Sales Orders/Clients:** If sales orders exist, allow direct linking, which also links to the client.
+- 14. **Material/Resource Planning for Production Steps:** Allow specifying required materials/resources for each production task, potentially linking to an inventory module.
+- 15. **Visual Progress for Production Orders:** Add a progress bar or mini-Gantt in `ProductionOrderDetailDialog` to show step status.
+- 16. **Copy Production Steps from Templates/Previous Orders:** Enable creating new production orders by copying steps from templates or similar past orders.
+- **Milestones (within `project_management/dashboard.py` using `dialogs/add_edit_milestone_dialog.py`):**
+- 17. **Milestone Visualization on Timelines:** Display milestones on project timelines or Gantt charts.
+- 18. **Link Tasks to Milestones:** Allow associating tasks with milestones, where task completion contributes to milestone achievement.
+- **Cover Page Management (`project_management/dialogs/cover_page_editor_dialog.py`):**
+- 19. **Live Preview in Cover Page Editor:** Integrate a live preview panel in `CoverPageEditorDialog` that updates with changes to style JSON or fields.
+- 20. **User-Friendly Style Configuration for Cover Pages:** Replace raw JSON editing with UI controls (color pickers, font selectors, etc.) for common style attributes.
+- **Notifications (`project_management/notifications.py`):**
+- 21. **User-Configurable Notifications:** Allow users to select which notifications they wish to receive.
+- 22. **In-App Notification Center:** Create a panel listing past notifications with read/unread status and links.
+- 23. **Email Notification Option:** Add an option to send critical notifications via email.
+- **General UI/UX:**
+- 24. **Standardize "Actions" in Tables:** Use a consistent method (e.g., dedicated "Actions" column with icon buttons) for edit, delete, view details in all tables.
+- 25. **Dynamic Statuses from DB:** Ensure all status dropdowns (project, task) are populated dynamically from `StatusSettings` table via `db` calls, not hardcoded.
+
+## Recruitment Module Suggestions
+- **Job Openings (`recruitment/job_openings_widget.py`, `recruitment/dialogs/job_opening_dialog.py`):**
+- 1.  **Advanced Filtering for Job Openings:** Add UI filters (status, department) to `JobOpeningsWidget`.
+- 2.  **Job Opening Templates:** Allow creating job openings from predefined templates.
+- 3.  **Clone Job Openings:** Add a "Clone" button to duplicate existing job openings.
+- 4.  **Track & Display Applicant Count:** Show the number of candidates per job opening in `JobOpeningsWidget`. API should provide this.
+- 5.  **Rich Text for Job Description:** Support rich text formatting in `JobOpeningDialog.description_edit` and store/render HTML or Markdown.
+- **Candidates (`recruitment/candidates_widget.py`, `recruitment/dialogs/candidate_dialog.py`):**
+- 6.  **Direct File Uploads for Resume/Cover Letter:** Implement file browse/upload in `CandidateDialog` and corresponding API handling.
+- 7.  **Candidate Search & Advanced Filtering:** Add more UI filters (status, application date, keywords) and a search bar to `CandidatesWidget`.
+- 8.  **Candidate Tagging/Skills Management:** Allow adding tags or skills to candidates for better filtering.
+- 9.  **Structured Application Source:** Use a QComboBox with predefined sources for `CandidateBase.application_source` in `CandidateDialog`.
+- 10. **Link to Full Contact Profile:** Provide a UI link from a candidate to their general contact profile if `linked_contact_id` exists.
+- 11. **Bulk Actions for Candidates:** Enable multi-select in `CandidatesWidget` for bulk status changes, shortlisting, or emailing.
+- **Interviews (`recruitment/interviews_widget.py`, `recruitment/dialogs/interview_dialog.py`):**
+- 12. **Interviewer Management/Selection:** Populate `InterviewDialog.interviewer_combo` from a list of actual team members/users (requires API for users with "interviewer" role).
+- 13. **Calendar Integration/Availability Check (Advanced):** Integrate with calendar systems to check interviewer availability.
+- 14. **Structured Interview Feedback Forms/Templates:** Allow creating and using structured feedback templates instead of just a plain `QTextEdit` for `feedback_edit`.
+- 15. **Interview Status Workflow:** Define and manage a clear workflow for interview statuses (e.g., Scheduled, Confirmed, Completed, Feedback Submitted, Rescheduled, Cancelled).
+- 16. **Automated Notifications for Interviews:** Send email/platform notifications for interview scheduling and changes.
+- **Recruitment Steps & Candidate Progress (API exists, UI needs expansion):**
+- 17. **UI for Managing Recruitment Steps per Job Opening:** Add UI (in `JobOpeningDialog` or `JobOpeningsWidget`) to define and order recruitment steps for each job opening.
+- 18. **UI for Tracking Candidate Progress:** Visually display candidate progress through defined steps in `CandidatesWidget` or a detail view, allowing status updates at each step.
+- **Recruitment Dashboard (`recruitment/recruitment_dashboard.py`):**
+- 19. **Key Metrics and Visualizations:** Add dashboard widgets for open positions, candidates per stage (funnel), time-to-hire, source effectiveness, upcoming interviews.
+- 20. **Recruitment Reporting Features:** Implement generation of reports (candidates per job, interview feedback summaries).
+- **General & Integration:**
+- 21. **Role-Based Access Control:** Define specific roles (Recruiter, Hiring Manager, Interviewer) for the recruitment module.
+- 22. **Email Integration for Candidate Communication:** Allow sending templated emails (invitations, rejections, offers) from the system.
+- 23. **Dynamic Status Configuration:** Fetch job opening, candidate, and interview statuses from the `StatusSettings` table via API instead of using hardcoded maps in dialogs.
+- 24. **Formalized File Storage Strategy:** Define and implement a clear strategy for storing uploaded resumes and cover letters, possibly using a configurable base directory or cloud storage.
+
+## Security Module Suggestions
+- **Biometric Authentication (`biometric_auth.py`):**
+- 1.  **Real Biometric Integration:** Replace simulations with actual integration with OS-level (Windows Hello, Android BiometricPrompt, iOS Face ID/Touch ID) or third-party biometric SDKs/APIs.
+- 2.  **Biometric Enrollment/Registration:** Add methods and UI flows for secure user biometric data enrollment.
+- 3.  **Configurable Biometric Methods:** Allow administrators/users to enable/disable specific biometric methods.
+- 4.  **Fallback Authentication:** Implement PIN/password fallbacks for biometric failures.
+- 5.  **Liveness Detection:** Integrate liveness detection for face/voice authentication to prevent spoofing.
+- 6.  **Secure Biometric Data Storage:** Define and implement secure storage for biometric templates if not using OS-level secure enclaves (encryption, protection).
+- **General Security Module Enhancements:**
+- 7.  **Two-Factor/Multi-Factor Authentication (2FA/MFA):** Implement 2FA/MFA using TOTP, SMS/Email codes, push notifications, or hardware keys.
+- 8.  **Password Management Policies:** Enforce strong password policies (complexity, history, expiration) and secure password reset features.
+- 9.  **Role-Based Access Control (RBAC) Core Logic:** Centralize role/permission definition and checking logic within this module (potentially with dynamic role/permission CRUD).
+- 10. **Secure Session Management:** Implement secure session handling, timeouts, secure cookie configurations, and session revocation.
+- 11. **Application-Issued API Key Management:** Secure generation, storage, and management of API keys if the application provides its own APIs to external services.
+- 12. **Data Encryption (At Rest & In Transit):**
+-     *   Ensure sensitive database fields are encrypted at rest.
+-     *   Enforce HTTPS for all API communications.
+- 13. **Comprehensive Security Audit Logging:** Log authentication attempts, authorization failures, permission changes, password events, and sensitive data access.
+- 14. **Input Validation and Sanitization Framework:** Define/integrate centralized sanitization routines if not handled sufficiently at other layers.
+- 15. **Security Configuration Management:** Centralized management for security settings (token expiry, password policies, 2FA provider details).
+- 16. **OAuth2/OpenID Connect Provider (Advanced):** Implement full OIDC provider flow if the application needs to act as one.
+- 17. **Sensitive Data Masking:** Implement data masking in logs or UI displays based on user roles.
+
+## Template Management Suggestions
+- **General Template Management (`dialogs/template_dialog.py`, `db/cruds/templates_crud.py` - inferred):**
+- 1.  **Template Versioning:**
+-     *   Allow saving versions of templates, with options to revert or preview older versions. Requires schema changes (version number, parent_template_id, version_created_at).
+- 2.  **Template Preview Enhancements (`TemplateDialog.show_template_preview`):**
+-     *   Improve DOCX/XLSX previews by rendering to an image or more faithful HTML.
+-     *   Ensure HTML previews correctly render relative CSS/images.
+- 3.  **Advanced Template Categorization/Tagging:**
+-     *   Support multi-level categories or tags beyond the current system in `template_categories_crud.py`.
+-     *   Make better use of the "Purpose" field for filtering and display.
+- 4.  **Client-Specific Template Management (`TemplateDialog.add_template`):**
+-     *   Clearly differentiate global vs. client-specific templates in the UI.
+-     *   Prioritize client-specific templates during document generation.
+- 5.  **Template Usage Statistics:**
+-     *   Track template usage (frequency, by client, last used) to identify popular/outdated templates.
+- 6.  **Bulk Template Operations:**
+-     *   Enable multi-select for actions like delete, export, or batch metadata updates.
+- 7.  **Template Import/Export Feature:**
+-     *   Allow exporting templates (file + metadata) and importing them into other application instances.
+- 8.  **Enhanced Template Search in `TemplateDialog`:**
+-     *   Implement search by name, description, or custom keywords/tags.
+- 9.  **Refined Default Template Logic:**
+-     *   Clarify and make more robust the `is_default_for_type_lang` logic, allowing global defaults possibly overridden at client/project levels.
+- **Cover Page Template Management (`db/cruds/cover_page_templates_crud.py`, `pagedegrde.py`):**
+- 10. **Visual Editor Integration/Creation for Cover Pages:**
+-     *   If `pagedegrde.py` is the editor, ensure seamless launch and save-back for `style_config_json` from `CoverPageTemplates`.
+-     *   If `pagedegrde.py` is only a generator, a new UI is needed for visual configuration of `style_config_json`.
+- 11. **Live Preview for Cover Page Templates:**
+-     *   Provide a real-time preview of the cover page as `style_config_json` is modified.
+- 12. **Granular Style Configuration for Cover Pages:**
+-     *   Expand `style_config_json` or structure it for finer control over elements (fonts for different text parts, precise positioning, color schemes) if `pagedegrde.py` supports these.
+- **Scripted Template Creation (`create_tech_spec_template.py`, `create_template.py`):**
+- 13. **Integrate Script-Generated Templates into UI Management:**
+-     *   Provide a UI action or utility to run `create_tech_spec_template.py` and `create_template.py`, then register their output DOCX files as new templates in the `Templates` database table via `db_manager.add_template`.
+-     *   Alternatively, modify the scripts to self-register their output.
+- 14. **Parameterization for Scripted Templates:**
+-     *   Make these scripts more flexible by allowing parameters (e.g., output language, structural variations) if they are intended as general template creation tools.
+- **General Enhancements:**
+- 15. **User Permissions for Template Management:**
+-     *   (Advanced) Introduce role-based access control for creating, editing, deleting, or setting default templates.
+- 16. **Placeholder Documentation/Helper:**
+-     *   Provide users with accessible documentation or a helper UI listing available placeholders (e.g., `{{CLIENT_NAME}}`) for use in DOCX/XLSX templates.

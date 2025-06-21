@@ -1,0 +1,52 @@
+**HTML to PDF Conversion (`html_to_pdf_util.py`):**
+
+1.  **Advanced CSS Support & Page Control (WeasyPrint):**
+    *   Expose more CSS Paged Media properties (e.g., `@page` margins, HTML/CSS headers/footers, page numbering, named pages, page breaks).
+    *   Consider using a more standard templating engine like Jinja2 if `render_html_template` has limitations with complex CSS or logic.
+2.  **Detailed WeasyPrint Error Handling:**
+    *   Provide more specific error messages from WeasyPrint to the user (e.g., CSS issues, asset loading failures).
+3.  **Font Management for HTML/WeasyPrint:**
+    *   Implement a system to manage fonts available to WeasyPrint (user uploads, configure font directories).
+    *   Ensure robust `@font-face` support.
+4.  **SVG and Complex Graphics in HTML:**
+    *   Verify and enhance rendering fidelity for SVGs and other complex visual elements in HTML-to-PDF.
+5.  **Accessibility (Tagged PDF) for HTML-generated PDFs:**
+    *   Enable WeasyPrint options for generating tagged PDFs (PDF/UA).
+
+**Cover Page Generation (`document_generator/cover_page_generator.py`, `pagedegrde.py`):**
+
+6.  **Enhanced ReportLab Graphics & Layout (`pagedegrde.py`):**
+    *   Extend `generate_cover_page_logic` with more layout options (multi-column, advanced text flow, backgrounds, watermarks).
+    *   Expand `config_dict` for finer control over ReportLab drawing operations (coordinates, text properties).
+7.  **User-Managed Fonts for ReportLab Cover Pages:**
+    *   Allow users to upload/manage custom TTF fonts for ReportLab, beyond the current `_register_fonts` scope.
+    *   Improve font fallback mechanisms and warnings.
+8.  **Clearer HTML vs. ReportLab Cover Page Choice in `pagedegrde.py`:**
+    *   Ensure the UI clearly indicates whether an HTML or ReportLab style is being used for the cover page and that context/config is correctly routed.
+    *   HTML cover page templates should support the same dynamic context variables as ReportLab.
+9.  **Actual PDF Preview for ReportLab in `pagedegrde.py`:**
+    *   Replace the placeholder `PreviewWidget.render_pdf_page_to_image` with a proper PDF rendering library (Poppler, MuPDF) for ReportLab previews.
+10. **Barcode/QR Code on ReportLab Cover Pages:**
+    *   Add options to include configurable QR codes or barcodes on cover pages via ReportLab.
+
+**PDF Compilation (`dialogs/compile_pdf_dialog.py`):**
+
+11. **Robust Page Range Selection for Merging:**
+    *   Add stricter parsing and validation for page selection strings (e.g., "1-3,5") in `CompilePdfDialog`, with clear error feedback for invalid ranges.
+12. **Table of Contents (TOC) for Compiled PDFs:**
+    *   Optionally generate a TOC for compiled PDFs, using merged file names or PDF bookmarks as entries.
+13. **Consistent Header/Footer for Compiled PDFs:**
+    *   Allow adding dynamic headers/footers (page numbers, compilation date, project name) across all pages of the merged PDF.
+14. **Security Options for Compiled PDFs:**
+    *   Add UI options for password protection and encryption of the final compiled PDF (using PyPDF2 capabilities).
+15. **Metadata for Compiled PDFs:**
+    *   Allow users to set metadata (Author, Title, Subject, Keywords) for the compiled PDF.
+16. **Enhanced Cover Page Customization in `CompilePdfDialog`:**
+    *   Allow selection of predefined cover page templates or more detailed customization of the cover page generated during PDF compilation, rather than a fixed configuration.
+
+**General PDF Enhancements:**
+
+17. **PDF/A Compliance Option:**
+    *   Provide an option to generate PDFs compliant with PDF/A standards for archival.
+18. **Improved Logging and Error Diagnostics:**
+    *   Enhance logging across all PDF generation steps to provide detailed diagnostics when generation fails.

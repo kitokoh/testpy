@@ -1,0 +1,40 @@
+**Core Media Item Management (`media_manager/models.py`, `media_manager/operations.py`):**
+
+1.  **Enhanced Metadata Handling:**
+    *   Extract more comprehensive metadata (EXIF, IPTC, XMP for images; codecs, bitrate for videos).
+    *   Allow manual editing of key-value metadata pairs.
+    *   Define standardized metadata schemas (e.g., Dublin Core).
+    *   Enable searching by specific metadata fields in `search_media`.
+2.  **Advanced Tag Management:**
+    *   Provide a UI for managing tags (view, rename, delete, merge, usage count).
+    *   Support hierarchical tags/categories.
+    *   (Advanced) Integrate AI/ML for auto-tagging image/video content.
+3.  **Improved Thumbnail Generation:**
+    *   Allow configurable thumbnail sizes.
+    *   Enable user selection of video thumbnails.
+    *   Use appropriate default/placeholder thumbnails for unsupported types or links.
+4.  **Flexible File Operations & Storage:**
+    *   Abstract file storage to support backends like local filesystem and cloud (S3, Azure Blob).
+    *   Implement duplicate file detection (e.g., based on hash).
+    *   (Advanced) Add file versioning capabilities.
+5.  **Enhanced Link Item (`LinkItem` model):**
+    *   Implement URL validation (reachability).
+    *   Attempt to fetch favicons or generate webpage thumbnails for links.
+    *   Detect content type at the URL (image, video, webpage).
+6.  **Standardized Error Handling:** Replace `print` with custom exceptions and structured logging in `operations.py`.
+7.  **Fully Asynchronous Operations:** Ensure all I/O (file, database, network) in `operations.py` is truly asynchronous if used in an async environment (FastAPI). Database calls currently appear synchronous.
+
+**Integration & Usage:**
+
+8.  **Generic Media Linking Mechanism:**
+    *   Develop a system for linking media items to any entity (clients, projects, tasks) beyond just assets/products.
+    *   Allow context-specific metadata on these links (e.g., image role like 'profile_picture').
+9.  **Reusable Media Picker UI Component:** Create a UI component for selecting existing media or uploading new items, with search, filtering, and different view modes.
+10. **Media Usage Tracking:** Implement tracking of where each media item is linked/used.
+11. **Access Control/Permissions for Media:** Define permissions for viewing, uploading, editing, and deleting media items.
+12. **Bulk Media Operations UI:** Provide UI for bulk tagging, deletion, or adding media to collections.
+
+**Specific Model Enhancements (`media_manager/models.py`):**
+
+13. **Increased Robustness for `MediaItem.from_dict`:** Make `from_dict` more resilient to missing optional fields in input data, with clear logging.
+14. **First-Class Common Metadata Attributes:** Consider promoting frequently accessed metadata (e.g., `author`, `copyright`) to dedicated fields in `MediaItem` model for easier querying, while retaining the generic `metadata` dict.

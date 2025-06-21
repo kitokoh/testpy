@@ -1,0 +1,24 @@
+**Biometric Authentication (`biometric_auth.py`):**
+
+1.  **Real Biometric Integration:** Replace simulations with actual integration with OS-level (Windows Hello, Android BiometricPrompt, iOS Face ID/Touch ID) or third-party biometric SDKs/APIs.
+2.  **Biometric Enrollment/Registration:** Add methods and UI flows for secure user biometric data enrollment.
+3.  **Configurable Biometric Methods:** Allow administrators/users to enable/disable specific biometric methods.
+4.  **Fallback Authentication:** Implement PIN/password fallbacks for biometric failures.
+5.  **Liveness Detection:** Integrate liveness detection for face/voice authentication to prevent spoofing.
+6.  **Secure Biometric Data Storage:** Define and implement secure storage for biometric templates if not using OS-level secure enclaves (encryption, protection).
+
+**General Security Module Enhancements:**
+
+7.  **Two-Factor/Multi-Factor Authentication (2FA/MFA):** Implement 2FA/MFA using TOTP, SMS/Email codes, push notifications, or hardware keys.
+8.  **Password Management Policies:** Enforce strong password policies (complexity, history, expiration) and secure password reset features.
+9.  **Role-Based Access Control (RBAC) Core Logic:** Centralize role/permission definition and checking logic within this module (potentially with dynamic role/permission CRUD).
+10. **Secure Session Management:** Implement secure session handling, timeouts, secure cookie configurations, and session revocation.
+11. **Application-Issued API Key Management:** Secure generation, storage, and management of API keys if the application provides its own APIs to external services.
+12. **Data Encryption (At Rest & In Transit):**
+    *   Ensure sensitive database fields are encrypted at rest.
+    *   Enforce HTTPS for all API communications.
+13. **Comprehensive Security Audit Logging:** Log authentication attempts, authorization failures, permission changes, password events, and sensitive data access.
+14. **Input Validation and Sanitization Framework:** Define/integrate centralized sanitization routines if not handled sufficiently at other layers.
+15. **Security Configuration Management:** Centralized management for security settings (token expiry, password policies, 2FA provider details).
+16. **OAuth2/OpenID Connect Provider (Advanced):** Implement full OIDC provider flow if the application needs to act as one.
+17. **Sensitive Data Masking:** Implement data masking in logs or UI displays based on user roles.
