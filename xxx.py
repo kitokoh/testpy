@@ -290,8 +290,8 @@ class TemplateDialog(QDialog):
                 item.setData(Qt.UserRole + 1, template_data.get('template_id'))
                 self.template_list.addItem(item)
         except Exception as e:
-            QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error loading templates:
-{0}").format(str(e)))
+            error_msg = self.tr("Error loading templates:\n{0}").format(str(e))
+            QMessageBox.warning(self, self.tr("Database Error"), error_msg)
 
     def add_template(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -333,8 +333,8 @@ class TemplateDialog(QDialog):
             else:
                 QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle à la DB."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Erreur"), self.tr("Erreur lors de l'ajout du modèle:
-{0}").format(str(e)))
+            error_msg = self.tr("Erreur lors de l'ajout du modèle:\n{0}").format(str(e))
+            QMessageBox.critical(self, self.tr("Erreur"), error_msg)
 
     def edit_template(self):
         item = self.template_list.currentItem()
@@ -357,8 +357,8 @@ class TemplateDialog(QDialog):
                 else:
                     QMessageBox.warning(self, self.tr("Error"), self.tr("Template details not found in DB."))
             except Exception as e:
-                QMessageBox.warning(self, self.tr("Database Error"), self.tr("Error accessing template details:
-{0}").format(str(e)))
+                error_msg = self.tr("Error accessing template details:\n{0}").format(str(e))
+                QMessageBox.warning(self, self.tr("Database Error"), error_msg)
 
 
     def delete_template(self):
@@ -381,8 +381,8 @@ class TemplateDialog(QDialog):
                 else:
                      QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template from DB."))
             except Exception as e:
-                QMessageBox.critical(self, self.tr("Error"), self.tr("Error deleting template:
-{0}").format(str(e)))
+                error_msg = self.tr("Error deleting template:\n{0}").format(str(e))
+                QMessageBox.critical(self, self.tr("Error"), error_msg)
 
     def set_default_template(self):
         item = self.template_list.currentItem()
@@ -398,8 +398,8 @@ class TemplateDialog(QDialog):
             else:
                 QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error setting default template."))
         except Exception as e:
-            QMessageBox.critical(self, self.tr("Database Error"), self.tr("Error updating template:
-{0}").format(str(e)))
+            error_msg = self.tr("Error updating template:\n{0}").format(str(e))
+            QMessageBox.critical(self, self.tr("Database Error"), error_msg)
 
     def get_selected_template_path(self):
         selected_items = self.template_list.selectedItems()
@@ -455,7 +455,8 @@ class TemplateDialog(QDialog):
                     self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
                     self.image_text_preview_label.setWordWrap(True)
                 except Exception as e:
-                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                    error_msg = self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e))
+                    self.image_text_preview_label.setText(error_msg)
                 self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
             elif ext == '.docx':
                 try:
@@ -475,7 +476,8 @@ class TemplateDialog(QDialog):
                     self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
                     self.image_text_preview_label.setWordWrap(True)
                 except Exception as e:
-                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                    error_msg = self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e))
+                    self.image_text_preview_label.setText(error_msg)
                 self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
             elif ext == '.html' or ext == '.htm':
                 self.html_preview_widget.setUrl(QUrl.fromLocalFile(file_path))
@@ -491,14 +493,16 @@ class TemplateDialog(QDialog):
                     self.image_text_preview_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
                     self.image_text_preview_label.setWordWrap(True)
                 except Exception as e:
-                    self.image_text_preview_label.setText(self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e)))
+                    error_msg = self.tr("Could not generate preview for '{0}'.\nError: {1}").format(filename, str(e))
+                    self.image_text_preview_label.setText(error_msg)
                 self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
             else:
                 self.image_text_preview_label.setText(self.tr("No preview available for '{0}' ({1}).").format(filename, ext))
                 self.image_text_preview_label.setAlignment(Qt.AlignCenter)
                 self.preview_stacked_widget.setCurrentWidget(self.image_text_preview_label)
         except Exception as e:
-            self.default_preview_label.setText(self.tr("Error generating preview for {0}.\nDetails: {1}").format(os.path.basename(file_path) if file_path else "N/A", str(e)))
+            error_msg = self.tr("Error generating preview for {0}.\nDetails: {1}").format(os.path.basename(file_path) if file_path else "N/A", str(e))
+            self.default_preview_label.setText(error_msg)
             self.preview_stacked_widget.setCurrentWidget(self.default_preview_label)
 
 class ProductDialog(QDialog):

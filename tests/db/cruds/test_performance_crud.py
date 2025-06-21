@@ -331,7 +331,9 @@ def test_delete_performance_review(db_session: Session, setup_pr_data):
     # This query checks if any rows exist in the link table for the deleted review_id
     stmt = select(performance_review_goals_link).where(performance_review_goals_link.c.performance_review_id == pr_id)
     links = db_session.execute(stmt).fetchall()
-    assert len(links) == 0The file `tests/db/cruds/test_performance_crud.py` has been created with a comprehensive suite of tests for the Performance Review module's CRUD operations.
+    assert len(links) == 0
+"""
+The file `tests/db/cruds/test_performance_crud.py` has been created with a comprehensive suite of tests for the Performance Review module's CRUD operations.
 
 **Summary of Test Coverage:**
 
@@ -369,3 +371,4 @@ def test_delete_performance_review(db_session: Session, setup_pr_data):
 The tests cover a wide range of scenarios, including edge cases for the many-to-many relationship management, ensuring the CRUD functions behave as expected.
 
 This part of the subtask is complete. The next step would be to implement the API tests for this module (`tests/api/test_performance_api.py`). Given the size, I will submit this now.
+"""

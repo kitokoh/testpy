@@ -310,7 +310,9 @@ def test_get_leave_requests_by_status(db_session: Session):
 # `AnniversaryReportItem` in `hr_reports_crud` requires `employee_id` to be `str`.
 # My `create_dummy_employee` returns `Employee` whose `id` is `str(uuid.uuid4())`.
 # So `str(emp.id)` in `AnniversaryReportItem` instantiation is redundant but harmless.
-# The provided code for `test_leave_crud.py` seems fine.The file `tests/db/cruds/test_leave_crud.py` has been created with a comprehensive suite of tests for the leave management CRUD operations.
+# The provided code for `test_leave_crud.py` seems fine.
+"""
+The file `tests/db/cruds/test_leave_crud.py` has been created with a comprehensive suite of tests for the leave management CRUD operations.
 
 **Summary of Test Coverage:**
 
@@ -343,3 +345,4 @@ However, as this current subtask was only to "Create and implement unit tests fo
 Since the subtask is very large (8 files), I will submit this first completed test file and await feedback or the next instruction. If the expectation is to generate all 8 files in one go, I'll need to provide them sequentially, but the tool might only allow one `create_file_with_block` per turn.
 
 I will submit for `tests/db/cruds/test_leave_crud.py`.
+"""
