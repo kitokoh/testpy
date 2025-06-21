@@ -1,4 +1,6 @@
 import os
+import sys
+import importlib.util
 import sqlite3
 import uuid
 import hashlib
@@ -8,7 +10,32 @@ import logging
 
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
-from app_config import CONFIG
+
+# Determine project root and app_config.py path
+APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+APP_CONFIG_PATH = os.path.join(APP_ROOT_DIR, "app_config.py")
+
+# Dynamically load app_config using importlib
+try:
+    spec = importlib.util.spec_from_file_location("app_config", APP_CONFIG_PATH)
+    if spec is None:
+        raise ImportError(f"Could not load spec for module app_config from {APP_CONFIG_PATH}")
+    app_config_module = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        raise ImportError(f"Spec loader for app_config is None.")
+    spec.loader.exec_module(app_config_module)
+    CONFIG = app_config_module.CONFIG
+    # Optional: Add to sys.modules if other modules imported by db_seed might also need it directly
+    # sys.modules['app_config'] = app_config_module
+except FileNotFoundError:
+    logging.error(f"app_config.py not found at {APP_CONFIG_PATH}")
+    raise
+except ImportError as e:
+    logging.error(f"Error importing app_config dynamically: {e}")
+    raise
+except AttributeError:
+    logging.error(f"CONFIG variable not found in the loaded app_config_module from {APP_CONFIG_PATH}")
+    raise
 
 # Import necessary functions directly from their new CRUD module locations
 from db.cruds.generic_crud import get_db_connection
@@ -28,9 +55,6 @@ from db.cruds import partners_crud
 # Assuming company and company personnel functions will be imported if they were used via db_main_manager
 # For now, let's assume they are not, or will be handled if errors arise.
 
-# Path adjustments for db_seed.py located in db/
-# __file__ is db/db_seed.py. os.path.dirname(__file__) is db/. os.pardir goes up one level.
-APP_ROOT_DIR_CONTEXT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 LOGO_SUBDIR_CONTEXT = "company_logos" # This should match the setup
 
 # Redundant local helper functions and data are removed.
