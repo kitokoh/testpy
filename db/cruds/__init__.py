@@ -1,4 +1,6 @@
 # db/cruds/__init__.py
+import logging # Added logging import
+
 from . import activity_logs_crud
 from . import application_settings_crud
 from . import client_assigned_personnel_crud # Added
@@ -13,6 +15,7 @@ from . import company_personnel_crud
 from . import contacts_crud
 from . import employees_crud
 from . import employee_documents_crud
+from . import experience_crud # Added
 from . import cover_page_templates_crud
 from . import cover_pages_crud
 from . import freight_forwarders_crud # Added
@@ -30,6 +33,7 @@ from . import product_media_links_crud
 from . import products_crud
 from . import projects_crud
 from . import status_settings_crud
+from . import tags_crud
 from . import tasks_crud
 from . import team_members_crud
 from . import template_categories_crud
@@ -37,6 +41,12 @@ from . import templates_crud
 from . import transporters_crud # Added
 from . import money_transfer_agents_crud # Added
 from . import users_crud
+
+try:
+    from . import media_items_crud
+except ImportError:
+    media_items_crud = None
+    logging.warning("db.cruds.media_items_crud module not found. Media item functionality will be limited.")
 
 # Recruitment CRUDs
 from . import recruitment_job_openings_crud

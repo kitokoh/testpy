@@ -3,6 +3,7 @@ import sys
 import os
 # import logging # logging is already imported
 import logging
+from PyQt5.QtCore import QStringListModel
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -11,7 +12,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QFormLayout, QComboBox,
     QInputDialog, QCompleter, QTabWidget, QAction, QMenu, QGroupBox,
     QStackedWidget, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QTextEdit, QSplitter, QApplication # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
+    QTextEdit, QSplitter, QApplication, # Added QTextEdit for SettingsDialog notes, QSplitter for layout, QApplication
 
 )
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
@@ -52,6 +53,8 @@ from dialogs import (
 # from product_management.list_dialog import ProductListDialog # Removed
 from product_management.page import ProductManagementPage # Added
 
+from dialogs.status_management_dialog import StatusManagementDialog # Added for status management
+
 
 from client_widget import ClientWidget
 from project_management import MainDashboard as ProjectManagementDashboard
@@ -71,6 +74,7 @@ from camera_management.camera_management_widget import CameraManagementWidget # 
 
 from recruitment.recruitment_dashboard import RecruitmentDashboard # Import RecruitmentDashboard
 
+from experience_module_widget import ExperienceModuleWidget # Added
 from download_monitor_service import DownloadMonitorService
 from dialogs.assign_document_dialog import AssignDocumentToClientDialog
 from db.cruds.client_documents_crud import add_client_document # For assign dialog
@@ -83,6 +87,7 @@ CONFIGURABLE_MODULES = [
     {'key': 'module_partner_management_enabled', 'name': 'partner_management', 'action_attr': 'partner_management_action', 'widget_attr': 'partner_management_widget_instance'},
     {'key': 'module_statistics_enabled', 'name': 'statistics', 'action_attr': 'statistics_action', 'widget_attr': 'statistics_dashboard_instance'},
     {'key': 'module_inventory_management_enabled', 'name': 'inventory_management', 'action_attr': 'inventory_browser_action', 'widget_attr': 'inventory_browser_widget_instance'},
+    {'key': 'module_experience_management_enabled', 'name': 'experience_management', 'action_attr': 'experience_management_action', 'widget_attr': 'experience_management_widget_instance'}, # Added
     {'key': 'module_botpress_integration_enabled', 'name': 'botpress_integration', 'action_attr': 'botpress_integration_action', 'widget_attr': 'botpress_integration_ui_instance'},
     {'key': 'module_carrier_map_enabled', 'name': 'carrier_map', 'action_attr': 'open_carrier_map_action', 'widget_attr': None}, # Carrier map is a dialog
 
@@ -153,6 +158,7 @@ class DocumentManager(QMainWindow):
             parent=self
         )
         self.main_area_stack.addWidget(self.settings_page_instance)
+        self.searchable_actions_map = {}
 
         if self.module_states.get('botpress_integration', True):
             self.botpress_integration_ui_instance = BotpressIntegrationUI(parent=self, current_user_id=self.current_user_id)
@@ -176,6 +182,12 @@ class DocumentManager(QMainWindow):
             self.main_area_stack.addWidget(self.camera_management_widget_instance)
         else:
             self.camera_management_widget_instance = None
+
+        if self.module_states.get('experience_management', True): # Default to True
+            self.experience_management_widget_instance = ExperienceModuleWidget(parent=self)
+            self.main_area_stack.addWidget(self.experience_management_widget_instance)
+        else:
+            self.experience_management_widget_instance = None
 
         self.main_area_stack.setCurrentWidget(self.documents_page_widget) # Default view
         self.create_actions_main(); self.create_menus_main()
@@ -594,8 +606,8 @@ class DocumentManager(QMainWindow):
 
     def create_actions_main(self): 
         self.settings_action = QAction(QIcon(":/icons/modern/settings.svg"), self.tr("Paramètres"), self); self.settings_action.triggered.connect(self.show_settings_page) # Changed to show_settings_page
-        self.template_action = QAction(QIcon(":/icons/modern/templates.svg"), self.tr("Gérer les Modèles"), self); self.template_action.triggered.connect(self.open_template_manager_dialog)
-        self.status_action = QAction(QIcon(":/icons/check-square.svg"), self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_manager_dialog); self.status_action.setEnabled(False); self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
+        # self.template_action removed
+        self.status_action = QAction(QIcon(":/icons/check-square.svg"), self.tr("Gérer les Statuts"), self); self.status_action.triggered.connect(self.open_status_management_dialog_slot); self.status_action.setEnabled(False); self.status_action.setToolTip(self.tr("Fonctionnalité de gestion des statuts prévue pour une future version."))
         self.exit_action = QAction(QIcon(":/icons/log-out.svg"), self.tr("Quitter"), self); self.exit_action.setShortcut("Ctrl+Q"); self.exit_action.triggered.connect(self.close)
         self.project_management_action = QAction(QIcon(":/icons/dashboard.svg"), self.tr("Gestion de Projet"), self); self.project_management_action.triggered.connect(self.show_project_management_view)
         self.documents_view_action = QAction(QIcon(":/icons/modern/folder-docs.svg"), self.tr("Gestion Documents"), self); self.documents_view_action.triggered.connect(self.show_documents_view)
@@ -614,10 +626,30 @@ class DocumentManager(QMainWindow):
         self.camera_management_action = QAction(QIcon(":/icons/video.svg"), self.tr("Gestion Caméras"), self)
         self.camera_management_action.triggered.connect(self.show_camera_management_view)
 
+        self.experience_management_action = QAction(QIcon(":/icons/book.svg"), self.tr("Gestion des Connaissances"), self) # Consider a more specific icon if available
+        self.experience_management_action.triggered.connect(self.show_experience_module_view)
+
+
+        # Populate searchable_actions_map
+        self.searchable_actions_map[self.tr("Paramètres")] = self.settings_action
+        # self.searchable_actions_map[self.tr("Gérer les Modèles")] removed
+        self.searchable_actions_map[self.tr("Gérer les Statuts")] = self.status_action
+        self.searchable_actions_map[self.tr("Quitter")] = self.exit_action
+        self.searchable_actions_map[self.tr("Gestion de Projet")] = self.project_management_action
+        self.searchable_actions_map[self.tr("Gestion Documents")] = self.documents_view_action
+        self.searchable_actions_map[self.tr("Product Management")] = self.product_list_action
+        self.searchable_actions_map[self.tr("Partner Management")] = self.partner_management_action
+        self.searchable_actions_map[self.tr("Statistiques")] = self.statistics_action
+        self.searchable_actions_map[self.tr("Carrier Map")] = self.open_carrier_map_action
+        self.searchable_actions_map[self.tr("Botpress Integration")] = self.botpress_integration_action
+        self.searchable_actions_map[self.tr("Gestion Stock Atelier")] = self.inventory_browser_action
+        self.searchable_actions_map[self.tr("Recrutement")] = self.recruitment_action
+        self.searchable_actions_map[self.tr("Gestion Caméras")] = self.camera_management_action
+        self.searchable_actions_map[self.tr("Gestion des Connaissances")] = self.experience_management_action
 
 
     def create_menus_main(self): 
-        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.template_action); file_menu.addAction(self.status_action); # file_menu.addAction(self.product_equivalency_action);
+        menu_bar = self.menuBar(); file_menu = menu_bar.addMenu(self.tr("Fichier")); file_menu.addAction(self.settings_action); file_menu.addAction(self.status_action); # self.template_action removed, file_menu.addAction(self.product_equivalency_action);
         file_menu.addSeparator(); file_menu.addAction(self.exit_action)
 
         modules_menu = menu_bar.addMenu(self.tr("Modules"))
@@ -643,6 +675,53 @@ class DocumentManager(QMainWindow):
 
 
         help_menu = menu_bar.addMenu(self.tr("Aide")); about_action = QAction(QIcon(":/icons/help-circle.svg"), self.tr("À propos"), self); about_action.triggered.connect(self.show_about_dialog); help_menu.addAction(about_action)
+        # Add about_action to searchable_actions_map
+        self.searchable_actions_map[self.tr("À propos")] = about_action
+
+        # Search bar in menu bar
+        self.search_bar_line_edit = QLineEdit(self)
+        self.search_bar_line_edit.setObjectName("menuBarSearch")
+        self.search_bar_line_edit.setPlaceholderText(self.tr("Rechercher une fonctionnalité..."))
+
+        self.search_completer_model = QStringListModel([])
+        self.search_completer = QCompleter(self.search_completer_model, self)
+        self.search_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.search_completer.setFilterMode(Qt.MatchContains)
+
+        completer_popup = self.search_completer.popup()
+        completer_popup.setObjectName("menuBarSearchCompleterView")
+
+        self.search_bar_line_edit.setCompleter(self.search_completer)
+
+        # Update completer model with action names
+        action_names = list(self.searchable_actions_map.keys())
+        self.search_completer_model.setStringList(action_names)
+
+        # Connect signals for search activation
+        self.search_completer.activated[str].connect(self.handle_search_activation)
+        self.search_bar_line_edit.returnPressed.connect(self.handle_search_return_pressed)
+
+        self.menuBar().setCornerWidget(self.search_bar_line_edit, Qt.TopRightCorner)
+
+    @pyqtSlot(str)
+    def handle_search_activation(self, text):
+        logging.info(f"Search activated for: {text}")
+        action_to_trigger = self.searchable_actions_map.get(text)
+        if action_to_trigger:
+            logging.info(f"Triggering action: {action_to_trigger.text()}")
+            action_to_trigger.trigger()
+            self.search_bar_line_edit.clear() # Clear search bar after activation
+        else:
+            logging.warning(f"No action found for search term: {text}")
+
+    def handle_search_return_pressed(self):
+        text = self.search_bar_line_edit.text()
+        # Check if the current text is an exact match for a completer suggestion
+        # This is a bit simplified; a more robust way might involve checking against the model
+        if text in self.searchable_actions_map:
+            self.handle_search_activation(text)
+        # Optionally, if there's a unique completion, activate it,
+        # or if multiple, do nothing or show popup. For now, exact match.
 
     def open_carrier_map_dialog(self):
         # This module is just a dialog, check its state if needed before opening
@@ -876,20 +955,38 @@ class DocumentManager(QMainWindow):
         logging.info(f"open_client_tab_by_id: client_data_to_show after augmentation: {client_data_to_show}")
 
         for i in range(self.client_tabs_widget.count()):
-            tab_widget_ref = self.client_tabs_widget.widget(i) 
+            tab_widget_ref = self.client_tabs_widget.widget(i)
             if hasattr(tab_widget_ref, 'client_info') and tab_widget_ref.client_info["client_id"] == client_id_to_open:
-                logging.info(f"Refreshing existing tab for client ID {client_id_to_open}")
+                logging.info(f"main_window.open_client_tab_by_id: Refreshing existing tab for client_id: {client_id_to_open}")
                 self.client_tabs_widget.setCurrentIndex(i)
                 if hasattr(tab_widget_ref, 'refresh_display'):
                     tab_widget_ref.refresh_display(client_data_to_show)
                 return
 
-        logging.info(f"Creating new tab for client ID {client_id_to_open}")
-        notification_manager = QApplication.instance().notification_manager
-        logging.info(f"Client data being passed to ClientWidget: {client_data_to_show}")
-        client_detail_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
-        tab_idx = self.client_tabs_widget.addTab(client_detail_widget, client_data_to_show["client_name"]) 
-        self.client_tabs_widget.setCurrentIndex(tab_idx)
+        logging.info(f"main_window.open_client_tab_by_id: Preparing to instantiate ClientWidget with data: {client_data_to_show}")
+        logging.info(f"main_window.open_client_tab_by_id: Attempting to create ClientWidget for client_id: {client_id_to_open}")
+        try:
+            notification_manager = QApplication.instance().notification_manager
+            client_widget = ClientWidget(client_data_to_show, self.config, self.app_root_dir, notification_manager, parent=self)
+            logging.info(f"main_window.open_client_tab_by_id: Successfully created ClientWidget for client_id: {client_id_to_open}")
+        except Exception as e:
+            logging.error(f"main_window.open_client_tab_by_id: Error instantiating ClientWidget for client_id: {client_id_to_open} - {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Impossible de créer l'onglet client. Erreur: {0}").format(str(e)))
+            return
+
+        logging.info(f"main_window.open_client_tab_by_id: Attempting to add ClientWidget to tab for client_id: {client_id_to_open}")
+        try:
+            client_name_for_tab = client_data_to_show.get("client_name", self.tr("Client Inconnu"))
+            index = self.client_tabs_widget.addTab(client_widget, client_name_for_tab)
+            self.client_tabs_widget.setCurrentIndex(index)
+            logging.info(f"main_window.open_client_tab_by_id: Successfully added ClientWidget tab for client_id: {client_id_to_open} at index {index}")
+        except Exception as e:
+            logging.error(f"main_window.open_client_tab_by_id: Error adding ClientWidget to tab for client_id: {client_id_to_open} - {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Impossible d'ajouter l'onglet client au gestionnaire d'onglets. Erreur: {0}").format(str(e)))
+            # Attempt to clean up the partially created widget if it exists
+            if 'client_widget' in locals() and client_widget:
+                client_widget.deleteLater()
+            return
             
     def close_client_tab(self, index): 
         widget_to_close = self.client_tabs_widget.widget(index) 
@@ -972,9 +1069,98 @@ class DocumentManager(QMainWindow):
         self.init_or_update_download_monitor()
         logging.info("Settings saved from SettingsPage. Checked for module changes and re-initialized download monitor.")
 
-            
-    def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_()
-    def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter."))
+    # def open_template_manager_dialog(self): TemplateDialog(self.config, self).exec_() # Method removed
+    # def open_status_manager_dialog(self): QMessageBox.information(self, self.tr("Gestion des Statuts"), self.tr("Fonctionnalité à implémenter.")) # Old method, will be replaced by open_status_management_dialog_slot
+
+    def open_status_management_dialog_slot(self):
+        """Opens the Status Management dialog."""
+        logging.info("Opening Status Management Dialog.")
+        dialog = StatusManagementDialog(parent=self)
+        dialog.exec_() # Show modally
+        # After the dialog closes, refresh relevant UI parts
+        logging.info("Status Management Dialog closed. Refreshing client widgets and filters.")
+        self.refresh_client_widgets_and_filters()
+
+    def refresh_client_widgets_and_filters(self):
+        """
+        Refreshes client-related widgets and filter dropdowns after changes
+        (e.g., status updates).
+        Placeholder for now. Implementation in next subtask.
+        """
+        logging.info("refresh_client_widgets_and_filters called (placeholder).")
+        # Actual implementation will come in the next step.
+        # This will involve:
+        # 1. Reloading statuses in self.status_filter_combo
+        # 2. Refreshing any open ClientWidget tabs if their status might have changed.
+        logging.info("Refreshing main status filter combo box...")
+        self.load_statuses_into_filter_combo() # Part of the refresh
+        logging.info("Main status filter combo box refreshed.")
+
+        # Refresh open client tabs
+        logging.info("Refreshing open client tabs...")
+        for i in range(self.client_tabs_widget.count()):
+            client_widget_candidate = self.client_tabs_widget.widget(i)
+            # Check if the tab is indeed a ClientWidget instance
+            if isinstance(client_widget_candidate, ClientWidget):
+                client_widget = client_widget_candidate
+                client_id = client_widget.client_info.get("client_id")
+                logging.info(f"Processing ClientWidget for client ID: {client_id} at tab index {i}.")
+
+                # Call the ClientWidget's own load_statuses to refresh its status combo
+                if hasattr(client_widget, 'load_statuses'):
+                    logging.debug(f"Calling load_statuses() for ClientWidget of client ID: {client_id}")
+                    client_widget.load_statuses()
+
+                # Re-fetch client data to get the most up-to-date info (including potentially changed status_id or status name)
+                if client_id:
+                    logging.debug(f"Re-fetching data for client ID: {client_id}")
+                    fresh_client_data = clients_crud_instance.get_client_by_id(client_id, include_deleted=False) # Assuming active clients in tabs
+
+                    if fresh_client_data:
+                        # Augment data with related names (country, city, status text)
+                        # This ensures that if a status name was changed, it's reflected.
+                        if 'country' not in fresh_client_data and fresh_client_data.get('country_id'):
+                            country_obj = db_manager.get_country_by_id(fresh_client_data['country_id'])
+                            fresh_client_data['country'] = country_obj.get('country_name', "N/A") if country_obj else "N/A"
+
+                        if 'city' not in fresh_client_data and fresh_client_data.get('city_id'):
+                            city_obj = db_manager.get_city_by_id(fresh_client_data['city_id'])
+                            fresh_client_data['city'] = city_obj.get('city_name', "N/A") if city_obj else "N/A"
+
+                        if 'status' not in fresh_client_data and fresh_client_data.get('status_id'):
+                            status_obj = db_manager.get_status_setting_by_id(fresh_client_data['status_id'])
+                            fresh_client_data['status'] = status_obj.get('status_name', "N/A") if status_obj else "N/A"
+
+                        selected_languages_str = fresh_client_data.get('selected_languages')
+                        if isinstance(selected_languages_str, str) and selected_languages_str.strip():
+                            fresh_client_data['selected_languages'] = [lang.strip() for lang in selected_languages_str.split(',') if lang.strip()]
+                        elif not isinstance(fresh_client_data.get('selected_languages'), list):
+                            fresh_client_data['selected_languages'] = []
+
+                        # Call refresh_display on the ClientWidget with the fresh, augmented data
+                        if hasattr(client_widget, 'refresh_display'):
+                            logging.debug(f"Calling refresh_display() for ClientWidget of client ID: {client_id}")
+                            client_widget.refresh_display(fresh_client_data)
+                            logging.info(f"Refreshed client tab display for client ID: {client_id}")
+                        else:
+                            logging.warning(f"ClientWidget for client ID: {client_id} does not have refresh_display method.")
+                    else:
+                        logging.warning(f"Could not re-fetch data for client ID: {client_id} during refresh. Tab might be stale or client deleted.")
+                        # Optionally, consider closing the tab if client data is no longer found
+                        # self.client_tabs_widget.removeTab(i) # Be careful with loop indices if removing.
+                else:
+                    logging.warning(f"ClientWidget at tab index {i} has no client_id in its client_info.")
+            else:
+                logging.debug(f"Tab at index {i} is not a ClientWidget instance (it's a {type(client_widget_candidate).__name__}). Skipping.")
+        logging.info("Finished refreshing open client tabs.")
+
+        # Refresh the main client list display
+        logging.info("Refreshing main client list...")
+        self.load_clients_from_db_slot()
+        logging.info("Main client list refreshed.")
+        self.notify("Mise à jour", "Interface mise à jour suite aux changements de statuts.", "INFO")
+
+
     # def open_product_list_placeholder(self): ProductListDialog(self).exec_() # Removed
     def closeEvent(self, event):
         logging.info("Close event triggered. Stopping services and saving config.")
@@ -995,3 +1181,10 @@ class DocumentManager(QMainWindow):
         pass
     def add_new_city_dialog(self): # ... (unchanged)
         pass
+
+    def show_experience_module_view(self):
+        if self.experience_management_widget_instance:
+            self.main_area_stack.setCurrentWidget(self.experience_management_widget_instance)
+        else:
+            logging.warning("Experience Management widget instance is None. Cannot show view.")
+            QMessageBox.warning(self, self.tr("Module Désactivé"), self.tr("Le module Gestion des Connaissances est désactivé."))

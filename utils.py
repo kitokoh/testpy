@@ -43,15 +43,19 @@ def load_config(app_root_dir, default_templates_dir, default_clients_dir):
     if os.path.exists(config_path):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                user_config = json.load(f)
+                # Ensure 'database_type' defaults to 'sqlite' if not present
+                user_config.setdefault('database_type', 'sqlite')
+                return user_config
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error loading config: {e}. Using defaults.")
 
     # If config file doesn't exist or is invalid, return defaults
-    return {
+    default_config = {
         "templates_dir": default_templates_dir, # Use passed default
         "clients_dir": default_clients_dir,     # Use passed default
         "database_path": os.path.join(app_root_dir, "app_data.db"),
+        "database_type": "sqlite", # Ensure default is sqlite
         "language": "fr",
         "smtp_server": "",
         "smtp_port": 587,
@@ -61,6 +65,7 @@ def load_config(app_root_dir, default_templates_dir, default_clients_dir):
         "download_monitor_enabled": False,
         "download_monitor_path": os.path.join(os.path.expanduser('~'), 'Downloads')
     }
+    return default_config
 
 def save_config(config_data):
     try:

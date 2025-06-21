@@ -300,7 +300,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 10.00,
                 "unit_of_measure": "unit",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD001"
             },
             {
                 "product_name": "Industrial Widget",
@@ -309,7 +310,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 100.00,
                 "unit_of_measure": "piece",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD002"
             },
             {
                 "product_name": "Gadget Standard",
@@ -318,7 +320,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "fr",
                 "base_unit_price": 50.00,
                 "unit_of_measure": "unité",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD003"
             },
             {
                 "product_name": "Advanced Gizmo",
@@ -327,7 +330,8 @@ def seed_initial_data(cursor: sqlite3.Cursor):
                 "language_code": "en",
                 "base_unit_price": 250.00,
                 "unit_of_measure": "item",
-                "is_active": True
+                "is_active": True,
+                "product_code": "PROD004"
             }
         ]
 
@@ -455,7 +459,15 @@ DEFAULT_UTILITY_DOCUMENTS = [
     {'template_name': 'Cover Page FR', 'base_file_name': 'cover_page_template.html', 'language_code': 'fr', 'description': 'Modèle de page de garde standard en français.'},
     {'template_name': 'Technical Specifications EN', 'base_file_name': 'technical_specifications_template.html', 'language_code': 'en', 'description': 'Template for technical specifications in English.'},
     {'template_name': 'Technical Specifications FR', 'base_file_name': 'technical_specifications_template.html', 'language_code': 'fr', 'description': 'Modèle de spécifications techniques en français.'},
-    {'template_name': 'Warranty Document EN', 'base_file_name': 'warranty_document_template.html', 'language_code': 'en', 'description': 'Standard warranty document in English.'}
+    {'template_name': 'Warranty Document EN', 'base_file_name': 'warranty_document_template.html', 'language_code': 'en', 'description': 'Standard warranty document in English.'},
+    {
+        'template_name': 'Affichage Images Produit FR',
+        'base_file_name': 'product_images_template.html',
+        'language_code': 'fr',
+        'description': 'Affiche les images des produits, leur nom et leur code.'
+        # template_type will be derived dynamically by the script, resulting in 'document_html'
+        # category_id will be derived from DEFAULT_UTILITY_TEMPLATES_CATEGORY_NAME
+    }
 ]
 
 def _seed_default_utility_templates(cursor: sqlite3.Cursor, conn: sqlite3.Connection, logger_passed: logging.Logger):

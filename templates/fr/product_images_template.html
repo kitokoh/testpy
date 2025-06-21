@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Images des Produits</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo {
+            max-width: 150px;
+            height: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .product-image {
+            max-width: 100px;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo-container">
+        <!-- Placeholder for company logo. The 'seller.company_logo_path' variable should be provided in the context -->
+        {% if seller.company_logo_path %}
+            <img src="{{ seller.company_logo_path }}" alt="Company Logo" class="logo">
+        {% else %}
+            <p>(Logo de l'entreprise)</p>
+        {% endif %}
+    </div>
+
+    <h1>Liste des Images des Produits</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Image Produit</th>
+                <th>Nom Produit</th>
+                <th>Code Produit</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Loop through products. The 'products' variable should be a list of product objects provided in the context -->
+            <!-- Each product object should have 'image_url', 'name', and 'code' attributes -->
+            {% for product in products %}
+            <tr>
+                <td>
+                    {% if product.image_url %}
+                        <img src="{{ product.image_url }}" alt="Image de {{ product.name }}" class="product-image">
+                    {% else %}
+                        <span>(Pas d'image)</span>
+                    {% endif %}
+                </td>
+                <td>{{ product.name }}</td>
+                <td>{{ product.code }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align:center;">Aucun produit à afficher.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

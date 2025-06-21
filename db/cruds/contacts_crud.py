@@ -46,7 +46,7 @@ def add_contact(data: dict, conn: sqlite3.Connection = None) -> int | None:
         cursor.execute(sql,params)
         return cursor.lastrowid
     except sqlite3.Error as e:
-        logging.error(f"Error adding contact '{name}': {e}")
+        logging.error(f"Error adding contact with data {params}: {type(e).__name__} - {e}", exc_info=True)
         return None
 
 @_manage_conn
@@ -166,13 +166,14 @@ def remove_contact_from_list(data: dict, conn: sqlite3.Connection = None) -> obj
 # --- ClientContacts CRUD ---
 @_manage_conn
 def link_contact_to_client(client_id: str, contact_id: int, is_primary: bool = False, can_receive_documents: bool = True, conn: sqlite3.Connection = None) -> int | None:
+    logging.info(f"link_contact_to_client called with client_id: {client_id}, contact_id: {contact_id}") # New log
     cursor=conn.cursor()
     sql="INSERT INTO ClientContacts (client_id, contact_id, is_primary_for_client, can_receive_documents) VALUES (?,?,?,?)"
     try:
         cursor.execute(sql,(client_id,contact_id,is_primary,can_receive_documents))
         return cursor.lastrowid
     except sqlite3.Error as e: # Handles UNIQUE constraint
-        logging.error(f"Error linking contact {contact_id} to client {client_id}: {e}")
+        logging.error(f"Error linking contact {contact_id} to client {client_id}. Error type: {type(e)}, Message: {e}") # Enhanced log
         return None
 
 @_manage_conn

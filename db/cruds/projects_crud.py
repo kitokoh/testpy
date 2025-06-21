@@ -14,6 +14,7 @@ def add_project(project_data: dict, conn: sqlite3.Connection = None) -> str | No
     start_date, deadline_date, budget, status_id.
     Optional keys: manager_team_member_id, priority.
     """
+    logging.info(f"projects_crud.add_project: Attempting to add project with data: {project_data}")
     cursor = conn.cursor()
     new_project_id = str(uuid.uuid4())
     now_utc = datetime.now(timezone.utc).isoformat()
@@ -54,7 +55,7 @@ def add_project(project_data: dict, conn: sqlite3.Connection = None) -> str | No
         logger.info(f"Project '{project_data['project_name']}' added with ID: {new_project_id} for client {project_data['client_id']}.")
         return new_project_id
     except sqlite3.Error as e:
-        logger.error(f"Database error in add_project for '{project_data.get('project_name')}': {e}", exc_info=True)
+        logger.error(f"projects_crud.add_project: Failed to add project with data {project_data}. Error: {type(e).__name__} - {e}", exc_info=True)
         return None
 
 @_manage_conn

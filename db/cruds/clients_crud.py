@@ -62,14 +62,14 @@ class ClientsCRUD(GenericCRUD):
         sql = """INSERT INTO Clients
                  (client_id, client_name, company_name, primary_need_description, project_identifier,
                   country_id, city_id, default_base_folder_path, status_id, selected_languages,
-                  price, notes, category, created_at, updated_at, created_by_user_id, is_deleted, deleted_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                  price, notes, category, created_at, updated_at, created_by_user_id, is_deleted, deleted_at, default_template_id)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
         params = (new_id, data.get('client_name'), data.get('company_name'), data.get('primary_need_description'),
                   data.get('project_identifier', 'N/A'), data.get('country_id'), data.get('city_id'),
                   data.get('default_base_folder_path'), data.get('status_id'),
                   data.get('selected_languages'), data.get('price', 0), data.get('notes'),
                   data.get('category'), now, now, data.get('created_by_user_id'),
-                  data['is_deleted'], data['deleted_at'])
+                  data['is_deleted'], data['deleted_at'], data.get('default_template_id'))
         try:
             cursor.execute(sql, params)
             # conn.commit() # Handled by _manage_conn
@@ -189,7 +189,7 @@ class ClientsCRUD(GenericCRUD):
         valid_cols = ['client_name', 'company_name', 'primary_need_description', 'project_identifier',
                       'country_id', 'city_id', 'default_base_folder_path', 'status_id',
                       'selected_languages', 'price', 'notes', 'category', 'updated_at',
-                      'created_by_user_id', 'is_deleted', 'deleted_at'] # Added soft delete fields
+                      'created_by_user_id', 'is_deleted', 'deleted_at', 'default_template_id'] # Added soft delete fields and default_template_id
 
         data_to_set = {}
         for k, v in client_data.items():
@@ -213,7 +213,7 @@ class ClientsCRUD(GenericCRUD):
             # conn.commit() # Handled by _manage_conn
             return {'success': cursor.rowcount > 0, 'updated_count': cursor.rowcount}
         except sqlite3.Error as e:
-            logging.error(f"Failed to update client {client_id}: {e}")
+            logging.error(f"clients_crud.update_client: Failed to update client {client_id} with data {data_to_set}. Error: {type(e).__name__} - {e}", exc_info=True)
             # conn.rollback() # Handled by _manage_conn
             return {'success': False, 'error': str(e)}
 
@@ -274,13 +274,15 @@ class ClientsCRUD(GenericCRUD):
         SELECT c.client_id, c.client_name, c.company_name, c.primary_need_description,
                c.project_identifier, c.default_base_folder_path, c.selected_languages,
                c.price, c.notes, c.created_at, c.category, c.status_id, c.country_id, c.city_id,
-               c.is_deleted, c.deleted_at,
+               c.is_deleted, c.deleted_at, c.default_template_id,
                co.country_name AS country, ci.city_name AS city,
-               s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name
+               s.status_name AS status, s.color_hex AS status_color, s.icon_name AS status_icon_name,
+               t.template_name AS default_template_name
         FROM Clients c
         LEFT JOIN Countries co ON c.country_id = co.country_id
         LEFT JOIN Cities ci ON c.city_id = ci.city_id
         LEFT JOIN StatusSettings s ON c.status_id = s.status_id AND s.status_type = 'Client'
+        LEFT JOIN Templates t ON c.default_template_id = t.template_id
         """
 
         conditions = []

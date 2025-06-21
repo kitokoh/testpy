@@ -86,6 +86,7 @@ class ClientWidget(QWidget):
 
     def __init__(self, client_info, config, app_root_dir, notification_manager, parent=None): # Add notification_manager
         super().__init__(parent)
+        logging.info(f"ClientWidget.__init__: INSTANTIATION STARTED for client_id={client_info.get('client_id')}")
         logging.info(f"ClientWidget.__init__: Received client_info: {client_info}")
         logging.info(f"ClientWidget initialized with client_info: {client_info}")
         logging.info(f"ClientWidget __init__: client_id={client_info.get('client_id')}, client_name={client_info.get('client_name')}")
@@ -130,6 +131,7 @@ class ClientWidget(QWidget):
         logging.info("ClientWidget.__init__: Calling self.setup_ui()...")
         self.setup_ui()
         logging.info("ClientWidget.__init__: Finished self.setup_ui().")
+        logging.info(f"ClientWidget.__init__: INSTANTIATION COMPLETED for client_id={self.client_info.get('client_id')}")
 
     def setup_ui(self):
         logging.info("ClientWidget.setup_ui: Starting UI setup...")
@@ -200,7 +202,7 @@ class ClientWidget(QWidget):
 
             client_info_group_layout.addWidget(self.info_container_widget)
             self.client_info_group_box.setChecked(True)
-            main_layout.addWidget(self.client_info_group_box)
+            layout.addWidget(self.client_info_group_box)
         except Exception as e:
             logging.error(f"Error in _setup_client_info_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation section infos client:\n{0}").format(str(e)))
@@ -209,26 +211,79 @@ class ClientWidget(QWidget):
         self._setup_main_tabs_section(layout) # This will call sub-methods for each tab
 
         # Initial data loading calls
-        try: self.populate_doc_table()
-        except Exception as e: logging.error(f"Error initial load Documents tab: {e}", exc_info=True)
-        try: self.load_contacts()
-        except Exception as e: logging.error(f"Error initial load Contacts tab: {e}", exc_info=True)
-        try: self.load_products()
-        except Exception as e: logging.error(f"Error initial load Products tab: {e}", exc_info=True)
-        try: self.load_document_notes_filters()
-        except Exception as e: logging.error(f"Error initial load Doc Notes Filters: {e}", exc_info=True)
-        try: self.load_document_notes_table()
-        except Exception as e: logging.error(f"Error initial load Doc Notes tab: {e}", exc_info=True)
-        try: self.update_sav_tab_visibility()
-        except Exception as e: logging.error(f"Error initial SAV tab visibility/load: {e}", exc_info=True)
-        try: self.load_assigned_vendors_personnel()
-        except Exception as e: logging.error(f"Error initial load Assigned Vendors: {e}", exc_info=True)
-        try: self.load_assigned_technicians()
-        except Exception as e: logging.error(f"Error initial load Assigned Technicians: {e}", exc_info=True)
-        try: self.load_assigned_transporters()
-        except Exception as e: logging.error(f"Error initial load Assigned Transporters: {e}", exc_info=True)
-        try: self.load_assigned_freight_forwarders()
-        except Exception as e: logging.error(f"Error initial load Assigned Forwarders: {e}", exc_info=True)
+        logging.info("ClientWidget.setup_ui: Starting initial data loading for tabs...")
+
+        logging.info("ClientWidget.setup_ui: Attempting self.populate_doc_table()")
+        try:
+            self.populate_doc_table()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.populate_doc_table()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.populate_doc_table(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_contacts()")
+        try:
+            self.load_contacts()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_contacts()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_contacts(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_products()")
+        try:
+            self.load_products() # This also calls load_products_for_dimension_tab
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_products()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_products(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_document_notes_filters()")
+        try:
+            self.load_document_notes_filters()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_document_notes_filters()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_document_notes_filters(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_document_notes_table()")
+        try:
+            self.load_document_notes_table()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_document_notes_table()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_document_notes_table(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.update_sav_tab_visibility()")
+        try:
+            self.update_sav_tab_visibility() # This calls load_purchase_history_table and load_sav_tickets_table
+            logging.info("ClientWidget.setup_ui: Successfully completed self.update_sav_tab_visibility()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.update_sav_tab_visibility(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_vendors_personnel()")
+        try:
+            self.load_assigned_vendors_personnel()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_vendors_personnel()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_vendors_personnel(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_technicians()")
+        try:
+            self.load_assigned_technicians()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_technicians()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_technicians(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_transporters()")
+        try:
+            self.load_assigned_transporters()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_transporters()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_transporters(): {e}", exc_info=True)
+
+        logging.info("ClientWidget.setup_ui: Attempting self.load_assigned_freight_forwarders()")
+        try:
+            self.load_assigned_freight_forwarders()
+            logging.info("ClientWidget.setup_ui: Successfully completed self.load_assigned_freight_forwarders()")
+        except Exception as e:
+            logging.error(f"ClientWidget.setup_ui: Error during self.load_assigned_freight_forwarders(): {e}", exc_info=True)
+        
+        logging.info("ClientWidget.setup_ui: Finished initial data loading for tabs.")
 
         # Connect accordion group box toggled signals
         if hasattr(self, 'client_info_group_box'):
@@ -240,6 +295,7 @@ class ClientWidget(QWidget):
         # Event filter for notes auto-save
         if hasattr(self, 'notes_edit'):
             self.notes_edit.installEventFilter(self)
+        logging.info(f"ClientWidget.setup_ui: FULL UI SETUP COMPLETED for client_id={self.client_info.get('client_id')}")
 
     def _setup_notes_section(self, main_layout):
         try:
@@ -278,12 +334,115 @@ class ClientWidget(QWidget):
             self._setup_products_tab()
             self._setup_document_notes_tab()
             self._setup_product_dimensions_tab()
-            self._setup_sav_tab()
+            self._setup_available_templates_tab()
+
+            logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_sav_tab()")
+            try:
+                logging.debug("ClientWidget._setup_main_tabs_section: ATTEMPTING CALL self._setup_sav_tab()")
+                self._setup_sav_tab()
+                logging.info("ClientWidget._setup_main_tabs_section: POST-CALL self._setup_sav_tab() - SUCCESS")
+            except Exception as e:
+                logging.error("ClientWidget._setup_main_tabs_section: CRITICAL ERROR DURING OR IMMEDIATELY AFTER CALL TO self._setup_sav_tab()", exc_info=True)
+                QMessageBox.critical(self, self.tr("Erreur Critique"), self.tr("Une erreur critique est survenue lors de l'initialisation de l'onglet SAV."))
+            
+            logging.info("ClientWidget._setup_main_tabs_section: PRE-CALL self._setup_assignments_tab()")
             self._setup_assignments_tab()
             self._setup_billing_tab()
         except Exception as e:
             logging.error(f"Error in _setup_main_tabs_section: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation conteneur onglets principaux:\n{0}").format(str(e)))
+
+    def _setup_available_templates_tab(self):
+        try:
+            logging.info("ClientWidget.setup_ui: Starting setup for Available Templates Tab Structure...")
+            self.available_templates_tab = QWidget()
+            available_templates_layout = QVBoxLayout(self.available_templates_tab)
+
+            self.available_templates_table = QTableWidget()
+            self.available_templates_table.setColumnCount(5) # Name, Description, Language, Type, Actions
+            self.available_templates_table.setHorizontalHeaderLabels([
+                self.tr("Name"), self.tr("Description"), self.tr("Language"),
+                self.tr("Type"), self.tr("Actions")
+            ])
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            self.available_templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+            self.available_templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            self.available_templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+
+            available_templates_layout.addWidget(self.available_templates_table)
+
+            self.tab_widget.addTab(self.available_templates_tab, self.tr("Available Templates"))
+            self.load_available_templates() # Load data
+            logging.info("ClientWidget._setup_available_templates_tab: SUCCESSFULLY COMPLETED")
+        except Exception as e:
+            logging.error(f"Error in _setup_available_templates_tab: {e}", exc_info=True)
+            QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Modèles Disponibles:\n{0}").format(str(e)))
+
+    def load_available_templates(self):
+        self.available_templates_table.setRowCount(0)
+        try:
+            templates = db_manager.get_all_templates()
+            if templates is None:
+                templates = []
+
+            self.available_templates_table.setRowCount(len(templates))
+            for row_idx, template_data in enumerate(templates):
+                template_id = template_data.get('template_id')
+
+                name_item = QTableWidgetItem(template_data.get('template_name', self.tr("N/A")))
+                name_item.setData(Qt.UserRole, template_id) # Store template_id with the name item
+                self.available_templates_table.setItem(row_idx, 0, name_item)
+
+                self.available_templates_table.setItem(row_idx, 1, QTableWidgetItem(template_data.get('description', '')))
+                self.available_templates_table.setItem(row_idx, 2, QTableWidgetItem(template_data.get('language_code', '')))
+                self.available_templates_table.setItem(row_idx, 3, QTableWidgetItem(template_data.get('template_type', '')))
+
+                generate_button = QPushButton(self.tr("Generate"))
+                # Use a lambda to pass template_id to the handler
+                generate_button.clicked.connect(lambda checked, t_id=template_id: self.handle_generate_template_button_clicked(t_id))
+
+                action_widget = QWidget()
+                action_layout = QHBoxLayout(action_widget)
+                action_layout.addWidget(generate_button)
+                action_layout.setContentsMargins(5, 0, 5, 0)
+                action_layout.setAlignment(Qt.AlignCenter)
+                action_widget.setLayout(action_layout)
+                self.available_templates_table.setCellWidget(row_idx, 4, action_widget)
+
+        except Exception as e:
+            logging.error(f"Error loading available templates: {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur Chargement Modèles"),
+                                 self.tr("Impossible de charger la liste des modèles disponibles:\n{0}").format(str(e)))
+
+    def handle_generate_template_button_clicked(self, template_id):
+        try:
+            template_data = db_manager.get_template_by_id(template_id)
+            if template_data:
+                # Ensure CreateDocumentDialog is available (it should be via _import_main_elements)
+                if not hasattr(self, 'CreateDocumentDialog') or self.CreateDocumentDialog is None:
+                    logging.error("CreateDocumentDialog is not available in ClientWidget.")
+                    QMessageBox.critical(self, self.tr("Erreur Composant"),
+                                         self.tr("Le composant de création de document n'est pas chargé."))
+                    return
+
+                dialog = self.CreateDocumentDialog(
+                    client_info=self.client_info,
+                    config=self.config,
+                    parent=self,
+                    template_data=template_data  # Pass the fetched template data
+                )
+                if dialog.exec_() == QDialog.Accepted:
+                    self.populate_doc_table()  # Refresh documents tab
+            else:
+                QMessageBox.warning(self, self.tr("Modèle Introuvable"),
+                                    self.tr("Le modèle avec l'ID {0} n'a pas été trouvé.").format(template_id))
+        except Exception as e:
+            logging.error(f"Error in handle_generate_template_button_clicked: {e}", exc_info=True)
+            QMessageBox.critical(self, self.tr("Erreur"),
+                                 self.tr("Une erreur est survenue lors de la tentative de génération du document à partir du modèle:\n{0}").format(str(e)))
 
     def _setup_documents_tab(self):
         try:
@@ -512,84 +671,186 @@ class ClientWidget(QWidget):
 
     def _setup_product_dimensions_tab(self):
         try:
-            logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...")
-            # --- Product Dimensions Tab Structure ---
+            logging.info("ClientWidget.setup_ui: Starting setup for Product Dimensions Tab Structure...") # Existing log
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Line after initial info log")
 
             self.product_dimensions_tab = QWidget()
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created self.product_dimensions_tab")
+
             prod_dims_layout = QVBoxLayout(self.product_dimensions_tab)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created prod_dims_layout")
+
             self.dim_product_selector_combo = QComboBox()
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created self.dim_product_selector_combo")
+
             self.dim_product_selector_combo.addItem(self.tr("Sélectionner un produit..."), None)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added initial item to dim_product_selector_combo")
+
             prod_dims_layout.addWidget(self.dim_product_selector_combo)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added dim_product_selector_combo to layout")
+
             self.edit_client_product_dimensions_button = QPushButton(self.tr("Modifier Dimensions Produit"))
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Created edit_client_product_dimensions_button")
+
             self.edit_client_product_dimensions_button.setIcon(QIcon.fromTheme("document-edit", QIcon(":/icons/pencil.svg")))
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Set icon for edit_client_product_dimensions_button")
+
             self.edit_client_product_dimensions_button.setEnabled(False)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Disabled edit_client_product_dimensions_button")
+
             prod_dims_layout.addWidget(self.edit_client_product_dimensions_button)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added edit_client_product_dimensions_button to layout")
+
             prod_dims_layout.addStretch()
-            # Insert after "Notes de Document" tab
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Added stretch to layout")
+
             notes_doc_tab_index = -1
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Initialized notes_doc_tab_index")
             for i in range(self.tab_widget.count()):
+                logging.debug(f"ClientWidget._setup_product_dimensions_tab: Loop iteration {i}, tabText: {self.tab_widget.tabText(i)}")
                 if self.tab_widget.tabText(i) == self.tr("Notes de Document"):
-                    notes_doc_tab_index = i; break
+                    notes_doc_tab_index = i
+                    logging.debug(f"ClientWidget._setup_product_dimensions_tab: Found 'Notes de Document' tab at index {i}")
+                    break
+            
+            logging.debug(f"ClientWidget._setup_product_dimensions_tab: notes_doc_tab_index determined as {notes_doc_tab_index}")
+
             if notes_doc_tab_index != -1:
                 self.tab_widget.insertTab(notes_doc_tab_index + 1, self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+                logging.debug(f"ClientWidget._setup_product_dimensions_tab: Inserted product_dimensions_tab at index {notes_doc_tab_index + 1}")
             else: # Fallback if "Notes de Document" not found
                 self.tab_widget.addTab(self.product_dimensions_tab, self.tr("Dimensions Produit (Client)"))
+                logging.debug("ClientWidget._setup_product_dimensions_tab: Added product_dimensions_tab as a new tab (fallback)")
+
             self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Connected currentIndexChanged for dim_product_selector_combo")
+
             self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+            logging.debug("ClientWidget._setup_product_dimensions_tab: Connected clicked for edit_client_product_dimensions_button")
+            
+            logging.info("ClientWidget._setup_product_dimensions_tab: SUCCESSFULLY COMPLETED")
+
         except Exception as e:
             logging.error(f"Error in _setup_product_dimensions_tab: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet Dimensions Produit:\n{0}").format(str(e)))
 
     def _setup_sav_tab(self):
+        logging.debug("ClientWidget._setup_sav_tab: Evaluating client status for SAV content setup.")
+        client_status_id = self.client_info.get('status_id')
+        vendu_status_info = None
+        try:
+            vendu_status_info = db_manager.get_status_setting_by_name('Vendu', 'Client')
+        except Exception as e_db_status:
+            logging.error(f"ClientWidget._setup_sav_tab: Error fetching 'Vendu' status: {e_db_status}", exc_info=True)
+            # vendu_status_info remains None
+
+        is_client_vendu = False
+        if vendu_status_info and client_status_id == vendu_status_info.get('status_id'):
+            is_client_vendu = True
+
+        if not is_client_vendu:
+            vendu_id_for_log = vendu_status_info.get('status_id') if vendu_status_info else 'Not Found/DB Error'
+            logging.info(f"ClientWidget._setup_sav_tab: Client status_id {client_status_id} is not 'Vendu' (Vendu status ID: {vendu_id_for_log}). SAV tab UI will be minimal.")
+            
+            self.sav_tab = QWidget()
+            sav_layout = QVBoxLayout(self.sav_tab)
+            placeholder_label = QLabel(self.tr("La section SAV n'est pas applicable pour le statut actuel de ce client."))
+            placeholder_label.setAlignment(Qt.AlignCenter)
+            sav_layout.addWidget(placeholder_label)
+            
+            if hasattr(self, 'tab_widget') and self.tab_widget is not None:
+                self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
+                self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab)
+                self.tab_widget.setTabEnabled(self.sav_tab_index, False) # Explicitly disable
+                logging.debug(f"ClientWidget._setup_sav_tab: Minimal SAV tab created and disabled for client_status_id {client_status_id}.")
+            else:
+                logging.error("ClientWidget._setup_sav_tab: self.tab_widget not available for minimal SAV tab setup.")
+            return # Crucial: skip the rest of the method
+
+        # --- Original _setup_sav_tab logic continues below, only if is_client_vendu is True ---
+
+        # Initial calls before the main SAV tab UI setup
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting first call to self.load_products_for_dimension_tab()")
         try:
             self.load_products_for_dimension_tab()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed first call to self.load_products_for_dimension_tab()")
         except Exception as e:
-            logging.error(f"Error during initial load of Product Dimensions Tab (first call): {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during first call to self.load_products_for_dimension_tab(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After first call to self.load_products_for_dimension_tab() block.")
 
-        self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
-        self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting to connect dim_product_selector_combo.currentIndexChanged")
+        if hasattr(self, 'dim_product_selector_combo'): # Ensure it exists before connecting
+            self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected)
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully connected dim_product_selector_combo.currentIndexChanged")
+        else:
+            logging.warning("ClientWidget._setup_sav_tab: Preamble - dim_product_selector_combo not found, skipping connection.")
 
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting to connect edit_client_product_dimensions_button.clicked")
+        if hasattr(self, 'edit_client_product_dimensions_button'): # Ensure it exists
+            self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions)
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully connected edit_client_product_dimensions_button.clicked")
+        else:
+            logging.warning("ClientWidget._setup_sav_tab: Preamble - edit_client_product_dimensions_button not found, skipping connection.")
+        
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting second call to self.load_products_for_dimension_tab()")
         try:
             self.load_products_for_dimension_tab() # Initial population of product selector
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed second call to self.load_products_for_dimension_tab()")
         except Exception as e:
-            logging.error(f"Error during initial load of Product Dimensions Tab (second call): {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during second call to self.load_products_for_dimension_tab(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des dimensions de produit (2):\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After second call to self.load_products_for_dimension_tab() block.")
 
-        # Connect signals for the Product Dimensions Tab
-        # self.dim_product_selector_combo.currentIndexChanged.connect(self.on_dim_product_selected) # Already connected
-        # self.edit_client_product_dimensions_button.clicked.connect(self.on_edit_client_product_dimensions) # Already connected
-
-        # Removed connections for old buttons (client_browse_tech_image_button, save_client_product_dimensions_button)
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.populate_doc_table()")
         try:
             self.populate_doc_table()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.populate_doc_table()")
         except Exception as e:
-            logging.error(f"Error during initial load of Documents tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.populate_doc_table(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des documents:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.populate_doc_table() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_contacts()")
         try:
             self.load_contacts()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_contacts()")
         except Exception as e:
-            logging.error(f"Error during initial load of Contacts tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_contacts(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des contacts:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_contacts() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_products()")
         try:
             self.load_products() # This now also calls load_products_for_dimension_tab which has its own try-except
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_products()")
         except Exception as e:
-            logging.error(f"Error during initial load of Products tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_products(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement initial des produits:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_products() block.")
 
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_document_notes_filters()")
         try:
             self.load_document_notes_filters()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_document_notes_filters()")
         except Exception as e:
-            logging.error(f"Error during initial load of Document Notes Filters: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_document_notes_filters(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des filtres de notes de document:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_document_notes_filters() block.")
+
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - Attempting self.load_document_notes_table()")
         try:
             self.load_document_notes_table()
+            logging.debug("ClientWidget._setup_sav_tab: Preamble - Successfully completed self.load_document_notes_table()")
         except Exception as e:
-            logging.error(f"Error during initial load of Document Notes tab: {e}", exc_info=True)
+            logging.error(f"ClientWidget._setup_sav_tab: Preamble - Error during self.load_document_notes_table(): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Chargement Partiel"), self.tr("Une erreur est survenue lors du chargement des notes de document:\n{0}").format(str(e)))
+        logging.debug("ClientWidget._setup_sav_tab: Preamble - After self.load_document_notes_table() block.")
 
+        # Main SAV tab setup logic starts here
         try:
-            logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...")
+            logging.info("ClientWidget._setup_sav_tab: ENTERING METHOD (main UI block for 'Vendu' client)") 
+            logging.info("ClientWidget.setup_ui: Starting setup for SAV Tab...") # Existing log
             # SAV Tab
 
             self.sav_tab = QWidget()
@@ -615,7 +876,7 @@ class ClientWidget(QWidget):
             self.tab_widget.addTab(self.sav_tab, self.tr("SAV"))
             self.sav_tab_index = self.tab_widget.indexOf(self.sav_tab) # Store index for later use
         except Exception as e:
-            logging.error(f"Error in _setup_sav_tab: {e}", exc_info=True)
+            logging.error(f"Error in _setup_sav_tab (main UI block for 'Vendu' client): {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur UI"), self.tr("Erreur initialisation onglet SAV:\n{0}").format(str(e)))
 
     def _setup_assignments_tab(self):
@@ -3120,37 +3381,73 @@ class ClientWidget(QWidget):
             self.load_sav_tickets_table()
 
     def load_statuses(self):
+        current_client_status_id = self.client_info.get("status_id")
+        current_client_status_text = self.client_info.get("status") # Fallback if ID match fails
+
+        self.status_combo.blockSignals(True) # Block signals during repopulation
+        self.status_combo.clear()
+
         try:
-            # Assuming 'Client' is the status_type for this context
             client_statuses = db_manager.get_all_status_settings(type_filter='Client')
+            if client_statuses is None: client_statuses = [] # Ensure it's an iterable
 
-            self.status_combo.clear() # Clear before populating
-            if client_statuses: # Ensure client_statuses is not None and not empty
-                for status_dict in client_statuses:
-                    if not isinstance(status_dict, dict):
-                        logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
-                        continue
+            for status_dict in client_statuses:
+                if not isinstance(status_dict, dict):
+                    logging.warning(f"Skipping status item, expected dict but got {type(status_dict)}: {status_dict}")
+                    continue
+                status_name = status_dict.get('status_name')
+                status_id = status_dict.get('status_id')
+                if status_id is None:
+                    logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
+                    continue
+                if not status_name:
+                    status_name = self.tr("Unnamed Status ({0})").format(status_id)
+                self.status_combo.addItem(str(status_name), status_id)
 
-                    status_name = status_dict.get('status_name')
-                    status_id = status_dict.get('status_id')
+            # Attempt to restore previous selection
+            restored_idx = -1
+            if current_client_status_id is not None:
+                idx_by_id = self.status_combo.findData(current_client_status_id)
+                if idx_by_id != -1:
+                    self.status_combo.setCurrentIndex(idx_by_id)
+                    restored_idx = idx_by_id
+                    logging.info(f"Restored status to ID: {current_client_status_id} ('{self.status_combo.itemText(idx_by_id)}')")
 
-                    if status_id is None: # status_id is essential for functionality
-                        logging.warning(f"Skipping status item due to missing 'status_id': {status_dict}")
-                        continue
+            if restored_idx == -1 and current_client_status_text: # If ID match failed, try by text
+                idx_by_text = self.status_combo.findText(current_client_status_text, Qt.MatchFixedString)
+                if idx_by_text != -1:
+                    self.status_combo.setCurrentIndex(idx_by_text)
+                    restored_idx = idx_by_text
+                    logging.info(f"Restored status by text: '{current_client_status_text}'")
+                else: # Text also not found (status might have been renamed or deleted)
+                    # Update client_info if current status is no longer valid
+                    if self.status_combo.count() > 0:
+                        self.status_combo.setCurrentIndex(0) # Default to first available
+                        new_status_id = self.status_combo.itemData(0)
+                        new_status_text = self.status_combo.itemText(0)
+                        logging.warning(f"Client's previous status (ID: {current_client_status_id}, Text: '{current_client_status_text}') not found. Defaulting to '{new_status_text}'.")
+                        # Potentially inform user or auto-update client's status in DB if desired
+                        # For now, client_info reflects the new default selection for display.
+                        # The actual DB update happens in update_client_status if user interacts or if called explicitly.
+                        self.client_info["status_id"] = new_status_id
+                        self.client_info["status"] = new_status_text
+                        # To trigger an immediate update in DB:
+                        # self.update_client_status(new_status_text) # This might be too aggressive
+                    else:
+                        logging.warning("No statuses available to set in combo box after client's status was not found.")
 
-                    if not status_name: # status_name is essential for display
-                        status_name = self.tr("Unnamed Status ({0})").format(status_id)
-                        logging.warning(f"Status name missing for status_id {status_id}, using default: '{status_name}'")
+            if self.status_combo.count() == 0: # No statuses loaded at all
+                 self.status_combo.addItem(self.tr("Aucun statut disponible"), None)
+                 logging.warning("Status combo box is empty after loading. Added default 'Aucun statut disponible'.")
 
-                    self.status_combo.addItem(str(status_name), status_id) # Ensure name is a string
-            # else: # Handle case where client_statuses is None or empty after fetching
-                # logging.info("No client statuses found or returned from DB to populate status_combo.")
-                # Optionally, add a default item or leave the combo box empty.
-                # If left empty, ensure currentTextChanged signal handling is robust.
 
-        except Exception as e: # Catch a more generic exception if db_manager might raise something other than sqlite3.Error
-            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True) # Log with more detail
+        except Exception as e:
+            logging.error(f"Error loading statuses in ClientWidget: {e}", exc_info=True)
             QMessageBox.warning(self, self.tr("Erreur DB"), self.tr("Erreur de chargement des statuts:\n{0}").format(str(e)))
+            if self.status_combo.count() == 0:
+                self.status_combo.addItem(self.tr("Erreur chargement statuts"), None) # Add placeholder on error
+        finally:
+            self.status_combo.blockSignals(False) # Unblock signals
 
     def update_client_status(self, status_text):
         # This method should now use currentData if status_id is reliably stored.
@@ -3303,87 +3600,114 @@ class ClientWidget(QWidget):
                 logging.warning("Notification manager not available. Cannot show notification: Erreur Notes - Erreur de sauvegarde des notes: {0}.".format(str(e)))
 
     def populate_doc_table(self):
+        logging.debug("ClientWidget.populate_doc_table: Method started.")
+        logging.debug("ClientWidget.populate_doc_table: Setting row count to 0.")
         self.doc_table.setRowCount(0) # Clear table first
+        logging.debug("ClientWidget.populate_doc_table: Row count set to 0.")
+
+        logging.debug("ClientWidget.populate_doc_table: Setting initial visibility for documents_empty_label and doc_table.")
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
         self.doc_table.setVisible(False)
+        logging.debug("ClientWidget.populate_doc_table: Initial visibility set.")
 
+        logging.debug("ClientWidget.populate_doc_table: Getting client_id.")
         client_id = self.client_info.get("client_id")
+        logging.debug(f"ClientWidget.populate_doc_table: client_id is {client_id}.")
         if not client_id:
             if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(True)
-            logging.warning("populate_doc_table: client_id is missing from client_info.")
+            logging.warning("ClientWidget.populate_doc_table: client_id is missing from client_info. Returning early.")
             return
+        logging.debug("ClientWidget.populate_doc_table: Client ID obtained.")
 
-        # Order filter population (existing logic)
+        logging.debug("ClientWidget.populate_doc_table: Starting order filter population.")
         order_events = db_manager.get_distinct_purchase_confirmed_at_for_client(client_id)
+        logging.debug(f"ClientWidget.populate_doc_table: Fetched order_events: {order_events}")
         is_distributor_type = self.client_info.get('category') == 'Distributeur'
+        logging.debug(f"ClientWidget.populate_doc_table: is_distributor_type: {is_distributor_type}")
         has_multiple_orders = order_events and len(order_events) > 1
-        show_order_filter_dropdown = is_distributor_type or has_multiple_orders # Determines if order dropdown is specifically populated/used
-
-        # Visibility of the entire filter bar container.
-        # For now, let's make it always visible as per instruction to show filters even for empty list.
-        # self.doc_filter_layout_widget.setVisible(True) # This is now set in setup_ui
+        logging.debug(f"ClientWidget.populate_doc_table: has_multiple_orders: {has_multiple_orders}")
+        show_order_filter_dropdown = is_distributor_type or has_multiple_orders
+        logging.debug(f"ClientWidget.populate_doc_table: show_order_filter_dropdown: {show_order_filter_dropdown}")
 
         current_order_filter_selection = None
-        if show_order_filter_dropdown: # Populate order filter only if relevant
+        if show_order_filter_dropdown:
+            logging.debug("ClientWidget.populate_doc_table: Populating doc_order_filter_combo.")
             current_order_filter_selection = self.doc_order_filter_combo.currentData()
+            logging.debug(f"ClientWidget.populate_doc_table: current_order_filter_selection before clear: {current_order_filter_selection}")
             self.doc_order_filter_combo.blockSignals(True)
             self.doc_order_filter_combo.clear()
             self.doc_order_filter_combo.addItem(self.tr("Toutes les Commandes"), "ALL")
             self.doc_order_filter_combo.addItem(self.tr("Documents Généraux (sans commande)"), "NONE")
             if order_events:
-                for event_ts in order_events:
+                logging.debug("ClientWidget.populate_doc_table: Looping through order_events.")
+                for i, event_ts in enumerate(order_events):
+                    logging.debug(f"ClientWidget.populate_doc_table: Processing order_event {i+1}/{len(order_events)}: {event_ts}")
                     if event_ts:
                         try:
                             dt_obj = datetime.fromisoformat(event_ts.replace('Z', '+00:00'))
                             display_text = self.tr("Commande du {0}").format(dt_obj.strftime('%Y-%m-%d %H:%M'))
                             self.doc_order_filter_combo.addItem(display_text, event_ts)
+                            logging.debug(f"ClientWidget.populate_doc_table: Added item '{display_text}' with data '{event_ts}' to combo.")
                         except ValueError:
                             self.doc_order_filter_combo.addItem(self.tr("Commande du {0} (brut)").format(event_ts), event_ts)
+                            logging.warning(f"ClientWidget.populate_doc_table: Added raw item for event_ts '{event_ts}' due to ValueError.")
+                logging.debug("ClientWidget.populate_doc_table: Finished looping through order_events.")
             if current_order_filter_selection:
                 index = self.doc_order_filter_combo.findData(current_order_filter_selection)
+                logging.debug(f"ClientWidget.populate_doc_table: Found index {index} for current_order_filter_selection '{current_order_filter_selection}'.")
                 if index >= 0: self.doc_order_filter_combo.setCurrentIndex(index)
                 else: self.doc_order_filter_combo.setCurrentIndex(0)
             else:
                  self.doc_order_filter_combo.setCurrentIndex(0)
+                 logging.debug("ClientWidget.populate_doc_table: current_order_filter_selection was None, set to index 0.")
             self.doc_order_filter_combo.blockSignals(False)
-        else: # Hide or disable order filter if not applicable
+            logging.debug("ClientWidget.populate_doc_table: Finished populating doc_order_filter_combo.")
+        else:
+            logging.debug("ClientWidget.populate_doc_table: Order filter not applicable, clearing and disabling combo.")
             self.doc_order_filter_combo.clear()
-            self.doc_order_filter_combo.addItem(self.tr("N/A"), "ALL") # Default to ALL if not used
+            self.doc_order_filter_combo.addItem(self.tr("N/A"), "ALL")
             self.doc_order_filter_combo.setEnabled(False)
+        logging.debug("ClientWidget.populate_doc_table: Order filter population completed.")
 
-
-        db_filters = {} # Filters for the DB query (currently only order_identifier)
+        logging.debug("ClientWidget.populate_doc_table: Preparing DB filters.")
+        db_filters = {} 
         selected_order_filter_data = self.doc_order_filter_combo.currentData()
+        logging.debug(f"ClientWidget.populate_doc_table: selected_order_filter_data: {selected_order_filter_data}")
         if selected_order_filter_data == "NONE":
             db_filters['order_identifier'] = None
         elif selected_order_filter_data != "ALL":
             db_filters['order_identifier'] = selected_order_filter_data
+        logging.debug(f"ClientWidget.populate_doc_table: db_filters prepared: {db_filters}")
 
-        # Fetch documents based on DB filters (order filter)
+        logging.debug("ClientWidget.populate_doc_table: Fetching documents from DB.")
         client_documents_from_db = db_manager.get_documents_for_client(client_id, filters=db_filters)
         client_documents_from_db = client_documents_from_db if client_documents_from_db else []
+        logging.debug(f"ClientWidget.populate_doc_table: Fetched {len(client_documents_from_db)} documents from DB initially.")
 
-        # Get language and type filter values for client-side filtering
+        logging.debug("ClientWidget.populate_doc_table: Getting language and type filter values.")
         selected_lang_filter = self.doc_language_filter_combo.currentData()
         selected_type_filter = self.doc_type_filter_combo.currentData()
+        logging.debug(f"ClientWidget.populate_doc_table: selected_lang_filter: {selected_lang_filter}, selected_type_filter: {selected_type_filter}")
 
         filtered_list = []
-        for doc_data in client_documents_from_db:
+        logging.debug("ClientWidget.populate_doc_table: Starting client-side filtering of documents.")
+        for i, doc_data in enumerate(client_documents_from_db):
+            logging.debug(f"ClientWidget.populate_doc_table: Filtering document {i+1}/{len(client_documents_from_db)}, ID: {doc_data.get('document_id')}")
             doc_passes_lang_filter = True
             doc_passes_type_filter = True
 
-            # Language Filtering
+            logging.debug("ClientWidget.populate_doc_table: Applying language filter.")
             if selected_lang_filter != "ALL":
                 doc_lang = doc_data.get('language_code')
-                # Infer if not present (though it should be from import)
                 if not doc_lang and doc_data.get('file_path_relative'):
                     path_parts = doc_data.get('file_path_relative').split(os.sep)
                     if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
                         doc_lang = path_parts[0]
                 if doc_lang != selected_lang_filter:
                     doc_passes_lang_filter = False
+            logging.debug(f"ClientWidget.populate_doc_table: Language filter result: {doc_passes_lang_filter}")
 
-            # Type Filtering
+            logging.debug("ClientWidget.populate_doc_table: Applying type filter.")
             if selected_type_filter != "ALL":
                 doc_type_generated = doc_data.get('document_type_generated', '').upper()
                 file_name_on_disk = doc_data.get('file_name_on_disk', '').lower()
@@ -3404,62 +3728,81 @@ class ClientWidget(QWidget):
                 elif selected_type_filter == "OTHER":
                     if is_html or is_pdf or is_xlsx or is_docx:
                         doc_passes_type_filter = False
+            logging.debug(f"ClientWidget.populate_doc_table: Type filter result: {doc_passes_type_filter}")
 
             if doc_passes_lang_filter and doc_passes_type_filter:
                 filtered_list.append(doc_data)
+                logging.debug(f"ClientWidget.populate_doc_table: Document ID {doc_data.get('document_id')} passed filters, added to list.")
+        logging.debug("ClientWidget.populate_doc_table: Client-side filtering completed.")
 
+        logging.debug("ClientWidget.populate_doc_table: Getting base_client_path.")
         base_client_path = self.client_info.get("base_folder_path")
+        logging.debug(f"ClientWidget.populate_doc_table: base_client_path: {base_client_path}")
         if not base_client_path or not os.path.isdir(base_client_path):
-            logging.error(f"populate_doc_table: base_folder_path '{base_client_path}' is missing or not a directory for client_id {client_id}.")
+            logging.error(f"ClientWidget.populate_doc_table: base_folder_path '{base_client_path}' is missing or not a directory for client_id {client_id}.")
             if hasattr(self, 'documents_empty_label'):
                 self.documents_empty_label.setText(self.tr("Erreur: Dossier client de base non trouvé ou inaccessible."))
                 self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
+            logging.info("ClientWidget.populate_doc_table: METHOD COMPLETED due to invalid base_client_path.")
             return
+        logging.debug("ClientWidget.populate_doc_table: base_client_path is valid.")
 
-        if not filtered_list: # Check the final filtered list
+        logging.debug("ClientWidget.populate_doc_table: Checking if filtered_list is empty.")
+        if not filtered_list:
             if hasattr(self, 'documents_empty_label'):
                  self.documents_empty_label.setText(self.tr("Aucun document ne correspond aux filtres sélectionnés.\nModifiez vos filtres ou ajoutez/générez des documents."))
                  self.documents_empty_label.setVisible(True)
             self.doc_table.setVisible(False)
+            logging.info("ClientWidget.populate_doc_table: No documents after filtering. METHOD SUCCESSFULLY COMPLETED.")
             return
+        logging.debug(f"ClientWidget.populate_doc_table: Filtered list contains {len(filtered_list)} documents.")
 
+        logging.debug("ClientWidget.populate_doc_table: Setting visibility for table and empty label (documents found).")
         if hasattr(self, 'documents_empty_label'): self.documents_empty_label.setVisible(False)
         self.doc_table.setVisible(True)
         self.doc_table.setRowCount(len(filtered_list))
+        logging.debug("ClientWidget.populate_doc_table: Visibility set, row count set for doc_table.")
 
+        logging.debug("ClientWidget.populate_doc_table: Starting loop to populate doc_table rows.")
         for row_idx, doc_data in enumerate(filtered_list):
+            logging.debug(f"ClientWidget.populate_doc_table: Populating row {row_idx + 1}/{len(filtered_list)}.")
+            
+            logging.debug("ClientWidget.populate_doc_table: Getting document details.")
             document_id = doc_data.get('document_id')
             doc_name = doc_data.get('document_name', 'N/A')
-            file_path_relative_from_db = doc_data.get('file_path_relative', '') # e.g., "fr/doc.pdf" or "order_xyz/fr/doc.pdf"
-            order_identifier_for_doc = doc_data.get('order_identifier') # This is the raw timestamp or ID
+            file_path_relative_from_db = doc_data.get('file_path_relative', '')
+            order_identifier_for_doc = doc_data.get('order_identifier')
+            logging.debug(f"ClientWidget.populate_doc_table: doc_id: {document_id}, name: {doc_name}, relative_path: {file_path_relative_from_db}, order_id: {order_identifier_for_doc}")
 
-            # Determine language code from relative path structure
-            language_code = doc_data.get('language_code', "N/A") # Prefer direct field if available
-            if language_code == "N/A" and file_path_relative_from_db: # Fallback to inferring from path
+            logging.debug("ClientWidget.populate_doc_table: Inferring language_code.")
+            language_code = doc_data.get('language_code', "N/A")
+            if language_code == "N/A" and file_path_relative_from_db:
                 path_parts = file_path_relative_from_db.split(os.sep)
                 if len(path_parts) > 1 and path_parts[0] in SUPPORTED_LANGUAGES:
                     language_code = path_parts[0]
+            logging.debug(f"ClientWidget.populate_doc_table: Inferred language_code: {language_code}")
 
-            # Construct full_file_path
+            logging.debug("ClientWidget.populate_doc_table: Constructing full_file_path.")
             full_file_path = ""
-            if file_path_relative_from_db: # Only proceed if relative path exists
+            if file_path_relative_from_db:
                 if order_identifier_for_doc:
                     safe_order_subfolder = str(order_identifier_for_doc).replace(':', '_').replace(' ', '_')
                     full_file_path = os.path.join(base_client_path, safe_order_subfolder, file_path_relative_from_db)
                 else:
                     full_file_path = os.path.join(base_client_path, file_path_relative_from_db)
+                logging.debug(f"ClientWidget.populate_doc_table: Constructed full_file_path: {full_file_path}")
 
                 if not os.path.exists(full_file_path):
-                    logging.warning(f"Document file path does not exist: {full_file_path} for doc_id {document_id}")
+                    logging.warning(f"ClientWidget.populate_doc_table: Document file path does not exist: {full_file_path} for doc_id {document_id}")
             else:
-                logging.warning(f"Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
-
-
+                logging.warning(f"ClientWidget.populate_doc_table: Missing file_path_relative for doc_id {document_id}, client_id {client_id}")
+            
+            logging.debug("ClientWidget.populate_doc_table: Creating QTableWidgetItems for row.")
             name_item = QTableWidgetItem(doc_name)
-            name_item.setData(Qt.UserRole, full_file_path if full_file_path else None) # Store full path or None
+            name_item.setData(Qt.UserRole, full_file_path if full_file_path else None)
 
-            file_type_str = doc_data.get('document_type_generated', 'N/A') # Or derive from extension
+            file_type_str = doc_data.get('document_type_generated', 'N/A')
             created_at_str = doc_data.get('created_at', '')
             mod_time_formatted = ""
             if created_at_str:
@@ -3467,75 +3810,96 @@ class ClientWidget(QWidget):
                     dt_obj = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
                     mod_time_formatted = dt_obj.strftime('%Y-%m-%d %H:%M')
                 except ValueError:
-                    mod_time_formatted = created_at_str # Fallback
+                    mod_time_formatted = created_at_str
+            logging.debug(f"ClientWidget.populate_doc_table: file_type: {file_type_str}, mod_time: {mod_time_formatted}")
 
+            logging.debug("ClientWidget.populate_doc_table: Setting items in table row.")
             self.doc_table.setItem(row_idx, 0, name_item)
             self.doc_table.setItem(row_idx, 1, QTableWidgetItem(file_type_str))
             self.doc_table.setItem(row_idx, 2, QTableWidgetItem(language_code))
             self.doc_table.setItem(row_idx, 3, QTableWidgetItem(mod_time_formatted))
+            logging.debug("ClientWidget.populate_doc_table: Basic items set.")
 
+            logging.debug("ClientWidget.populate_doc_table: Creating action widget and layout.")
             action_widget = QWidget(); action_layout = QHBoxLayout(action_widget); action_layout.setContentsMargins(2,2,2,2); action_layout.setSpacing(5)
+            logging.debug("ClientWidget.populate_doc_table: Action widget and layout created.")
 
-            # 1. pdf_btn (Generate/Open PDF)
+            logging.debug("ClientWidget.populate_doc_table: Creating PDF button.")
             pdf_btn = QPushButton("")
             pdf_btn.setIcon(QIcon(":/icons/file-text.svg"))
             pdf_btn.setToolTip(self.tr("Générer/Ouvrir PDF du document"))
             pdf_btn.setFixedSize(30,30)
             pdf_btn.clicked.connect(lambda _, p=full_file_path: self._handle_open_pdf_action(p))
             action_layout.addWidget(pdf_btn)
+            logging.debug("ClientWidget.populate_doc_table: PDF button created and added.")
 
             source_template_id = doc_data.get('source_template_id')
+            logging.debug(f"ClientWidget.populate_doc_table: source_template_id: {source_template_id}")
 
-            # 2. source_btn (View Source File)
+            logging.debug("ClientWidget.populate_doc_table: Creating source button.")
             source_btn = QPushButton("")
             source_btn.setIcon(QIcon(":/icons/eye.svg"))
             source_btn.setToolTip(self.tr("Afficher le fichier source"))
             source_btn.setFixedSize(30,30)
             source_btn.clicked.connect(lambda _, p=full_file_path: QDesktopServices.openUrl(QUrl.fromLocalFile(p)))
             action_layout.addWidget(source_btn)
+            logging.debug("ClientWidget.populate_doc_table: Source button created and added.")
 
             can_edit_source_template = False
             if source_template_id:
+                logging.debug(f"ClientWidget.populate_doc_table: Checking template info for ID {source_template_id}.")
                 template_info_for_edit_btn = db_manager.get_template_by_id(source_template_id)
                 if template_info_for_edit_btn and template_info_for_edit_btn.get('template_type', '').startswith('html'):
                     can_edit_source_template = True
+            logging.debug(f"ClientWidget.populate_doc_table: can_edit_source_template: {can_edit_source_template}")
 
             if can_edit_source_template:
-                # 3. edit_source_template_btn
+                logging.debug("ClientWidget.populate_doc_table: Creating edit source template button.")
                 edit_source_template_btn = QPushButton("")
                 edit_source_template_btn.setIcon(QIcon(":/icons/edit-2.svg"))
                 edit_source_template_btn.setToolTip(self.tr("Modifier le modèle source de ce document"))
                 edit_source_template_btn.setFixedSize(30,30)
                 edit_source_template_btn.clicked.connect(lambda _, doc_d=doc_data: self.handle_edit_source_template(doc_d))
                 action_layout.addWidget(edit_source_template_btn)
+                logging.debug("ClientWidget.populate_doc_table: Edit source template button created and added.")
             elif file_type_str.upper() == "PDF":
+                logging.debug("ClientWidget.populate_doc_table: Creating edit PDF button.")
                 edit_pdf_btn = QPushButton(self.tr("Modifier PDF"))
                 edit_pdf_btn.setIcon(QIcon(":/icons/pencil.svg"))
                 edit_pdf_btn.setToolTip(self.tr("Modifier le fichier PDF"))
                 edit_pdf_btn.setFixedSize(30, 30)
                 edit_pdf_btn.clicked.connect(lambda _, p=full_file_path, doc_id=document_id: self._handle_edit_pdf_action(p, doc_id))
                 action_layout.addWidget(edit_pdf_btn)
-            elif doc_name.lower().endswith(('.xlsx', '.html')): # Keep this for non-PDF office docs
-                # 4. edit_btn (Direct edit for .xlsx, .html)
+                logging.debug("ClientWidget.populate_doc_table: Edit PDF button created and added.")
+            elif doc_name.lower().endswith(('.xlsx', '.html')):
+                logging.debug("ClientWidget.populate_doc_table: Creating direct edit button for office doc.")
                 edit_btn = QPushButton("")
                 edit_btn.setIcon(QIcon(":/icons/pencil.svg"))
                 edit_btn.setToolTip(self.tr("Modifier le contenu du document"))
                 edit_btn.setFixedSize(30,30)
                 edit_btn.clicked.connect(lambda _, p=full_file_path: self.open_document(p))
                 action_layout.addWidget(edit_btn)
+                logging.debug("ClientWidget.populate_doc_table: Direct edit button created and added.")
             else:
-                # This spacer is added if no other edit-like button is added for this slot.
-                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget) # Keep alignment
+                logging.debug("ClientWidget.populate_doc_table: Adding spacer widget for action buttons.")
+                spacer_widget = QWidget(); spacer_widget.setFixedSize(30,30); action_layout.addWidget(spacer_widget)
+                logging.debug("ClientWidget.populate_doc_table: Spacer widget added.")
 
-            # 5. delete_btn (Delete Document)
+            logging.debug("ClientWidget.populate_doc_table: Creating delete button.")
             delete_btn = QPushButton("")
             delete_btn.setIcon(QIcon(":/icons/trash.svg"))
             delete_btn.setToolTip(self.tr("Supprimer le document (fichier et DB)"))
             delete_btn.setFixedSize(30,30)
             delete_btn.clicked.connect(lambda _, doc_id=document_id, p=full_file_path: self.delete_client_document_entry(doc_id, p))
             action_layout.addWidget(delete_btn)
+            logging.debug("ClientWidget.populate_doc_table: Delete button created and added.")
 
-            action_layout.addStretch(); action_widget.setLayout(action_layout); self.doc_table.setCellWidget(row_idx, 4, action_widget)
+            action_layout.addStretch(); action_widget.setLayout(action_layout)
+            logging.debug("ClientWidget.populate_doc_table: Setting cell widget for actions.")
+            self.doc_table.setCellWidget(row_idx, 4, action_widget)
+            logging.debug(f"ClientWidget.populate_doc_table: Finished populating row {row_idx + 1}/{len(filtered_list)}.")
+        logging.debug("ClientWidget.populate_doc_table: Finished loop for populating doc_table rows.")
+        logging.info("ClientWidget.populate_doc_table: METHOD SUCCESSFULLY COMPLETED")
 
     def handle_edit_source_template(self, document_data):
         source_template_id = document_data.get('source_template_id')
@@ -3833,113 +4197,138 @@ class ClientWidget(QWidget):
         dialog = self.ProductDialog(client_uuid, self.app_root_dir, parent=self) # Pass app_root_dir
         if dialog.exec_() == QDialog.Accepted:
             products_list_data = dialog.get_data()
-
-            # --- BEGIN HYPOTHETICAL ACTUAL FIX AREA ---
-            # This is where the actual loop processing products_list_data would be.
-            # Assuming the loop and the call to db_manager.add_product_to_client_project_link_and_global
-            # or similar database function occurs here.
-
-            # If the error "TypeError: City() missing 1 required positional argument: 'country_id'"
-            # originates from an attempt to process city information *within this loop*
-            # (e.g., by calling db_manager.get_or_add_city), the fix would be here.
-
-            # Example of what might be happening and how to fix it:
-            products_list_data = dialog.get_data() # This is a list of product_entry dicts
-
             processed_count = 0
             if products_list_data:
+                # Attempt to import products_crud_instance if not already available
+                # This is a common pattern, adjust if your project structure is different
+                try:
+                    from db.cruds.products_crud import products_crud_instance
+                except ImportError:
+                    logging.error("Failed to import products_crud_instance. Global product creation will fail.")
+                    QMessageBox.critical(self, self.tr("Erreur Importation"), self.tr("Le module de gestion des produits globaux n'a pas pu être chargé."))
+                    products_crud_instance = None # Ensure it's defined for checks later
+
                 for product_entry in products_list_data:
-                    client_id_for_product = self.client_info.get('client_id')
-                    # ProductDialog.get_data() returns a list. Each item is a dict for a product.
-                    # 'client_id' might be in product_entry if ProductDialog was for multiple clients (not typical for this context)
-                    # or if ProductDialog explicitly adds it. Assuming client_id comes from self.client_info.
-
-                    logging.info(f"Processing product_entry {processed_count + 1}/{len(products_list_data)}: {product_entry}")
-                    client_id_for_product = self.client_info.get('client_id')
+                    product_name_for_msg = product_entry.get('name', 'Unknown Product')
                     global_product_id = product_entry.get('product_id')
-                    quantity_raw = product_entry.get('quantity')
-                    unit_price_override_raw = product_entry.get('unit_price') # Dialog uses 'unit_price'
+                    product_code = product_entry.get('product_code') # Retrieved from ProductDialog's get_data
 
+                    if global_product_id is None: # This is a new global product
+                        if not products_crud_instance:
+                            QMessageBox.warning(self, self.tr("Erreur Module"),
+                                                self.tr("Le module Produits Globaux n'est pas chargé. Impossible de créer '{0}'.").format(product_name_for_msg))
+                            continue
+
+                        if not product_code:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Code produit (SKU) manquant pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+                        if not product_entry.get('name'):
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Nom manquant pour le nouveau produit avec code '{0}'. Ignoré.").format(product_code))
+                            continue
+
+                        unit_price_raw = product_entry.get('unit_price')
+                        if unit_price_raw is None:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Prix unitaire manquant pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+                        try:
+                            base_unit_price_for_new_global = float(unit_price_raw)
+                        except ValueError:
+                            QMessageBox.warning(self, self.tr("Validation Échouée"),
+                                                self.tr("Prix unitaire invalide pour le nouveau produit '{0}'. Ignoré.").format(product_name_for_msg))
+                            continue
+
+                        new_global_product_data = {
+                            'product_name': product_entry.get('name'),
+                            'product_code': product_code,
+                            'description': product_entry.get('description', ''),
+                            'category': product_entry.get('category', ''), # Will be blank if not provided by ProductDialog
+                            'language_code': product_entry.get('language_code', 'fr'), # Default or from dialog
+                            'base_unit_price': base_unit_price_for_new_global,
+                            'weight': product_entry.get('weight', 0.0),
+                            'dimensions': product_entry.get('dimensions', ''),
+                            'is_active': True
+                        }
+                        add_result = products_crud_instance.add_product(product_data=new_global_product_data)
+                        if add_result.get('success'):
+                            global_product_id = add_result.get('id')
+                            logging.info(f"New global product '{product_name_for_msg}' created with ID: {global_product_id}")
+                        else:
+                            QMessageBox.critical(self, self.tr("Échec Création Produit Global"),
+                                                 self.tr("Impossible de créer le produit global '{0}': {1}").format(product_name_for_msg, add_result.get('error', 'Erreur inconnue')))
+                            continue # Skip linking this failed product
+
+                    # Validate quantity (common for both new and existing global products)
+                    quantity_raw = product_entry.get('quantity')
                     quantity = None
                     if quantity_raw is not None:
                         try:
                             quantity = float(quantity_raw)
                             if quantity <= 0:
-                                logging.error(f"Invalid quantity '{quantity_raw}' for product {global_product_id}. Must be positive.")
-                                quantity = None # Treat as missing/invalid
+                                QMessageBox.warning(self, self.tr("Quantité Invalide"),
+                                                    self.tr("La quantité pour '{0}' doit être un nombre positif. Ignoré.").format(product_name_for_msg))
+                                continue
                         except ValueError:
-                            logging.error(f"Non-numeric quantity '{quantity_raw}' for product {global_product_id}.")
-                            quantity = None # Treat as missing/invalid
-
-                    unit_price_override = None # Initialize to None
-                    # unit_price_override should only be set if unit_price_override_raw is not None.
-                    # If unit_price_override_raw is None, it means no override is intended, and DB will use base_price.
-                    # If unit_price_override_raw is provided, it must be a valid float.
-                    if unit_price_override_raw is not None:
-                        try:
-                            unit_price_override = float(unit_price_override_raw)
-                            if unit_price_override < 0: # Negative prices are not allowed for an override
-                                logging.error(f"Invalid unit_price_override '{unit_price_override_raw}' for product {global_product_id}. Cannot be negative.")
-                                # If explicitly provided override is invalid, this is an error, treat as missing data for the 'all' check.
-                                unit_price_override = None # Mark as invalid for the 'all' check.
-                        except ValueError:
-                            logging.error(f"Non-numeric unit_price_override '{unit_price_override_raw}' for product {global_product_id}.")
-                            unit_price_override = None # Mark as invalid for the 'all' check.
-
-                    # Determine project_id. It can be None.
-                    # Assuming self.client_info.get('project_id') is the actual foreign key or None.
-                    project_id_for_db = self.client_info.get('project_id', None)
-                    if project_id_for_db is None:
-                        # If 'project_id' is not directly in client_info,
-                        # check if 'project_identifier' is and if it needs to be resolved to an ID.
-                        # For now, assume if 'project_id' is not there, it's None.
-                        logging.info(f"No 'project_id' found in client_info for client {client_id_for_product}. Product will be linked without a specific project.")
-
-
-                    # Critical data for adding a link: client_id, product_id, quantity.
-                    # unit_price_override is optional in db_call_payload (None means use base price).
-                    # However, if unit_price_override_raw was provided but invalid, we treat it as a data error for this specific product entry.
-                    # The 'all' check needs to ensure that if an override was attempted (raw value not None) it must be valid (converted value not None).
-                    # And quantity must always be valid.
-                    conditions_met = all([
-                        client_id_for_product,
-                        global_product_id,
-                        quantity is not None, # Quantity must be valid positive number
-                        (unit_price_override_raw is None or unit_price_override is not None) # If override was given, it must be valid
-                    ])
-
-                    if not conditions_met:
-                        logging.error(f"Skipping product entry due to missing or invalid data (post-conversion): {product_entry} for client_id {client_id_for_product}. Quantity: {quantity}, Unit Price Override (converted): {unit_price_override}, Raw Override: {unit_price_override_raw}")
-                        QMessageBox.warning(self, self.tr("Données Produit Invalides ou Manquantes"),
-                                            self.tr("Impossible d'ajouter le produit '{0}' car la quantité ou le prix unitaire est invalide ou manquant.").format(product_entry.get('name', 'Nom inconnu')))
+                            QMessageBox.warning(self, self.tr("Quantité Invalide"),
+                                                self.tr("La quantité '{0}' pour '{1}' est invalide. Ignoré.").format(quantity_raw, product_name_for_msg))
+                            continue
+                    else:
+                        QMessageBox.warning(self, self.tr("Quantité Manquante"),
+                                            self.tr("Quantité manquante pour '{0}'. Ignoré.").format(product_name_for_msg))
                         continue
 
-                    # unit_price_override in db_call_payload should be the converted float, or None if no override was intended/provided.
-                    # The add_product_to_client_or_project function handles None override by using base price.
+                    # At this point, global_product_id is set (either existing or newly created) and quantity is valid.
+                    # Unit price for this specific client link
+                    unit_price_override_for_client_raw = product_entry.get('unit_price')
+                    unit_price_override_for_client = None
+                    if unit_price_override_for_client_raw is not None:
+                        try:
+                            unit_price_override_for_client = float(unit_price_override_for_client_raw)
+                            if unit_price_override_for_client < 0:
+                                QMessageBox.warning(self, self.tr("Prix Invalide"),
+                                                    self.tr("Le prix unitaire pour '{0}' ne peut être négatif. Ignoré.").format(product_name_for_msg))
+                                continue
+                        except ValueError:
+                             QMessageBox.warning(self, self.tr("Prix Invalide"),
+                                                self.tr("Le prix unitaire '{0}' pour '{1}' est invalide. Ignoré.").format(unit_price_override_for_client_raw, product_name_for_msg))
+                             continue
+                    # If unit_price_override_for_client is None here, it means it wasn't provided or was invalid.
+                    # The DB function add_product_to_client_or_project should handle unit_price_override being None
+                    # (meaning it might use the global product's base_unit_price by default or store null).
+
+                    client_id_for_product = self.client_info.get('client_id')
+                    project_id_for_db = self.client_info.get('project_id', None)
+
                     db_call_payload = {
                         'client_id': client_id_for_product,
                         'product_id': global_product_id,
-                        'quantity': quantity, # Validated float
-                        'unit_price_override': unit_price_override, # Validated float or None
+                        'quantity': quantity,
+                        'unit_price_override': unit_price_override_for_client, # This is the price for this client
                         'project_id': project_id_for_db,
+                        # Include weight and dimensions for the client-specific link if they can differ
+                        # from global or are part of product_entry from ProductDialog
+                        'weight_override': product_entry.get('weight'),
+                        'dimensions_override': product_entry.get('dimensions')
                     }
 
-                    logging.info(f"Attempting to link product with validated payload: {db_call_payload}")
+                    logging.info(f"Attempting to link product with payload: {db_call_payload}")
                     link_id = db_manager.add_product_to_client_or_project(db_call_payload)
 
                     if link_id:
                         processed_count += 1
-                        logging.info(f"Successfully linked product '{product_entry.get('name')}' (Global ID: {global_product_id}) to client {client_id_for_product}. New Link ID: {link_id}")
+                        logging.info(f"Successfully linked product '{product_name_for_msg}' to client {client_id_for_product}. Link ID: {link_id}")
                     else:
-                        logging.error(f"Failed to link product '{product_entry.get('name')}' to client {client_id_for_product}. Payload: {db_call_payload}")
+                        logging.error(f"Failed to link product '{product_name_for_msg}' to client {client_id_for_product}. Payload: {db_call_payload}")
                         QMessageBox.warning(self, self.tr("Erreur Base de Données"),
-                                            self.tr("Impossible d'ajouter le produit '{0}' au client/projet.").format(product_entry.get('name', 'Nom inconnu')))
+                                            self.tr("Impossible d'ajouter/lier le produit '{0}'.").format(product_name_for_msg))
 
             if processed_count > 0:
-                 QMessageBox.information(self, self.tr("Produits Ajoutés"),
+                 QMessageBox.information(self, self.tr("Produits Ajoutés/Liés"),
                                          self.tr("{0} produit(s) ont été ajoutés/liés avec succès.").format(processed_count))
 
-            if products_list_data or processed_count > 0: # Refresh if any attempt was made or succeeded
+            if products_list_data or processed_count > 0:
                 self.load_products()
 
     def edit_product(self):
@@ -4062,9 +4451,14 @@ class ClientWidget(QWidget):
                 new_override_price = new_unit_price_for_client if float(new_unit_price_for_client) != float(base_unit_price) else None
 
                 update_payload = {
-                    'quantity': new_quantity,
-                    'unit_price_override': new_override_price
+                    'quantity': new_data.get('quantity'), # Use new_data directly
+                    'unit_price_override': new_override_price,
+                    'weight_override': new_data.get('weight'), # Add weight_override
+                    'dimensions_override': new_data.get('dimensions') # Add dimensions_override
                 }
+                # Remove None values from payload if db_manager.update_client_project_product expects only provided fields
+                update_payload = {k: v for k, v in update_payload.items() if v is not None}
+
 
                 if db_manager.update_client_project_product(link_id, update_payload):
                     QMessageBox.information(self, self.tr("Succès"), self.tr("Produit mis à jour avec succès."))

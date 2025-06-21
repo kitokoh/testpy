@@ -312,7 +312,7 @@ class ContactDialog(QDialog):
                     self.contact_data['contact_id'] = contact_id_linked
                     if link_id : self.contact_data['client_contact_link_id'] = link_id
                 else:
-                    action_message = self.tr("Échec du traitement ou de la liaison du contact avec le client.")
+                    action_message = self.tr("Échec du traitement ou de la liaison du contact avec le client. Veuillez consulter les logs pour plus de détails ou contacter l'administrateur.")
 
             # Case: Managing a global contact (no client_id context)
             elif contact_form_data.get('contact_id'): # Editing an existing global contact
@@ -336,7 +336,7 @@ class ContactDialog(QDialog):
         except Exception as e:
             success = False
             action_message = self.tr("Une erreur inattendue est survenue: {0}").format(str(e))
-            # Consider logging e here for debugging
+            logging.error(f"Une erreur inattendue est survenue dans ContactDialog.accept(): {type(e).__name__} - {str(e)}", exc_info=True)
 
         if success:
             get_notification_manager().show(title=self.tr("Opération Contact Réussie"), message=action_message, type='SUCCESS')

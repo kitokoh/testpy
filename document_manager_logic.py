@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import QMessageBox, QDialog, QInputDialog # QInputDialog wa
 
 # Import necessary functions directly from their new CRUD module locations
 from controllers.client_controller import ClientController # Added
+from controllers.contact_controller import ContactController # Added
 from db.cruds.locations_crud import get_country_by_id, get_city_by_id # These are fine as locations_crud is not refactored to class yet
 from db.cruds.status_settings_crud import get_status_setting_by_name, get_status_setting_by_id # Fine
 from db.cruds.clients_crud import clients_crud_instance # Import the instance
@@ -149,6 +150,7 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
             'status_id': project_status_id_for_pm,
             'priority': 1
         }
+        logging.info(f"Attempting to create project for client {actual_new_client_id} with data: {project_data_for_db}")
         new_project_id_central_db = add_project(project_data_for_db)
 
         if new_project_id_central_db:
@@ -170,17 +172,20 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
 
             for task_item in standard_tasks:
                 task_deadline = (datetime.now() + timedelta(days=task_item["deadline_days"])).strftime("%Y-%m-%d")
-                add_task({
+                task_data_for_db = {
                     'project_id': new_project_id_central_db,
                     'task_name': task_item["name"],
                     'description': task_item["description"],
                     'status_id': task_status_id_for_todo,
                     'priority': task_item["priority_val"],
                     'due_date': task_deadline
-                })
+                }
+                logging.info(f"Attempting to add task for project {new_project_id_central_db} with data: {task_data_for_db}")
+                add_task(task_data_for_db)
             QMessageBox.information(doc_manager, doc_manager.tr("Tâches Créées (Central DB)"),
                                     doc_manager.tr("Des tâches standard ont été ajoutées au projet pour {0}.").format(created_client_info.get('client_name', client_name_val)))
         else:
+            logging.error(f"Failed to create project for client {actual_new_client_id}. Data attempted: {project_data_for_db}")
             QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB Projet"),
                                 doc_manager.tr("Le client a été créé, mais la création du projet associé a échoué."))
             doc_manager.notify(title=doc_manager.tr("Erreur Création Projet Associé"),
@@ -225,71 +230,93 @@ def handle_create_client_execution(doc_manager, client_data_dict=None):
             doc_manager.add_client_to_list_widget(ui_map_data)
 
         if ui_map_data:
+            contact_controller = ContactController() # Instantiate controller
             contact_dialog = ContactDialog(client_id=actual_new_client_id, parent=doc_manager)
             if contact_dialog.exec_() == QDialog.Accepted:
                 contact_form_data = contact_dialog.get_data()
-                try:
-                    existing_contact = get_contact_by_email(contact_form_data['email'])
-                    contact_id_to_link = None
-                    if existing_contact:
-                        contact_id_to_link = existing_contact['contact_id']
-                        update_data = {k: v for k, v in contact_form_data.items() if k in ['name', 'phone', 'position'] and v != existing_contact.get(k)}
-                        if update_data: update_contact(contact_id_to_link, update_data)
-                    else:
-                        new_contact_id = add_contact({
-                            'name': contact_form_data['name'], 'email': contact_form_data['email'],
-                            'phone': contact_form_data['phone'], 'position': contact_form_data['position']
-                        })
-                        if new_contact_id: contact_id_to_link = new_contact_id
-                        else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le nouveau contact global."))
 
-                    if contact_id_to_link:
-                        if contact_form_data['is_primary_for_client']:
-                            client_contacts = get_contacts_for_client(actual_new_client_id)
-                            if client_contacts:
-                                for cc in client_contacts:
-                                    if cc['is_primary_for_client'] and cc.get('client_contact_id'):
-                                        update_client_contact_link(cc['client_contact_id'], {'is_primary_for_client': False})
-                        link_id = link_contact_to_client(actual_new_client_id, contact_id_to_link, is_primary=contact_form_data['is_primary_for_client'])
-                        if not link_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le contact au client (le lien existe peut-être déjà)."))
-                except Exception as e_contact_save:
-                    QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Contact"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du contact : {0}").format(str(e_contact_save)))
+                logging.info(f"Attempting to process contact for client {actual_new_client_id} using ContactController. Form data: {contact_form_data}")
+
+                # Use the ContactController here
+                contact_id_linked, link_id = contact_controller.get_or_create_contact_and_link(
+                    client_id=actual_new_client_id,
+                    contact_form_data=contact_form_data
+                )
+
+                if contact_id_linked:
+                    logging.info(f"Contact processed successfully for client {actual_new_client_id}. Contact ID: {contact_id_linked}, Link ID: {link_id}")
+                    # Optionally, notify user of contact success, though ContactDialog itself might do this.
+                    # For consistency, a simple log here is fine, or a notification via doc_manager.notify if desired.
+                    # Example: doc_manager.notify(title=doc_manager.tr("Contact Traité"), message=doc_manager.tr("Le contact a été traité avec succès pour le nouveau client."), type='SUCCESS')
+                else:
+                    logging.error(f"Failed to process contact for client {actual_new_client_id} using ContactController.")
+                    QMessageBox.warning(doc_manager,
+                                        doc_manager.tr("Erreur Contact"),
+                                        doc_manager.tr("Le traitement du contact a échoué. Veuillez vérifier les informations du contact ou consulter les logs pour plus de détails."))
+            else:
+                logging.info(f"ContactDialog was cancelled for client {actual_new_client_id}.")
 
             # ProductDialog and subsequent price calculation
             product_dialog = ProductDialog(client_id=actual_new_client_id, app_root_dir=doc_manager.app_root_dir, parent=doc_manager)
             if product_dialog.exec_() == QDialog.Accepted:
                 products_list_data = product_dialog.get_data()
                 for product_item_data in products_list_data:
+                    logging.info(f"Processing product item from dialog: {product_item_data}")
                     try:
+                        logging.info(f"Attempting to get global product by name: '{product_item_data.get('name')}'")
                         global_product = get_product_by_name(product_item_data['name'])
                         global_product_id = None; current_base_unit_price = None
                         if global_product:
                             global_product_id = global_product['product_id']; current_base_unit_price = global_product.get('base_unit_price')
                         else:
-                            new_global_product_id = add_product({
+                            new_global_product_data = {
                                 'product_name': product_item_data['name'], 'description': product_item_data['description'],
                                 'base_unit_price': product_item_data['unit_price'], 'language_code': product_item_data.get('language_code', 'fr')
-                            })
-                            if new_global_product_id: global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
-                            else: QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr'))); continue
+                            }
+                            logging.info(f"Global product '{product_item_data.get('name')}' not found. Attempting to add new global product with data: {new_global_product_data}")
+                            new_global_product_id = add_product(new_global_product_data)
+                            if new_global_product_id:
+                                global_product_id = new_global_product_id; current_base_unit_price = product_item_data['unit_price']
+                            else:
+                                logging.error(f"Failed to add global product '{product_item_data.get('name')}' with data {new_global_product_data}. Skipping linking for this item.")
+                                QMessageBox.critical(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de créer le produit global '{0}' (lang: {1}).").format(product_item_data['name'], product_item_data.get('language_code', 'fr')));
+                                continue
 
                         if global_product_id:
                             unit_price_override_val = product_item_data['unit_price'] if current_base_unit_price is None or product_item_data['unit_price'] != current_base_unit_price else None
                             link_data = {'client_id': actual_new_client_id, 'project_id': None, 'product_id': global_product_id, 'quantity': product_item_data['quantity'], 'unit_price_override': unit_price_override_val}
+                            logging.info(f"Attempting to link product_id {global_product_id} to client {actual_new_client_id} (project: None) with link data: {link_data}")
                             cpp_id = add_product_to_client_or_project(link_data)
-                            if not cpp_id: QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
+                            if not cpp_id:
+                                logging.error(f"Failed to link product_id {global_product_id} to client {actual_new_client_id} with link data {link_data}.")
+                                QMessageBox.warning(doc_manager, doc_manager.tr("Erreur DB"), doc_manager.tr("Impossible de lier le produit '{0}' au client.").format(product_item_data['name']))
                     except Exception as e_product_save:
+                        logging.error(f"Unexpected error processing product '{product_item_data.get('name', 'Inconnu')}': {type(e_product_save).__name__} - {e_product_save}", exc_info=True)
                         QMessageBox.critical(doc_manager, doc_manager.tr("Erreur Sauvegarde Produit"), doc_manager.tr("Une erreur est survenue lors de la sauvegarde du produit '{0}': {1}").format(product_item_data.get('name', 'Inconnu'), str(e_product_save)))
 
             # Recalculate price after product dialog (whether accepted or cancelled)
             linked_products = get_products_for_client_or_project(client_id=actual_new_client_id, project_id=None)
             if linked_products is None: linked_products = []
             calculated_total_sum = sum(p.get('total_price_calculated', 0.0) for p in linked_products if p.get('total_price_calculated') is not None)
-            clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
-            ui_map_data['price'] = calculated_total_sum # Update the map
-            if actual_new_client_id in doc_manager.clients_data_map: doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+            logging.info(f"Recalculated total price for client {actual_new_client_id} after product changes: {calculated_total_sum}")
+            logging.info(f"Attempting to update client {actual_new_client_id} with new price: {calculated_total_sum}")
+            update_price_result = clients_crud_instance.update_client(actual_new_client_id, {'price': calculated_total_sum})
+
+            if update_price_result and update_price_result.get('success') and update_price_result.get('updated_count', 0) > 0:
+                logging.info(f"Successfully updated price for client {actual_new_client_id} to {calculated_total_sum}")
+                # Update local data maps (existing logic)
+                ui_map_data['price'] = calculated_total_sum
+                if actual_new_client_id in doc_manager.clients_data_map:
+                    doc_manager.clients_data_map[actual_new_client_id]['price'] = calculated_total_sum
+            else:
+                error_msg = update_price_result.get('error', 'Unknown error') if update_price_result else 'Unknown error'
+                logging.error(f"Failed to update price for client {actual_new_client_id} to {calculated_total_sum}. DB Result: {update_price_result}")
+                QMessageBox.warning(doc_manager,
+                                    doc_manager.tr("Erreur Mise à Jour Prix"),
+                                    doc_manager.tr("Le prix calculé ({0}) pour le client n'a pas pu être sauvegardé en base de données. Erreur: {1}").format(calculated_total_sum, error_msg))
 
             # CreateDocumentDialog call
+            logging.info(f"Attempting to show CreateDocumentDialog for client ID {actual_new_client_id}. Client info (ui_map_data) being passed: {ui_map_data}")
             create_document_dialog = CreateDocumentDialog(client_info=ui_map_data, config=doc_manager.config, parent=doc_manager)
             if create_document_dialog.exec_() == QDialog.Accepted: logging.info("CreateDocumentDialog accepted.")
             else: logging.info("CreateDocumentDialog cancelled.")

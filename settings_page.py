@@ -5,6 +5,9 @@ import types # For creating mock module objects
 
 # --- Conditional mocking for __main__ START ---
 # This MUST be before any problematic imports like 'db'
+
+from dialogs.template_dialog import TemplateDialog # Added import
+
 if __name__ == '__main__':
     print("MAIN_TOP: Pre-patching sys.modules for 'db' with a mock package structure.")
 
@@ -221,9 +224,11 @@ if __name__ == '__main__':
     def mock_get_distinct_template_languages(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_languages called"); return []
     def mock_get_distinct_template_types(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_types called"); return []
     def mock_get_filtered_templates(*args, **kwargs): print("MOCK templates_crud.get_filtered_templates called"); return []
+    def mock_get_distinct_template_extensions(*args, **kwargs): print("MOCK templates_crud.get_distinct_template_extensions called"); return [] # Added mock
     mock_db_cruds_templates_crud_module.get_distinct_template_languages = mock_get_distinct_template_languages
     mock_db_cruds_templates_crud_module.get_distinct_template_types = mock_get_distinct_template_types
     mock_db_cruds_templates_crud_module.get_filtered_templates = mock_get_filtered_templates
+    mock_db_cruds_templates_crud_module.get_distinct_template_extensions = mock_get_distinct_template_extensions # Added mock
     setattr(mock_db_cruds_module, 'templates_crud', mock_db_cruds_templates_crud_module)
     sys.modules['db.cruds.templates_crud'] = mock_db_cruds_templates_crud_module
 
@@ -272,10 +277,10 @@ print(f"Initial sys.path: {sys.path}") # Debug print
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget, QLabel,
     QFormLayout, QLineEdit, QComboBox, QSpinBox, QFileDialog, QCheckBox,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit, # Added QDialog, QTextEdit
-    QGroupBox, QRadioButton
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QMessageBox, QDialog, QTextEdit,
+    QGroupBox, QRadioButton, QHeaderView # Added QHeaderView
 )
-from PyQt5.QtGui import QIcon # Added for icons on buttons
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 
 # Assuming db_manager provides the necessary functions directly or via submodules
@@ -428,6 +433,9 @@ class SettingsPage(QWidget):
 
         self._setup_transporters_tab() # New
         self._setup_freight_forwarders_tab() # New
+        self._setup_template_visibility_tab() # New Tab for Template Visibility
+        self._setup_global_template_management_tab() # New Tab for Global Template Management
+        self._setup_backup_tab() # New Backup Tab
 
         main_layout.addWidget(self.tabs_widget)
         main_layout.addStretch(1)
@@ -456,6 +464,39 @@ class SettingsPage(QWidget):
             self._load_forwarders_table() # Initial load
         else:
             print("WARNING: db_manager not available. Transporter and Forwarder tables will not be loaded.")
+
+    def _setup_backup_tab(self):
+        backup_tab_widget = QWidget()
+        backup_form_layout = QFormLayout(backup_tab_widget)
+        backup_form_layout.setContentsMargins(10, 10, 10, 10)
+        backup_form_layout.setSpacing(10)
+
+        self.backup_server_address_input = QLineEdit()
+        self.backup_server_address_input.setPlaceholderText(self.tr("Enter server address (e.g., 192.168.1.100 or domain.com)"))
+        backup_form_layout.addRow(self.tr("Server Address:"), self.backup_server_address_input)
+
+        self.backup_port_input = QLineEdit()
+        self.backup_port_input.setPlaceholderText(self.tr("Enter port (e.g., 22 for SFTP, 443 for HTTPS)"))
+        backup_form_layout.addRow(self.tr("Port:"), self.backup_port_input)
+
+        self.backup_username_input = QLineEdit()
+        self.backup_username_input.setPlaceholderText(self.tr("Enter username for backup server"))
+        backup_form_layout.addRow(self.tr("Username:"), self.backup_username_input)
+
+        self.backup_password_input = QLineEdit()
+        self.backup_password_input.setEchoMode(QLineEdit.Password)
+        self.backup_password_input.setPlaceholderText(self.tr("Enter password for backup server"))
+        backup_form_layout.addRow(self.tr("Password:"), self.backup_password_input)
+
+        self.run_backup_button = QPushButton(self.tr("Run Backup"))
+        self.run_backup_button.setObjectName("primaryButton") # Optional: for styling
+        self.run_backup_button.clicked.connect(self._handle_run_backup) # Connect to handler method
+
+        backup_form_layout.addRow(self.run_backup_button)
+
+        backup_tab_widget.setLayout(backup_form_layout)
+        self.tabs_widget.addTab(backup_tab_widget, self.tr("Backup"))
+
 
     def _setup_general_tab(self):
         general_tab_widget = QWidget()
@@ -486,6 +527,24 @@ class SettingsPage(QWidget):
         db_path_browse_btn = QPushButton(self.tr("Browse...")); db_path_browse_btn.clicked.connect(lambda: self._browse_db_file(self.db_path_input))
         db_path_layout = QHBoxLayout(); db_path_layout.addWidget(self.db_path_input); db_path_layout.addWidget(db_path_browse_btn)
         general_form_layout.addRow(self.tr("Database Path:"), db_path_layout)
+
+        # Database Type ComboBox - Allows selection of the database system.
+        # Currently, only SQLite is fully implemented. Other options are placeholders for future development.
+        self.db_type_combo = QComboBox()
+        self.db_type_combo.setToolTip(self.tr(
+            "Select the database system. Currently, only SQLite is fully supported. "
+            "Other options are for future expansion."
+        ))
+        self.db_type_combo.addItem("SQLite", "sqlite")
+        # Add future options as disabled
+        item_postgresql = self.db_type_combo.model().item(self.db_type_combo.count() -1) # Index will be 1 after adding SQLite
+        self.db_type_combo.addItem("PostgreSQL (future)", "postgresql")
+        self.db_type_combo.model().item(self.db_type_combo.count() - 1).setEnabled(False)
+        self.db_type_combo.addItem("MySQL (future)", "mysql")
+        self.db_type_combo.model().item(self.db_type_combo.count() - 1).setEnabled(False)
+
+        general_form_layout.addRow(self.tr("Database Type:"), self.db_type_combo)
+
         general_tab_widget.setLayout(general_form_layout)
         self.tabs_widget.addTab(general_tab_widget, self.tr("General"))
 
@@ -932,6 +991,17 @@ class SettingsPage(QWidget):
         self.show_setup_prompt_checkbox.setChecked(self.main_config.get("show_initial_setup_on_startup", False))
         self.db_path_input.setText(self.main_config.get("database_path", os.path.join(os.getcwd(), "app_data.db")))
 
+        # Load database type
+        current_db_type = self.main_config.get('database_type', 'sqlite')
+        db_type_index = self.db_type_combo.findData(current_db_type)
+        if db_type_index != -1:
+            self.db_type_combo.setCurrentIndex(db_type_index)
+        else:
+            # Fallback to SQLite if saved type is somehow invalid or not in combo
+            sqlite_index = self.db_type_combo.findData('sqlite')
+            if sqlite_index != -1:
+                self.db_type_combo.setCurrentIndex(sqlite_index)
+
 
     def _load_email_tab_data(self):
         self.smtp_server_input.setText(self.main_config.get("smtp_server", ""))
@@ -943,6 +1013,12 @@ class SettingsPage(QWidget):
         self.download_monitor_enabled_checkbox.setChecked(self.main_config.get("download_monitor_enabled", False))
         default_download_path = os.path.join(os.path.expanduser('~'), 'Downloads')
         self.download_monitor_path_input.setText(self.main_config.get("download_monitor_path", default_download_path))
+
+    def _load_backup_tab_data(self):
+        self.backup_server_address_input.setText(self.main_config.get("backup_server_address", ""))
+        self.backup_port_input.setText(self.main_config.get("backup_port", ""))
+        self.backup_username_input.setText(self.main_config.get("backup_username", ""))
+        self.backup_password_input.setText(self.main_config.get("backup_password", ""))
 
     def _browse_directory(self, line_edit_target, dialog_title):
         start_dir = line_edit_target.text();
@@ -959,7 +1035,20 @@ class SettingsPage(QWidget):
     def get_general_settings_data(self):
         selected_lang_display_text = self.interface_lang_combo.currentText()
         language_code = self.lang_display_to_code.get(selected_lang_display_text, "fr")
-        return {"templates_dir": self.templates_dir_input.text().strip(), "clients_dir": self.clients_dir_input.text().strip(), "language": language_code, "default_reminder_days": self.reminder_days_spinbox.value(), "session_timeout_minutes": self.session_timeout_spinbox.value(), "google_maps_review_url": self.google_maps_url_input.text().strip(), "show_initial_setup_on_startup": self.show_setup_prompt_checkbox.isChecked(), "database_path": self.db_path_input.text().strip()}
+        # Get selected database type
+        selected_db_type = self.db_type_combo.currentData() if self.db_type_combo.currentIndex() != -1 else "sqlite"
+
+        return {
+            "templates_dir": self.templates_dir_input.text().strip(),
+            "clients_dir": self.clients_dir_input.text().strip(),
+            "language": language_code,
+            "default_reminder_days": self.reminder_days_spinbox.value(),
+            "session_timeout_minutes": self.session_timeout_spinbox.value(),
+            "google_maps_review_url": self.google_maps_url_input.text().strip(),
+            "show_initial_setup_on_startup": self.show_setup_prompt_checkbox.isChecked(),
+            "database_path": self.db_path_input.text().strip(),
+            "database_type": selected_db_type
+        }
 
     def get_email_settings_data(self):
         return {"smtp_server": self.smtp_server_input.text().strip(), "smtp_port": self.smtp_port_spinbox.value(), "smtp_user": self.smtp_user_input.text().strip(), "smtp_password": self.smtp_pass_input.text()}
@@ -970,11 +1059,20 @@ class SettingsPage(QWidget):
             "download_monitor_path": self.download_monitor_path_input.text().strip()
         }
 
+    def get_backup_settings_data(self):
+        return {
+            "backup_server_address": self.backup_server_address_input.text().strip(),
+            "backup_port": self.backup_port_input.text().strip(),
+            "backup_username": self.backup_username_input.text().strip(),
+            "backup_password": self.backup_password_input.text() # Password is not stripped
+        }
+
     def _load_all_settings_from_config(self):
         self._load_general_tab_data()
         self._load_email_tab_data()
         self._load_download_monitor_tab_data()
         self._load_modules_tab_data() # Load data for the new modules tab
+        self._load_backup_tab_data() # Load data for the backup tab
         # Transporter and Forwarder data are loaded from DB directly.
         print("SettingsPage: All settings reloaded.")
 
@@ -992,6 +1090,11 @@ class SettingsPage(QWidget):
         # Download Monitor Settings
         download_monitor_settings = self.get_download_monitor_settings_data()
         for key, value in download_monitor_settings.items():
+            self.main_config[key] = value
+
+        # Backup Settings
+        backup_settings = self.get_backup_settings_data()
+        for key, value in backup_settings.items():
             self.main_config[key] = value
 
         # Save to the actual config file (e.g., JSON)
@@ -1093,6 +1196,196 @@ class SettingsPage(QWidget):
             else:
                 print(f"Warning: Radio buttons for module key '{key}' not found during save.")
         print("Module settings saved to DB.")
+
+    def _setup_global_template_management_tab(self):
+        template_management_tab = QWidget()
+        tab_layout = QVBoxLayout(template_management_tab)
+        tab_layout.setContentsMargins(10, 10, 10, 10)
+        tab_layout.setSpacing(10)
+
+        description_label = QLabel(self.tr("Manage global and client-specific document templates, including categories, languages, and extensions."))
+        description_label.setWordWrap(True)
+        tab_layout.addWidget(description_label)
+
+        manage_templates_btn = QPushButton(self.tr("Open Template Manager"))
+        manage_templates_btn.setObjectName("manageTemplatesButton") # For styling
+        manage_templates_btn.setIcon(QIcon(":/icons/settings-gear.svg"))  # Assuming a gear or similar icon
+        manage_templates_btn.clicked.connect(self._open_template_manager_dialog)
+
+        button_hbox = QHBoxLayout()
+        button_hbox.addWidget(manage_templates_btn)
+
+        tab_layout.addLayout(button_hbox)
+        tab_layout.addStretch(1) # Add stretch to push content to the top
+
+        self.tabs_widget.addTab(template_management_tab, self.tr("Template Management"))
+
+    def _open_template_manager_dialog(self):
+        # TemplateDialog expects config and parent
+        dialog = TemplateDialog(config=self.main_config, parent=self)
+        dialog.exec_()
+
+    def _setup_template_visibility_tab(self):
+        self.template_visibility_tab = QWidget()
+        layout = QVBoxLayout(self.template_visibility_tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Table for template visibility
+        self.template_visibility_table = QTableWidget()
+        self.template_visibility_table.setColumnCount(5)
+        self.template_visibility_table.setHorizontalHeaderLabels([
+            self.tr("Template Name"), self.tr("Description"), self.tr("Type"),
+            self.tr("Language"), self.tr("Visible")
+        ])
+        self.template_visibility_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.template_visibility_table.setEditTriggers(QAbstractItemView.NoEditTriggers) # Non-editable text
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.template_visibility_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents) # Checkbox column
+
+        layout.addWidget(self.template_visibility_table)
+
+        # Buttons layout
+        buttons_layout = QHBoxLayout()
+        self.refresh_template_visibility_btn = QPushButton(self.tr("Refresh List"))
+        self.refresh_template_visibility_btn.setIcon(QIcon(":/icons/refresh.svg")) # Assuming icon exists
+        self.refresh_template_visibility_btn.clicked.connect(self._load_template_visibility_data)
+        buttons_layout.addWidget(self.refresh_template_visibility_btn)
+
+        buttons_layout.addStretch(1)
+
+        self.save_template_visibility_btn = QPushButton(self.tr("Save Visibility Settings"))
+        self.save_template_visibility_btn.setIcon(QIcon(":/icons/save.svg")) # Assuming icon exists
+        self.save_template_visibility_btn.clicked.connect(self._save_template_visibility_data)
+        buttons_layout.addWidget(self.save_template_visibility_btn)
+
+        layout.addLayout(buttons_layout)
+        self.tabs_widget.addTab(self.template_visibility_tab, self.tr("Template Visibility"))
+
+        self._load_template_visibility_data() # Initial load
+
+    def _load_template_visibility_data(self):
+        print("SettingsPage: _load_template_visibility_data called (mocked).")
+        # Mocked API call to GET /api/templates/visibility_settings
+        # In a real scenario, this would use self._call_api or similar
+        sample_data = [
+            {"template_id": 101, "template_name": "Proforma Invoice (Basic)", "description": "Standard proforma template.", "template_type": "proforma_invoice_html", "language_code": "fr", "is_visible": True},
+            {"template_id": 102, "template_name": "Cover Page (Modern)", "description": "Modern style cover page.", "template_type": "html_cover_page", "language_code": "fr", "is_visible": True},
+            {"template_id": 103, "template_name": "Sales Quote (EN)", "description": "Standard sales quote in English.", "template_type": "document_word", "language_code": "en", "is_visible": False},
+            {"template_id": 104, "template_name": "Product Catalog (Compact)", "description": "Compact product catalog.", "template_type": "document_pdf", "language_code": "fr", "is_visible": True},
+            {"template_id": 105, "template_name": self.tr("Affichage Images Produit FR"), "description": self.tr("Affiche les images des produits, leur nom et leur code."), "template_type": "document_html", "language_code": "fr", "is_visible": True},
+        ]
+        # If using a real API call:
+        # try:
+        #     response = self._call_api(method="GET", endpoint="/api/templates/visibility_settings")
+        #     if response and isinstance(response, list):
+        #         sample_data = response
+        #     else:
+        #         QMessageBox.warning(self, self.tr("Error"), self.tr("Failed to load template visibility data from server.") + (f"\n{response.get('detail')}" if response else ""))
+        #         sample_data = [] # Fallback to empty
+        # except Exception as e:
+        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API for template visibility: {0}").format(str(e)))
+        #     sample_data = []
+
+        self.template_visibility_table.setRowCount(0) # Clear table
+        self.template_visibility_table.setSortingEnabled(False)
+
+        for row_idx, t_data in enumerate(sample_data):
+            self.template_visibility_table.insertRow(row_idx)
+
+            name_item = QTableWidgetItem(t_data.get("template_name", "N/A"))
+            # Store template_id in the first item's UserRole for easy retrieval
+            name_item.setData(Qt.UserRole, t_data.get("template_id"))
+            self.template_visibility_table.setItem(row_idx, 0, name_item)
+
+            self.template_visibility_table.setItem(row_idx, 1, QTableWidgetItem(t_data.get("description", "")))
+            self.template_visibility_table.setItem(row_idx, 2, QTableWidgetItem(t_data.get("template_type", "")))
+            self.template_visibility_table.setItem(row_idx, 3, QTableWidgetItem(t_data.get("language_code", "")))
+
+            # Checkbox for visibility
+            checkbox_widget = QWidget() # Container for centering checkbox
+            checkbox_layout = QHBoxLayout(checkbox_widget)
+            checkbox_layout.setContentsMargins(0,0,0,0)
+            checkbox_layout.setAlignment(Qt.AlignCenter)
+            visibility_checkbox = QCheckBox()
+            visibility_checkbox.setChecked(t_data.get("is_visible", True))
+            # Store template_id directly on checkbox too for convenience if needed, though UserRole on row is common
+            visibility_checkbox.setProperty("template_id", t_data.get("template_id"))
+            checkbox_layout.addWidget(visibility_checkbox)
+            self.template_visibility_table.setCellWidget(row_idx, 4, checkbox_widget)
+
+        self.template_visibility_table.setSortingEnabled(True)
+        print(f"SettingsPage: Template visibility table populated with {len(sample_data)} items (mocked).")
+
+
+    def _save_template_visibility_data(self):
+        print("SettingsPage: _save_template_visibility_data called (mocked).")
+        payload_items = []
+        for row_idx in range(self.template_visibility_table.rowCount()):
+            template_id_item = self.template_visibility_table.item(row_idx, 0)
+            template_id = template_id_item.data(Qt.UserRole) if template_id_item else None
+
+            visibility_cell_widget = self.template_visibility_table.cellWidget(row_idx, 4)
+            if not (template_id and visibility_cell_widget):
+                print(f"Warning: Missing data for row {row_idx}. Skipping.")
+                continue
+
+            # Assuming the cell widget is the QWidget container, find the QCheckBox
+            visibility_checkbox = visibility_cell_widget.findChild(QCheckBox)
+            if not visibility_checkbox:
+                print(f"Warning: QCheckBox not found in cell for row {row_idx}, template_id {template_id}. Skipping.")
+                continue
+
+            is_visible = visibility_checkbox.isChecked()
+            payload_items.append({"template_id": template_id, "is_visible": is_visible})
+
+        payload = {"preferences": payload_items}
+        print(f"SettingsPage: Payload for POST /api/templates/visibility_settings (mocked): {payload}")
+
+        # Mocked API call
+        # try:
+        #     response = self._call_api(method="POST", endpoint="/api/templates/visibility_settings", data=payload)
+        #     if response and response.get("message"):
+        #         QMessageBox.information(self, self.tr("Success"), self.tr("Template visibility settings saved successfully."))
+        #         self._load_template_visibility_data() # Refresh data
+        #     else:
+        #         QMessageBox.warning(self, self.tr("Save Error"), self.tr("Failed to save template visibility settings.") + (f"\nDetail: {response.get('detail')}" if response else ""))
+        # except Exception as e:
+        #     QMessageBox.critical(self, self.tr("API Error"), self.tr("Error calling API to save template visibility: {0}").format(str(e)))
+
+        # For mocked version:
+        QMessageBox.information(self, self.tr("Mock Save"), self.tr("Template visibility data (mocked) prepared. Check console for payload."))
+        # self._load_template_visibility_data() # Optionally refresh after mock save too
+
+    def _handle_run_backup(self):
+        server_address = self.backup_server_address_input.text().strip()
+        port = self.backup_port_input.text().strip()
+        username = self.backup_username_input.text().strip()
+        # For security, we retrieve the password but should be careful with logging or displaying it.
+        # For this placeholder, we'll just acknowledge it's retrieved.
+        password = self.backup_password_input.text() # No strip, as passwords can have leading/trailing spaces
+
+        details_message = self.tr(
+            "Backup process would start now with these details:\n\n"
+            "Server Address: {0}\n"
+            "Port: {1}\n"
+            "Username: {2}\n"
+            "Password: {3}" # In a real scenario, avoid displaying/logging the password
+        ).format(
+            server_address if server_address else self.tr("[Not provided]"),
+            port if port else self.tr("[Not provided]"),
+            username if username else self.tr("[Not provided]"),
+            self.tr("********") if password else self.tr("[Not provided]") # Mask password in message
+        )
+
+        QMessageBox.information(
+            self,
+            self.tr("Run Backup"),
+            details_message
+        )
+        # Actual backup logic would be implemented here or called from here.
+        print(f"Backup Details: Address='{server_address}', Port='{port}', User='{username}', Password_Length='{len(password)}'")
 
 
 if __name__ == '__main__':

@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 # import db as db_manager # Removed
 from controllers.client_controller import ClientController # Added
+from db.cruds.templates_crud import get_all_templates # Added for template selection
 
 class AddNewClientDialog(QDialog):
     def __init__(self, parent=None, initial_country_name=None):
@@ -87,6 +88,9 @@ class AddNewClientDialog(QDialog):
         self.language_select_combo.addItems(list(self.language_options_map.keys()))
         self.form_layout.addRow(self.tr("Langues:"), self.language_select_combo)
 
+        self.default_template_combo = QComboBox()
+        self.form_layout.addRow(self.tr("Default Template:"), self.default_template_combo)
+
         layout.addLayout(self.form_layout)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -97,7 +101,20 @@ class AddNewClientDialog(QDialog):
         layout.addWidget(self.buttons)
 
         self.load_countries_into_combo()
+        self.populate_template_combo() # Added call
         self._handle_initial_country()
+
+    def populate_template_combo(self):
+        self.default_template_combo.clear()
+        self.default_template_combo.addItem(self.tr("-- No Default --"), None)
+        try:
+            templates = get_all_templates(conn=None) # Assuming get_all_templates can handle None conn or uses its own
+            if templates:
+                for template in templates:
+                    self.default_template_combo.addItem(template['template_name'], template['template_id'])
+        except Exception as e:
+            QMessageBox.warning(self, self.tr("Template Loading Error"), self.tr("Could not load templates: {0}").format(str(e)))
+
 
     def populate_from_voice_data(self, data: dict):
         self.client_name_input.setText(data.get('client_name', ''))
@@ -310,7 +327,8 @@ class AddNewClientDialog(QDialog):
             "country_name": country_name, # Raw name
             "city_name": city_name,       # Raw name
             "project_identifier": project_id_text,
-            "selected_languages": ",".join(selected_languages_list)
+            "selected_languages": ",".join(selected_languages_list),
+            "default_template_id": self.default_template_combo.currentData()
             # client_status_id can be defaulted by the controller or main window
         }
 

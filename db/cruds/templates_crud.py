@@ -22,6 +22,7 @@ except ImportError:
 
 from .generic_crud import _manage_conn, get_db_connection # db_config removed from this import
 from .template_categories_crud import add_template_category, get_template_category_by_name
+from .application_settings_crud import get_setting # Added for visibility check
 
 # --- Templates CRUD ---
 @_manage_conn
@@ -242,6 +243,7 @@ def get_filtered_templates(
     template_type: str = None,
     client_id_filter: str = None,
     fetch_global_only: bool = False,
+    file_extension_filter: str = None, # New parameter
     conn: sqlite3.Connection = None
 ) -> list[dict]:
     cursor = conn.cursor(); sql = "SELECT * FROM Templates"; where_clauses = []; params = []
@@ -263,15 +265,25 @@ def get_filtered_templates(
         params.append(client_id_filter)
     # If neither fetch_global_only is True nor client_id_filter is set, all templates (client-specific and global) are fetched.
 
+    if file_extension_filter:
+        where_clauses.append("LOWER(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) = ?")
+        params.append(file_extension_filter.lower())
+
     if where_clauses:
         sql += " WHERE " + " AND ".join(where_clauses)
-    sql += " ORDER BY client_id, category_id, template_name"
+    sql += " ORDER BY client_id, category_id, template_name" # Consider adding file extension to sort order if relevant
 
     try:
         cursor.execute(sql, tuple(params))
         return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
-        logging.error(f"Failed to get filtered templates: {e}")
+        # Updated logging to include the new filter parameter
+        logging.error(
+            f"Failed to get filtered templates with category_id='{category_id}', "
+            f"language_code='{language_code}', template_type='{template_type}', "
+            f"client_id_filter='{client_id_filter}', fetch_global_only='{fetch_global_only}', "
+            f"file_extension_filter='{file_extension_filter}': {e}"
+        )
         return []
 
 @_manage_conn
@@ -362,6 +374,7 @@ def get_all_templates(
     client_id_filter: str = None,
     category_id_filter: Optional[Union[int, List[int]]] = None, # Modified type hint
     template_type_filter_list: list[str] = None,  # New parameter for list of types
+    apply_visibility_filter: bool = True, # New parameter
     conn: sqlite3.Connection = None
 ) -> list[dict]:
     cursor = conn.cursor()
@@ -402,16 +415,40 @@ def get_all_templates(
 
     sql += " ORDER BY client_id, category_id, template_name, language_code" # Added category_id to order for consistency
 
+    fetched_templates = []
     try:
+        logging.info(f"Executing get_all_templates SQL: {sql} with params: {params}")
         cursor.execute(sql, tuple(params))
-        return [dict(row) for row in cursor.fetchall()]
+        fetched_templates = [dict(row) for row in cursor.fetchall()]
+        logging.info(f"Raw templates fetched from DB (before visibility filter): {len(fetched_templates)}")
+        if len(fetched_templates) < 10 and fetched_templates: # Log details only if few rows, to avoid log spam
+            logging.info(f"Raw templates details: {fetched_templates}")
     except sqlite3.Error as e:
         logging.error(
             f"Failed to get all templates with filters type='{template_type_filter if not template_type_filter_list else template_type_filter_list}', "
             f"lang='{language_code_filter}', client='{client_id_filter}', "
             f"category_id='{category_id_filter}': {e}"
         )
-        return []
+        return [] # Return empty list on DB error
+
+    if not apply_visibility_filter:
+        return fetched_templates # Return all fetched templates without visibility filtering
+
+    # Filter for visibility (this block is now conditional)
+    visible_templates = []
+    if fetched_templates:
+        for t_dict in fetched_templates:
+            template_id = t_dict.get('template_id') # template_id is int
+            if not template_id: # Should not happen with clean data
+                continue
+
+            # Use the imported get_setting, passing the connection
+            visibility_key = f"template_visibility_{template_id}_enabled"
+            is_visible_str = get_setting(visibility_key, default='True', conn=conn) # Pass conn
+            if is_visible_str.lower() == 'true':
+                visible_templates.append(t_dict)
+
+    return visible_templates
 
 @_manage_conn
 def get_distinct_languages_for_template_type(template_type: str, conn: sqlite3.Connection = None) -> list[str]:
@@ -463,9 +500,36 @@ __all__ = [
     "get_distinct_languages_for_template_type",
     "get_all_file_based_templates",
     "get_templates_by_category_id",
+    "get_distinct_template_extensions", # Added new function
     "add_utility_document_template",
     "get_utility_documents",
 ]
+
+# --- Function to get distinct template extensions ---
+@_manage_conn
+def get_distinct_template_extensions(conn: sqlite3.Connection = None) -> list[str]:
+    """
+    Retrieves a list of distinct, lowercase file extensions from templates that have a base_file_name.
+    Extensions are returned without the leading dot.
+    e.g., ['pdf', 'docx', 'html']
+    """
+    cursor = conn.cursor()
+    sql = """
+        SELECT DISTINCT LOWER(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) AS extension
+        FROM Templates
+        WHERE base_file_name IS NOT NULL
+          AND INSTR(base_file_name, '.') > 0
+          AND LENGTH(SUBSTR(base_file_name, INSTR(base_file_name, '.') + 1)) > 0
+        ORDER BY extension
+    """
+    try:
+        cursor.execute(sql)
+        # Fetchall returns a list of tuples (or dicts if row_factory is set, which it is by _manage_conn)
+        # Assuming it returns dicts like {'extension': 'pdf'}
+        return [row['extension'] for row in cursor.fetchall() if row['extension']]
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get distinct template extensions: {e}")
+        return []
 
 UTILITY_DOCUMENT_CATEGORY_NAME = "Document Utilitaires"
 
