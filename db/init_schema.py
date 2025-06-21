@@ -450,6 +450,20 @@ def initialize_database():
         except sqlite3.Error as e_alter_deleted_at:
             print(f"Error adding 'deleted_at' column to Clients table: {e_alter_deleted_at}")
 
+    # Ensure default_template_id column exists
+    cursor.execute("PRAGMA table_info(Clients)")
+    clients_columns_info_for_template_check = cursor.fetchall() # Use a unique variable name
+    clients_column_names_for_template_check = [info['name'] for info in clients_columns_info_for_template_check]
+
+    if 'default_template_id' not in clients_column_names_for_template_check:
+        try:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN default_template_id INTEGER")
+            print("Added 'default_template_id' column to Clients table.")
+            # The FOREIGN KEY constraint is defined in the CREATE TABLE statement and will apply
+            # to new tables or if enforced by PRAGMA foreign_keys=ON for existing tables (version dependent).
+            # For existing tables in older SQLite, this adds the column, and app logic relies on the schema's FK definition.
+        except sqlite3.Error as e_alter_default_template_id:
+            print(f"Error adding 'default_template_id' column to Clients table: {e_alter_default_template_id}")
 
     # Create ClientNotes table (base from ca.py)
     cursor.execute("""
