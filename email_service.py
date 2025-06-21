@@ -12,7 +12,7 @@ from PyQt5.QtCore import QObject # QObject for potential signals if service itse
 
 # Assuming db.py and app_config.py are accessible
 import db
-from app_config import CONFIG # Though CONFIG not directly used here, db.py might use it
+from app_setup import CONFIG # Though CONFIG not directly used here, db.py might use it
 
 class EmailSenderService(QObject): # Inherit from QObject if it were to emit signals directly
     def __init__(self, smtp_config_id=None, parent=None):
