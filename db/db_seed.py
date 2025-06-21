@@ -10,12 +10,6 @@ import logging
 # Assuming config.py is in the parent directory (root)
 from config import DATABASE_PATH, DEFAULT_ADMIN_USERNAME
 
-# Determine project root
-APP_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-
-# Add the project root to sys.path to allow importing app_config
-if APP_ROOT_DIR not in sys.path:
-    sys.path.insert(0, APP_ROOT_DIR)
 
 from app_config import CONFIG
 
