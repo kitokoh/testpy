@@ -194,49 +194,67 @@ def main():
 
     # 8. Setup Translations
     # Try to get language from DB settings
-    # --- TEMPORARILY MODIFIED FOR TESTING ---
-    language_code = "fr"
-    logging.info(f"TESTING: Language forced to '{language_code}' for translation loading test.")
-    # Original logic commented out:
-    # language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
-    # # language_code_from_db = "fr" # Keep this commented for now, or decide if direct call is always preferred
-    # if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
-    #     language_code = language_code_from_db.strip()
-    #     logging.info(f"Language '{language_code}' loaded from database setting.")
-    # else:
-    #     default_lang = QLocale.system().name().split('_')[0]
-    #     language_code = CONFIG.get("language", default_lang)
-    #     if language_code_from_db is None:
-    #         logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
-    #     else: # Empty string or not a string
-    #         logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}').")
-    # --- END TEMPORARY MODIFICATION ---
+    # 8. Setup Translations
+    language_code_from_db = db.get_setting('user_selected_language') # Use db.get_setting
 
-    # Load application translations from language-specific directory
-    lang_spec_translations_dir = os.path.join(APP_ROOT_DIR, "translations", "qm", language_code)
-    logging.info(f"Attempting to load translations from language-specific directory: {lang_spec_translations_dir}")
-
-    if os.path.isdir(lang_spec_translations_dir):
-        for filename in os.listdir(lang_spec_translations_dir):
-            if filename.endswith(".qm"):
-                translator = QTranslator()
-                translation_path = os.path.join(lang_spec_translations_dir, filename)
-                if translator.load(translation_path):
-                    app.installTranslator(translator)
-                    logging.info(f"Successfully loaded and installed translation: {translation_path}")
-                else:
-                    logging.warning(f"Failed to load translation from {translation_path}. Error: {translator.errorString()}")
+    if language_code_from_db and isinstance(language_code_from_db, str) and language_code_from_db.strip():
+        language_code = language_code_from_db.strip()
+        logging.info(f"Language '{language_code}' loaded from database setting.")
     else:
-        logging.warning(f"Language-specific translations directory not found: {lang_spec_translations_dir}. No application translations loaded for '{language_code}'.")
+        default_lang = QLocale.system().name().split('_')[0]
+        language_code = CONFIG.get("language", default_lang if default_lang in ["en", "fr"] else "en") # Fallback to 'en' if system lang not supported
+        if language_code_from_db is None:
+            logging.info(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' not found).")
+        else: # Empty string or not a string
+            logging.warning(f"Language '{language_code}' loaded from config/system locale (DB setting 'user_selected_language' was invalid: '{language_code_from_db}'). Defaulting to '{language_code}'.")
 
+    # Load application translations
+    # First, try to load from the language-specific directory (e.g., translations/qm/fr/main.qm)
+    app_translator = QTranslator()
+    translation_filename = "main.qm" # Assuming your QM file is named main.qm
+    lang_spec_translation_path = os.path.join(APP_ROOT_DIR, "translations", "qm", language_code, translation_filename)
+
+    if os.path.exists(lang_spec_translation_path):
+        if app_translator.load(lang_spec_translation_path):
+            app.installTranslator(app_translator)
+            logging.info(f"Successfully loaded and installed application translation: {lang_spec_translation_path}")
+        else:
+            logging.warning(f"Failed to load application translation from {lang_spec_translation_path}. Error: {app_translator.errorString()}")
+    else:
+        # Fallback to loading from the general qm directory (e.g., translations/qm/fr.qm or en.qm)
+        # This might be useful if you don't use subdirectories per language for qm files.
+        # However, current structure implies subdirectories.
+        logging.warning(f"Application translation file not found at specific path: {lang_spec_translation_path}. Trying general path if applicable or skipping.")
+        # Example of a more general path (adjust if your structure is different):
+        # general_translation_path = os.path.join(APP_ROOT_DIR, "translations", "qm", f"{language_code}.qm")
+        # if os.path.exists(general_translation_path):
+        #    if app_translator.load(general_translation_path):
+        #        app.installTranslator(app_translator)
+        #        logging.info(f"Successfully loaded and installed application translation from general path: {general_translation_path}")
+        #    else:
+        #        logging.warning(f"Failed to load application translation from general path {general_translation_path}. Error: {app_translator.errorString()}")
+        # else:
+        #    logging.warning(f"No application translation file found for language '{language_code}'.")
+
+
+    # Load Qt base translations
     qt_translator = QTranslator()
-    # Use QLibraryInfo.location(QLibraryInfo.TranslationsPath) for Qt base translations
     qt_translation_path_base = QLibraryInfo.location(QLibraryInfo.TranslationsPath)
     if qt_translator.load(QLocale(language_code), "qtbase", "_", qt_translation_path_base):
         app.installTranslator(qt_translator)
         logging.info(f"Loaded Qt base translations for {language_code} from {qt_translation_path_base}")
     else:
-        logging.warning(f"Failed to load Qt base translations for {language_code} from {qt_translation_path_base}")
+        # Try a more generic locale if the specific one (e.g., fr_FR) fails
+        generic_locale_name = language_code.split('_')[0]
+        if generic_locale_name != language_code: # Avoid redundant logging if already generic
+            logging.info(f"Trying generic Qt base translations for {generic_locale_name} from {qt_translation_path_base}")
+            if qt_translator.load(QLocale(generic_locale_name), "qtbase", "_", qt_translation_path_base):
+                app.installTranslator(qt_translator)
+                logging.info(f"Loaded generic Qt base translations for {generic_locale_name} from {qt_translation_path_base}")
+            else:
+                logging.warning(f"Failed to load Qt base translations for {language_code} or {generic_locale_name} from {qt_translation_path_base}")
+        else:
+            logging.warning(f"Failed to load Qt base translations for {language_code} from {qt_translation_path_base}")
 
     # 9. Initialize Default Templates (after DB and CONFIG are ready)
     # initialize_default_templates is imported from app_setup
