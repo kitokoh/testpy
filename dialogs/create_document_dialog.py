@@ -67,7 +67,7 @@ class CreateDocumentDialog(QDialog):
         combined_filter_layout.addWidget(self.extension_filter_label)
         self.extension_filter_combo = QComboBox()
         self.extension_filter_combo.addItems([self.tr("All"), "HTML", "XLSX", "DOCX"])
-        self.extension_filter_combo.setCurrentText("HTML")
+        self.extension_filter_combo.setCurrentText(self.tr("All"))
         combined_filter_layout.addWidget(self.extension_filter_combo)
 
         # Search Bar
@@ -176,13 +176,13 @@ class CreateDocumentDialog(QDialog):
         type_map_from_ext = {".html": "document_html", ".xlsx": "document_excel", ".docx": "document_word"} # Add other types if needed
 
         selected_ext_val = ext_map.get(selected_ext_display)
-        template_type_filter = None
-        if selected_ext_display != self.tr("All"):
-            template_type_filter = type_map_from_ext.get(selected_ext_val)
+        # template_type_filter will be applied locally after DB fetch
+        # The DB query will use template_type_filter_list for broad document types
 
         effective_lang_filter = selected_lang if selected_lang != self.tr("All") else None
         current_client_id = self.client_info.get('client_id')
-        logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
+        # logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, ext_filter (maps to type): {template_type_filter}, search: '{search_text}'")
+        logging.info(f"Loading templates with lang_filter: {effective_lang_filter}, UI ext_filter: {selected_ext_display}, search: '{search_text}'")
 
         try:
             # Fetch client-specific and global templates based on filters
@@ -216,18 +216,34 @@ class CreateDocumentDialog(QDialog):
                 # To be safe, if empty, we might not want to filter by category at all,
                 # or ensure get_all_templates handles it. If get_all_templates expects None to not filter,
                 # then: category_id_filter = category_ids_to_filter if category_ids_to_filter else None
-            actual_category_id_filter = category_ids_to_filter if category_ids_to_filter else None
+            if not category_ids_to_filter:
+                logging.warning(f"No categories found for desired purposes {desired_purposes}. Expanding filter to include templates from any category (or those with NULL purpose if DB handles it implicitly).")
+                actual_category_id_filter = None # This will cause get_all_templates to not filter by category
+            else:
+                actual_category_id_filter = category_ids_to_filter
+
+            document_template_types = ['document_html', 'document_excel', 'document_word', 'document_pdf', 'document_other']
+            logging.info(f"DB query will use template_type_filter_list: {document_template_types}")
 
             templates_from_db = db_manager.get_all_templates(
-                template_type_filter=template_type_filter,
+                template_type_filter_list=document_template_types, # Use list for broad doc types
+                template_type_filter=None, # Set single type filter to None for DB query
                 language_code_filter=effective_lang_filter,
                 client_id_filter=current_client_id,
                 category_id_filter=actual_category_id_filter
             )
             if templates_from_db is None: templates_from_db = []
-            logging.info(f"Fetched {len(templates_from_db)} templates from DB initially after category filtering.")
-            # Add new log here
-            logging.info(f"Templates received from get_all_templates (before search/default processing): {len(templates_from_db)}")
+            logging.info(f"Fetched {len(templates_from_db)} document-type templates from DB.")
+
+            # Apply UI's extension filter locally
+            if selected_ext_display != self.tr("All"):
+                target_template_type_for_gui_filter = type_map_from_ext.get(ext_map.get(selected_ext_display))
+                if target_template_type_for_gui_filter:
+                    templates_from_db = [
+                        t for t in templates_from_db
+                        if t.get('template_type') == target_template_type_for_gui_filter
+                    ]
+            logging.info(f"Templates after local extension filter '{selected_ext_display}': {len(templates_from_db)}")
 
             # Apply search text filter locally first
             if search_text:
@@ -235,6 +251,7 @@ class CreateDocumentDialog(QDialog):
                     t for t in templates_from_db
                     if search_text in t.get('template_name', '').lower()
                 ]
+            logging.info(f"Templates after local search filter '{search_text}': {len(templates_from_db)}")
 
             # Refine default status based on client-specificity
             # Key: (template_type, language_code)
@@ -363,8 +380,8 @@ class CreateDocumentDialog(QDialog):
             # Path construction modification: include template_type as a subdirectory
             template_type_folder = template_type if template_type and template_type.strip() else "unknown_type"
 
-            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], template_type_folder, db_template_lang, actual_template_filename)
-            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Type: {template_type_folder}, Lang: {db_template_lang}, File: {actual_template_filename})")
+            template_file_on_disk_abs = os.path.join(self.config["templates_dir"], db_template_lang, actual_template_filename)
+            logging.info(f"Constructed template path for existence check: {template_file_on_disk_abs} (Lang: {db_template_lang}, File: {actual_template_filename})")
 
             if not os.path.exists(template_file_on_disk_abs):
                 logging.warning(f"Template file not found on disk: {template_file_on_disk_abs} for template name '{db_template_name}'. Skipping this template.")
